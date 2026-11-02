@@ -18,9 +18,9 @@ class Msi32(api.ApiHandler):
     def MsiDatabaseMergeA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT MsiDatabaseMergeA(
-          MSIHANDLE hDatabase,
-          MSIHANDLE hDatabaseMerge,
-          LPCSTR    szTableName
+            MSIHANDLE hDatabase,
+            MSIHANDLE hDatabaseMerge,
+            LPCSTR szTableName
         );
         """
         return 0

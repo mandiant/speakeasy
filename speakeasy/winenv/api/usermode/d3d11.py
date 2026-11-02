@@ -27,16 +27,16 @@ class D3d11(api.ApiHandler):
     def D3D11CreateDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT D3D11CreateDevice(
-          IDXGIAdapter            *pAdapter,
-          D3D_DRIVER_TYPE         DriverType,
-          HMODULE                 Software,
-          UINT                    Flags,
-          const D3D_FEATURE_LEVEL *pFeatureLevels,
-          UINT                    FeatureLevels,
-          UINT                    SDKVersion,
-          ID3D11Device            **ppDevice,
-          D3D_FEATURE_LEVEL       *pFeatureLevel,
-          ID3D11DeviceContext     **ppImmediateContext
+            IDXGIAdapter *pAdapter,
+            D3D_DRIVER_TYPE DriverType,
+            HMODULE Software,
+            UINT Flags,
+            const D3D_FEATURE_LEVEL *pFeatureLevels,
+            UINT FeatureLevels,
+            UINT SDKVersion,
+            ID3D11Device **ppDevice,
+            D3D_FEATURE_LEVEL *pFeatureLevel,
+            ID3D11DeviceContext **ppImmediateContext
         );
         """
         ppDevice, pFeatureLevel, ppImmediateContext = argv[7:]
@@ -47,18 +47,18 @@ class D3d11(api.ApiHandler):
     def D3D11CreateDeviceAndSwapChain(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT D3D11CreateDeviceAndSwapChain(
-          IDXGIAdapter               *pAdapter,
-          D3D_DRIVER_TYPE            DriverType,
-          HMODULE                    Software,
-          UINT                       Flags,
-          const D3D_FEATURE_LEVEL    *pFeatureLevels,
-          UINT                       FeatureLevels,
-          UINT                       SDKVersion,
-          const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
-          IDXGISwapChain             **ppSwapChain,
-          ID3D11Device               **ppDevice,
-          D3D_FEATURE_LEVEL          *pFeatureLevel,
-          ID3D11DeviceContext        **ppImmediateContext
+            IDXGIAdapter *pAdapter,
+            D3D_DRIVER_TYPE DriverType,
+            HMODULE Software,
+            UINT Flags,
+            const D3D_FEATURE_LEVEL *pFeatureLevels,
+            UINT FeatureLevels,
+            UINT SDKVersion,
+            const DXGI_SWAP_CHAIN_DESC *pSwapChainDesc,
+            IDXGISwapChain **ppSwapChain,
+            ID3D11Device **ppDevice,
+            D3D_FEATURE_LEVEL *pFeatureLevel,
+            ID3D11DeviceContext **ppImmediateContext
         );
         """
         ppSwapChain, ppDevice, pFeatureLevel, ppImmediateContext = argv[8:]

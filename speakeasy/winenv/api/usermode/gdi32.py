@@ -60,10 +60,10 @@ class GDI32(api.ApiHandler):
     def CreateBitmap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP CreateBitmap(
-            int        nWidth,
-            int        nHeight,
-            UINT       nPlanes,
-            UINT       nBitCount,
+            int nWidth,
+            int nHeight,
+            UINT nPlanes,
+            UINT nBitCount,
             const VOID *lpBits
         );
         """
@@ -73,10 +73,10 @@ class GDI32(api.ApiHandler):
     def MoveToEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL MoveToEx(
-          HDC     hdc,
-          int     x,
-          int     y,
-          LPPOINT lppt
+            HDC hdc,
+            int x,
+            int y,
+            LPPOINT lppt
         );
         """
         return 1
@@ -85,10 +85,10 @@ class GDI32(api.ApiHandler):
     def LineTo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LineTo(
-          HDC hdc,
-          int x,
-          int y
-        )
+            HDC hdc,
+            int x,
+            int y
+        );
         """
         return 1
 
@@ -128,7 +128,7 @@ class GDI32(api.ApiHandler):
     def GdiSetBatchLimit(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GdiSetBatchLimit(
-          DWORD dw
+            DWORD dw
         );
         """
         return 0
@@ -137,18 +137,18 @@ class GDI32(api.ApiHandler):
     def MaskBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL MaskBlt(
-          HDC     hdcDest,
-          int     xDest,
-          int     yDest,
-          int     width,
-          int     height,
-          HDC     hdcSrc,
-          int     xSrc,
-          int     ySrc,
-          HBITMAP hbmMask,
-          int     xMask,
-          int     yMask,
-          DWORD   rop
+            HDC hdcDest,
+            int xDest,
+            int yDest,
+            int width,
+            int height,
+            HDC hdcSrc,
+            int xSrc,
+            int ySrc,
+            HBITMAP hbmMask,
+            int xMask,
+            int yMask,
+            DWORD rop
         );
         """
         return 1
@@ -173,7 +173,7 @@ class GDI32(api.ApiHandler):
     def DeleteDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DeleteDC(
-        HDC hdc
+            HDC hdc
         );
         """
         return 1
@@ -182,8 +182,8 @@ class GDI32(api.ApiHandler):
     def SelectObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HGDIOBJ SelectObject(
-          HDC     hdc,
-          HGDIOBJ h
+            HDC hdc,
+            HGDIOBJ h
         );
         """
         hdc, h = argv
@@ -197,7 +197,7 @@ class GDI32(api.ApiHandler):
     def DeleteObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DeleteObject(
-        HGDIOBJ ho
+            HGDIOBJ ho
         );
         """
         return 1
@@ -206,9 +206,9 @@ class GDI32(api.ApiHandler):
     def CreateCompatibleBitmap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP CreateCompatibleBitmap(
-        HDC hdc,
-        int cx,
-        int cy
+            HDC hdc,
+            int cx,
+            int cy
         );
         """
         return 0
@@ -217,7 +217,7 @@ class GDI32(api.ApiHandler):
     def CreateCompatibleDC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC CreateCompatibleDC(
-        HDC hdc
+            HDC hdc
         );
         """
         return self.get_handle()
@@ -226,13 +226,13 @@ class GDI32(api.ApiHandler):
     def GetDIBits(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetDIBits(
-        HDC          hdc,
-        HBITMAP      hbm,
-        UINT         start,
-        UINT         cLines,
-        LPVOID       lpvBits,
-        LPBITMAPINFO lpbmi,
-        UINT         usage
+            HDC hdc,
+            HBITMAP hbm,
+            UINT start,
+            UINT cLines,
+            LPVOID lpvBits,
+            LPBITMAPINFO lpbmi,
+            UINT usage
         );
         """
         return 0
@@ -241,12 +241,12 @@ class GDI32(api.ApiHandler):
     def CreateDIBSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HBITMAP CreateDIBSection(
-          [in]  HDC              hdc,
-          [in]  const BITMAPINFO *pbmi,
-          [in]  UINT             usage,
-          [out] VOID             **ppvBits,
-          [in]  HANDLE           hSection,
-          [in]  DWORD            offset
+            HDC hdc,
+            const BITMAPINFO *pbmi,
+            UINT usage,
+            VOID **ppvBits,
+            HANDLE hSection,
+            DWORD offset
         );
         """
         hdc, pbmi, usage, ppvBits, hSection, offset = argv
@@ -265,10 +265,10 @@ class GDI32(api.ApiHandler):
     def CreateDCA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HDC CreateDCA(
-        LPCSTR         pwszDriver,
-        LPCSTR         pwszDevice,
-        LPCSTR         pszPort,
-        const DEVMODEA *pdm
+            LPCSTR pwszDriver,
+            LPCSTR pwszDevice,
+            LPCSTR pszPort,
+            const DEVMODEA *pdm
         );
         """
         return 0
@@ -277,7 +277,7 @@ class GDI32(api.ApiHandler):
     def GetTextCharacterExtra(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetTextCharacterExtra(
-          HDC hdc
+            HDC hdc
         );
         """
         return 0x8000000
@@ -286,17 +286,17 @@ class GDI32(api.ApiHandler):
     def StretchBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StretchBlt(
-          HDC   hdcDest,
-          int   xDest,
-          int   yDest,
-          int   wDest,
-          int   hDest,
-          HDC   hdcSrc,
-          int   xSrc,
-          int   ySrc,
-          int   wSrc,
-          int   hSrc,
-          DWORD rop
+            HDC hdcDest,
+            int xDest,
+            int yDest,
+            int wDest,
+            int hDest,
+            HDC hdcSrc,
+            int xSrc,
+            int ySrc,
+            int wSrc,
+            int hSrc,
+            DWORD rop
         );
         """
         return 0
@@ -318,7 +318,7 @@ class GDI32(api.ApiHandler):
         """
         int GetObjectA(
             HANDLE h,
-            int    c,
+            int c,
             LPVOID pv
         );
         """

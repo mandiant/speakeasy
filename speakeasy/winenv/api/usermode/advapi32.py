@@ -60,9 +60,9 @@ class AdvApi32(api.ApiHandler):
     def RegOpenKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegOpenKeyA(
-          HKEY   hKey,
-          LPCSTR lpSubKey,
-          PHKEY  phkResult
+            HKEY hKey,
+            LPCSTR lpSubKey,
+            PHKEY phkResult
         );
         """
         hKey, lpSubKey, phkResult = argv
@@ -73,11 +73,11 @@ class AdvApi32(api.ApiHandler):
     def RegOpenKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegOpenKeyEx(
-          HKEY   hKey,
-          LPTSTR lpSubKey,
-          DWORD  ulOptions,
-          REGSAM samDesired,
-          PHKEY  phkResult
+            HKEY hKey,
+            LPTSTR lpSubKey,
+            DWORD ulOptions,
+            REGSAM samDesired,
+            PHKEY phkResult
         );
         """
         hKey, lpSubKey, ulOptions, samDesired, phkResult = argv
@@ -137,12 +137,12 @@ class AdvApi32(api.ApiHandler):
     def RegQueryValueEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegQueryValueEx(
-          HKEY    hKey,
-          LPTSTR  lpValueName,
-          LPDWORD lpReserved,
-          LPDWORD lpType,
-          LPBYTE  lpData,
-          LPDWORD lpcbData
+            HKEY hKey,
+            LPTSTR lpValueName,
+            LPDWORD lpReserved,
+            LPDWORD lpType,
+            LPBYTE lpData,
+            LPDWORD lpcbData
         );
         """
         hKey, lpValueName, lpReserved, lpType, lpData, lpcbData = argv
@@ -205,12 +205,12 @@ class AdvApi32(api.ApiHandler):
     def RegSetValueEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegSetValueEx(
-          HKEY       hKey,
-          LPCSTR     lpValueName,
-          DWORD      Reserved,
-          DWORD      dwType,
-          const BYTE *lpData,
-          DWORD      cbData
+            HKEY hKey,
+            LPCSTR lpValueName,
+            DWORD Reserved,
+            DWORD dwType,
+            const BYTE *lpData,
+            DWORD cbData
         );
         """
         hKey, lpValueName, _reserved, dwType, lpData, cbData = argv
@@ -266,7 +266,7 @@ class AdvApi32(api.ApiHandler):
     def RegCloseKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegCloseKey(
-          HKEY hKey
+            HKEY hKey
         );
         """
 
@@ -281,10 +281,10 @@ class AdvApi32(api.ApiHandler):
     def RegEnumKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegEnumKey(
-          HKEY  hKey,
-          DWORD dwIndex,
-          LPTSTR lpName,
-          DWORD cchName
+            HKEY hKey,
+            DWORD dwIndex,
+            LPTSTR lpName,
+            DWORD cchName
         );
         """
         hKey, dwIndex, lpName, cchName = argv
@@ -297,13 +297,13 @@ class AdvApi32(api.ApiHandler):
     def RegEnumKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegEnumKeyEx(
-            HKEY      hKey,
-            DWORD     dwIndex,
-            LPSTR     lpName,
-            LPDWORD   lpcchName,
-            LPDWORD   lpReserved,
-            LPSTR     lpClass,
-            LPDWORD   lpcchClass,
+            HKEY hKey,
+            DWORD dwIndex,
+            LPSTR lpName,
+            LPDWORD lpcchName,
+            LPDWORD lpReserved,
+            LPSTR lpClass,
+            LPDWORD lpcchClass,
             PFILETIME lpftLastWriteTime
         );
         """
@@ -348,9 +348,9 @@ class AdvApi32(api.ApiHandler):
     def RegCreateKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegCreateKey(
-            HKEY    hKey,
+            HKEY hKey,
             LPCWSTR lpSubKey,
-            PHKEY   phkResult
+            PHKEY phkResult
         );
         """
         hkey, lpSubKey, phkResult = argv
@@ -380,15 +380,15 @@ class AdvApi32(api.ApiHandler):
     def RegCreateKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegCreateKeyExA(
-          HKEY                  hKey,
-          LPCSTR                lpSubKey,
-          DWORD                 Reserved,
-          LPSTR                 lpClass,
-          DWORD                 dwOptions,
-          REGSAM                samDesired,
-          const LPSECURITY_ATTRIBUTES lpSecurityAttributes,
-          PHKEY                 phkResult,
-          LPDWORD               lpdwDisposition
+            HKEY hKey,
+            LPCSTR lpSubKey,
+            DWORD Reserved,
+            LPSTR lpClass,
+            DWORD dwOptions,
+            REGSAM samDesired,
+            const LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+            PHKEY phkResult,
+            LPDWORD lpdwDisposition
         );
         """
         hKey, lpSubKey, _reserved, _lpClass, _dwOptions, _samDesired, _sa, phkResult, lpdwDisposition = argv
@@ -432,8 +432,8 @@ class AdvApi32(api.ApiHandler):
     def RegDeleteValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegDeleteValueA(
-          HKEY   hKey,
-          LPCSTR lpValueName
+            HKEY hKey,
+            LPCSTR lpValueName
         );
         """
         hKey, lpValueName = argv
@@ -460,18 +460,18 @@ class AdvApi32(api.ApiHandler):
         # TODO: stub
         """
         LSTATUS RegQueryInfoKeyA(
-          HKEY      hKey,
-          LPSTR     lpClass,
-          LPDWORD   lpcchClass,
-          LPDWORD   lpReserved,
-          LPDWORD   lpcSubKeys,
-          LPDWORD   lpcbMaxSubKeyLen,
-          LPDWORD   lpcbMaxClassLen,
-          LPDWORD   lpcValues,
-          LPDWORD   lpcbMaxValueNameLen,
-          LPDWORD   lpcbMaxValueLen,
-          LPDWORD   lpcbSecurityDescriptor,
-          PFILETIME lpftLastWriteTime
+            HKEY hKey,
+            LPSTR lpClass,
+            LPDWORD lpcchClass,
+            LPDWORD lpReserved,
+            LPDWORD lpcSubKeys,
+            LPDWORD lpcbMaxSubKeyLen,
+            LPDWORD lpcbMaxClassLen,
+            LPDWORD lpcValues,
+            LPDWORD lpcbMaxValueNameLen,
+            LPDWORD lpcbMaxValueLen,
+            LPDWORD lpcbSecurityDescriptor,
+            PFILETIME lpftLastWriteTime
         );
         """
 
@@ -526,9 +526,9 @@ class AdvApi32(api.ApiHandler):
     def OpenProcessToken(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL OpenProcessToken(
-          HANDLE  ProcessHandle,
-          DWORD   DesiredAccess,
-          PHANDLE pTokenHandle
+            HANDLE ProcessHandle,
+            DWORD DesiredAccess,
+            PHANDLE pTokenHandle
         );
         """
 
@@ -558,9 +558,9 @@ class AdvApi32(api.ApiHandler):
     def OpenThreadToken(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL OpenThreadToken(
-            HANDLE  ThreadHandle,
-            DWORD   DesiredAccess,
-            BOOL    OpenAsSelf,
+            HANDLE ThreadHandle,
+            DWORD DesiredAccess,
+            BOOL OpenAsSelf,
             PHANDLE TokenHandle
         );
         """
@@ -591,12 +591,12 @@ class AdvApi32(api.ApiHandler):
     def DuplicateTokenEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DuplicateTokenEx(
-          HANDLE                       hExistingToken,
-          DWORD                        dwDesiredAccess,
-          LPSECURITY_ATTRIBUTES        lpTokenAttributes,
-          SECURITY_IMPERSONATION_LEVEL ImpersonationLevel,
-          TOKEN_TYPE                   TokenType,
-          PHANDLE                      phNewToken
+            HANDLE hExistingToken,
+            DWORD dwDesiredAccess,
+            LPSECURITY_ATTRIBUTES lpTokenAttributes,
+            SECURITY_IMPERSONATION_LEVEL ImpersonationLevel,
+            TOKEN_TYPE TokenType,
+            PHANDLE phNewToken
         );
         """
 
@@ -623,10 +623,10 @@ class AdvApi32(api.ApiHandler):
     def SetTokenInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetTokenInformation(
-          HANDLE                  TokenHandle,
-          TOKEN_INFORMATION_CLASS TokenInformationClass,
-          LPVOID                  TokenInformation,
-          DWORD                   TokenInformationLength
+            HANDLE TokenHandle,
+            TOKEN_INFORMATION_CLASS TokenInformationClass,
+            LPVOID TokenInformation,
+            DWORD TokenInformationLength
         );
         """
 
@@ -640,7 +640,7 @@ class AdvApi32(api.ApiHandler):
     def StartServiceCtrlDispatcher(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StartServiceCtrlDispatcher(
-          const SERVICE_TABLE_ENTRY *lpServiceStartTable
+            const SERVICE_TABLE_ENTRY *lpServiceStartTable
         );
         """
         (lpServiceStartTable,) = argv
@@ -681,9 +681,9 @@ class AdvApi32(api.ApiHandler):
     def RegisterServiceCtrlHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerA(
-            LPCSTR             lpServiceName,
+            LPCSTR lpServiceName,
             LPHANDLER_FUNCTION lpHandlerProc
-            );
+        );
         """
 
         lpServiceName, lpHandlerProc = argv
@@ -699,9 +699,9 @@ class AdvApi32(api.ApiHandler):
     def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerExA(
-            LPCSTR                lpServiceName,
+            LPCSTR lpServiceName,
             LPHANDLER_FUNCTION_EX lpHandlerProc,
-            LPVOID                lpContext
+            LPVOID lpContext
         );
         """
         lpServiceName, lpHandlerProc, lpContext = argv
@@ -713,8 +713,8 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL SetServiceStatus(
             SERVICE_STATUS_HANDLE hServiceStatus,
-            LPSERVICE_STATUS      lpServiceStatus
-            );
+            LPSERVICE_STATUS lpServiceStatus
+        );
         """
 
         hServiceStatus, lpServiceStatus = argv
@@ -734,7 +734,7 @@ class AdvApi32(api.ApiHandler):
     def ImpersonateLoggedOnUser(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ImpersonateLoggedOnUser(
-        HANDLE hToken
+            HANDLE hToken
         );
         """
         return 1
@@ -743,9 +743,9 @@ class AdvApi32(api.ApiHandler):
     def OpenSCManager(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE OpenSCManager(
-          LPCSTR lpMachineName,
-          LPCSTR lpDatabaseName,
-          DWORD  dwDesiredAccess
+            LPCSTR lpMachineName,
+            LPCSTR lpDatabaseName,
+            DWORD dwDesiredAccess
         );
         """
         lpMachineName, lpDatabaseName, dwDesiredAccess = argv
@@ -759,19 +759,19 @@ class AdvApi32(api.ApiHandler):
     def CreateService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE CreateServiceA(
-          SC_HANDLE hSCManager,
-          LPCSTR    lpServiceName,
-          LPCSTR    lpDisplayName,
-          DWORD     dwDesiredAccess,
-          DWORD     dwServiceType,
-          DWORD     dwStartType,
-          DWORD     dwErrorControl,
-          LPCSTR    lpBinaryPathName,
-          LPCSTR    lpLoadOrderGroup,
-          LPDWORD   lpdwTagId,
-          LPCSTR    lpDependencies,
-          LPCSTR    lpServiceStartName,
-          LPCSTR    lpPassword
+            SC_HANDLE hSCManager,
+            LPCSTR lpServiceName,
+            LPCSTR lpDisplayName,
+            DWORD dwDesiredAccess,
+            DWORD dwServiceType,
+            DWORD dwStartType,
+            DWORD dwErrorControl,
+            LPCSTR lpBinaryPathName,
+            LPCSTR lpLoadOrderGroup,
+            LPDWORD lpdwTagId,
+            LPCSTR lpDependencies,
+            LPCSTR lpServiceStartName,
+            LPCSTR lpPassword
         );
         """
         (
@@ -821,9 +821,9 @@ class AdvApi32(api.ApiHandler):
     def StartService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StartService(
-          SC_HANDLE hService,
-          DWORD     dwNumServiceArgs,
-          LPCSTR    *lpServiceArgVectors
+            SC_HANDLE hService,
+            DWORD dwNumServiceArgs,
+            LPCSTR *lpServiceArgVectors
         );
         """
         hService, dwNumServiceArgs, lpServiceArgVectors = argv
@@ -842,9 +842,9 @@ class AdvApi32(api.ApiHandler):
     def ControlService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ControlService(
-          [in]  SC_HANDLE        hService,
-          [in]  DWORD            dwControl,
-          [out] LPSERVICE_STATUS lpServiceStatus
+            SC_HANDLE hService,
+            DWORD dwControl,
+            LPSERVICE_STATUS lpServiceStatus
         );
         """
         hService, dwControl, lpServiceStatus = argv
@@ -859,8 +859,8 @@ class AdvApi32(api.ApiHandler):
     def QueryServiceStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL QueryServiceStatus(
-          SC_HANDLE        hService,
-          LPSERVICE_STATUS lpServiceStatus
+            SC_HANDLE hService,
+            LPSERVICE_STATUS lpServiceStatus
         );
         """
         hService, lpServiceStatus = argv
@@ -888,10 +888,10 @@ class AdvApi32(api.ApiHandler):
     def QueryServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL QueryServiceConfigA(
-          SC_HANDLE               hService,
-          LPQUERY_SERVICE_CONFIGA lpServiceConfig,
-          DWORD                   cbBufSize,
-          LPDWORD                 pcbBytesNeeded
+            SC_HANDLE hService,
+            LPQUERY_SERVICE_CONFIGA lpServiceConfig,
+            DWORD cbBufSize,
+            LPDWORD pcbBytesNeeded
         );
         """
         hService, lpServiceConfig, cbBufSize, pcbBytesNeeded = argv
@@ -929,7 +929,7 @@ class AdvApi32(api.ApiHandler):
     def CloseServiceHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CloseServiceHandle(
-          SC_HANDLE hSCObject
+            SC_HANDLE hSCObject
         );
         """
         (CloseServiceHandle,) = argv
@@ -946,17 +946,17 @@ class AdvApi32(api.ApiHandler):
     def ChangeServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ChangeServiceConfigA(
-          SC_HANDLE hService,
-          DWORD     dwServiceType,
-          DWORD     dwStartType,
-          DWORD     dwErrorControl,
-          LPCSTR    lpBinaryPathName,
-          LPCSTR    lpLoadOrderGroup,
-          LPDWORD   lpdwTagId,
-          LPCSTR    lpDependencies,
-          LPCSTR    lpServiceStartName,
-          LPCSTR    lpPassword,
-          LPCSTR    lpDisplayName
+            SC_HANDLE hService,
+            DWORD dwServiceType,
+            DWORD dwStartType,
+            DWORD dwErrorControl,
+            LPCSTR lpBinaryPathName,
+            LPCSTR lpLoadOrderGroup,
+            LPDWORD lpdwTagId,
+            LPCSTR lpDependencies,
+            LPCSTR lpServiceStartName,
+            LPCSTR lpPassword,
+            LPCSTR lpDisplayName
         );
         """
         (
@@ -995,9 +995,9 @@ class AdvApi32(api.ApiHandler):
     def ChangeServiceConfig2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ChangeServiceConfig2(
-          SC_HANDLE hService,
-          DWORD     dwInfoLevel,
-          LPVOID    lpInfo
+            SC_HANDLE hService,
+            DWORD dwInfoLevel,
+            LPVOID lpInfo
         );
         """
         hService, dwInfoLevel, lpInfo = argv
@@ -1030,10 +1030,10 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CryptAcquireContext(
             HCRYPTPROV *phProv,
-            LPCSTR     szContainer,
-            LPCSTR     szProvider,
-            DWORD      dwProvType,
-            DWORD      dwFlags
+            LPCSTR szContainer,
+            LPCSTR szProvider,
+            DWORD dwProvType,
+            DWORD dwFlags
         );
         """
         phProv, szContainer, szProvider, dwProvType, dwFlags = argv
@@ -1063,8 +1063,8 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CryptGenRandom(
             HCRYPTPROV hProv,
-            DWORD      dwLen,
-            BYTE       *pbBuffer
+            DWORD dwLen,
+            BYTE *pbBuffer
         );
         """
         hProv, dwLen, pbBuffer = argv
@@ -1081,16 +1081,16 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL AllocateAndInitializeSid(
             PSID_IDENTIFIER_AUTHORITY pIdentifierAuthority,
-            BYTE                      nSubAuthorityCount,
-            DWORD                     nSubAuthority0,
-            DWORD                     nSubAuthority1,
-            DWORD                     nSubAuthority2,
-            DWORD                     nSubAuthority3,
-            DWORD                     nSubAuthority4,
-            DWORD                     nSubAuthority5,
-            DWORD                     nSubAuthority6,
-            DWORD                     nSubAuthority7,
-            PSID                      *pSid
+            BYTE nSubAuthorityCount,
+            DWORD nSubAuthority0,
+            DWORD nSubAuthority1,
+            DWORD nSubAuthority2,
+            DWORD nSubAuthority3,
+            DWORD nSubAuthority4,
+            DWORD nSubAuthority5,
+            DWORD nSubAuthority6,
+            DWORD nSubAuthority7,
+            PSID *pSid
         );
         """
         auth, count, *subauthorities, pSid = argv
@@ -1110,9 +1110,9 @@ class AdvApi32(api.ApiHandler):
     def InitializeSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InitializeSid(
-            PSID                      Sid,
+            PSID Sid,
             PSID_IDENTIFIER_AUTHORITY pIdentifierAuthority,
-            BYTE                      nSubAuthorityCount
+            BYTE nSubAuthorityCount
         );
         """
         sid, auth, count = argv
@@ -1166,8 +1166,8 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CopySid(
             DWORD nDestinationSidLength,
-            PSID  pDestinationSid,
-            PSID  pSourceSid
+            PSID pDestinationSid,
+            PSID pSourceSid
         );
         """
         dst_len, dst, src = argv
@@ -1186,8 +1186,8 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CheckTokenMembership(
             HANDLE TokenHandle,
-            PSID   SidToCheck,
-            PBOOL  IsMember
+            PSID SidToCheck,
+            PBOOL IsMember
         );
         """
         TokenHandle, SidToCheck, IsMember = argv
@@ -1217,14 +1217,14 @@ class AdvApi32(api.ApiHandler):
     def GetSecurityInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetSecurityInfo(
-          HANDLE               handle,
-          SE_OBJECT_TYPE       ObjectType,
-          SECURITY_INFORMATION SecurityInfo,
-          PSID                 *ppsidOwner,
-          PSID                 *ppsidGroup,
-          PACL                 *ppDacl,
-          PACL                 *ppSacl,
-          PSECURITY_DESCRIPTOR *ppSecurityDescriptor
+            HANDLE handle,
+            SE_OBJECT_TYPE ObjectType,
+            SECURITY_INFORMATION SecurityInfo,
+            PSID *ppsidOwner,
+            PSID *ppsidGroup,
+            PACL *ppDacl,
+            PACL *ppSacl,
+            PSECURITY_DESCRIPTOR *ppSecurityDescriptor
         );
         """
         handle = argv[0]
@@ -1240,13 +1240,13 @@ class AdvApi32(api.ApiHandler):
     def SetSecurityInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD SetSecurityInfo(
-          HANDLE               handle,
-          SE_OBJECT_TYPE       ObjectType,
-          SECURITY_INFORMATION SecurityInfo,
-          PSID                 psidOwner,
-          PSID                 psidGroup,
-          PACL                 pDacl,
-          PACL                 pSacl
+            HANDLE handle,
+            SE_OBJECT_TYPE ObjectType,
+            SECURITY_INFORMATION SecurityInfo,
+            PSID psidOwner,
+            PSID psidGroup,
+            PACL pDacl,
+            PACL pSacl
         );
         """
         handle = argv[0]
@@ -1259,7 +1259,7 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CryptReleaseContext(
             HCRYPTPROV hProv,
-            DWORD      dwFlags
+            DWORD dwFlags
         );
         """
         hProv, dwFlags = argv
@@ -1277,7 +1277,7 @@ class AdvApi32(api.ApiHandler):
     def GetCurrentHwProfile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetCurrentHwProfileA(
-          LPHW_PROFILE_INFOA lpHwProfileInfo
+            LPHW_PROFILE_INFOA lpHwProfileInfo
         );
         """
         (lpHwProfileInfo,) = argv
@@ -1310,7 +1310,7 @@ class AdvApi32(api.ApiHandler):
     def GetUserName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetUserName(
-            LPSTR   lpBuffer,
+            LPSTR lpBuffer,
             LPDWORD pcbBuffer
         );
         """
@@ -1340,7 +1340,7 @@ class AdvApi32(api.ApiHandler):
         BOOL LookupPrivilegeValue(
             LPCSTR lpSystemName,
             LPCSTR lpName,
-            PLUID  lpLuid
+            PLUID lpLuid
         );
         """
         sysname, name, luid = argv
@@ -1361,12 +1361,12 @@ class AdvApi32(api.ApiHandler):
     def AdjustTokenPrivileges(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL AdjustTokenPrivileges(
-            HANDLE            TokenHandle,
-            BOOL              DisableAllPrivileges,
+            HANDLE TokenHandle,
+            BOOL DisableAllPrivileges,
             PTOKEN_PRIVILEGES NewState,
-            DWORD             BufferLength,
+            DWORD BufferLength,
             PTOKEN_PRIVILEGES PreviousState,
-            PDWORD            ReturnLength
+            PDWORD ReturnLength
         );
         """
         rv = True
@@ -1377,11 +1377,11 @@ class AdvApi32(api.ApiHandler):
     def GetTokenInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetTokenInformation(
-            HANDLE                  TokenHandle,
+            HANDLE TokenHandle,
             TOKEN_INFORMATION_CLASS TokenInformationClass,
-            LPVOID                  TokenInformation,
-            DWORD                   TokenInformationLength,
-            PDWORD                  ReturnLength
+            LPVOID TokenInformation,
+            DWORD TokenInformationLength,
+            PDWORD ReturnLength
         );
         """
         hnd, info_class, info, info_len, ret_len = argv
@@ -1421,8 +1421,8 @@ class AdvApi32(api.ApiHandler):
     def ConvertSidToStringSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ConvertSidToStringSidA(
-          [in]  PSID  Sid,
-          [out] LPSTR *StringSid
+            PSID Sid,
+            LPSTR *StringSid
         );
         """
         sid, string_sid = argv
@@ -1459,7 +1459,7 @@ class AdvApi32(api.ApiHandler):
     def GetSidIdentifierAuthority(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PSID_IDENTIFIER_AUTHORITY GetSidIdentifierAuthority(
-          [in] PSID pSid
+            PSID pSid
         );
         """
         (sid,) = argv
@@ -1486,8 +1486,8 @@ class AdvApi32(api.ApiHandler):
     def GetSidSubAuthority(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PDWORD GetSidSubAuthority(
-          [in] PSID  pSid,
-          [in] DWORD nSubAuthority
+            PSID pSid,
+            DWORD nSubAuthority
         );
         """
         sid, nsub = argv
@@ -1499,13 +1499,13 @@ class AdvApi32(api.ApiHandler):
     def LookupAccountName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupAccountNameA(
-          [in, optional]  LPCSTR        lpSystemName,
-          [in]            LPCSTR        lpAccountName,
-          [out, optional] PSID          Sid,
-          [in, out]       LPDWORD       cbSid,
-          [out, optional] LPSTR         ReferencedDomainName,
-          [in, out]       LPDWORD       cchReferencedDomainName,
-          [out]           PSID_NAME_USE peUse
+            LPCSTR lpSystemName,
+            LPCSTR lpAccountName,
+            PSID Sid,
+            LPDWORD cbSid,
+            LPSTR ReferencedDomainName,
+            LPDWORD cchReferencedDomainName,
+            PSID_NAME_USE peUse
         );
         """
         ptr_sysname, ptr_acctname, ptr_sid, ptr_cbsid, ptr_domname, ptr_cchdomname, ptr_peuse = argv
@@ -1569,12 +1569,12 @@ class AdvApi32(api.ApiHandler):
     def LookupAccountSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupAccountSid(
-            LPCSTR        lpSystemName,
-            PSID          Sid,
-            LPSTR         Name,
-            LPDWORD       cchName,
-            LPSTR         ReferencedDomainName,
-            LPDWORD       cchReferencedDomainName,
+            LPCSTR lpSystemName,
+            PSID Sid,
+            LPSTR Name,
+            LPDWORD cchName,
+            LPSTR ReferencedDomainName,
+            LPDWORD cchReferencedDomainName,
             PSID_NAME_USE peUse
         );
         """
@@ -1617,17 +1617,17 @@ class AdvApi32(api.ApiHandler):
     def CreateProcessAsUser(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CreateProcessAsUser(
-          HANDLE                hToken,
-          LPCSTR                lpApplicationName,
-          LPSTR                 lpCommandLine,
-          LPSECURITY_ATTRIBUTES lpProcessAttributes,
-          LPSECURITY_ATTRIBUTES lpThreadAttributes,
-          BOOL                  bInheritHandles,
-          DWORD                 dwCreationFlags,
-          LPVOID                lpEnvironment,
-          LPCSTR                lpCurrentDirectory,
-          LPSTARTUPINFOA        lpStartupInfo,
-          LPPROCESS_INFORMATION lpProcessInformation
+            HANDLE hToken,
+            LPCSTR lpApplicationName,
+            LPSTR lpCommandLine,
+            LPSECURITY_ATTRIBUTES lpProcessAttributes,
+            LPSECURITY_ATTRIBUTES lpThreadAttributes,
+            BOOL bInheritHandles,
+            DWORD dwCreationFlags,
+            LPVOID lpEnvironment,
+            LPCSTR lpCurrentDirectory,
+            LPSTARTUPINFOA lpStartupInfo,
+            LPPROCESS_INFORMATION lpProcessInformation
         );
         """
         token, app, cmd, pa, ta, inherit, flags, env, cd, si, ppi = argv
@@ -1673,11 +1673,11 @@ class AdvApi32(api.ApiHandler):
     def CryptCreateHash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptCreateHash(
-          HCRYPTPROV hProv,
-          ALG_ID     Algid,
-          HCRYPTKEY  hKey,
-          DWORD      dwFlags,
-          HCRYPTHASH *phHash
+            HCRYPTPROV hProv,
+            ALG_ID Algid,
+            HCRYPTKEY hKey,
+            DWORD dwFlags,
+            HCRYPTHASH *phHash
         );
         """
 
@@ -1709,10 +1709,10 @@ class AdvApi32(api.ApiHandler):
     def CryptHashData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptHashData(
-          HCRYPTHASH hHash,
-          const BYTE *pbData,
-          DWORD      dwDataLen,
-          DWORD      dwFlags
+            HCRYPTHASH hHash,
+            const BYTE *pbData,
+            DWORD dwDataLen,
+            DWORD dwFlags
         );
         """
 
@@ -1733,11 +1733,11 @@ class AdvApi32(api.ApiHandler):
     def CryptGetHashParam(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptGetHashParam(
-          HCRYPTHASH hHash,
-          DWORD      dwParam,
-          BYTE       *pbData,
-          DWORD      *pdwDataLen,
-          DWORD      dwFlags
+            HCRYPTHASH hHash,
+            DWORD dwParam,
+            BYTE *pbData,
+            DWORD *pdwDataLen,
+            DWORD dwFlags
         );
         """
         hHash, dwParam, pbData, pdwDataLen, dwFlags = argv
@@ -1779,7 +1779,7 @@ class AdvApi32(api.ApiHandler):
     def MD5Init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MD5Init(
-          MD5_CTX *context
+            MD5_CTX *context
         );
         """
         (context,) = argv
@@ -1790,9 +1790,9 @@ class AdvApi32(api.ApiHandler):
     def MD5Update(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MD5Update(
-          MD5_CTX             *context,
-          const unsigned char *input,
-          unsigned int        inlen
+            MD5_CTX *context,
+            const unsigned char *input,
+            unsigned int inlen
         );
 
         Write the bit count and the input buffer into the context. The
@@ -1812,7 +1812,7 @@ class AdvApi32(api.ApiHandler):
     def MD5Final(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MD5Final(
-          MD5_CTX *context
+            MD5_CTX *context
         );
 
         Write the digest into the buf and digest members of the context.
@@ -1827,7 +1827,7 @@ class AdvApi32(api.ApiHandler):
     def CryptDestroyHash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptDestroyHash(
-          HCRYPTHASH hHash
+            HCRYPTHASH hHash
         );
         """
         return 1
@@ -1836,11 +1836,11 @@ class AdvApi32(api.ApiHandler):
     def CryptDeriveKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptDeriveKey(
-          HCRYPTPROV hProv,
-          ALG_ID     Algid,
-          HCRYPTHASH hBaseData,
-          DWORD      dwFlags,
-          HCRYPTKEY  *phKey
+            HCRYPTPROV hProv,
+            ALG_ID Algid,
+            HCRYPTHASH hBaseData,
+            DWORD dwFlags,
+            HCRYPTKEY *phKey
         );
         """
 
@@ -1888,12 +1888,12 @@ class AdvApi32(api.ApiHandler):
     def CryptDecrypt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptDecrypt(
-          HCRYPTKEY  hKey,
-          HCRYPTHASH hHash,
-          BOOL       Final,
-          DWORD      dwFlags,
-          BYTE       *pbData,
-          DWORD      *pdwDataLen
+            HCRYPTKEY hKey,
+            HCRYPTHASH hHash,
+            BOOL Final,
+            DWORD dwFlags,
+            BYTE *pbData,
+            DWORD *pdwDataLen
         );
         """
 
@@ -1936,14 +1936,14 @@ class AdvApi32(api.ApiHandler):
     def RegGetValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegGetValueW(
-            HKEY    hkey,
+            HKEY hkey,
             LPCWSTR lpSubKey,
             LPCWSTR lpValue,
-            DWORD   dwFlags,
+            DWORD dwFlags,
             LPDWORD pdwType,
-            PVOID   pvData,
+            PVOID pvData,
             LPDWORD pcbData
-            );
+        );
         """
         hKey, lpSubKey, lpValue, dwFlags, lpType, lpData, lpcbData = argv
         rv = windefs.ERROR_SUCCESS
@@ -2009,14 +2009,14 @@ class AdvApi32(api.ApiHandler):
     def EnumServicesStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumServicesStatusA(
-          SC_HANDLE              hSCManager,
-          DWORD                  dwServiceType,
-          DWORD                  dwServiceState,
-          LPENUM_SERVICE_STATUSA lpServices,
-          DWORD                  cbBufSize,
-          LPDWORD                pcbBytesNeeded,
-          LPDWORD                lpServicesReturned,
-          LPDWORD                lpResumeHandle
+            SC_HANDLE hSCManager,
+            DWORD dwServiceType,
+            DWORD dwServiceState,
+            LPENUM_SERVICE_STATUSA lpServices,
+            DWORD cbBufSize,
+            LPDWORD pcbBytesNeeded,
+            LPDWORD lpServicesReturned,
+            LPDWORD lpResumeHandle
         );
         """
         (
@@ -2088,9 +2088,9 @@ class AdvApi32(api.ApiHandler):
     def OpenService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE OpenServiceA(
-          SC_HANDLE hSCManager,
-          LPCSTR    lpServiceName,
-          DWORD     dwDesiredAccess
+            SC_HANDLE hSCManager,
+            LPCSTR lpServiceName,
+            DWORD dwDesiredAccess
         );
         """
         hSCManager, lpServiceName, dwDesiredAccess = argv
@@ -2103,7 +2103,7 @@ class AdvApi32(api.ApiHandler):
     def DeleteService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DeleteService(
-          SC_HANDLE hService
+            SC_HANDLE hService
         );
         """
         return 1

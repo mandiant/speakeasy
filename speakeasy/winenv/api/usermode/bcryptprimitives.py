@@ -19,7 +19,10 @@ class Bcryptprimitives(api.ApiHandler):
     @apihook("ProcessPrng", argc=2)
     def ProcessPrng(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL ProcessPrng(PBYTE pbData, SIZE_T cbData);
+        BOOL ProcessPrng(
+            PBYTE pbData,
+            SIZE_T cbData
+        );
         """
         pbData, cbData = argv
         self.mem_write(pbData, emu.rng.randbytes(cbData))

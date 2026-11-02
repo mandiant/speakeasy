@@ -15,6 +15,8 @@ class Shcore(api.ApiHandler):
 
     @apihook("SHTaskPoolGetUniqueContext", argc=0)
     def SHTaskPoolGetUniqueContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """DWORD SHTaskPoolGetUniqueContext();"""
+        """
+        DWORD SHTaskPoolGetUniqueContext();
+        """
         self.task_pool_context += 1
         return self.task_pool_context

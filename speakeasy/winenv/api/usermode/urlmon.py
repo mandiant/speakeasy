@@ -28,11 +28,11 @@ class Urlmon(api.ApiHandler):
     def URLDownloadToFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToFile(
-                    LPUNKNOWN            pCaller,
-                    LPCTSTR              szURL,
-                    LPCTSTR              szFileName,
-                    DWORD                dwReserved,
-                    LPBINDSTATUSCALLBACK lpfnCB
+            LPUNKNOWN pCaller,
+            LPCTSTR szURL,
+            LPCTSTR szFileName,
+            DWORD dwReserved,
+            LPBINDSTATUSCALLBACK lpfnCB
         );
         """
         pCaller, szURL, szFileName, dwReserved, lpfnCB = argv
@@ -59,12 +59,12 @@ class Urlmon(api.ApiHandler):
     def URLDownloadToCacheFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToCacheFileA(
-          LPUNKNOWN            pCaller,
-          LPCSTR               szURL,
-          LPSTR                szFileName,
-          DWORD                cchFileName,
-          DWORD                dwReserved,
-          LPBINDSTATUSCALLBACK lpfnCB
+            LPUNKNOWN pCaller,
+            LPCSTR szURL,
+            LPSTR szFileName,
+            DWORD cchFileName,
+            DWORD dwReserved,
+            LPBINDSTATUSCALLBACK lpfnCB
         );
         """
         pCaller, szURL, szFileName, cchFileName, dwReserved, lpfnCB = argv

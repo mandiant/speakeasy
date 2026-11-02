@@ -44,8 +44,8 @@ class OleAut32(api.ApiHandler):
     def SysAllocStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BSTR SysAllocStringLen(
-          [in] const OLECHAR *strIn,
-          [in] UINT          ui
+            const OLECHAR *strIn,
+            UINT ui
         );
         """
         strin, ui = argv
@@ -68,8 +68,8 @@ class OleAut32(api.ApiHandler):
     def SysAllocStringByteLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BSTR SysAllocStringByteLen(
-          [in] LPCSTR psz,
-          [in] UINT   len
+            LPCSTR psz,
+            UINT len
         );
         """
         psz, length = argv
@@ -84,9 +84,9 @@ class OleAut32(api.ApiHandler):
     def SysReAllocStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         INT SysReAllocStringLen(
-          [in, out]      BSTR          *pbstr,
-          [in, optional] const OLECHAR *psz,
-          [in]           unsigned int  len
+            BSTR *pbstr,
+            const OLECHAR *psz,
+            unsigned int len
         );
         """
         pbstr, psz, ui = argv

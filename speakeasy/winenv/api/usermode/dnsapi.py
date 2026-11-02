@@ -51,12 +51,12 @@ class DnsApi(api.ApiHandler):
     def DnsQuery_(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DNS_STATUS DnsQuery_A(
-            PCSTR       pszName,
-            WORD        wType,
-            DWORD       Options,
-            PVOID       pExtra,
+            PCSTR pszName,
+            WORD wType,
+            DWORD Options,
+            PVOID pExtra,
             PDNS_RECORD *ppQueryResults,
-            PVOID       *pReserved
+            PVOID *pReserved
         );
         """
         pszName, wType, Options, pExtra, ppQueryResults, pReserved = argv

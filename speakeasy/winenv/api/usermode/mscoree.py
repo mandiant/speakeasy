@@ -23,8 +23,8 @@ class Mscoree(api.ApiHandler):
     @apihook("CorExitProcess", argc=1)
     def CorExitProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void STDMETHODCALLTYPE CorExitProcess (
-            int  exitCode
+        void STDMETHODCALLTYPE CorExitProcess(
+            int exitCode
         );
         """
 

@@ -27,7 +27,7 @@ class Msvfw32(api.ApiHandler):
             DWORD fccType,
             DWORD fccHandler,
             UINT wMode
-            );
+        );
         """
         _fcc_type, _fcc_handler, _mode = argv
         return self.get_handle()
@@ -40,7 +40,7 @@ class Msvfw32(api.ApiHandler):
             UINT msg,
             DWORD_PTR dw1,
             DWORD_PTR dw2
-            );
+        );
         """
         _hic, _msg, _dw1, _dw2 = argv
         return 1
@@ -50,7 +50,7 @@ class Msvfw32(api.ApiHandler):
         """
         LRESULT ICClose(
             HIC hic
-            );
+        );
         """
         return 1
 
@@ -66,7 +66,7 @@ class Msvfw32(api.ApiHandler):
         """
         BOOL DrawDibClose(
             HDRAWDIB hdd
-            );
+        );
         """
         return 1
 
@@ -87,6 +87,6 @@ class Msvfw32(api.ApiHandler):
             int dxSrc,
             int dySrc,
             UINT wFlags
-            );
+        );
         """
         return 1

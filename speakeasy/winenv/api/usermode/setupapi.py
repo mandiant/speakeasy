@@ -20,9 +20,9 @@ class SetupApi(api.ApiHandler):
     def SetupDiEnumDeviceInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetupDiEnumDeviceInfo(
-          HDEVINFO         DeviceInfoSet,
-          DWORD            MemberIndex,
-          PSP_DEVINFO_DATA DeviceInfoData
+            HDEVINFO DeviceInfoSet,
+            DWORD MemberIndex,
+            PSP_DEVINFO_DATA DeviceInfoData
         );
         """
         emu.set_last_error(windefs.ERROR_NO_MORE_ITEMS)
@@ -32,11 +32,11 @@ class SetupApi(api.ApiHandler):
     def SetupDiEnumDeviceInterfaces(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetupDiEnumDeviceInterfaces(
-          HDEVINFO                  DeviceInfoSet,
-          PSP_DEVINFO_DATA          DeviceInfoData,
-          const GUID                *InterfaceClassGuid,
-          DWORD                     MemberIndex,
-          PSP_DEVICE_INTERFACE_DATA DeviceInterfaceData
+            HDEVINFO DeviceInfoSet,
+            PSP_DEVINFO_DATA DeviceInfoData,
+            const GUID *InterfaceClassGuid,
+            DWORD MemberIndex,
+            PSP_DEVICE_INTERFACE_DATA DeviceInterfaceData
         );
         """
         emu.set_last_error(windefs.ERROR_NO_MORE_ITEMS)

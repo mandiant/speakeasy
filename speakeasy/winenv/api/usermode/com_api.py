@@ -28,7 +28,7 @@ class ComApi(api.ApiHandler):
         """
         HRESULT QueryInterface(
             REFIID riid,
-            void   **ppvObject
+            void **ppvObject
         );
         """
         ptr, riid, ppvObject = argv
@@ -75,7 +75,7 @@ class ComApi(api.ApiHandler):
     def IMalloc_Realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *Realloc(
-            void   *pv,
+            void *pv,
             SIZE_T cb
         );
         """
@@ -139,13 +139,13 @@ class ComApi(api.ApiHandler):
     def IWbemLocator_ConnectServer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT ConnectServer(
-            const BSTR    strNetworkResource,
-            const BSTR    strUser,
-            const BSTR    strPassword,
-            const BSTR    strLocale,
-            long          lSecurityFlags,
-            const BSTR    strAuthority,
-            IWbemContext  *pCtx,
+            const BSTR strNetworkResource,
+            const BSTR strUser,
+            const BSTR strPassword,
+            const BSTR strLocale,
+            long lSecurityFlags,
+            const BSTR strAuthority,
+            IWbemContext *pCtx,
             IWbemServices **ppNamespace
         );
         """
@@ -164,11 +164,11 @@ class ComApi(api.ApiHandler):
     def IWbemServices_GetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT GetObject(
-            const BSTR       strObjectPath,
-            long             lFlags,
-            IWbemContext     *pCtx,
+            const BSTR strObjectPath,
+            long lFlags,
+            IWbemContext *pCtx,
             IWbemClassObject **ppObject,
-            IWbemCallResult  **ppCallResult
+            IWbemCallResult **ppCallResult
         );
         """
         ptr, strObjectPath, lFlags, pCtx, ppObject, ppCallResult = argv
@@ -185,10 +185,10 @@ class ComApi(api.ApiHandler):
     def IWbemServices_ExecQuery(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT ExecQuery(
-            const BSTR           strQueryLanguage,
-            const BSTR           strQuery,
-            long                 lFlags,
-            IWbemContext         *pCtx,
+            const BSTR strQueryLanguage,
+            const BSTR strQuery,
+            long lFlags,
+            IWbemContext *pCtx,
             IEnumWbemClassObject **ppEnum
         );
         """

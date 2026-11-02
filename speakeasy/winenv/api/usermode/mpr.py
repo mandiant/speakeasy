@@ -19,11 +19,11 @@ class Mpr(api.ApiHandler):
     def WNetOpenEnum(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetOpenEnum(
-          DWORD          dwScope,
-          DWORD          dwType,
-          DWORD          dwUsage,
-          LPNETRESOURCEW lpNetResource,
-          LPHANDLE       lphEnum
+            DWORD dwScope,
+            DWORD dwType,
+            DWORD dwUsage,
+            LPNETRESOURCEW lpNetResource,
+            LPHANDLE lphEnum
         );
         """
         dwScope, dwType, dwUsage, lpNetResource, lphEnum = argv
@@ -46,10 +46,10 @@ class Mpr(api.ApiHandler):
     def WNetEnumResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetEnumResourceA(
-          HANDLE  hEnum,
-          LPDWORD lpcCount,
-          LPVOID  lpBuffer,
-          LPDWORD lpBufferSize
+            HANDLE hEnum,
+            LPDWORD lpcCount,
+            LPVOID lpBuffer,
+            LPDWORD lpBufferSize
         );
         """
         return mpr.ERROR_NO_NETWORK
@@ -58,10 +58,10 @@ class Mpr(api.ApiHandler):
     def WNetAddConnection2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetAddConnection2W(
-          LPNETRESOURCEW lpNetResource,
-          LPCWSTR        lpPassword,
-          LPCWSTR        lpUserName,
-          DWORD          dwFlags
+            LPNETRESOURCEW lpNetResource,
+            LPCWSTR lpPassword,
+            LPCWSTR lpUserName,
+            DWORD dwFlags
         );
         """
         return mpr.ERROR_NO_NETWORK
@@ -70,9 +70,9 @@ class Mpr(api.ApiHandler):
     def WNetGetConnection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WNetGetConnectionA(
-          LPCSTR  lpLocalName,
-          LPSTR   lpRemoteName,
-          LPDWORD lpnLength
+            LPCSTR lpLocalName,
+            LPSTR lpRemoteName,
+            LPDWORD lpnLength
         );
         """
         lpLocalName, lpRemoteName, lpnLength = argv

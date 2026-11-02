@@ -42,10 +42,10 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlUnwind(
-          PVOID TargetFrame,
-          PVOID TargetIp,
-          PEXCEPTION_RECORD ExceptionRecord,
-          PVOID ReturnValue
+            PVOID TargetFrame,
+            PVOID TargetIp,
+            PEXCEPTION_RECORD ExceptionRecord,
+            PVOID ReturnValue
         );
         """
         if is_amd64(emu):
@@ -56,12 +56,12 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlUnwindEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlUnwindEx(
-          PVOID TargetFrame,
-          PVOID TargetIp,
-          PEXCEPTION_RECORD ExceptionRecord,
-          PVOID ReturnValue,
-          PCONTEXT ContextRecord,
-          PUNWIND_HISTORY_TABLE HistoryTable
+            PVOID TargetFrame,
+            PVOID TargetIp,
+            PEXCEPTION_RECORD ExceptionRecord,
+            PVOID ReturnValue,
+            PCONTEXT ContextRecord,
+            PUNWIND_HISTORY_TABLE HistoryTable
         );
         """
         if is_amd64(emu):
@@ -71,10 +71,10 @@ class ExceptionApis(_ApiHandlerBase):
     def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         EXCEPTION_DISPOSITION __C_specific_handler(
-          PEXCEPTION_RECORD ExceptionRecord,
-          PVOID EstablisherFrame,
-          PCONTEXT ContextRecord,
-          PDISPATCHER_CONTEXT DispatcherContext
+            PEXCEPTION_RECORD ExceptionRecord,
+            PVOID EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PDISPATCHER_CONTEXT DispatcherContext
         );
         """
         return c_specific_handler(emu, argv)
@@ -83,7 +83,7 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlCaptureContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlCaptureContext(
-          PCONTEXT ContextRecord
+            PCONTEXT ContextRecord
         );
         """
         if argv[0]:
@@ -93,8 +93,8 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlRestoreContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlRestoreContext(
-          PCONTEXT ContextRecord,
-          _EXCEPTION_RECORD *ExceptionRecord
+            PCONTEXT ContextRecord,
+            _EXCEPTION_RECORD *ExceptionRecord
         );
         """
         if is_amd64(emu):
@@ -104,9 +104,9 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlAddFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlAddFunctionTable(
-          PRUNTIME_FUNCTION FunctionTable,
-          DWORD EntryCount,
-          DWORD64 BaseAddress
+            PRUNTIME_FUNCTION FunctionTable,
+            DWORD EntryCount,
+            DWORD64 BaseAddress
         );
         """
         return is_amd64(emu) and seh64.add_function_table(emu, *argv)
@@ -115,12 +115,12 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlInstallFunctionTableCallback(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlInstallFunctionTableCallback(
-          DWORD64 TableIdentifier,
-          DWORD64 BaseAddress,
-          DWORD Length,
-          PGET_RUNTIME_FUNCTION_CALLBACK Callback,
-          PVOID Context,
-          PCWSTR OutOfProcessCallbackDll
+            DWORD64 TableIdentifier,
+            DWORD64 BaseAddress,
+            DWORD Length,
+            PGET_RUNTIME_FUNCTION_CALLBACK Callback,
+            PVOID Context,
+            PCWSTR OutOfProcessCallbackDll
         );
         """
         return is_amd64(emu) and seh64.install_function_table_callback(emu, *argv[:4])
@@ -129,14 +129,19 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlDeleteFunctionTable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlDeleteFunctionTable(
-          PRUNTIME_FUNCTION FunctionTable
+            PRUNTIME_FUNCTION FunctionTable
         );
         """
         return is_amd64(emu) and seh64.delete_function_table(emu, argv[0])
 
     @apihook("RtlPcToFileHeader", argc=2)
     def RtlPcToFileHeader(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
-        """PVOID RtlPcToFileHeader(PVOID PcValue, PVOID *BaseOfImage);"""
+        """
+        PVOID RtlPcToFileHeader(
+            PVOID PcValue,
+            PVOID *BaseOfImage
+        );
+        """
         pc, base_out = argv
         mod = emu.get_mod_from_addr(pc)
         base = mod.base if mod else 0
@@ -147,9 +152,9 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlLookupFunctionEntry(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PRUNTIME_FUNCTION RtlLookupFunctionEntry(
-          DWORD64 ControlPc,
-          PDWORD64 ImageBase,
-          PUNWIND_HISTORY_TABLE HistoryTable
+            DWORD64 ControlPc,
+            PDWORD64 ImageBase,
+            PUNWIND_HISTORY_TABLE HistoryTable
         );
         """
         if not is_amd64(emu):
@@ -160,14 +165,14 @@ class ExceptionApis(_ApiHandlerBase):
     def RtlVirtualUnwind(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PEXCEPTION_ROUTINE RtlVirtualUnwind(
-          DWORD HandlerType,
-          DWORD64 ImageBase,
-          DWORD64 ControlPc,
-          PRUNTIME_FUNCTION FunctionEntry,
-          PCONTEXT ContextRecord,
-          PVOID *HandlerData,
-          PDWORD64 EstablisherFrame,
-          PKNONVOLATILE_CONTEXT_POINTERS ContextPointers
+            DWORD HandlerType,
+            DWORD64 ImageBase,
+            DWORD64 ControlPc,
+            PRUNTIME_FUNCTION FunctionEntry,
+            PCONTEXT ContextRecord,
+            PVOID *HandlerData,
+            PDWORD64 EstablisherFrame,
+            PKNONVOLATILE_CONTEXT_POINTERS ContextPointers
         );
         """
         if not is_amd64(emu):

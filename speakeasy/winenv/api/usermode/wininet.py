@@ -42,11 +42,11 @@ class Wininet(api.ApiHandler):
     def InternetOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void InternetOpenA(
-          LPTSTR lpszAgent,
-          DWORD  dwAccessType,
-          LPTSTR lpszProxy,
-          LPTSTR lpszProxyBypass,
-          DWORD  dwFlags
+            LPTSTR lpszAgent,
+            DWORD dwAccessType,
+            LPTSTR lpszProxy,
+            LPTSTR lpszProxyBypass,
+            DWORD dwFlags
         );
         """
         ua, access, proxy, bypass, flags = argv
@@ -70,14 +70,14 @@ class Wininet(api.ApiHandler):
     def InternetConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void InternetConnect(
-          HINTERNET     hInternet,
-          LPTSTR        lpszServerName,
-          INTERNET_PORT nServerPort,
-          LPTSTR        lpszUserName,
-          LPTSTR        lpszPassword,
-          DWORD         dwService,
-          DWORD         dwFlags,
-          DWORD_PTR     dwContext
+            HINTERNET hInternet,
+            LPTSTR lpszServerName,
+            INTERNET_PORT nServerPort,
+            LPTSTR lpszUserName,
+            LPTSTR lpszPassword,
+            DWORD dwService,
+            DWORD dwFlags,
+            DWORD_PTR dwContext
         );
         """
         hnd, server, port, user, password, service, flags, dwctx = argv
@@ -106,14 +106,14 @@ class Wininet(api.ApiHandler):
     def HttpOpenRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void HttpOpenRequest(
-          HINTERNET hConnect,
-          LPTSTR    lpszVerb,
-          LPTSTR    lpszObjectName,
-          LPTSTR    lpszVersion,
-          LPTSTR    lpszReferrer,
-          LPTSTR    *lplpszAcceptTypes,
-          DWORD     dwFlags,
-          DWORD_PTR dwContext
+            HINTERNET hConnect,
+            LPTSTR lpszVerb,
+            LPTSTR lpszObjectName,
+            LPTSTR lpszVersion,
+            LPTSTR lpszReferrer,
+            LPTSTR *lplpszAcceptTypes,
+            DWORD dwFlags,
+            DWORD_PTR dwContext
         );
         """
         hnd, verb, objname, ver, ref, accepts, flags, dwctx = argv
@@ -143,10 +143,10 @@ class Wininet(api.ApiHandler):
     @apihook("InternetCrackUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetCrackUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetCrackUrl(
-            LPCSTR            lpszUrl,
-            DWORD             dwUrlLength,
-            DWORD             dwFlags,
+        BOOL InternetCrackUrl(
+            LPCSTR lpszUrl,
+            DWORD dwUrlLength,
+            DWORD dwFlags,
             LPURL_COMPONENTSA lpUrlComponents
         );
         """
@@ -196,11 +196,11 @@ class Wininet(api.ApiHandler):
     @apihook("InternetSetOption", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetSetOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetSetOption(
-          HINTERNET hInternet,
-          DWORD     dwOption,
-          LPVOID    lpBuffer,
-          DWORD     dwBufferLength
+        BOOL InternetSetOption(
+            HINTERNET hInternet,
+            DWORD dwOption,
+            LPVOID lpBuffer,
+            DWORD dwBufferLength
         );
         """
         hnd, option, buf, length = argv
@@ -212,9 +212,9 @@ class Wininet(api.ApiHandler):
     @apihook("InternetGetConnectedState", argc=2, conv=_arch.CALL_CONV_STDCALL)
     def InternetGetConnectedState(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetGetConnectedState(
-          LPDWORD lpdwFlags,
-          DWORD   dwReserved
+        BOOL InternetGetConnectedState(
+            LPDWORD lpdwFlags,
+            DWORD dwReserved
         );
         """
         lpdwFlags, dwReserved = argv
@@ -231,12 +231,12 @@ class Wininet(api.ApiHandler):
     @apihook("HttpSendRequest", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def HttpSendRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI HttpSendRequest(
-          HINTERNET hRequest,
-          LPTSTR    lpszHeaders,
-          DWORD     dwHeadersLength,
-          LPVOID    lpOptional,
-          DWORD     dwOptionalLength
+        BOOL HttpSendRequest(
+            HINTERNET hRequest,
+            LPTSTR lpszHeaders,
+            DWORD dwHeadersLength,
+            LPVOID lpOptional,
+            DWORD dwOptionalLength
         );
         """
         hnd, headers, hdrlen, lpOptional, dwOptionalLength = argv
@@ -268,11 +268,11 @@ class Wininet(api.ApiHandler):
     def InternetErrorDlg(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void InternetErrorDlg(
-          HWND      hWnd,
-          HINTERNET hRequest,
-          DWORD     dwError,
-          DWORD     dwFlags,
-          LPVOID    *lppvData
+            HWND hWnd,
+            HINTERNET hRequest,
+            DWORD dwError,
+            DWORD dwFlags,
+            LPVOID *lppvData
         );
         """
         hWnd, req, error, flags, data = argv
@@ -282,11 +282,11 @@ class Wininet(api.ApiHandler):
     @apihook("InternetQueryOption", argc=4)
     def InternetQueryOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetQueryOption(
+        BOOL InternetQueryOption(
             HINTERNET hInternet,
-            DWORD     dwOption,
-            LPVOID    lpBuffer,
-            LPDWORD   lpdwBufferLength
+            DWORD dwOption,
+            LPVOID lpBuffer,
+            LPDWORD lpdwBufferLength
         );
         """
         hInternet, dwOption, lpBuffer, lpdwBufferLength = argv
@@ -306,11 +306,11 @@ class Wininet(api.ApiHandler):
     @apihook("InternetReadFile", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def InternetReadFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetReadFile(
-          HINTERNET hFile,
-          LPVOID    lpBuffer,
-          DWORD     dwNumberOfBytesToRead,
-          LPDWORD   lpdwNumberOfBytesRead
+        BOOL InternetReadFile(
+            HINTERNET hFile,
+            LPVOID lpBuffer,
+            DWORD dwNumberOfBytesToRead,
+            LPDWORD lpdwNumberOfBytesRead
         );
         """
         hFile, buf, size, bytes_read = argv
@@ -335,12 +335,12 @@ class Wininet(api.ApiHandler):
     @apihook("HttpQueryInfo", argc=5)
     def HttpQueryInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI HttpQueryInfo(
+        BOOL HttpQueryInfo(
             HINTERNET hRequest,
-            DWORD     dwInfoLevel,
-            LPVOID    lpBuffer,
-            LPDWORD   lpdwBufferLength,
-            LPDWORD   lpdwIndex
+            DWORD dwInfoLevel,
+            LPVOID lpBuffer,
+            LPDWORD lpdwBufferLength,
+            LPDWORD lpdwIndex
         );
         """
         hRequest, dwInfoLevel, lpBuffer, lpdwBufferLength, lpdwIndex = argv
@@ -386,10 +386,10 @@ class Wininet(api.ApiHandler):
     @apihook("InternetQueryDataAvailable", argc=4)
     def InternetQueryDataAvailable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetQueryDataAvailable(
+        BOOL InternetQueryDataAvailable(
             HINTERNET hFile,
-            LPDWORD   lpdwNumberOfBytesAvailable,
-            DWORD     dwFlags,
+            LPDWORD lpdwNumberOfBytesAvailable,
+            DWORD dwFlags,
             DWORD_PTR dwContext
         );
         """
@@ -408,7 +408,7 @@ class Wininet(api.ApiHandler):
     @apihook("InternetCloseHandle", argc=1)
     def InternetCloseHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLAPI InternetCloseHandle(
+        BOOL InternetCloseHandle(
             HINTERNET hInternet
         );
         """
@@ -424,10 +424,10 @@ class Wininet(api.ApiHandler):
         """
         void InternetOpenUrlA(
             HINTERNET hInternet,
-            LPCSTR    lpszUrl,
-            LPCSTR    lpszHeaders,
-            DWORD     dwHeadersLength,
-            DWORD     dwFlags,
+            LPCSTR lpszUrl,
+            LPCSTR lpszHeaders,
+            DWORD dwHeadersLength,
+            DWORD dwFlags,
             DWORD_PTR dwContext
         );
         """

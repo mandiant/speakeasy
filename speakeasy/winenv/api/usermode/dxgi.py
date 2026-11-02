@@ -25,8 +25,8 @@ class Dxgi(api.ApiHandler):
     def CreateDXGIFactory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CreateDXGIFactory(
-          REFIID riid,
-          void   **ppFactory
+            REFIID riid,
+            void **ppFactory
         );
         """
         _, ppFactory = argv
@@ -37,8 +37,8 @@ class Dxgi(api.ApiHandler):
     def CreateDXGIFactory1(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CreateDXGIFactory1(
-          REFIID riid,
-          void   **ppFactory
+            REFIID riid,
+            void **ppFactory
         );
         """
         _, ppFactory = argv
@@ -49,9 +49,9 @@ class Dxgi(api.ApiHandler):
     def CreateDXGIFactory2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT CreateDXGIFactory2(
-          UINT   Flags,
-          REFIID riid,
-          void   **ppFactory
+            UINT Flags,
+            REFIID riid,
+            void **ppFactory
         );
         """
         _, _, ppFactory = argv

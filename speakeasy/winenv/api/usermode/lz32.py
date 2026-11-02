@@ -18,9 +18,9 @@ class Lz32(api.ApiHandler):
     def LZSeek(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG LZSeek(
-          INT  hFile,
-          LONG lOffset,
-          INT  iOrigin
+            INT hFile,
+            LONG lOffset,
+            INT iOrigin
         );
         """
         return -1
