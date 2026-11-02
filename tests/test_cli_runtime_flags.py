@@ -1,9 +1,11 @@
 import json
 import multiprocessing as mp
 import os
+import re
 import struct
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -144,3 +146,24 @@ def test_the_result_of_a_child_is_returned():
     p.start()
 
     assert wait_for_child(q, p, mp.Event(), wall_limit=0) == ("{}", None)
+
+
+CLI_REFERENCE = Path(__file__).resolve().parent.parent / "doc" / "cli-reference.md"
+LONG_FLAG = re.compile(r"(?<![\w-])--[a-z][a-z0-9-]*")
+
+
+def test_the_cli_reference_lists_each_flag_of_the_help():
+    help_text = run_cli("--help").stdout
+    help_flags = set()
+    for line in help_text.splitlines():
+        if line.startswith("  -"):
+            invocation = re.split(r"\s{2,}", line.strip())[0]
+            help_flags.update(LONG_FLAG.findall(invocation))
+    help_flags.discard("--help")
+
+    sections = re.split(r"^#+ ", CLI_REFERENCE.read_text(), flags=re.MULTILINE)
+    flag_sections = [s for s in sections if s.startswith(("Runtime-only flags", "Current schema-derived flags"))]
+    doc_flags = set(LONG_FLAG.findall("".join(flag_sections)))
+
+    assert len(flag_sections) == 2
+    assert doc_flags == help_flags
