@@ -149,9 +149,9 @@ class Shell32(api.ApiHandler):
     @apihook("SHCreateDirectoryEx", argc=3)
     def SHCreateDirectoryEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int SHCreateDirectoryExA(
+        int SHCreateDirectoryEx(
             HWND hwnd,
-            LPCSTR pszPath,
+            LPCTSTR pszPath,
             const SECURITY_ATTRIBUTES *psa
         );
         """
@@ -170,12 +170,12 @@ class Shell32(api.ApiHandler):
     @apihook("ShellExecute", argc=6)
     def ShellExecute(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HINSTANCE ShellExecuteA(
+        HINSTANCE ShellExecute(
             HWND hwnd,
-            LPCSTR lpOperation,
-            LPCSTR lpFile,
-            LPCSTR lpParameters,
-            LPCSTR lpDirectory,
+            LPCTSTR lpOperation,
+            LPCTSTR lpFile,
+            LPCTSTR lpParameters,
+            LPCTSTR lpDirectory,
             INT nShowCmd
         );
         """
@@ -225,8 +225,8 @@ class Shell32(api.ApiHandler):
     @apihook("ShellExecuteEx", argc=1)
     def ShellExecuteEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL ShellExecuteExA(
-            SHELLEXECUTEINFOA *pExecInfo
+        BOOL ShellExecuteEx(
+            SHELLEXECUTEINFO *pExecInfo
         );
         """
         (lpShellExecuteInfo,) = argv
@@ -326,9 +326,9 @@ class Shell32(api.ApiHandler):
     @apihook("ExtractIcon", argc=3)
     def ExtractIcon(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HICON ExtractIconA(
+        HICON ExtractIcon(
             HINSTANCE hInst,
-            LPCSTR pszExeFileName,
+            LPCTSTR pszExeFileName,
             UINT nIconIndex
         );
         """
@@ -337,12 +337,12 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetFolderPath", argc=5)
     def SHGetFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT SHGetFolderPathW(
+        HRESULT SHGetFolderPath(
             HWND hwnd,
             int csidl,
             HANDLE hToken,
             DWORD dwFlags,
-            LPWSTR pszPath
+            LPTSTR pszPath
         );
         """
         hwnd, csidl, hToken, dwFlags, pszPath = argv
@@ -356,13 +356,13 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetFolderPathAndSubDir", argc=6)
     def SHGetFolderPathAndSubDir(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT SHGetFolderPathAndSubDirA(
+        HRESULT SHGetFolderPathAndSubDir(
             HWND hwnd,
             int csidl,
             HANDLE hToken,
             DWORD dwFlags,
-            LPCSTR pszSubDir,
-            LPSTR pszPath
+            LPCTSTR pszSubDir,
+            LPTSTR pszPath
         );
         """
         hwnd, csidl, hToken, dwFlags, pszSubDir, pszPath = argv
@@ -381,9 +381,9 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetSpecialFolderPath", argc=4)
     def SHGetSpecialFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL SHGetSpecialFolderPathA(
+        BOOL SHGetSpecialFolderPath(
             HWND hwnd,
-            LPSTR pszPath,
+            LPTSTR pszPath,
             int csidl,
             BOOL fCreate
         );
@@ -444,9 +444,9 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetPathFromIDList", argc=2)
     def SHGetPathFromIDList(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL SHGetPathFromIDListA(
+        BOOL SHGetPathFromIDList(
             PCIDLIST_ABSOLUTE pidl,
-            LPSTR pszPath
+            LPTSTR pszPath
         );
         """
         pidl, pszPath = argv

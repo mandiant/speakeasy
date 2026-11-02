@@ -71,10 +71,10 @@ class ExceptionApis(_ApiHandlerBase):
     def __C_specific_handler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         EXCEPTION_DISPOSITION __C_specific_handler(
-            PEXCEPTION_RECORD ExceptionRecord,
-            PVOID EstablisherFrame,
-            PCONTEXT ContextRecord,
-            PDISPATCHER_CONTEXT DispatcherContext
+            struct _EXCEPTION_RECORD *ExceptionRecord,
+            void *EstablisherFrame,
+            struct _CONTEXT *ContextRecord,
+            struct _DISPATCHER_CONTEXT *DispatcherContext
         );
         """
         return c_specific_handler(emu, argv)
@@ -94,7 +94,7 @@ class ExceptionApis(_ApiHandlerBase):
         """
         VOID RtlRestoreContext(
             PCONTEXT ContextRecord,
-            _EXCEPTION_RECORD *ExceptionRecord
+            struct _EXCEPTION_RECORD *ExceptionRecord
         );
         """
         if is_amd64(emu):

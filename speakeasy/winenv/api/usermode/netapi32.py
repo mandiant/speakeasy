@@ -22,7 +22,7 @@ class NetApi32(api.ApiHandler):
     @apihook("NetGetJoinInformation", argc=3)
     def NetGetJoinInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
+        NET_API_STATUS NetGetJoinInformation(
             LPCWSTR lpServer,
             LPWSTR *lpNameBuffer,
             PNETSETUP_JOIN_STATUS BufferType
@@ -49,7 +49,7 @@ class NetApi32(api.ApiHandler):
     @apihook("NetWkstaGetInfo", argc=3)
     def NetWkstaGetInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NET_API_STATUS NET_API_FUNCTION NetWkstaGetInfo(
+        NET_API_STATUS NetWkstaGetInfo(
             LMSTR servername,
             DWORD level,
             LPBYTE *bufptr
@@ -108,7 +108,7 @@ class NetApi32(api.ApiHandler):
     @apihook("NetUserAdd", argc=4)
     def NetUserAdd(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NET_API_STATUS NET_API_FUNCTION NetUserAdd(
+        NET_API_STATUS NetUserAdd(
             LPCWSTR servername,
             DWORD level,
             LPBYTE buf,
@@ -126,7 +126,7 @@ class NetApi32(api.ApiHandler):
     @apihook("NetApiBufferFree", argc=1)
     def NetApiBufferFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NET_API_STATUS NET_API_FUNCTION NetApiBufferFree(
+        NET_API_STATUS NetApiBufferFree(
             LPVOID Buffer
         );
         """
