@@ -38,9 +38,9 @@ class ModuleLoader:
         self._load_depth: int = 0
 
     def _get_processes(self) -> list[Any]:
-        # Do not call emu.get_processes(), because it can create the configured processes
         emu = self.emu
         processes = list(emu.processes)
+        # A child process that runs is not in the process list
         if emu.curr_process is not None and emu.curr_process not in processes:
             processes.append(emu.curr_process)
         return processes

@@ -108,7 +108,7 @@ def start_process(se: Speakeasy) -> None:
     assert emu.om is not None
     module = emu.modules[0]
     emu.prepare_module_for_emulation(module, False)
-    if not emu.processes:
+    if emu.curr_process is None:
         p = objman.Process(emu, path=module.emu_path, base=module.base, pe=module, cmdline=emu.command_line)
         emu.processes.append(p)
         emu.curr_process = p

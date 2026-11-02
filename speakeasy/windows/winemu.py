@@ -1424,9 +1424,7 @@ class WindowsEmulator(BinaryEmulator):
         super().set_hooks()
 
     def get_processes(self):
-        """Get the current processes that exist in the emulation space."""
-        if not self.processes:
-            self.init_processes(self.config.processes)
+        """Get the processes that exist in the emulation space."""
         return self.processes
 
     def kill_process(self, proc):

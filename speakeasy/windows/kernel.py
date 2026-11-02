@@ -127,12 +127,6 @@ class WinKernelEmulator(WindowsEmulator):
 
         return sysmods
 
-    def get_processes(self):
-        """Get processes that exist in the emulation space."""
-        if not self.processes:
-            self.init_processes(self.config.processes)
-        return self.processes
-
     def init_processes(self, processes):
         for proc in processes:
             p = objman.Process(self)
@@ -187,10 +181,6 @@ class WinKernelEmulator(WindowsEmulator):
     def get_current_process(self):
         """Get the current process context."""
         self.get_object_manager("kernel current-process resolution")
-
-        if not self.processes:
-            self.processes = self.get_processes()
-
         return self.curr_process
 
     def get_handle_table(self) -> HandleTable:

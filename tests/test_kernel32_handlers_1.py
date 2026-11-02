@@ -509,7 +509,6 @@ def list_processes(se: Speakeasy) -> dict[int, str]:
 )
 def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, width: int) -> None:
     start_process(dll_emu)
-    explorer = next(p.pid for p in dll_emu.emu.get_processes() if p.name == "explorer")
     hsnap, _ = call(
         dll_emu, "kernel32", "CreateToolhelp32Snapshot", [CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS, 0]
     )
@@ -527,8 +526,8 @@ def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, 
         assert entry.cntThreads >= 1
         assert b"\xcc" not in bytes(entry.szExeFile)
         parents.append(entry.th32ParentProcessID)
-    assert parents[0] == explorer
-    assert parents[1] != 0xCCCCCCCC
+    # System, then smss, whose parent is System
+    assert parents == [0, 4]
 
 
 def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> None:
