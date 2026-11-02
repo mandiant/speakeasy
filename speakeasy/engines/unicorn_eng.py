@@ -162,7 +162,7 @@ class EmuEngine:
             self.regs[arch.X86_REG_FP0 + i] = u.UC_X86_REG_FP0 + i
 
         self.mem_access: dict[int, int] = {
-            uc.UC_MEM_FETCH_UNMAPPED: common.INVALID_MEM_EXEC,  # noqa
+            uc.UC_MEM_FETCH_UNMAPPED: common.INVALID_MEM_EXEC,
             uc.UC_MEM_READ_UNMAPPED: common.INVALID_MEM_READ,
             uc.UC_MEM_FETCH_PROT: common.INVAL_PERM_MEM_EXEC,
             uc.UC_MEM_WRITE_PROT: common.INVAL_PERM_MEM_WRITE,
