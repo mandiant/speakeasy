@@ -277,11 +277,12 @@ class InstructionHook(Hook):
         self.insns: tuple[int, ...] = tuple(insns)
         self.handles: list[int] = []
 
-    def covers(self, address: int) -> bool:
-        """Get whether the address is in the range of the hook. ``begin > end`` means all addresses."""
+    def covers_pc(self) -> bool:
+        """Get whether the pc is in the range of the hook. ``begin > end`` means all addresses."""
         # Unicorn does not check the range of an IN or OUT hook, and checks a SYSENTER hook
         # against a pc that is not up to date, so the wrappers check the range here.
-        return self.begin > self.end or self.begin <= address <= self.end
+        # A hook with no range does not read the pc, because the read costs about 1 us.
+        return self.begin > self.end or self.begin <= self.emu.get_pc() <= self.end
 
     def add(self):
         if not self.added and self.native_hook:
@@ -300,11 +301,11 @@ class InstructionHook(Hook):
         self.enabled = False
 
     def _wrap_out_insn_cb(self, emu, port, size, value, ctx=None):
-        if self.enabled and self.covers(self.emu.get_pc()):
+        if self.enabled and self.covers_pc():
             self.cb(self.emu, port, size, value)
 
     def _wrap_syscall_insn_cb(self, emu, ctx=None):
-        if self.enabled and self.covers(self.emu.get_pc()):
+        if self.enabled and self.covers_pc():
             self.cb(self.emu)
 
 

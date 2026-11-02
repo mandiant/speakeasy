@@ -1015,9 +1015,8 @@ class BinaryEmulator(MemoryManager, ABC):
     def _hook_in_dispatch(self, uc_engine, port, size, user_data):
         # Unicorn uses the value of the first IN hook and does not call the others, so one
         # engine hook calls the first IN hook that is enabled and covers the address.
-        pc = self.get_pc()
         for hook in self.hooks.get(common.HOOK_INSN, []):
-            if hook.enabled and UC_X86_INS_IN in hook.insns and hook.covers(pc):
+            if hook.enabled and UC_X86_INS_IN in hook.insns and hook.covers_pc():
                 return hook.cb(hook.emu, port, size)
         return 0
 
