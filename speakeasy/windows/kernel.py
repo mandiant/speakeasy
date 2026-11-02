@@ -148,11 +148,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
 
             if not p.pid:
                 p.pid = self.get_object_manager("process id allocation").new_id()
-            base = proc.base_addr
-
-            if isinstance(base, str):
-                base = int(base, 16)
-            p.base = base
+            p.base = proc.base_addr
             if not p.path:
                 p.path = proc.path
             p.image = ntpath.basename(p.path)

@@ -6,6 +6,8 @@ Source of truth:
 
 The example below is JSONC (JSON with comments). Remove comment lines for machine parsing.
 
+Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
+
 ```jsonc
 {
   // Schema version. Speakeasy 2.0 reads only "2.0" and gives a ConfigError for
@@ -387,6 +389,7 @@ CLI config overrides are generated from `SpeakeasyConfig` field definitions.
 Mapping rules:
 - config path `a.b_c` maps to `--a-b-c`
 - booleans map to dual flags (`--flag` / `--no-flag`)
+- int flags take a decimal value or a hex value that starts with `0x`
 - `dict[str, str]` maps to repeatable `--flag KEY=VALUE`
 - `list[str]` maps to repeatable `--flag VALUE`
 

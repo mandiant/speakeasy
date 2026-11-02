@@ -92,7 +92,7 @@ def add_config_cli_arguments(parser: argparse.ArgumentParser, specs: list[Config
             parser.add_argument(
                 spec.option,
                 dest=spec.dest,
-                type=int,
+                type=parse_cli_int,
                 metavar=get_cli_metavar(spec),
                 default=argparse.SUPPRESS,
                 help=help_text,
@@ -256,6 +256,19 @@ def update_config_mapping_keys(data: dict[str, Any], path: tuple[str, ...], upda
         target[key] = value
 
 
+def parse_cli_int(raw: str) -> int:
+    """
+    Parse a decimal int, or a hex int that starts with 0x.
+
+    Raises:
+        argparse.ArgumentTypeError: if the text is not an int.
+    """
+    try:
+        return int(raw, 16) if raw.lower().startswith("0x") else int(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid int value: {raw!r}") from None
+
+
 def parse_cli_mapping_entry(raw: str) -> tuple[str, str]:
     if "=" not in raw:
         raise argparse.ArgumentTypeError(f"Invalid mapping {raw!r}; expected KEY=VALUE")
@@ -285,7 +298,8 @@ def render_config_value(value: Any) -> str:
 
 def normalize_config_value(value: Any) -> Any:
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="python")
+        # JSON mode writes addresses as 0x strings, as --dump-default-config does.
+        return value.model_dump(mode="json")
     if isinstance(value, list):
         return [normalize_config_value(item) for item in value]
     if isinstance(value, tuple):
