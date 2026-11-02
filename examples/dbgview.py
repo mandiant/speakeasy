@@ -4,9 +4,7 @@ import speakeasy
 
 
 class DbgView(speakeasy.Speakeasy):
-    """
-    Print debug port prints to the console
-    """
+    """Print debug port prints to the console."""
 
     def __init__(self, debug=False):
         super().__init__(debug=debug)

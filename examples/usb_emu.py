@@ -11,9 +11,7 @@ IOCTL_IS_SUPER_SPEED_SUPPORTED = 0x49104B
 
 
 class UsbEmu(speakeasy.Speakeasy):
-    """
-    WDF USB Emulator
-    """
+    """WDF USB Emulator."""
 
     def __init__(self, debug=False):
         super().__init__(debug=debug)

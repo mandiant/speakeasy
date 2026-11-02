@@ -68,9 +68,11 @@ def _struct(
 
 def _with_anonymous_union() -> dict[str, Any]:
     """
-    Struct WITH_ANON { UINT32 tag; union { UINT64 q; struct { UINT32 lo, hi; } s; } u; }
-    as win32metadata emits it: the union is an anonymous NestedType referenced
-    with an empty Parents chain, and its inner struct with Parents=[union].
+    Build the struct ``WITH_ANON`` as win32metadata emits it.
+
+    The C definition is ``struct WITH_ANON { UINT32 tag; union { UINT64 q; struct { UINT32 lo, hi; } s; } u; }``.
+    The union is an anonymous NestedType referenced with an empty Parents chain, and its inner struct has
+    Parents=[union].
     """
     inner = _struct("_s_e__Struct", [("lo", _native("UInt32")), ("hi", _native("UInt32"))])
     union = _struct(

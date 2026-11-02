@@ -16,8 +16,9 @@ def test_peb_number_of_processors_matches_get_system_info(
     config: dict, load_test_bin, arch: str, start: int, stop: int, offset: int
 ) -> None:
     """
-    al-khaser reads NumberOfProcessors from the PEB, at eax/rax + offset, and reports a
-    virtual machine when it is less than 2: cl = NumberOfProcessors < 2, then a call to its
+    al-khaser reads NumberOfProcessors from the PEB and reports a virtual machine if it is less than 2.
+
+    The read is at ``eax/rax + offset``. The check is ``cl = NumberOfProcessors < 2``, then a call to its
     report function.
     """
     with Speakeasy(config=config) as se:

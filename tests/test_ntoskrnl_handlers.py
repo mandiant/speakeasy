@@ -17,9 +17,9 @@ FASTCALL = _arch.CALL_CONV_FASTCALL
 
 def call_x86(se: Speakeasy, name: str, args: list[int], conv: int) -> tuple[int, int]:
     """
-    Call ``name`` through import dispatch with ``args`` laid out as the
-    caller passes them. Return EAX and the number of argument bytes the callee
-    left on the stack.
+    Call ``name`` through import dispatch with ``args`` laid out as the caller passes them.
+
+    Return EAX and the number of argument bytes the callee left on the stack.
     """
     emu = se.emu
     top = emu.stack_base - 0x100

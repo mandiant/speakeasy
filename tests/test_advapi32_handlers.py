@@ -1,7 +1,4 @@
-"""
-advapi32, secur32, crypt32, bcrypt and ncrypt handlers give callers the
-results and out-params that Windows gives.
-"""
+"""advapi32, secur32, crypt32, bcrypt and ncrypt handlers give callers the results and out-params that Windows gives."""
 
 import hashlib
 import struct
@@ -404,7 +401,7 @@ BCRYPT_GCM_CASES = {
 
 @pytest.mark.parametrize("arch", ["x86", "x64"])
 def test_bcrypt_aes_gcm_round_trip_matches_pycryptodome(config: dict, load_test_bin, arch: str) -> None:
-    """bcrypt_cases.c encrypts with AES-GCM and writes the cipher text and the tag to c:\\gcm.bin."""
+    r"""bcrypt_cases.c encrypts with AES-GCM and writes the cipher text and the tag to c:\gcm.bin."""
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(f"bcrypt_cases_{arch}.exe.xz")))
         run = se.get_report().entry_points[0]

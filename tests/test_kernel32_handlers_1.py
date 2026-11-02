@@ -1,6 +1,4 @@
-"""
-kernel32 handlers return what Windows returns and write what Windows writes.
-"""
+"""kernel32 handlers return what Windows returns and write what Windows writes."""
 
 import ntpath
 import struct

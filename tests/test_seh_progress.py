@@ -23,6 +23,7 @@ def session(config):
 def load_guest(se, *, repair=False, change_address=False, iterations=8):
     """
     Load a loop that reads BAD ``iterations`` times under one SEH registration.
+
     The handler increments a counter at the returned data address. It can repair
     EAX so the read completes, or flip a fault address bit on its first three
     calls without letting the read complete.

@@ -1913,10 +1913,10 @@ SOCOLATA_INJECTOR = "019522d0f3965b4e99b725a7f9279a08aac5c2e933e611a0340c15234e4
 
 def test_ifstream_of_a_missing_file_sets_failbit(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:
     """
-    019522d0 (x64) opens config.json in its directory with an MSVCP140 std::ifstream
-    before it makes its window. The file is missing, so _Fiopen returns NULL, the
-    constructor sets failbit, and the program takes its branch for a stream that is not
-    open (RVA 0x3BA8).
+    019522d0 (x64) opens config.json in its directory with an MSVCP140 std::ifstream before it makes its window.
+
+    The file is missing, so _Fiopen returns NULL, the constructor sets failbit, and the program
+    takes its branch for a stream that is not open (RVA 0x3BA8).
     """
     config["filesystem"]["files"] = [f for f in config["filesystem"]["files"] if f["mode"] == "full_path"]
     with Speakeasy(config=config) as se:
@@ -1999,9 +1999,10 @@ def run_code(se: Speakeasy, code: bytes) -> list[Any]:
 
 def test_cout_insert_of_a_string_writes_to_stdout(shellcode64_emu: Speakeasy) -> None:
     """
-    The inline operator<<(ostream &, const char *) of MSVC finds the basic_ios of
-    std::cout through the vbtable, locks its streambuf with a virtual call, and
-    writes with sputn.
+    The inline ``operator<<(ostream &, const char *)`` of MSVC writes to ``std::cout``.
+
+    It finds the basic_ios of ``std::cout`` through the vbtable, locks its streambuf with a virtual call,
+    and writes with sputn.
     """
     se = shellcode64_emu
     assert se.emu is not None
@@ -2117,12 +2118,13 @@ def test_endthreadex_ends_only_the_current_thread(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> None:
     """
-    024e5e53 (x86), run as "Eupdate Helper.exe -no-rotate", is a proxy on port 8000. Its
-    accept loop starts a thread with _beginthreadex for each connection (RVA 0x133D2), and
-    the thread reads the request, closes the socket and calls _endthreadex(0) (RVA 0x14763).
-    The loop does not end, so the test jumps to its epilogue (RVA 0x133FC) after two
-    connections. Each connection thread then runs to _endthreadex, which ends only that
-    thread, and the next queued thread runs.
+    024e5e53 (x86), run as "Eupdate Helper.exe -no-rotate", is a proxy on port 8000.
+
+    Its accept loop starts a thread with _beginthreadex for each connection (RVA 0x133D2), and the
+    thread reads the request, closes the socket and calls _endthreadex(0) (RVA 0x14763). The loop
+    does not end, so the test jumps to its epilogue (RVA 0x133FC) after two connections. Each
+    connection thread then runs to _endthreadex, which ends only that thread, and the next queued
+    thread runs.
     """
     with Speakeasy(config=config, argv=["-no-rotate"]) as se:
         module = se.load_module(data=load_test_bin(EUPDATE_HELPER), filename="Eupdate Helper.exe")

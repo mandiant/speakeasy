@@ -45,9 +45,11 @@ def test_float_functions_take_and_return_values_per_architecture(config, load_te
 
 def test_fmod_takes_and_returns_doubles_in_xmm_registers_on_amd64(config, load_test_bin):
     """
-    0921d98a is a VTK DLL. Its export vtkGeoTransform::ComputeUTMZone(double*) brings a
-    longitude and latitude into range with fmod(lon + 180, 360) - 180 and
-    fmod(lat + 90, 180) - 90, then returns the UTM zone of the point.
+    0921d98a is a VTK DLL.
+
+    Its export vtkGeoTransform::ComputeUTMZone(double*) brings a longitude and latitude into range
+    with fmod(lon + 180, 360) - 180 and fmod(lat + 90, 180) - 90, then returns the UTM zone of the
+    point.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(VTK_GEO_DLL))

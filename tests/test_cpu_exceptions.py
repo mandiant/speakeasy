@@ -50,8 +50,9 @@ FASTFAIL_IN_DLL_MAIN = "0ee3d87024f8d450521f99d1157c8899012d37a543147ffe9623eef6
 
 def vectored_handler(data, step):
     """
-    Store the exception code, address and first two parameters at data, advance Rip by step,
-    and continue execution.
+    Store the exception record at ``data``, advance Rip by ``step`` and continue execution.
+
+    The record is the exception code, address and first two parameters.
     """
     code = b"\x48\x8b\x01"  # mov rax, [rcx]  (ExceptionRecord)
     code += b"\x8b\x10\x89\x14\x25" + struct.pack("<I", data)  # [data] = ExceptionCode
@@ -110,9 +111,10 @@ def test_cpu_exception_reaches_vectored_handler(config, arch, name):
 
 def test_general_protection_fault_reports_the_faulting_instruction(config, load_test_bin):
     """
-    0260bad6 (x86) decrypts its code in place, then runs the far call lcall 0xde98:0xfb5d7f90
-    at 0x40f231 under an SEH handler at 0x4115a0. The bad selector raises a general
-    protection fault: an access violation at the start of the lcall.
+    0260bad6 (x86) decrypts its code in place, then runs a far call under an SEH handler.
+
+    The far call is ``lcall 0xde98:0xfb5d7f90`` at 0x40f231 and the handler is at 0x4115a0. The bad
+    selector raises a general protection fault: an access violation at the start of the lcall.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(GP_FAULT_LOOP))
@@ -191,6 +193,7 @@ def test_unhandled_cpu_exception_ends_the_run(config, insn, error, interrupt_num
 def test_fault_after_in_or_out_does_not_replace_its_exception(config, arch, insn):
     """
     Unicorn does not stop at once after `in` or `out`, and it runs the next instruction.
+
     The exception of `in` or `out` stays, and the fault of the next instruction does not replace it.
     """
     with Speakeasy(config=config) as se:
@@ -205,9 +208,10 @@ def test_fault_after_in_or_out_does_not_replace_its_exception(config, arch, insn
 
 def run_with_page(config, protect, access, step=0, before=None):
     """
-    Allocate a page with protect, then run access against it, its address in rax,
-    under a vectored handler. Return the run, the page, and the handler's record.
-    before is a protection and an access to run first.
+    Allocate a page with protect, then run access against it, its address in rax, under a vectored handler.
+
+    Return the run, the page, and the handler's record. before is a protection and an access to run
+    first.
     """
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
@@ -318,10 +322,10 @@ def test_api_fault_without_handler_keeps_its_error(config):
 
 def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
     """
-    0fcf7079 (x64 DLL) exports CHwDataEvent::operator=(const CHwDataEvent &), which calls
-    memcpy(this, other, 0xa118). The export run passes the placeholder argument pages at
-    0x41420000 and 0x41421000, and the four placeholder pages end at 0x41424000, so memcpy
-    reads from mapped memory into unmapped memory.
+    0fcf7079 (x64 DLL) exports CHwDataEvent::operator=(const CHwDataEvent &), which calls memcpy(this, other, 0xa118).
+
+    The export run passes the placeholder argument pages at 0x41420000 and 0x41421000, and the four
+    placeholder pages end at 0x41424000, so memcpy reads from mapped memory into unmapped memory.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(MEMCPY_PAST_ARGS))
@@ -367,9 +371,10 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
 
 def test_contributory_exception_can_repeat(config, load_test_bin):
     """
-    0260bad6 (x86): the SEH handler at 0x4115a0 of the far call at 0x40f231 runs the far jump
-    ljmp 0x368a:0x3798c3bf at 0x4115a7, under the same handler. Each general protection
-    fault is a new access violation, not a double fault after the first.
+    0260bad6 (x86): the SEH handler of the far call runs a far jump under the same handler.
+
+    The handler at 0x4115a0 of the far call at 0x40f231 runs ``ljmp 0x368a:0x3798c3bf`` at 0x4115a7. Each
+    general protection fault is a new access violation, not a double fault after the first.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(GP_FAULT_LOOP))
@@ -497,11 +502,11 @@ def test_vectored_handler_added_first_runs_first(config):
 
 def test_run_after_a_fastfail_runs_once(config, load_test_bin):
     """
-    0ee3d870 (x64 DLL): the CRT start-up in DllMain ends with __fastfail(7), int 0x29 at
-    0x180085acb. The next run is the export RdvServiceMain, a loader that calls
-    VirtualAlloc with the SizeOfImage of the PE image at its first argument. The zero
-    placeholder argument gives a size of 0, VirtualAlloc returns NULL, and the loader reads
-    NULL + 0xc at 0x180012276.
+    0ee3d870 (x64 DLL): the CRT start-up in DllMain ends with __fastfail(7), int 0x29 at 0x180085acb.
+
+    The next run is the export RdvServiceMain, a loader that calls VirtualAlloc with the SizeOfImage
+    of the PE image at its first argument. The zero placeholder argument gives a size of 0,
+    VirtualAlloc returns NULL, and the loader reads NULL + 0xc at 0x180012276.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(FASTFAIL_IN_DLL_MAIN))

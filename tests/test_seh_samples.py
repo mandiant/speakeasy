@@ -1,6 +1,5 @@
 """
-Exception-based checks of real samples, each run from the code that sets it up, with
-the result Windows gives.
+Exception-based checks of real samples, each run from the code that sets it up, with the result Windows gives.
 
 al-khaser (https://github.com/LordNoteworthy/al-khaser) is an open-source suite of
 anti-analysis checks; its binaries are builds of the project's CI. The other samples
@@ -49,9 +48,10 @@ def read_u32(se, address):
 @pytest.mark.parametrize("arch, check", [("x64", 0x9250), ("x86", 0xAC20)])
 def test_al_khaser_page_guard(config, load_test_bin, arch, check):
     """
-    MemoryBreakpoints_PageGuard calls into a PAGE_GUARD page under __try, and reports a
-    debugger unless the guard page violation reaches the __except block: through
-    __GSHandlerCheck_SEH and __C_specific_handler on x64, an SEH4 frame on x86.
+    MemoryBreakpoints_PageGuard reports a debugger unless the guard page violation reaches ``__except``.
+
+    The check calls into a PAGE_GUARD page under ``__try``. The violation reaches the ``__except`` block
+    through __GSHandlerCheck_SEH and __C_specific_handler on x64, and through an SEH4 frame on x86.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(f"al-khaser_{arch}.exe.xz"))
@@ -65,8 +65,9 @@ def test_al_khaser_page_guard(config, load_test_bin, arch, check):
 
 def test_al_khaser_int_2d(config, load_test_bin):
     """
-    Interrupt_0x2d (x86): under a vectored handler that clears the "debugger" flag and
-    continues on STATUS_BREAKPOINT, which a debugger would swallow.
+    Interrupt_0x2d (x86): a vectored handler clears the "debugger" flag.
+
+    The handler continues on STATUS_BREAKPOINT, which a debugger would swallow.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin("al-khaser_x86.exe.xz"))
@@ -80,9 +81,10 @@ def test_al_khaser_int_2d(config, load_test_bin):
 
 def test_al_khaser_unhandled_exception_filter(config, load_test_bin):
     """
-    UnhandledExcepFilterTest (x86): RaiseException with no frame handler, so that the
-    filter of SetUnhandledExceptionFilter clears the "debugger" flag and continues, which
-    it does not under a debugger.
+    UnhandledExcepFilterTest (x86): the unhandled exception filter clears the "debugger" flag.
+
+    The sample calls RaiseException with no frame handler, so the filter of SetUnhandledExceptionFilter
+    runs and continues. It does not under a debugger.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin("al-khaser_x86.exe.xz"))
@@ -98,8 +100,9 @@ def test_al_khaser_unhandled_exception_filter(config, load_test_bin):
 
 def test_raise_exception_anti_emulation(config, load_test_bin):
     """
-    trojan.disco (x64): a function that raises 0x40010006 under __try and returns the
-    code from the __except block; an emulator without x64 SEH never gets there.
+    trojan.disco (x64): a function raises 0x40010006 under ``__try`` and returns the code from ``__except``.
+
+    An emulator without x64 SEH never gets there.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(TROJAN_DISCO))
@@ -113,8 +116,9 @@ def test_raise_exception_anti_emulation(config, load_test_bin):
 
 def test_vmware_backdoor_under_vectored_handler(config, load_test_bin):
     """
-    trojan.khalesi (x64): the VMware backdoor `in eax, dx` under a vectored handler. In user
-    mode it is a privileged instruction, and the handler marks that it ran (2) and skips it.
+    trojan.khalesi (x64): the VMware backdoor `in eax, dx` under a vectored handler.
+
+    In user mode it is a privileged instruction, and the handler marks that it ran (2) and skips it.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(KHALESI))
@@ -128,9 +132,10 @@ def test_vmware_backdoor_under_vectored_handler(config, load_test_bin):
 
 def test_amsi_bypass_with_hardware_breakpoint(config, load_test_bin):
     """
-    A patchless AMSI bypass (x64): its setup sets Dr0 on AmsiScanBuffer with
-    Get/SetThreadContext, under a vectored handler that answers the breakpoint by
-    returning S_OK with AMSI_RESULT_CLEAN instead of running the function.
+    A patchless AMSI bypass (x64) sets a hardware breakpoint on AmsiScanBuffer.
+
+    The setup sets Dr0 with Get/SetThreadContext, under a vectored handler. The handler answers the
+    breakpoint by returning S_OK with AMSI_RESULT_CLEAN instead of running the function.
 
     The setup is the middle of a function that first reads a file named on the command
     line, so the run enters it with a stack frame of its own, and calls AmsiScanBuffer

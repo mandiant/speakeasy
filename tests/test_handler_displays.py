@@ -1,6 +1,4 @@
-"""
-Handlers put each decoded value on the parameter it came from.
-"""
+"""Handlers put each decoded value on the parameter it came from."""
 
 import struct
 from collections.abc import Callable

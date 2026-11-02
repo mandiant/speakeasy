@@ -4,9 +4,7 @@ import speakeasy
 
 
 class UpxUnpacker(speakeasy.Speakeasy):
-    """
-    Generic UPX unpacker class
-    """
+    """Generic UPX unpacker class."""
 
     def __init__(self, output_path, debug=False):
         super().__init__(debug=debug)

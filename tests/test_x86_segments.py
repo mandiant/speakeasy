@@ -13,10 +13,11 @@ def dword(value):
 
 def test_code_selector_is_the_native_x86_selector(config, load_test_bin):
     """
-    0be93fa8 is a crypter stub that unpacks an injector to 0x41e000. Before it injects into
-    a process, the injector reads CS and compares the low byte with 0x1B: on native 32-bit
-    Windows it calls CreateRemoteThread (0x41ee84), else it asks IsWow64Process and can make
-    a far call to the 64-bit selector 0x33.
+    0be93fa8 is a crypter stub that unpacks an injector to 0x41e000.
+
+    Before it injects into a process, the injector reads CS and compares the low byte with 0x1B: on
+    native 32-bit Windows it calls CreateRemoteThread (0x41ee84), else it asks IsWow64Process and
+    can make a far call to the 64-bit selector 0x33.
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(INJECTOR))

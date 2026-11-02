@@ -73,8 +73,9 @@ _X64_ARG_REGS = (b"\x48\x89\xc1", b"\x48\x89\xc2", b"\x49\x89\xc0", b"\x49\x89\x
 
 def guest_call(ptr_size, target, *args, store=None):
     """
-    Assemble a call to ``target`` with the native calling convention, optionally
-    storing the return value at ``store``.
+    Assemble a call to ``target`` with the native calling convention.
+
+    If ``store`` is set, the code stores the return value there.
     """
     if ptr_size == 4:
         code = b"".join(
@@ -104,9 +105,10 @@ def read_pointer(se, address):
 
 def make_list_walker(ptr_size):
     """
-    Assemble a thread procedure that takes an output buffer and writes the
-    DllBase of every entry in the load, memory and initialization order lists
-    of its own PEB, each list terminated by zero.
+    Assemble a thread procedure that walks the module lists of its own PEB.
+
+    The procedure takes an output buffer and writes the DllBase of every entry in the load, memory and
+    initialization order lists. Zero terminates each list.
     """
     if ptr_size == 4:
         code = b"\x56\x57\x53\x8b\x7c\x24\x10\x64\xa1\x30\x00\x00\x00\x8b\x40\x0c"

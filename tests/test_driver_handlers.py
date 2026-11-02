@@ -1,6 +1,4 @@
-"""
-Kernel driver framework handlers (NDIS, WFP, WSK, KMDF) return what callers read.
-"""
+"""Kernel driver framework handlers (NDIS, WFP, WSK, KMDF) return what callers read."""
 
 import struct
 import uuid

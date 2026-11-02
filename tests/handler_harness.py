@@ -1,6 +1,4 @@
-"""
-Call API handlers directly, with the context that dispatch builds.
-"""
+"""Call API handlers directly, with the context that dispatch builds."""
 
 import struct
 from collections.abc import Generator, Iterator
@@ -62,10 +60,11 @@ def object_attributes(se: Speakeasy, name: str) -> int:
 
 def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict[str | int, str]]:
     """
-    Call a handler with the context and frame that dispatch builds. A variadic handler reads
-    ``argv`` from the stack. Return the handler result and the displays, by
-    parameter name, or by slot index for a call without a signature. A handler
-    that calls guest code starts its first guest call, and its result is None.
+    Call a handler with the context and frame that dispatch builds.
+
+    A variadic handler reads ``argv`` from the stack. Return the handler result and the displays, by
+    parameter name, or by slot index for a call without a signature. A handler that calls guest code
+    starts its first guest call, and its result is None.
     """
     emu = se.emu
     mod, func_attrs = emu.get_api_handler(dll, name)
@@ -94,8 +93,9 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
 
 def start_process(se: Speakeasy) -> None:
     """
-    Create the process and thread that ``run_module`` creates, for handlers
-    that use the current process, thread, or module.
+    Create the process and thread that ``run_module`` creates.
+
+    Handlers that use the current process, thread, or module need them.
     """
     emu = se.emu
     assert isinstance(emu, Win32Emulator)

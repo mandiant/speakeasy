@@ -1,7 +1,8 @@
 """
-Cross-check every hand-written ``@apihook`` declaration against the Win32 API
-signature database. A mismatch in ``argc`` corrupts the emulated stack on x86,
-so hooks and metadata must agree wherever both exist.
+Cross-check every hand-written ``@apihook`` declaration against the Win32 API signature database.
+
+A mismatch in ``argc`` corrupts the emulated stack on x86, so hooks and metadata must agree wherever
+both exist.
 """
 
 import re

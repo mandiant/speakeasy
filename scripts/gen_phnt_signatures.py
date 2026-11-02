@@ -679,7 +679,7 @@ PROTOTYPE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\(\s*$", re.M)
 
 
 def iter_prototypes(text: str) -> Iterator[tuple[list[str], str, str]]:
-    """Yield (prefix_lines, name, params_text) for each ``Name(\\n...)`` block."""
+    r"""Yield (prefix_lines, name, params_text) for each ``Name(\n...)`` block."""
     for m in PROTOTYPE.finditer(text):
         name = m.group(1)
         close = text.find(");", m.end())
