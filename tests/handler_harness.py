@@ -14,6 +14,7 @@ from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api import sigdb
 from speakeasy.winenv.api.api import ApiContext, HandlerArgs
+from speakeasy.winenv.defs.windows import windows as windefs
 
 
 def load_emu(config: dict[str, Any], data: bytes) -> Iterator[Speakeasy]:
@@ -44,6 +45,11 @@ def alloc(se: Speakeasy, data: bytes) -> int:
     addr = se.mem_alloc(len(data), base=0x20000000)
     se.mem_write(addr, data)
     return addr
+
+
+def invalid_handle(se: Speakeasy) -> int:
+    """INVALID_HANDLE_VALUE as a guest register or argument holds it."""
+    return windefs.INVALID_HANDLE_VALUE & ((1 << 8 * se.get_ptr_size()) - 1)
 
 
 def unicode_string(se: Speakeasy, text: str) -> int:

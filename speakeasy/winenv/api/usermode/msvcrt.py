@@ -2532,11 +2532,11 @@ class Msvcrt(api.ApiHandler):
         if action == SIG_DFL:
             return windefs.EXCEPTION_CONTINUE_SEARCH
         if action == SIG_IGN:
-            return windefs.EXCEPTION_CONTINUE_EXECUTION
+            return windefs.EXCEPTION_CONTINUE_EXECUTION & 0xFFFFFFFF
         self.signal_handlers[sig] = SIG_DFL
         return self.call_signal_handler(action, (sig, fpe_code) if sig == SIGFPE else (sig,))
 
-    def call_signal_handler(self, handler, args, rv=windefs.EXCEPTION_CONTINUE_EXECUTION):
+    def call_signal_handler(self, handler, args, rv=windefs.EXCEPTION_CONTINUE_EXECUTION & 0xFFFFFFFF):
         yield GuestCall(handler, args)
         return rv
 

@@ -64,14 +64,15 @@ FILE_BEGIN = 0
 FILE_CURRENT = 1
 FILE_END = 2
 
-INVALID_HANDLE_VALUE = 0xFFFFFFFF
+# (HANDLE)(LONG_PTR)-1. The guest sees a pointer-sized value with all bits set.
+INVALID_HANDLE_VALUE = -1
 HFILE_ERROR = 0xFFFFFFFF
 INVALID_SET_FILE_POINTER = 0xFFFFFFFF
 
 # Verdicts of exception filters and vectored handlers. A guest function returns them as a LONG.
 EXCEPTION_CONTINUE_SEARCH = 0
 EXCEPTION_EXECUTE_HANDLER = 1
-EXCEPTION_CONTINUE_EXECUTION = 0xFFFFFFFF
+EXCEPTION_CONTINUE_EXECUTION = -1
 ExceptionContinueExecution = 0
 ExceptionContinueSearch = 1
 ExceptionNestedException = 2
