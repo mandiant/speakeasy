@@ -392,7 +392,7 @@ def main():
 
     args = parser.parse_args()
     if args.dump_default_config:
-        print(json.dumps(get_default_config_dict(), indent=4))
+        print(json.dumps(get_default_config_dict(), indent=4))  # noqa: T201
         return
     error = run_main(parser, args, config_specs)
     if error:
