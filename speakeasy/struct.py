@@ -10,8 +10,6 @@ from typing import Any
 class EmuStructException(Exception):
     """Container class for struct exceptions."""
 
-    pass
-
 
 class Enum:
     """
