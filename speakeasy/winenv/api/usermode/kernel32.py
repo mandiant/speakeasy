@@ -4936,13 +4936,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return 1
 
-        table = emu.get_handle_table()
-        # File handles are not in the handle table yet, so they stay open
-        if hObject not in table and emu.fileman.get_object_from_handle(hObject):
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return 1
-
-        table.close(hObject)
+        emu.get_handle_table().close(hObject)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
@@ -6960,13 +6954,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         source = self._get_process_handle_table(emu, hSourceProcessHandle)
         target = self._get_process_handle_table(emu, hTargetProcessHandle)
 
-        if hSourceHandle not in source and emu.fileman.get_object_from_handle(hSourceHandle):
-            # File handles are not in the handle table yet, so the duplicate is the same handle value
-            hnd = hSourceHandle
-        else:
-            hnd = target.new_handle(source.get(hSourceHandle))
-            if dwOptions & DUPLICATE_CLOSE_SOURCE:
-                source.close(hSourceHandle)
+        hnd = target.new_handle(source.get(hSourceHandle))
+        if dwOptions & DUPLICATE_CLOSE_SOURCE:
+            source.close(hSourceHandle)
 
         if lpTargetHandle:
             self.write_ptr(lpTargetHandle, hnd)
@@ -8118,8 +8108,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         table = emu.get_handle_table()
         if hFile in table:
             table.close(hFile)
-            return 0
-        if emu.fileman.get_object_from_handle(hFile):
             return 0
         return windefs.HFILE_ERROR
 

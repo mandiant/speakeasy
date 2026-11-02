@@ -176,8 +176,8 @@ class Ntoskrnl(api.ApiHandler):
         """
         (Handle,) = argv
         table = emu.get_handle_table()
-        # File and registry key handles are not in the handle table yet, so they stay open
-        if Handle not in table and (emu.fileman.get_object_from_handle(Handle) or emu.reg_get_key(handle=Handle)):
+        # Registry key handles are not in the handle table yet, so they stay open
+        if Handle not in table and emu.reg_get_key(handle=Handle):
             return ddk.STATUS_SUCCESS
         table.close(Handle)
         return ddk.STATUS_SUCCESS
