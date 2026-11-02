@@ -10,6 +10,7 @@ from .. import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.netman import NetworkManager
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Urlmon(api.ApiHandler):
@@ -25,7 +26,7 @@ class Urlmon(api.ApiHandler):
         self.netman: NetworkManager = emu.get_network_manager()
 
     @apihook("URLDownloadToFile", argc=5)
-    def URLDownloadToFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def URLDownloadToFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToFile(
             LPUNKNOWN pCaller,
@@ -56,7 +57,7 @@ class Urlmon(api.ApiHandler):
         return rv
 
     @apihook("URLDownloadToCacheFile", argc=6)
-    def URLDownloadToCacheFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def URLDownloadToCacheFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT URLDownloadToCacheFile(
             LPUNKNOWN pCaller,
