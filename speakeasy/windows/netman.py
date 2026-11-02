@@ -10,11 +10,12 @@ from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
+from speakeasy.windows.handles import HandleTable, InvalidHandle
 from speakeasy.winenv.defs.enums import INTERNET_FLAGS
+from speakeasy.winenv.defs.winsock.winsock import WSAENOTSOCK
 
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
-    from speakeasy.windows.objman import HandleAllocator
 
 
 def is_ip_address(ip):
@@ -41,8 +42,10 @@ def normalize_response_path(path):
 class Socket:
     """Represents a Windows network socket."""
 
-    def __init__(self, fd, family, stype, protocol, flags):
-        self.fd: int = fd
+    invalid_handle_error = WSAENOTSOCK
+
+    def __init__(self, family, stype, protocol, flags):
+        self.fd: int = 0
         self.family: int = family
         self.type: int = stype
         self.protocol: int = protocol
@@ -80,10 +83,11 @@ class WininetComponent:
 
     config: NetworkConfig | None = None
 
-    def __init__(self, allocator):
+    def __init__(self, handles):
         super().__init__()
-        self.allocator: HandleAllocator = allocator
-        self.handle: int = self.allocator.allocate_wininet_handle()
+        self.handles: HandleTable = handles
+        self.handle: int = self.handles.new_handle(self)
+        self.children: list[WininetComponent] = []
 
     def get_handle(self):
         return self.handle
@@ -92,8 +96,8 @@ class WininetComponent:
 class WininetRequest(WininetComponent):
     """WinInet request object."""
 
-    def __init__(self, allocator, session, verb, objname, ver, ref, accepts, flags, ctx):
-        super().__init__(allocator)
+    def __init__(self, handles, session, verb, objname, ver, ref, accepts, flags, ctx):
+        super().__init__(handles)
 
         # The WiniNet APIs default to a HTTP "GET" if no verb is specified
         self.verb: str
@@ -215,8 +219,8 @@ class WininetRequest(WininetComponent):
 
 
 class WininetSession(WininetComponent):
-    def __init__(self, allocator, instance, server, port, user, password, service, flags, ctx):
-        super().__init__(allocator)
+    def __init__(self, handles, instance, server, port, user, password, service, flags, ctx):
+        super().__init__(handles)
         self.server: str | int = server
         self.port: int = port
         self.user: str | int = user
@@ -224,44 +228,43 @@ class WininetSession(WininetComponent):
         self.service: int | str = service
         self.flags: int = flags
         self.ctx: int = ctx
-        self.requests: dict[int, WininetRequest] = {}
 
         self.instance: WininetInstance = instance
 
     def new_request(self, verb, objname, ver, ref, accepts, flags, ctx):
-        req = WininetRequest(self.allocator, self, verb, objname, ver, ref, accepts, flags, ctx)
-        hdl = req.get_handle()
-        self.requests.update({hdl: req})
+        req = WininetRequest(self.handles, self, verb, objname, ver, ref, accepts, flags, ctx)
+        self.children.append(req)
         return req
 
 
 class WininetInstance(WininetComponent):
-    def __init__(self, allocator, user_agent, access, proxy, bypass, flags):
-        super().__init__(allocator)
+    def __init__(self, handles, user_agent, access, proxy, bypass, flags):
+        super().__init__(handles)
         self.user_agent: str | int = user_agent
         self.access: int = access
         self.proxy: str | int = proxy
         self.bypass: str | int = bypass
         self.flags: int = flags
-        self.sessions: dict[int, WininetSession] = {}
 
     def new_session(self, server, port, user, password, service, flags, ctx):
-        sess = WininetSession(self.allocator, self, server, port, user, password, service, flags, ctx)
-        hdl = sess.get_handle()
-        self.sessions.update({hdl: sess})
+        sess = WininetSession(self.handles, self, server, port, user, password, service, flags, ctx)
+        self.children.append(sess)
         return sess
 
 
 class NetworkManager:
-    """Class that manages network connections during emulation."""
+    """
+    Class that manages network connections during emulation.
+
+    Sockets and WinInet objects are not kernel objects, so their handles are in tables of the
+    manager and not in the process handle table. Each WinInet level (instance, session and
+    request) has its own handle.
+    """
 
     def __init__(self, allocator, config):
         super().__init__()
-        self.sockets: dict[int, Socket] = {}
-        self.wininets: dict[int, WininetInstance] = {}
-        self.curr_fd: int = 4
-        self.curr_handle: int = 0x20
-        self.allocator: HandleAllocator = allocator
+        self.sockets: HandleTable = HandleTable(allocator, release=lambda obj: None)
+        self.wininets: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.config: NetworkConfig = config
         self.dns: DnsConfig | None = None
 
@@ -270,17 +273,14 @@ class NetworkManager:
             self.dns = config.dns
 
     def new_socket(self, family, stype, protocol, flags):
-        fd = self.curr_fd
-
-        sock = Socket(fd, family, stype, protocol, flags)
-        self.curr_fd += 4
+        sock = Socket(family, stype, protocol, flags)
 
         if self.config and self.config.winsock:
             responses = self.config.winsock.responses
             if responses:
                 sock.fill_recv_queue(responses)
 
-        self.sockets.update({fd: sock})
+        sock.fd = self.sockets.new_handle(sock)
         return sock
 
     def name_lookup(self, domain):
@@ -318,28 +318,37 @@ class NetworkManager:
             return _read_txt_data(txt[0])
 
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):
-        wini = WininetInstance(self.allocator, user_agent, access, proxy, bypass, flags)
-
-        self.wininets.update({wini.get_handle(): wini})
-        return wini
+        return WininetInstance(self.wininets, user_agent, access, proxy, bypass, flags)
 
     def get_wininet_object(self, handle):
-        for hinst, inst in self.wininets.items():
-            if hinst == handle:
-                return inst
-            for hsess, sess in inst.sessions.items():
-                if hsess == handle:
-                    return sess
-                for hreq, req in sess.requests.items():
-                    if hreq == handle:
-                        return req
+        """Get the WinInet object of an open handle, else None."""
+        try:
+            return self.wininets.get(handle, WininetComponent)
+        except InvalidHandle:
+            return None
 
     def close_wininet_object(self, handle):
-        if self.wininets.get(handle):
-            self.wininets.pop(handle)
+        """Close a WinInet handle and the open handles of the objects under it."""
+        obj = self.get_wininet_object(handle)
+        if obj is None:
+            return
+        for child in obj.children:
+            if child.handle in self.wininets:
+                self.close_wininet_object(child.handle)
+        self.wininets.close(handle)
 
     def get_socket(self, fd):
-        return self.sockets.get(fd)
+        """Get the socket of an open socket handle, else None."""
+        try:
+            return self.sockets.get(fd, Socket)
+        except InvalidHandle:
+            return None
 
     def close_socket(self, fd):
-        self.sockets.pop(fd)
+        """
+        Close a socket handle.
+
+        Raises:
+            InvalidHandle: if the socket handle is not open.
+        """
+        self.sockets.close(fd)
