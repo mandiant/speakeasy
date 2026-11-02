@@ -57,6 +57,8 @@ MEM_PRIVATE = 0x20000
 
 HEAP_REALLOC_IN_PLACE_ONLY = 0x10
 
+EXCEPTION_MAXIMUM_PARAMETERS = 15
+
 
 FILE_BEGIN = 0
 FILE_CURRENT = 1
@@ -175,7 +177,7 @@ class EXCEPTION_RECORD(EmuStruct):
         self.ExceptionRecord = Ptr
         self.ExceptionAddress = Ptr
         self.NumberParameters = ct.c_uint32
-        self.ExceptionInformation = ct.c_uint32 * 15
+        self.ExceptionInformation = Ptr * EXCEPTION_MAXIMUM_PARAMETERS
 
 
 class FLOATING_SAVE_AREA(EmuStruct):

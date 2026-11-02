@@ -28,7 +28,6 @@ from speakeasy.windows import guest_callbacks, seh, unwind
 from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import (
-    EXCEPTION_RECORD64,
     EXCEPTION_TARGET_UNWIND,
     EXCEPTION_UNWINDING,
     STATUS_UNWIND,
@@ -164,12 +163,9 @@ def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_v
 
     Then resume the target frame at target_ip with return_value in rax.
     """
-    if record:
-        fields = seh.read_record(emu, record)
-    else:
-        fields = [STATUS_UNWIND, 0, 0, ctx.Rip, 0] + [0] * 15
-    fields[1] |= EXCEPTION_UNWINDING if target_frame else UNWINDING
-    record = guest_callbacks.alloca(emu, EXCEPTION_RECORD64.pack(*fields))
+    fields = seh.read_record(emu, record) if record else seh.exception_record(emu, STATUS_UNWIND, 0, ctx.Rip)
+    fields.ExceptionFlags |= EXCEPTION_UNWINDING if target_frame else UNWINDING
+    record = guest_callbacks.alloca(emu, fields.get_bytes())
     unwound = guest_callbacks.alloca(emu, ctx.get_bytes())
     dispatcher_context = guest_callbacks.alloca(emu, bytes(DISPATCHER_CONTEXT.size))
 
@@ -177,8 +173,8 @@ def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_v
         is_target = info.establisher_frame == target_frame
         if info.handler:
             if is_target:
-                fields[1] |= EXCEPTION_TARGET_UNWIND
-                emu.mem_write(record, EXCEPTION_RECORD64.pack(*fields))
+                fields.ExceptionFlags |= EXCEPTION_TARGET_UNWIND
+                emu.mem_write(record, fields.get_bytes())
             emu.mem_write(unwound, frame_ctx.get_bytes())
             emu.mem_write(dispatcher_context, _dispatcher_context(fn, frame_ctx, info, unwound, target_ip))
             yield GuestCall(info.handler, (record, info.establisher_frame, unwound, dispatcher_context))
