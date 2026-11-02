@@ -100,12 +100,7 @@ class Ncrypt(api.ApiHandler):
         );
         """
         hKey, dwFlags = argv
-        cm = emu.get_crypt_manager()
-        for crypt_ctx in cm.ctx_handles.values():
-            hnd_key = crypt_ctx.get_key(hKey)
-            if hnd_key:
-                crypt_ctx.delete_key(hKey)
-                break
+        emu.get_crypt_manager().delete_key(hKey)
 
         return windefs.ERROR_SUCCESS
 
@@ -120,12 +115,9 @@ class Ncrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
 
         # hObject can be a handle to a provider or key
-        for hnd, crypt_ctx in cm.ctx_handles.items():
-            if hnd == hObject:
-                cm.crypt_close(hObject)
-                break
-            if crypt_ctx.get_key(hObject):
-                crypt_ctx.delete_key(hObject)
-                break
+        if cm.crypt_get(hObject):
+            cm.crypt_close(hObject)
+        else:
+            cm.delete_key(hObject)
 
         return windefs.ERROR_SUCCESS

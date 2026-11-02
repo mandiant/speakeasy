@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TypeVar
 
-if TYPE_CHECKING:
-    from speakeasy.windows.objman import HandleAllocator
+from speakeasy.windows.handles import HANDLE_MASK, HandleTable, InvalidHandle
+
+T = TypeVar("T")
 
 
 class CryptKey:
-    def __init__(self, blob_type, blob, blob_len, hnd_import_key, param_list, flags):
+    def __init__(self, context, blob_type, blob, blob_len, hnd_import_key, param_list, flags):
+        self.context: CryptContext = context
         self.blob_type: str | None = blob_type
         self.blob: bytes | None = blob
         self.blob_len: int | None = blob_len
@@ -19,11 +21,18 @@ class CryptKey:
         self.chaining_mode: str | None = None
 
 
+class CryptHash:
+    """Represents a hash object of CryptCreateHash, with the hashlib object that keeps its state."""
+
+    def __init__(self, hasher):
+        self.hasher: Any = hasher
+
+
 class CryptContext:
     """Represents crypto context used by crypto functions."""
 
-    def __init__(self, allocator, cname, pname, ptype, flags):
-        self.allocator: HandleAllocator = allocator
+    def __init__(self, handles, cname, pname, ptype, flags):
+        self.handles: HandleTable = handles
         self.container_name: str | None = cname
         self.provider_name: str | None = pname
         self.ptype: str | int | None = ptype
@@ -31,12 +40,9 @@ class CryptContext:
         self.keys: dict[int, CryptKey] = {}
         self.chaining_mode: str = "ChainingModeCBC"
 
-    def get_handle(self):
-        return self.allocator.allocate_crypt_context_handle()
-
     def import_key(self, blob_type=None, blob=None, blob_len=None, hnd_import_key=None, param_list=None, flags=None):
-        key = CryptKey(blob_type, blob, blob_len, hnd_import_key, param_list, flags)
-        hnd = self.get_handle()
+        key = CryptKey(self, blob_type, blob, blob_len, hnd_import_key, param_list, flags)
+        hnd = self.handles.new_handle(key)
         self.keys.update({hnd: key})
 
         return hnd
@@ -45,27 +51,60 @@ class CryptContext:
         return self.keys.get(hnd, None)
 
     def delete_key(self, hnd):
-        self.keys.pop(hnd)
+        self.keys.pop(hnd & HANDLE_MASK)
+        self.handles.close(hnd)
 
 
 class CryptoManager:
-    """Manages the emulation of crypto functions."""
+    """
+    Manages the emulation of crypto functions.
+
+    Providers, keys and hashes are not kernel objects, so their handles are in a table of the
+    manager and not in the process handle table, and CloseHandle does not close them.
+    """
 
     def __init__(self, allocator, config=None):
         super().__init__()
-        self.ctx_handles: dict[int, CryptContext] = {}
+        self.handles: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.config: object | None = config
-        self.allocator: HandleAllocator = allocator
 
     def crypt_open(self, cname=None, pname=None, ptype=None, flags=None):
-        ctx = CryptContext(self.allocator, cname, pname, ptype, flags)
-        hnd = ctx.get_handle()
-
-        self.ctx_handles.update({hnd: ctx})
-        return hnd
+        return self.handles.new_handle(CryptContext(self.handles, cname, pname, ptype, flags))
 
     def crypt_close(self, hnd):
-        self.ctx_handles.pop(hnd, None)
+        """Close a provider handle and the handles of its keys."""
+        ctx = self.crypt_get(hnd)
+        if ctx is None:
+            return
+        for key_hnd in list(ctx.keys):
+            ctx.delete_key(key_hnd)
+        self.handles.close(hnd)
 
-    def crypt_get(self, hnd):
-        return self.ctx_handles.get(hnd, None)
+    def get_handle_object(self, hnd, otype: type[T]) -> T | None:
+        """Get the object of an open handle if it is an ``otype``, else None."""
+        try:
+            return self.handles.get(hnd, otype)
+        except InvalidHandle:
+            return None
+
+    def crypt_get(self, hnd) -> CryptContext | None:
+        return self.get_handle_object(hnd, CryptContext)
+
+    def get_key(self, hnd) -> CryptKey | None:
+        return self.get_handle_object(hnd, CryptKey)
+
+    def delete_key(self, hnd) -> bool:
+        """Close a key handle. Return False if the handle is not a key."""
+        key = self.get_key(hnd)
+        if key is None:
+            return False
+        key.context.delete_key(hnd)
+        return True
+
+    def create_hash(self, hasher) -> int:
+        return self.handles.new_handle(CryptHash(hasher))
+
+    def get_hash(self, hnd):
+        """Get the hashlib object of a hash handle, or None."""
+        obj = self.get_handle_object(hnd, CryptHash)
+        return obj.hasher if obj else None

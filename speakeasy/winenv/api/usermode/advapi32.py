@@ -49,7 +49,6 @@ class AdvApi32(api.ApiHandler):
         super().__init__(emu)
         self.funcs = {}
         self.data = {}
-        self.hash_objects: dict[int, hashlib._Hash] = {}
         self.md5_contexts: dict[int, hashlib._Hash] = {}
         self.k32types = k32defs
         self.win = adv32defs
@@ -1720,8 +1719,7 @@ class AdvApi32(api.ApiHandler):
             emu.set_last_error(adv32defs.NTE_BAD_ALGID)
             return 0
 
-        hnd = self.get_handle()
-        self.hash_objects.update({hnd: hash_algs[Algid][1]()})
+        hnd = emu.get_crypt_manager().create_hash(hash_algs[Algid][1]())
         self.write_ptr(phHash, hnd)
         return 1
 
@@ -1736,7 +1734,7 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hHash, pbData, dwDataLen, dwFlags = argv
-        hnd = self.hash_objects.get(hHash, None)
+        hnd = emu.get_crypt_manager().get_hash(hHash)
         if hnd is None:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
@@ -1766,7 +1764,7 @@ class AdvApi32(api.ApiHandler):
         if dwParam in param_enums.keys():
             ctx.args["dwParam"].display = param_enums[dwParam]
 
-        hnd = self.hash_objects.get(hHash, None)
+        hnd = emu.get_crypt_manager().get_hash(hHash)
         if hnd is None:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
@@ -1868,7 +1866,7 @@ class AdvApi32(api.ApiHandler):
         if Algid != 0x6801:
             return 0
 
-        hnd = self.hash_objects.get(hBaseData, None)
+        hnd = emu.get_crypt_manager().get_hash(hBaseData)
 
         if hnd is None:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)

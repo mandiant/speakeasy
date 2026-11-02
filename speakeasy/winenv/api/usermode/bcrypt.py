@@ -275,10 +275,9 @@ class Bcrypt(api.ApiHandler):
 
     def get_key(self, emu, hKey):
         """Get the algorithm context and the key of a key handle, or (None, None)."""
-        for alg_ctx in emu.get_crypt_manager().ctx_handles.values():
-            key = alg_ctx.get_key(hKey)
-            if key:
-                return alg_ctx, key
+        key = emu.get_crypt_manager().get_key(hKey)
+        if key:
+            return key.context, key
         return None, None
 
     def read_auth_info(self, addr):
@@ -382,12 +381,8 @@ class Bcrypt(api.ApiHandler):
         );
         """
         (hKey,) = argv
-        cm = emu.get_crypt_manager()
-        for crypt_ctx in cm.ctx_handles.values():
-            hnd_key = crypt_ctx.get_key(hKey)
-            if hnd_key:
-                crypt_ctx.delete_key(hKey)
-                return ddk.STATUS_SUCCESS
+        if emu.get_crypt_manager().delete_key(hKey):
+            return ddk.STATUS_SUCCESS
 
         return ddk.STATUS_INVALID_HANDLE
 
