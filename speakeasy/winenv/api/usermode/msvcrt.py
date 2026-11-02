@@ -7151,7 +7151,7 @@ class Msvcrt(api.ApiHandler):
         if not self.write_next_find_entry(search, fileinfo):
             self.set_errno(ENOENT)
             return -1
-        hnd = emu.handle_allocator.allocate_kernel_object_handle()
+        hnd = emu.handle_allocator.allocate_handle()
         self.find_searches[hnd] = search
         return hnd
 
