@@ -308,7 +308,7 @@ class Win32Emulator(WindowsEmulator):
             p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
             self.processes.append(p)
             self.curr_process = p
-            self.get_object_manager("process registration").objects.update({p.address: p})
+            self.get_object_manager("process registration").add_object(p)
             mm = self.get_address_map(module.base)
             if mm:
                 mm.process = self.curr_process
@@ -316,7 +316,7 @@ class Win32Emulator(WindowsEmulator):
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=module.stack_commit)
         t.process = self.curr_process
 
-        self.get_object_manager("thread registration").objects.update({t.address: t})
+        self.get_object_manager("thread registration").add_object(t)
         if self.curr_process is not None:
             self.curr_process.threads.append(t)
         self.curr_thread = t
@@ -371,7 +371,7 @@ class Win32Emulator(WindowsEmulator):
                 run.thread = self.curr_thread
 
             self.command_line = child.cmdline
-            self.get_object_manager("thread registration").objects.update({self.curr_thread.address: self.curr_thread})
+            self.get_object_manager("thread registration").add_object(self.curr_thread)
             self.start()
             finished = child
 
@@ -481,7 +481,7 @@ class Win32Emulator(WindowsEmulator):
             mm.process = self.curr_process
 
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=stack_commit)
-        self.get_object_manager("thread registration").objects.update({t.address: t})
+        self.get_object_manager("thread registration").add_object(t)
         self.curr_process.threads.append(t)
 
         self.curr_thread = t

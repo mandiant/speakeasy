@@ -31,6 +31,7 @@ from speakeasy.profiler_events import (
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
+from speakeasy.windows.handles import CURRENT_THREAD_HANDLE
 from speakeasy.winenv.defs.enums import (
     COMPUTER_NAME_FORMAT,
     CREATE_TOOLHELP_SNAPSHOT_FLAGS,
@@ -59,7 +60,7 @@ NORM_IGNORECASE = 0x1
 MOVEFILE_REPLACE_EXISTING = 0x1
 MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
 
-CURRENT_THREAD_HANDLE = 0xFFFFFFFE  # (HANDLE)-2
+DUPLICATE_CLOSE_SOURCE = 0x1
 
 FILE_MAP_COPY = 0x0001
 FILE_MAP_WRITE = 0x0002
@@ -305,6 +306,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if (handle & 0xFFFFFFFF) == CURRENT_THREAD_HANDLE:
             return emu.get_current_thread()
         return self.get_object_from_handle(handle)
+
+    def _get_process_handle_table(self, emu, hProcess):
+        """
+        Get the handle table of the process that a process handle refers to.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a process.
+        """
+        proc = emu.get_handle_table().get(hProcess, objman.Process)
+        if proc is emu.get_current_process():
+            return emu.get_handle_table()
+        return proc.handles
 
     def emu_perms_to_win_perms(self, emu_perms):
         if emu_perms & common.PERM_MEM_WRITE:
@@ -4918,19 +4931,20 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        obj = self.get_object_from_handle(hObject)
-        if obj:
-            emu.dec_ref(obj)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return 1
-
         proc = emu.get_current_process()
         if proc and hObject in (proc.stdin, proc.stdout, proc.stderr):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return 1
 
-        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-        return 0
+        table = emu.get_handle_table()
+        # File handles are not in the handle table yet, so they stay open
+        if hObject not in table and emu.fileman.get_object_from_handle(hObject):
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
+
+        table.close(hObject)
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
     @apihook("SetEndOfFile", argc=1)
     def SetEndOfFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5031,7 +5045,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             obj = self.get_object_from_name(evt_name)
 
         if obj:
-            hnd = obj.get_handle()
+            hnd = emu.get_object_handle(obj)
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             hnd, evt = emu.create_event(evt_name)
@@ -5061,7 +5075,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             obj = self.get_object_from_name(timer_name)
 
         if obj:
-            hnd = obj.get_handle()
+            hnd = emu.get_object_handle(obj)
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             hnd, _evt = emu.create_event(timer_name)
@@ -5090,7 +5104,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             obj = self.get_object_from_name(timer_name)
 
         if obj:
-            hnd = obj.get_handle()
+            hnd = emu.get_object_handle(obj)
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             hnd, _evt = emu.create_event(timer_name)
@@ -5119,7 +5133,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         obj = self.get_object_from_name(timer_name)
 
         if obj:
-            hnd = obj.get_handle()
+            hnd = emu.get_object_handle(obj)
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
@@ -5188,7 +5202,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
 
-        return obj.get_handle()
+        return emu.get_object_handle(obj)
 
     @apihook("SetEvent", argc=1)
     def SetEvent(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6943,9 +6957,20 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             bInheritHandle,
             dwOptions,
         ) = argv
-        if (hSourceHandle & 0xFFFFFFFF) == CURRENT_THREAD_HANDLE and lpTargetHandle:
-            hnd = self.get_object_handle(emu.get_current_thread())
+        source = self._get_process_handle_table(emu, hSourceProcessHandle)
+        target = self._get_process_handle_table(emu, hTargetProcessHandle)
+
+        if hSourceHandle not in source and emu.fileman.get_object_from_handle(hSourceHandle):
+            # File handles are not in the handle table yet, so the duplicate is the same handle value
+            hnd = hSourceHandle
+        else:
+            hnd = target.new_handle(source.get(hSourceHandle))
+            if dwOptions & DUPLICATE_CLOSE_SOURCE:
+                source.close(hSourceHandle)
+
+        if lpTargetHandle:
             self.write_ptr(lpTargetHandle, hnd)
+        emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
     @apihook("GetBinaryType", argc=2)
@@ -8090,9 +8115,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hFile,) = argv
-        obj = self.get_object_from_handle(hFile)
-        if obj:
-            emu.dec_ref(obj)
+        table = emu.get_handle_table()
+        if hFile in table:
+            table.close(hFile)
+            return 0
+        if emu.fileman.get_object_from_handle(hFile):
             return 0
         return windefs.HFILE_ERROR
 
@@ -8197,7 +8224,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             obj = self.get_object_from_name(timer_name)
 
         if obj:
-            hnd = obj.get_handle()
+            hnd = emu.get_object_handle(obj)
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             hnd, _evt = emu.create_event(timer_name)

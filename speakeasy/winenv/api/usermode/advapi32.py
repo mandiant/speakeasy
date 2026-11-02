@@ -547,7 +547,7 @@ class AdvApi32(api.ApiHandler):
 
         if obj:
             token = obj.token
-            hToken = token.get_handle()
+            hToken = emu.get_object_manager(ctx.func_name).new_handle(token)
 
             if TokenHandle:
                 hnd = (hToken).to_bytes(self.get_ptr_size(), "little")
@@ -579,7 +579,7 @@ class AdvApi32(api.ApiHandler):
 
         if obj:
             token = obj.token
-            hToken = token.get_handle()
+            hToken = emu.get_object_manager(ctx.func_name).new_handle(token)
 
             if TokenHandle:
                 hnd = (hToken).to_bytes(self.get_ptr_size(), "little")
@@ -610,7 +610,7 @@ class AdvApi32(api.ApiHandler):
 
         if obj:
             new_token = emu.new_object(objman.Token)
-            hnd_new_token = new_token.get_handle()
+            hnd_new_token = emu.get_object_manager(ctx.func_name).new_handle(new_token)
 
             if phNewToken:
                 hnd = (hnd_new_token).to_bytes(self.get_ptr_size(), "little")

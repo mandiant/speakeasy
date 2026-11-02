@@ -10,6 +10,7 @@ from speakeasy import common
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
 from speakeasy.windows import objman
+from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import PeLoader
 from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
@@ -192,6 +193,10 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
             self.processes = self.get_processes()
 
         return self.curr_process
+
+    def get_handle_table(self) -> HandleTable:
+        """Get the handle table of the emulator. The kernel emulator keeps all handles in one table."""
+        return self.handles
 
     def run_module(self, module, all_entrypoints=False, entry_point=None) -> None:
         """Begin emulation fo a previously loaded kernel module."""
