@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.usb as usbdefs
+from speakeasy.windows.handles import HandleTable, InvalidHandle
 from speakeasy.winenv.defs import wdf
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
@@ -64,16 +65,12 @@ class Wdfldr(api.ApiHandler):
         super().__init__(emu)
 
         self.funcs = {}
-        self.curr_handle: int = 4
         self.pnp_device: int | None = None
         self.data = {}
         self.emu = emu
         self.wdf_drivers: dict[int, WdfDriver] = {}
-        self.wdf_devices: dict[int, WdfDevice] = {}
-        self.usb_devices: dict[int, WdfUsbDevice] = {}
-        self.usb_pipes: dict[int, WdfUsbPipe] = {}
-        self.usb_interfaces: dict[int, WdfUsbInterface] = {}
-        self.handles: dict[int, Any] = {}
+        # WDF objects are not kernel objects, so their handles are in a table of the module
+        self.handles: HandleTable = HandleTable(emu.handle_allocator, release=lambda obj: None)
         self.typed_contexts: dict[tuple[int, int], int] = {}
         self.types = wdf
         self.func_table: wdf.WDFFUNCTIONS = self.types.WDFFUNCTIONS(emu.get_ptr_size())
@@ -81,9 +78,12 @@ class Wdfldr(api.ApiHandler):
         self.component_globals: int | None = None
         super().__get_hook_attrs__(self)
 
-    def get_handle(self):
-        self.curr_handle += 4
-        return self.curr_handle
+    def get_handle_object(self, handle, otype):
+        """Get the WDF object of an open handle if it is an ``otype``, else None."""
+        try:
+            return self.handles.get(handle, otype)
+        except InvalidHandle:
+            return None
 
     def set_func_table(self, emu):
         for field, _ in self.func_table.__fields__:
@@ -186,8 +186,7 @@ class Wdfldr(api.ApiHandler):
         self.wdf_drivers.update({DriverGlobals: driver})
 
         # WdfGetDriver reads the handle from WDF_DRIVER_GLOBALS.Driver
-        handle = self.get_handle()
-        self.handles[handle] = driver
+        handle = self.handles.new_handle(driver)
         for out in (DriverGlobals, Driver):
             if out:
                 self.write_ptr(out, handle)
@@ -266,9 +265,8 @@ class Wdfldr(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         if Device:
-            handle = self.get_handle()
             dev = WdfDevice()
-            self.wdf_devices.update({handle: dev})
+            handle = self.handles.new_handle(dev)
             self.write_ptr(Device, handle)
 
             do = ntos.DEVICE_OBJECT(emu.get_ptr_size())
@@ -446,7 +444,7 @@ class Wdfldr(api.ApiHandler):
         if driver is None:
             return ddk.STATUS_INVALID_PARAMETER
 
-        hnd = self.get_handle()
+        hnd = self.handles.new_handle(queue_config)
         driver.queues.update({hnd: queue_config})
 
         if Queue:
@@ -489,9 +487,8 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, Device, Config, Attributes, UsbDevice = argv
 
         rv = ddk.STATUS_SUCCESS
-        handle = self.get_handle()
         usb = WdfUsbDevice()
-        self.usb_devices.update({handle: usb})
+        handle = self.handles.new_handle(usb)
 
         self.write_ptr(UsbDevice, handle)
 
@@ -510,7 +507,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, Device = argv
         rv = 0
 
-        dev = self.wdf_devices.get(Device)
+        dev = self.get_handle_object(Device, WdfDevice)
         if dev:
             rv = dev.device_object_addr
         return rv
@@ -528,7 +525,7 @@ class Wdfldr(api.ApiHandler):
         """
         DriverGlobals, UsbDevice, UsbDeviceDescriptor = argv
 
-        dev = self.usb_devices.get(UsbDevice)
+        dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
         if dev:
             dd = usbdefs.USB_DEVICE_DESCRIPTOR()
             self.mem_write(UsbDeviceDescriptor, dd.get_bytes())
@@ -577,18 +574,17 @@ class Wdfldr(api.ApiHandler):
         cfg_params = self.types.WDF_USB_DEVICE_SELECT_CONFIG_PARAMS(emu.get_ptr_size())
         cfg_params = self.mem_cast(cfg_params, Params)
 
-        dev = self.usb_devices.get(UsbDevice)
+        dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
         if not dev:
             return ddk.STATUS_INVALID_HANDLE
 
         enum = self.types.WdfUsbTargetDeviceSelectConfigType
         if cfg_params.Type == enum.WdfUsbTargetDeviceSelectConfigTypeSingleInterface:
             dev.num_interfaces = 1
-            hnd = self.get_handle()
             uf = WdfUsbInterface()
             uf.config_desc = dev.config_desc
             uf.iface_index = 0
-            self.usb_interfaces.update({hnd: uf})
+            hnd = self.handles.new_handle(uf)
             cfg_params.Types.SingleInterface.ConfiguredUsbInterface = hnd
         elif cfg_params.Type == enum.WdfUsbTargetDeviceSelectConfigTypeMultiInterface:
             dev.num_interfaces = cfg_params.Types.MultiInterface.NumberInterfaces
@@ -621,7 +617,7 @@ class Wdfldr(api.ApiHandler):
         cd = usbdefs.USB_CONFIGURATION_DESCRIPTOR()
         if ConfigDescriptor:
             cd = self.mem_cast(cd, ConfigDescriptor)
-            dev = self.usb_devices.get(UsbDevice)
+            dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
             if dev:
                 if cd.bLength == 0:
                     self.mem_write(ConfigDescriptorLength, (cd.sizeof()).to_bytes(2, "little"))
@@ -633,7 +629,7 @@ class Wdfldr(api.ApiHandler):
             else:
                 self.mem_write(ConfigDescriptorLength, (cd.sizeof()).to_bytes(2, "little"))
         else:
-            dev = self.usb_devices.get(UsbDevice)
+            dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
             size = len(dev.config_desc) if dev and dev.config_desc else cd.sizeof()
             self.mem_write(ConfigDescriptorLength, size.to_bytes(2, "little"))
 
@@ -654,7 +650,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, UsbInterface, PipesAttributes, Params = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
-        uif = self.usb_interfaces.get(UsbInterface)
+        uif = self.get_handle_object(UsbInterface, WdfUsbInterface)
         if uif:
             ifparams = self.types.WDF_USB_INTERFACE_SELECT_SETTING_PARAMS(emu.get_ptr_size())
             ifparams = self.mem_cast(ifparams, Params)
@@ -679,7 +675,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, UsbDevice = argv
 
         rv = 0
-        dev = self.usb_devices.get(UsbDevice)
+        dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
         if dev:
             rv = dev.num_interfaces
 
@@ -698,7 +694,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, UsbInterface = argv
 
         rv = 0
-        uif = self.usb_interfaces.get(UsbInterface)
+        uif = self.get_handle_object(UsbInterface, WdfUsbInterface)
 
         if uif:
             interfaces = self.parse_usb_config(uif.config_desc)
@@ -722,7 +718,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, UsbInterface = argv
 
         rv = 0
-        uif = self.usb_interfaces.get(UsbInterface)
+        uif = self.get_handle_object(UsbInterface, WdfUsbInterface)
         if not uif:
             return rv
 
@@ -748,7 +744,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, UsbDevice, Information = argv
 
         rv = ddk.STATUS_INVALID_HANDLE
-        dev = self.usb_devices.get(UsbDevice)
+        dev = self.get_handle_object(UsbDevice, WdfUsbDevice)
         if dev:
             info = self.types.WDF_USB_DEVICE_INFORMATION(emu.get_ptr_size())
             info = self.mem_cast(info, Information)
@@ -775,7 +771,7 @@ class Wdfldr(api.ApiHandler):
         PipeIndex &= 0xFF
 
         rv = 0
-        uif = self.usb_interfaces.get(UsbInterface)
+        uif = self.get_handle_object(UsbInterface, WdfUsbInterface)
         if not uif:
             return rv
 
@@ -795,11 +791,10 @@ class Wdfldr(api.ApiHandler):
                     info.PipeType = self.get_pipe_type(ep)
                     self.mem_write(PipeInfo, info.get_bytes())
 
-        hnd = self.get_handle()
         up = WdfUsbPipe()
         up.interface = uif
         up.index = PipeIndex
-        self.usb_pipes.update({hnd: up})
+        hnd = self.handles.new_handle(up)
         rv = hnd
 
         return rv
@@ -817,7 +812,7 @@ class Wdfldr(api.ApiHandler):
         """
         DriverGlobals, Pipe, PipeInformation = argv
 
-        _pipe = self.usb_pipes.get(Pipe)
+        _pipe = self.get_handle_object(Pipe, WdfUsbPipe)
         if _pipe and _pipe.interface:
             uif = _pipe.interface
 
@@ -851,7 +846,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, UsbInterface = argv
 
         rv = 0
-        uif = self.usb_interfaces.get(UsbInterface)
+        uif = self.get_handle_object(UsbInterface, WdfUsbInterface)
 
         if uif:
             rv = uif.iface_index
