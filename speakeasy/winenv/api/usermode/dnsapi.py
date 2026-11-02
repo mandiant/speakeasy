@@ -2,7 +2,7 @@
 
 import ctypes as ct
 from socket import inet_aton
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.struct import EmuStruct, Ptr
@@ -18,22 +18,18 @@ DNS_TYPE_TEXT = 0x0010
 
 
 class _DnsRecord(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.pNext = Ptr
-        self.pName = Ptr
-        self.wType = ct.c_uint16
-        self.wDataLength = ct.c_uint16
-        self.Flags = ct.c_uint32
-        self.dwTtl = ct.c_uint32
-        self.dwReserved = ct.c_uint32
+    pNext: Annotated[int, Ptr]
+    pName: Annotated[int, Ptr]
+    wType: Annotated[int, ct.c_uint16]
+    wDataLength: Annotated[int, ct.c_uint16]
+    Flags: Annotated[int, ct.c_uint32]
+    dwTtl: Annotated[int, ct.c_uint32]
+    dwReserved: Annotated[int, ct.c_uint32]
 
 
 class DNS_TXT_DATA(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.dwStringCount = Ptr
-        self.pStringArray = Ptr
+    dwStringCount: Annotated[int, Ptr]
+    pStringArray: Annotated[int, Ptr]
 
 
 class DnsApi(api.ApiHandler):
