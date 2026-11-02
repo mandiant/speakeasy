@@ -1,7 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import speakeasy.winenv.arch as _arch
 from speakeasy.struct import EmuStruct, Ptr
@@ -13,11 +13,9 @@ if TYPE_CHECKING:
 
 
 class WTS_SESSION_INFO(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.SessionId = ct.c_uint32
-        self.pWinStationName = Ptr
-        self.State = ct.c_uint32
+    SessionId: Annotated[int, ct.c_uint32]
+    pWinStationName: Annotated[int, Ptr]
+    State: Annotated[int, ct.c_uint32]
 
 
 class WtsApi32(api.ApiHandler):
