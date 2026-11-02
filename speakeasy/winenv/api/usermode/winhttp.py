@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from socket import inet_aton
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -12,14 +11,6 @@ from .. import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
-
-
-def is_ip_address(ip):
-    try:
-        inet_aton(ip)
-        return True
-    except Exception:
-        return False
 
 
 class WinHttp(api.ApiHandler):
@@ -222,7 +213,7 @@ class WinHttp(api.ApiHandler):
         srv = req.get_server()
         port = req.get_port()
 
-        if not is_ip_address(srv):
+        if not netman.is_ip_address(srv):
             self.record_dns_event(srv)
 
         rv = 1
