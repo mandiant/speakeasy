@@ -7,8 +7,10 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as u32defs
 from speakeasy.windows import guest_callbacks, sessman
 from speakeasy.windows.guest_callbacks import GuestCall
+from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.windows import windef
 from speakeasy.winenv.defs.windows import windows as windefs
+from speakeasy.winenv.defs.windows.user32 import WINDOWS_HOOK_ID
 
 from .. import api
 
@@ -240,7 +242,7 @@ class User32(api.ApiHandler):
 
     def get_synthetic_keyboard_hook(self):
         for _, hook in self.window_hooks.items():
-            if len(hook) == 3 and hook[0] == u32defs.WH_KEYBOARD_LL:
+            if len(hook) == 3 and hook[0] == WINDOWS_HOOK_ID.WH_KEYBOARD_LL:
                 return hook
         return None
 
@@ -938,10 +940,7 @@ class User32(api.ApiHandler):
         """
         idHook, lpfn, hmod, dwThreadId = argv
 
-        hname = u32defs.get_windowhook_flags(idHook)
-        if hname:
-            hname = hname[0]
-            ctx.args["idHook"].display = hname
+        ctx.args["idHook"].display = decode(WINDOWS_HOOK_ID, idHook)
 
         hnd = self.get_handle()
         self.window_hooks.update({hnd: (idHook, lpfn, hmod)})
