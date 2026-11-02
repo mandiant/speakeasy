@@ -21,9 +21,11 @@ IDLE_EXIT = 5.0
 
 class StartTimer:
     """
-    Calls a stop function from a thread when the timeout of a start passes, and again every
-    STOP_REPEAT seconds until the start disarms the timer. The thread exits when the timer
-    is not armed for IDLE_EXIT seconds, and the next arm starts it again.
+    Call a stop function from a thread when the timeout of a start passes.
+
+    The thread calls it again every ``STOP_REPEAT`` seconds until the start disarms the timer.
+    The thread exits when the timer is not armed for ``IDLE_EXIT`` seconds, and the next arm
+    starts it again.
     """
 
     def __init__(self, stop):

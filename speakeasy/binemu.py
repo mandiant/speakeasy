@@ -26,8 +26,10 @@ logger = logging.getLogger(__name__)
 
 def double_bits_to_fp80(bits):
     """
-    Convert the IEEE 754 bits of a double to the (mantissa, sign and exponent)
-    pair of an x87 80-bit register.
+    Convert the IEEE 754 bits of a double to an x87 80-bit register value.
+
+    Returns:
+        The (mantissa, sign and exponent) pair of the register.
     """
     sign = (bits >> 63) << 15
     exponent = (bits >> 52) & 0x7FF
@@ -44,8 +46,11 @@ def double_bits_to_fp80(bits):
 
 def fp80_to_double_bits(mantissa, sign_exponent):
     """
-    Convert the (mantissa, sign and exponent) pair of an x87 80-bit register
-    to the IEEE 754 bits of a double.
+    Convert an x87 80-bit register value to the IEEE 754 bits of a double.
+
+    Args:
+        mantissa: Mantissa of the register.
+        sign_exponent: Sign and exponent of the register.
     """
     sign = -1.0 if sign_exponent & 0x8000 else 1.0
     exponent = sign_exponent & 0x7FFF
@@ -69,12 +74,12 @@ MODULE_LEVEL = tuple[dict[str, API_LEVEL], WILDCARD_FLAG]
 # Generic emulator class for binary code
 class BinaryEmulator(MemoryManager, ABC):
     """
-    Base class for emulating binaries
+    Base class for emulating binaries.
 
     Subclasses must define the following attributes:
-        arch: Architecture constant (e.g., ARCH_X86, ARCH_AMD64)
-        modules: List of loaded modules
-        input: Input metadata dictionary (or None)
+        arch: Architecture constant (for example, ``ARCH_X86`` or ``ARCH_AMD64``).
+        modules: Loaded modules.
+        input: Input metadata dictionary, or ``None``.
     """
 
     arch: int
@@ -112,27 +117,19 @@ class BinaryEmulator(MemoryManager, ABC):
         self.runtime: float = 0
 
     def get_profiler(self) -> Profiler:
-        """
-        Get the current event profiler object (if any)
-        """
+        """Get the current event profiler object (if any)."""
         return self.profiler
 
     def get_report(self) -> Report:
-        """
-        Get the emulation report for all runs that were executed
-        """
+        """Get the emulation report for all runs that were executed."""
         return self.profiler.get_report()
 
     def get_json_report(self) -> str:
-        """
-        Get the emulation report for all runs that were executed formatted as a JSON string
-        """
+        """Get the emulation report for all runs that were executed formatted as a JSON string."""
         return self.profiler.get_json_report()
 
     def _parse_config(self, config: SpeakeasyConfig):
-        """
-        Parse the config to be used for emulation
-        """
+        """Parse the config to be used for emulation."""
         self.config = config
 
         _eng = config.emu_engine
@@ -146,15 +143,11 @@ class BinaryEmulator(MemoryManager, ABC):
         self.env: dict[str, str] = dict(config.env)
 
     def get_emu_version(self):
-        """
-        Get the version of the emulator
-        """
+        """Get the version of the emulator."""
         return version.__version__
 
     def get_osver_string(self):
-        """
-        Get the human readable OS version string
-        """
+        """Get the human readable OS version string."""
         osver = self.config.os_ver
         if osver:
             os_name = osver.name or ""
@@ -166,29 +159,21 @@ class BinaryEmulator(MemoryManager, ABC):
         return None
 
     def sizeof(self, obj):
-        """
-        Get the size (in the emulation space) of the supplied object
-        """
+        """Get the size (in the emulation space) of the supplied object."""
         return obj.sizeof()
 
     def get_bytes(self, obj):
-        """
-        Get the bytes represented in the emulation space of the supplied object
-        """
+        """Get the bytes represented in the emulation space of the supplied object."""
         return obj.get_bytes()
 
     def stop(self) -> None:
-        """
-        Stop emulation completely
-        """
+        """Stop emulation completely."""
         self.emu_eng.stop()
         if self.profiler:
             self.profiler.stop_run_clock()
 
     def start(self, addr, size):
-        """
-        Begin emulation
-        """
+        """Begin emulation."""
         self.set_hooks()
         self._unmap_reserved_range()
         if self.profiler:
@@ -205,7 +190,10 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def reg_write(self, reg, val) -> None:
         """
-        Write a value to an emulated cpu register
+        Write a value to an emulated cpu register.
+
+        Raises:
+            EmuException: if ``reg`` is a name that is not a register.
         """
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
@@ -217,7 +205,10 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def reg_read(self, reg) -> int:
         """
-        Read a value from an emulated cpu register
+        Read a value from an emulated cpu register.
+
+        Raises:
+            EmuException: if ``reg`` is a name that is not a register.
         """
         if isinstance(reg, str):
             _reg = e_arch.REG_LOOKUP.get(reg.lower())
@@ -229,9 +220,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return value
 
     def set_hooks(self):
-        """
-        Set instruction level hooks
-        """
+        """Set instruction level hooks."""
         for ht in (
             common.HOOK_CODE,
             common.HOOK_MEM_READ,
@@ -244,9 +233,7 @@ class BinaryEmulator(MemoryManager, ABC):
                     hook.add()
 
     def _cs_disasm(self, mem, addr, fast=True):
-        """
-        Disassemble bytes using capstone
-        """
+        """Disassemble bytes using capstone."""
         try:
             if fast:
                 tu = [i for i in self.disasm_eng.disasm_lite(bytes(mem), addr)]
@@ -261,14 +248,15 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def disasm(self, mem, addr, fast=True):
         """
-        Disassemble bytes at a specified address
+        Disassemble bytes at a specified address.
+
+        Raises:
+            EmuException: if ``fast`` is ``True`` and no instruction decodes at ``addr``.
         """
         return self._cs_disasm(mem, addr, fast=fast)
 
     def get_register_state(self) -> dict[str, str]:
-        """
-        Get the current state of registers from the emulator
-        """
+        """Get the current state of registers from the emulator."""
         regs = {}
         if e_arch.ARCH_X86 == self.get_arch():
             for name, reg in (
@@ -309,30 +297,28 @@ class BinaryEmulator(MemoryManager, ABC):
         return regs
 
     def get_disasm(self, addr, size, fast=True):
-        """
-        Get the disassembly from an address
-        """
+        """Get the disassembly from an address."""
         return self.disasm(self.mem_read(addr, size), addr, fast)
 
     def set_func_args(self, stack_addr, ret_addr, *args, conv, home_space=True):
         """
         Set the arguments before an emulated function call.
 
-        Lays out *args* according to *conv* and the current architecture,
-        writes *ret_addr* at the top of the resulting stack frame, and
-        updates the stack-pointer register.
+        Lays out ``args`` according to ``conv`` and the current architecture,
+        writes ``ret_addr`` at the top of the resulting stack frame, and
+        updates the stack pointer register.
 
-        On x86 fastcall the first two arguments go into ECX/EDX; on x64
-        the first four go into RCX/RDX/R8/R9.  Remaining arguments are
-        pushed onto the stack.  On x64 a 32-byte shadow (home) space is
-        reserved above the return address when *home_space* is True.
+        On x86 fastcall the first two arguments go into ECX and EDX. On x64
+        the first four go into RCX, RDX, R8 and R9. The remaining arguments
+        go onto the stack. On x64 a 32-byte shadow (home) space is
+        reserved above the return address when ``home_space`` is ``True``.
 
         Args:
             stack_addr: Base address of the stack region.
             ret_addr: Return address to place on the stack.
             *args: Argument values to pass to the callee.
-            conv: Calling convention (e.g. ``CALL_CONV_STDCALL``).
-            home_space: Reserve 32-byte x64 shadow space (default True).
+            conv: Calling convention (for example, ``CALL_CONV_STDCALL``).
+            home_space: Whether to reserve the 32-byte x64 shadow space.
         """
         nargs = len(args)
         curr_sp = stack_addr
@@ -373,9 +359,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.reg_write(sp_reg, curr_sp)
 
     def get_func_argv(self, callconv, argc):
-        """
-        Get the arguments for a function given the supplied calling convention
-        """
+        """Get the arguments for a function given the supplied calling convention."""
         argv = []
         ptr_size = self.get_ptr_size()
         arch = self.get_arch()
@@ -427,9 +411,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return argv
 
     def do_call_return(self, argc, ret_addr=None, ret_value=None, conv=None):
-        """
-        Set the emulation state after a call has completed
-        """
+        """Set the emulation state after a call has completed."""
         if self.get_arch() == e_arch.ARCH_X86:
             sp = e_arch.X86_REG_ESP
             pc = e_arch.X86_REG_EIP
@@ -467,9 +449,7 @@ class BinaryEmulator(MemoryManager, ABC):
             self.clean_stack_args(argc)
 
     def push_fpu_double(self, bits):
-        """
-        Push a double, given as its IEEE 754 bits, onto the x87 register stack
-        """
+        """Push a double, given as its IEEE 754 bits, onto the x87 register stack."""
         fpsw = self.reg_read(e_arch.X86_REG_FPSW)
         top = (((fpsw >> 11) & 7) - 1) & 7
         self.reg_write(e_arch.X86_REG_FP0 + top, double_bits_to_fp80(bits))
@@ -477,9 +457,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.reg_write(e_arch.X86_REG_FPTAG, self.reg_read(e_arch.X86_REG_FPTAG) & ~(3 << (2 * top)))
 
     def pop_fpu_double(self):
-        """
-        Pop the x87 register stack and return the value as the IEEE 754 bits of a double
-        """
+        """Pop the x87 register stack and return the value as the IEEE 754 bits of a double."""
         fpsw = self.reg_read(e_arch.X86_REG_FPSW)
         top = (fpsw >> 11) & 7
         bits = fp80_to_double_bits(*self.emu_eng.reg_read(e_arch.X86_REG_FP0 + top))
@@ -488,23 +466,17 @@ class BinaryEmulator(MemoryManager, ABC):
         return bits
 
     def get_ret_address(self) -> int:
-        """
-        Get the return address from the stack
-        """
+        """Get the return address from the stack."""
         sp = self.get_stack_ptr()
         return int.from_bytes(self.mem_read(sp, self.ptr_size), "little")
 
     def set_ret_address(self, addr) -> None:
-        """
-        Set the return address on the stack
-        """
+        """Set the return address on the stack."""
         sp = self.get_stack_ptr()
         self.mem_write(sp, addr.to_bytes(self.get_ptr_size(), "little"))
 
     def push_stack(self, val):
-        """
-        Put a value on the stack and adjust the stack pointer
-        """
+        """Put a value on the stack and adjust the stack pointer."""
         sp = self.get_stack_ptr()
         bval = val.to_bytes(self.ptr_size, "little")
         sp -= self.ptr_size
@@ -513,9 +485,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return val
 
     def pop_stack(self) -> int:
-        """
-        Get value from the stack and adjust the stack pointer
-        """
+        """Get value from the stack and adjust the stack pointer."""
         sp = self.get_stack_ptr()
         val = int.from_bytes(self.mem_read(sp, self.ptr_size), "little")
         sp += self.ptr_size
@@ -523,9 +493,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return val
 
     def get_stack_ptr(self) -> int:
-        """
-        Get the current address of the stack pointer
-        """
+        """Get the current address of the stack pointer."""
         if self.get_arch() == e_arch.ARCH_X86:
             sp = self.reg_read(e_arch.X86_REG_ESP)
         elif self.get_arch() == e_arch.ARCH_AMD64:
@@ -533,18 +501,14 @@ class BinaryEmulator(MemoryManager, ABC):
         return sp
 
     def set_stack_ptr(self, addr):
-        """
-        Set the current address of the stack pointer
-        """
+        """Set the current address of the stack pointer."""
         if self.get_arch() == e_arch.ARCH_X86:
             self.reg_write(e_arch.X86_REG_ESP, addr)
         elif self.get_arch() == e_arch.ARCH_AMD64:
             self.reg_write(e_arch.AMD64_REG_RSP, addr)
 
     def get_stack_trace(self, num_ptrs=16):
-        """
-        Get the current stack state
-        """
+        """Get the current stack state."""
         trace = []
         sp = self.get_stack_ptr()
         for i in range(num_ptrs):
@@ -567,9 +531,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return trace
 
     def get_pc(self) -> int:
-        """
-        Get the value of the current program counter
-        """
+        """Get the value of the current program counter."""
         if self.get_arch() == e_arch.ARCH_X86:
             pc = self.reg_read(e_arch.X86_REG_EIP)
         elif self.get_arch() == e_arch.ARCH_AMD64:
@@ -579,9 +541,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return pc
 
     def set_pc(self, addr):
-        """
-        Set the value of the current program counter
-        """
+        """Set the value of the current program counter."""
         if self.get_arch() == e_arch.ARCH_X86:
             self.reg_write(e_arch.X86_REG_EIP, addr)
         elif self.get_arch() == e_arch.ARCH_AMD64:
@@ -590,9 +550,7 @@ class BinaryEmulator(MemoryManager, ABC):
             raise EmuException("Unsupported architecture")
 
     def get_return_val(self):
-        """
-        Get the current value in the return register
-        """
+        """Get the current value in the return register."""
         if self.get_arch() == e_arch.ARCH_X86:
             val = self.reg_read(e_arch.X86_REG_EAX)
         elif self.get_arch() == e_arch.ARCH_AMD64:
@@ -603,10 +561,10 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def reset_cpu_context(self):
         """
-        Zero general-purpose registers and reset EFLAGS and the x87 and SSE control state to the
-        values of a new Windows thread.
+        Zero the general-purpose registers and reset EFLAGS and the x87 and SSE control state.
 
-        Does NOT touch SP, BP, or IP — those are managed by reset_stack / run setup.
+        The values are those of a new Windows thread. This method does not change SP, BP or IP.
+        ``reset_stack`` and the run setup manage them.
         """
         arch = self.get_arch()
         if arch == e_arch.ARCH_X86:
@@ -644,9 +602,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.reg_write(e_arch.X86_REG_MXCSR, 0x1F80)
 
     def reset_stack(self, base) -> tuple[int, int]:
-        """
-        Reset stack to the supplied base address
-        """
+        """Reset stack to the supplied base address."""
         arch = self.get_arch()
         ptr = base
 
@@ -664,9 +620,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return base, ptr
 
     def alloc_stack(self, size):
-        """
-        Allocate memory to use for the program stack
-        """
+        """Allocate memory to use for the program stack."""
         # Allocate memory for our stack
         # Stack grows down
         chunk = self.get_valid_ranges(size, addr=0x1200000)
@@ -681,9 +635,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return base, ptr
 
     def clean_stack_args(self, argc):
-        """
-        Adjust the stack for arguments that were supplied
-        """
+        """Adjust the stack for arguments that were supplied."""
         ptr_size = self.get_ptr_size()
         arch = self.get_arch()
 
@@ -701,9 +653,7 @@ class BinaryEmulator(MemoryManager, ABC):
             raise EmuException("Unsupported architecture")
 
     def get_arch(self) -> int:
-        """
-        Get the current emulated architecture
-        """
+        """Get the current emulated architecture."""
         return self.arch
 
     def get_address_limit(self) -> int | None:
@@ -715,7 +665,10 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def read_mem_string(self, address, width=1, max_chars=0) -> str:
         """
-        Read a string from emulated memory
+        Read a string from emulated memory.
+
+        Raises:
+            ValueError: if ``width`` is not 1 or 2.
         """
         char = b"\xff"
         string = b""
@@ -740,9 +693,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return string.decode(decode, "ignore").replace("\x00", "")
 
     def mem_string_len(self, address, width=1):
-        """
-        Get the length of a string from emulated memory
-        """
+        """Get the length of a string from emulated memory."""
         slen = -1
         char = b"\xff"
 
@@ -753,9 +704,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return slen
 
     def get_ansi_strings(self, data, min_len=4):
-        """
-        Get all ansi strings from a supplied memory blob
-        """
+        """Get all ansi strings from a supplied memory blob."""
         astrs = []
         pat = b"[\x20-\x7f]{%d,}" % (min_len)
         res = re.compile(pat)
@@ -772,9 +721,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return astrs
 
     def get_unicode_strings(self, data, min_len=4):
-        """
-        Get all unicode strings from a supplied memory blob
-        """
+        """Get all unicode strings from a supplied memory blob."""
         wstrs = []
         pat = b"(?:[\x20-\x7f]\x00){%d,}" % (min_len)
         res = re.compile(pat)
@@ -791,16 +738,19 @@ class BinaryEmulator(MemoryManager, ABC):
         return wstrs
 
     def mem_copy(self, dst, src, n):
-        """
-        Copy bytes from one emulated address to another
-        """
+        """Copy bytes from one emulated address to another."""
         sbytes = self.mem_read(src, n)
         self.mem_write(dst, sbytes)
         return n
 
     def write_mem_string(self, string, address, width=1):
         """
-        Write string data to an emulated memory address. Appends terminating zero byte if not present.
+        Write string data to an emulated memory address.
+
+        Appends a terminating zero byte if the string does not end with one.
+
+        Raises:
+            ValueError: if ``width`` is not 1 or 2.
         """
         if width == 1:
             encode = "utf-8"
@@ -823,15 +773,11 @@ class BinaryEmulator(MemoryManager, ABC):
         self.mem_write(address, val.to_bytes(self.ptr_size, "little"))
 
     def get_ptr_size(self):
-        """
-        Get the pointer size of the current emulation state
-        """
+        """Get the pointer size of the current emulation state."""
         return self.ptr_size
 
     def get_mem_strings(self):
-        """
-        Get ansi and unicode strings from emulated memory
-        """
+        """Get ansi and unicode strings from emulated memory."""
         tgt_tag_prefixes = ("emu.stack", "api")
         ansi_strings = []
         unicode_strings = []
@@ -852,7 +798,10 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def set_ptr_size(self, arch):
         """
-        Set the current pointer size used in the emulator
+        Set the current pointer size used in the emulator.
+
+        Raises:
+            EmuException: if ``arch`` is not x86 or AMD64.
         """
         if arch == e_arch.ARCH_AMD64:
             self.ptr_size = 8
@@ -862,9 +811,7 @@ class BinaryEmulator(MemoryManager, ABC):
             raise EmuException("Unsupported architecture")
 
     def get_module_from_addr(self, addr):
-        """
-        If the supplied address belongs to a module, return it
-        """
+        """If the supplied address belongs to a module, return it."""
         for mod in self.modules:
             base = mod.base
             size = mod.image_size
@@ -873,9 +820,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return None
 
     def get_api_hooks(self, mod_name, func_name) -> list[common.ApiHook]:
-        """
-        If an API hook has been set, return it here
-        """
+        """If an API hook has been set, return it here."""
         mod_name = mod_name.lower()
         func_name = func_name.lower()
         try:
@@ -905,12 +850,12 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def add_api_hook(self, cb, module="", api_name="", argc=0, call_conv=None, emu=None) -> common.ApiHook:
         """
-        Add an API level hook (e.g. kernel32.CreateFile) here.
+        Add an API level hook (for example, ``kernel32.CreateFile``).
 
-        When multiple hooks are registered for the same API, they execute in
-        FIFO order (first registered, first called). All hooks in the chain are
-        called, and the return value of the last hook is used. This ordering
-        convention applies to all hook types in speakeasy.
+        When multiple hooks are registered for the same API, they run in
+        FIFO order (first registered, first called). All hooks in the chain run,
+        and the return value of the last hook is used. This order applies to all
+        hook types in Speakeasy.
         """
         module = module.lower()
         api_name = api_name.lower()
@@ -947,9 +892,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def add_code_hook(self, cb, begin=1, end=0, emu=None):
-        """
-        Add a hook that will fire for every CPU instruction
-        """
+        """Add a hook that will fire for every CPU instruction."""
         hl = self.hooks.get(common.HOOK_CODE, [])
         if not emu:
             emu = self
@@ -970,7 +913,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def remove_code_hook(self, hook):
-        """Remove a hook that add_code_hook returned"""
+        """Remove a hook that add_code_hook returned."""
         if hook.added:
             self.emu_eng.hook_remove(hook.handle)
         self.hooks[common.HOOK_CODE].remove(hook)
@@ -986,9 +929,7 @@ class BinaryEmulator(MemoryManager, ABC):
             h.cb(mm)
 
     def _set_dyn_code_hook(self, addr, size):
-        """
-        Set the top level dispatch hook for dynamic code execution
-        """
+        """Set the top level dispatch hook for dynamic code execution."""
         max_hook_size = 0x10
         if size > max_hook_size:
             size = max_hook_size
@@ -1003,9 +944,7 @@ class BinaryEmulator(MemoryManager, ABC):
         hook_ref[0] = self.add_code_hook(cb=_dynamic_code_cb, begin=addr, end=addr + size)
 
     def add_dyn_code_hook(self, cb, emu=None):
-        """
-        Add a hook that will fire when dynamically generated/copied code is executed
-        """
+        """Add a hook that will fire when dynamically generated/copied code is executed."""
         if not emu:
             emu = self
         hl = self.hooks.get(common.HOOK_DYN_CODE, [])
@@ -1025,9 +964,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def add_mem_read_hook(self, cb, begin=1, end=0, emu=None):
-        """
-        Add a hook that will fire for memory reads
-        """
+        """Add a hook that will fire for memory reads."""
         if not emu:
             emu = self
         hook = common.ReadMemHook(emu, self.emu_eng, cb, begin, end)
@@ -1048,9 +985,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def add_mem_write_hook(self, cb, begin=1, end=0, emu=None):
-        """
-        Add a hook that will fire for memory writes
-        """
+        """Add a hook that will fire for memory writes."""
         if not emu:
             emu = self
         hook = common.WriteMemHook(emu, self.emu_eng, cb, begin, end)
@@ -1071,9 +1006,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def add_mem_map_hook(self, cb, begin=1, end=0, emu=None):
-        """
-        Add a hook that will fire for memory maps
-        """
+        """Add a hook that will fire for memory maps."""
         if not emu:
             emu = self
         hook = common.MapMemHook(emu, self.emu_eng, cb, begin, end)
@@ -1097,9 +1030,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return False
 
     def _hook_mem_invalid_dispatch(self, emu, access, address, size, value):
-        """
-        This handler will dispatch other invalid memory hooks
-        """
+        """This handler will dispatch other invalid memory hooks."""
         if self._intercept_api_trap(access, address, size):
             return False
         hl = self.hooks.get(common.HOOK_MEM_INVALID, [])
@@ -1113,9 +1044,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return rv
 
     def add_mem_invalid_hook(self, cb, emu=None):
-        """
-        Add a hook that will fire for invalid memory access
-        """
+        """Add a hook that will fire for invalid memory access."""
         hook = common.InvalidMemHook(self, self.emu_eng, cb, native_hook=False)
         hl = self.hooks.get(common.HOOK_MEM_INVALID)
         if not emu:
@@ -1133,9 +1062,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def add_interrupt_hook(self, cb, emu=None):
-        """
-        Add a hook that will fire for software interrupts
-        """
+        """Add a hook that will fire for software interrupts."""
         if not emu:
             emu = self
         hook = common.InterruptHook(emu, self.emu_eng, cb)
@@ -1156,9 +1083,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return hook
 
     def add_instruction_hook(self, cb, begin=1, end=0, emu=None, insn=None):
-        """
-        Add a hook that will fire for IN, SYSCALL, or SYSENTER instructions
-        """
+        """Add a hook that will fire for IN, SYSCALL, or SYSENTER instructions."""
         if not emu:
             emu = self
         hook = common.InstructionHook(emu, self.emu_eng, cb, insn=insn)

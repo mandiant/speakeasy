@@ -88,8 +88,9 @@ def get_value_type(define):
 
 def normalize_hkey(hkey):
     """
-    Map a predefined key that x64 code passes sign-extended
-    (0xFFFFFFFF80000002 for HKEY_LOCAL_MACHINE) to its 32-bit value.
+    Map a predefined key that x64 code passes sign-extended to its 32-bit value.
+
+    For example, ``0xFFFFFFFF80000002`` for ``HKEY_LOCAL_MACHINE`` becomes ``0x80000002``.
     """
     if hkey >> 32 == 0xFFFFFFFF and 0x80000000 <= hkey & 0xFFFFFFFF <= 0x80000007:
         return hkey & 0xFFFFFFFF

@@ -216,8 +216,9 @@ def get_header_query(opt):
 
 def get_header_text(header_id, lines):
     """
-    Get the text that a header query gives for a response with the status line
-    and header lines, or None when the response does not have the header.
+    Get the text that a header query gives for a response with a status line and header lines.
+
+    Returns ``None`` when the response does not have the header.
     """
     if header_id == WINHTTP_QUERY_RAW_HEADERS:
         return "".join(line + "\0" for line in lines) + "\0"
@@ -233,9 +234,11 @@ def get_header_text(header_id, lines):
 
 def crack_url(url):
     """
-    Split a URL into URL_COMPONENTS parts. Return the port and a mapping of
-    component name (Scheme, HostName, UrlPath, ExtraInfo) to the text and its
-    character offset in ``url``.
+    Split a URL into ``URL_COMPONENTS`` parts.
+
+    Returns:
+        The port and a mapping of component name (``Scheme``, ``HostName``, ``UrlPath``,
+        ``ExtraInfo``) to the text and its character offset in ``url``.
     """
     crack = urlsplit(url)
     netloc_start = len(crack.scheme) + 1 if crack.scheme else 0
