@@ -177,3 +177,52 @@ try:
 except InputError as err:
     print(f"cannot load {path}: {err}")
 ```
+
+## Hooks
+
+Every hook callback now gets the emulator (`Win32Emulator` or `WinKernelEmulator`) as its first argument. In 1.x, the memory read, memory write, invalid memory and interrupt hooks got the `Speakeasy` object, and the dynamic code hook got only the memory map. Every `add_*_hook` method returns a hook object, also before the load, and `remove_hook` removes it. A hook that you add before `call` or `resume` now fires. [Python library usage](library.md#hooks) lists the callback of each method.
+
+Before:
+
+```python
+def on_write(se, access, address, size, value):
+    print(se.disasm(se.reg_read("eip"), 0x10))
+
+
+se.add_mem_write_hook(on_write)
+module = se.load_module(path)
+se.run_module(module)
+```
+
+After:
+
+```python
+def on_write(emu, access, address, size, value):
+    print(emu.get_disasm(emu.reg_read("eip"), 0x10))
+    se.remove_hook(hook)
+
+
+hook = se.add_mem_write_hook(on_write)
+module = se.load_module(path)
+se.run_module(module)
+```
+
+These changes can break your code:
+
+- A memory read, memory write, invalid memory or interrupt callback gets the emulator in place of the `Speakeasy` object. Some methods have other names on the emulator, or are only on `Speakeasy`:
+
+  | `Speakeasy` | emulator |
+  |---|---|
+  | `disasm(addr, size)` | `get_disasm(addr, size)` |
+  | `mem_alloc(size, base, tag)` | `mem_map(size, base=base, tag=tag)` |
+  | `get_stack_base()` | `stack_base` |
+  | `get_all_registers()` | `get_register_state()` |
+  | `get_registry_key(handle, path)` | `reg_get_key(handle, path)` |
+  | `get_memory_dumps()`, `create_file_archive()` | none, keep a reference to the `Speakeasy` object |
+
+  `Speakeasy.mem_read` and `Speakeasy.mem_write` raise `SpeakeasyError` when the access fails. The emulator methods do not change the exception.
+- A dynamic code callback gets `(emu, region)`. In 1.x it got only `region`.
+- `remove_code_hook` is removed. Use `remove_hook`.
+- `add_IN_instruction_hook` and `add_SYSCALL_instruction_hook` are now `add_in_instruction_hook` and `add_syscall_instruction_hook`. The old names give a `DeprecationWarning` for one release.
+
+Code that uses the internals of hooks also changes. The emulator `add_*_hook` methods do not take the `emu` argument. `Speakeasy` does not have the `api_hooks`, `code_hooks` and other lists of hooks that wait for the load, and `pending_hooks` holds them in the order that you added them. The `Hook` classes in `speakeasy.common` do not take `se_obj` and `emu_eng`, and the `se_obj` attribute is now `emu`.

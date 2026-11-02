@@ -38,7 +38,34 @@ se.shutdown()
 - pass `volumes=` to mount host paths into emulated filesystem
 - pass `gdb_port=` to block for GDB attach before execution; `gdb_host=` controls the bind address and defaults to `127.0.0.1`
 
-## API hooks
+## Hooks
+
+Each `add_*_hook` method calls its callback with the emulator as the first argument. You can add a hook before or after `load_module`. The method returns a hook object, and `se.remove_hook(hook)` removes the hook. `speakeasy.hooks` has a `Protocol` for each callback type.
+
+| Method | Callback | Return value of the callback |
+|---|---|---|
+| `add_api_hook(cb, module, api_name)` | `cb(emu, api_name, func, params)` | the return value of the API |
+| `add_code_hook(cb, begin, end)` | `cb(emu, address, size)` | not used |
+| `add_mem_read_hook(cb, begin, end)` | `cb(emu, access, address, size, value)` | not used |
+| `add_mem_write_hook(cb, begin, end)` | `cb(emu, access, address, size, value)` | not used |
+| `add_mem_invalid_hook(cb)` | `cb(emu, access, address, size, value)` | `False` fails the access and stops the hooks after it |
+| `add_mem_map_hook(cb, begin, end)` | `cb(emu, base, size, tag, perms, flags)` | not used |
+| `add_interrupt_hook(cb)` | `cb(emu, number)` | not used |
+| `add_invalid_instruction_hook(cb)` | `cb(emu)` | `True` if the callback handled the instruction |
+| `add_dyn_code_hook(cb)` | `cb(emu, region)` | not used |
+| `add_in_instruction_hook(cb)` | `cb(emu, port, size)` | the value that the IN instruction reads |
+| `add_syscall_instruction_hook(cb)` | `cb(emu)` | not used |
+
+This code hook runs one time, then removes itself:
+
+```python
+def on_first_instruction(emu, address, size):
+    print(f"first instruction at 0x{address:x}")
+    se.remove_hook(hook)
+
+
+hook = se.add_code_hook(on_first_instruction)
+```
 
 `se.add_api_hook(cb, "user32", "MessageBox*")` calls `cb(emu, api_name, func, params)` in place of the handler. `params` holds the raw argument slots, and `func(params)` runs the handler. After that call, `emu.get_api_args()` returns the arguments as the report shows them, with the values the handler decoded:
 
