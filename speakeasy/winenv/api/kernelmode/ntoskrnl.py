@@ -3275,7 +3275,7 @@ class Ntoskrnl(api.ApiHandler):
 
         npath = name
         if name.startswith("\\??\\"):
-            npath = name.strip("\\??\\")
+            npath = name.removeprefix("\\??\\")
         npath = npath.rstrip("\\")
 
         obj = self.get_object_from_name(name)
@@ -3353,7 +3353,7 @@ class Ntoskrnl(api.ApiHandler):
             # Is a file being opened?
             npath = path
             if path.startswith("\\??\\"):
-                npath = path.strip("\\??\\")
+                npath = path.removeprefix("\\??\\")
             npath = npath.rstrip("\\")
             hfile = emu.file_open(npath)
             if hfile:
