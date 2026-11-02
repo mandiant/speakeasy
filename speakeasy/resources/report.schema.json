@@ -1175,7 +1175,7 @@
             }
           ],
           "default": null,
-          "description": "Destination buffer pointer in hexadecimal string form.",
+          "description": "Destination buffer pointer.",
           "title": "Buffer"
         }
       },
@@ -1255,7 +1255,7 @@
             }
           ],
           "default": null,
-          "description": "Source buffer pointer in hexadecimal string form.",
+          "description": "Source buffer pointer.",
           "title": "Buffer"
         }
       },
@@ -2425,7 +2425,7 @@
             }
           ],
           "default": null,
-          "description": "Destination buffer pointer in hexadecimal string form.",
+          "description": "Destination buffer pointer.",
           "title": "Buffer"
         }
       },
@@ -2518,7 +2518,7 @@
             }
           ],
           "default": null,
-          "description": "Source buffer pointer in hexadecimal string form.",
+          "description": "Source buffer pointer.",
           "title": "Buffer"
         }
       },

@@ -445,7 +445,7 @@ class FileCreateEvent(Event):
         default=EventType.FILE_CREATE, description="Discriminator for file create events."
     )
     path: str = Field(description="File path targeted by creation request.")
-    handle: str | None = Field(default=None, description="Assigned file handle, when available.")
+    handle: HexIntOptional = Field(default=None, description="Assigned file handle, when available.")
     open_flags: list[str] | None = Field(
         default=None,
         description="Creation/open disposition flags supplied by the API call.",
@@ -469,7 +469,7 @@ class FileOpenEvent(Event):
         default=EventType.FILE_OPEN, description="Discriminator for file open events."
     )
     path: str = Field(description="File path targeted by open request.")
-    handle: str | None = Field(default=None, description="Assigned file handle, when available.")
+    handle: HexIntOptional = Field(default=None, description="Assigned file handle, when available.")
     open_flags: list[str] | None = Field(
         default=None,
         description="Open disposition flags supplied by the API call.",
@@ -493,15 +493,15 @@ class FileReadEvent(Event):
         default=EventType.FILE_READ, description="Discriminator for file read events."
     )
     path: str = Field(description="File path associated with the read operation.")
-    handle: str | None = Field(default=None, description="File handle used by the read operation.")
+    handle: HexIntOptional = Field(default=None, description="File handle used by the read operation.")
     size: int | None = Field(default=None, description="Number of bytes requested/read.")
     data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the captured file bytes.",
     )
-    buffer: str | None = Field(
+    buffer: HexIntOptional = Field(
         default=None,
-        description="Destination buffer pointer in hexadecimal string form.",
+        description="Destination buffer pointer.",
     )
 
 
@@ -518,15 +518,15 @@ class FileWriteEvent(Event):
         default=EventType.FILE_WRITE, description="Discriminator for file write events."
     )
     path: str = Field(description="File path associated with the write operation.")
-    handle: str | None = Field(default=None, description="File handle used by the write operation.")
+    handle: HexIntOptional = Field(default=None, description="File handle used by the write operation.")
     size: int | None = Field(default=None, description="Number of bytes written.")
     data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the captured file bytes.",
     )
-    buffer: str | None = Field(
+    buffer: HexIntOptional = Field(
         default=None,
-        description="Source buffer pointer in hexadecimal string form.",
+        description="Source buffer pointer.",
     )
 
 
@@ -589,7 +589,7 @@ class RegOpenKeyEvent(Event):
         description="Discriminator for registry key open events.",
     )
     path: str = Field(description="Registry key path targeted by the open operation.")
-    handle: str | None = Field(default=None, description="Registry handle returned for the key, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry handle returned for the key, when available.")
     open_flags: list[str] | None = Field(
         default=None,
         description="Open/disposition flags associated with the operation.",
@@ -614,7 +614,7 @@ class RegCreateKeyEvent(Event):
         description="Discriminator for registry key create events.",
     )
     path: str = Field(description="Registry key path targeted by the create operation.")
-    handle: str | None = Field(default=None, description="Registry handle returned for the key, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry handle returned for the key, when available.")
     open_flags: list[str] | None = Field(
         default=None,
         description="Create/open disposition flags associated with the operation.",
@@ -639,14 +639,14 @@ class RegReadValueEvent(Event):
         description="Discriminator for registry value read events.",
     )
     path: str = Field(description="Registry key path containing the queried value.")
-    handle: str | None = Field(default=None, description="Registry key handle used for the read, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry key handle used for the read, when available.")
     value_name: str | None = Field(default=None, description="Registry value name requested by the API call.")
     size: int | None = Field(default=None, description="Requested/returned value size in bytes.")
     data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the captured registry value bytes.",
     )
-    buffer: str | None = Field(default=None, description="Destination buffer pointer in hexadecimal string form.")
+    buffer: HexIntOptional = Field(default=None, description="Destination buffer pointer.")
 
 
 class RegWriteValueEvent(Event):
@@ -663,14 +663,14 @@ class RegWriteValueEvent(Event):
         description="Discriminator for registry value write events.",
     )
     path: str = Field(description="Registry key path containing the written value.")
-    handle: str | None = Field(default=None, description="Registry key handle used for the write, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry key handle used for the write, when available.")
     value_name: str | None = Field(default=None, description="Registry value name written by the API call.")
     size: int | None = Field(default=None, description="Written value size in bytes.")
     data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the written registry value bytes.",
     )
-    buffer: str | None = Field(default=None, description="Source buffer pointer in hexadecimal string form.")
+    buffer: HexIntOptional = Field(default=None, description="Source buffer pointer.")
 
 
 class RegListSubkeysEvent(Event):
@@ -687,7 +687,7 @@ class RegListSubkeysEvent(Event):
         description="Discriminator for registry subkey enumeration events.",
     )
     path: str = Field(description="Registry key path being enumerated.")
-    handle: str | None = Field(default=None, description="Registry handle used for enumeration, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry handle used for enumeration, when available.")
 
 
 class RegDeleteKeyEvent(Event):
@@ -704,7 +704,7 @@ class RegDeleteKeyEvent(Event):
         description="Discriminator for registry key delete events.",
     )
     path: str = Field(description="Registry key path targeted by the delete operation.")
-    handle: str | None = Field(default=None, description="Registry handle used for the delete, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry handle used for the delete, when available.")
 
 
 class RegDeleteValueEvent(Event):
@@ -721,7 +721,7 @@ class RegDeleteValueEvent(Event):
         description="Discriminator for registry value delete events.",
     )
     path: str = Field(description="Registry key path containing the deleted value.")
-    handle: str | None = Field(default=None, description="Registry key handle used for the delete, when available.")
+    handle: HexIntOptional = Field(default=None, description="Registry key handle used for the delete, when available.")
     value_name: str | None = Field(default=None, description="Registry value name deleted by the API call.")
 
 

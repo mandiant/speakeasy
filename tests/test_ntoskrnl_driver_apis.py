@@ -130,7 +130,7 @@ def test_zw_create_key_records_a_create_event(driver_emu: Speakeasy) -> None:
     run = _current_run(driver_emu)
     _, hnd, _ = _create_key(driver_emu, SOFTWARE_KEY)
     events = [e for e in run.events if isinstance(e, RegCreateKeyEvent)]
-    assert [(e.path, e.handle) for e in events] == [("HKEY_LOCAL_MACHINE\\Software\\Contoso", hex(hnd))]
+    assert [(e.path, e.handle) for e in events] == [("HKEY_LOCAL_MACHINE\\Software\\Contoso", hnd)]
 
 
 @pytest.mark.parametrize(
