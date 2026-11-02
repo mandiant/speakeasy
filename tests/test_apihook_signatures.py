@@ -26,7 +26,7 @@ def _hooked_functions() -> Iterator[tuple[str, str, int, int]]:
             func = getattr(cls, attr, None)
             hook = getattr(func, "__apihook__", None)
             if hook:
-                name, _, argc, conv, ordinal = hook
+                name, _, argc, conv, _, _ = hook
                 if isinstance(name, str) and not name.startswith("ordinal_"):
                     yield mod_name, name, argc, conv
 

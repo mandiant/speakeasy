@@ -33,44 +33,58 @@ class HandleAllocator:
     All handle types share one counter, so two open handles never have the same value.
     """
 
+    # Windows gives the value of a closed handle out again. Speakeasy does not, so that a
+    # handle value in the report refers to one object for the whole run (mandiant/speakeasy#293).
+    REUSE_CLOSED_HANDLES = False
+
     def __init__(self):
         self._handle: int = 0x80
         self._kernel_object_id: int = 0x400
+        self._closed_handles: list[int] = []
 
     def _next(self, attr: str) -> int:
         val: int = getattr(self, attr)
         setattr(self, attr, val + 4)
         return val
 
-    def allocate_kernel_object_handle(self) -> int:
+    def allocate_handle(self) -> int:
+        if self._closed_handles:
+            return self._closed_handles.pop()
         return self._next("_handle")
+
+    def free_handle(self, handle: int) -> None:
+        if self.REUSE_CLOSED_HANDLES:
+            self._closed_handles.append(handle)
+
+    def allocate_kernel_object_handle(self) -> int:
+        return self.allocate_handle()
 
     def allocate_kernel_object_id(self) -> int:
         return self._next("_kernel_object_id")
 
     def allocate_console_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_gui_object_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_wininet_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_file_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_file_map_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_pipe_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_reg_key_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
     def allocate_crypt_context_handle(self) -> int:
-        return self._next("_handle")
+        return self.allocate_handle()
 
 
 class Console:
