@@ -263,6 +263,15 @@ def test_wdf_usb_unknown_handle(any_driver_emu: Speakeasy, api: str, argv: list[
     assert call(any_driver_emu, "wdfldr", api, args)[0] == rv
 
 
+def test_wdf_io_queue_create_rejects_unknown_driver_globals(any_driver_emu: Speakeasy) -> None:
+    _wdf_driver(any_driver_emu)
+    queue_config = alloc(any_driver_emu, wdf.WDF_IO_QUEUE_CONFIG(_ptr_size(any_driver_emu)).get_bytes())
+    queue = alloc(any_driver_emu, b"\xcc" * _ptr_size(any_driver_emu))
+    rv, _ = call(any_driver_emu, "wdfldr", "WdfIoQueueCreate", [0x999, 0, queue_config, 0, queue])
+    assert rv == ddk.STATUS_INVALID_PARAMETER
+    assert any_driver_emu.mem_read(queue, _ptr_size(any_driver_emu)) == b"\xcc" * _ptr_size(any_driver_emu)
+
+
 @pytest.mark.parametrize(
     "index, expected",
     [

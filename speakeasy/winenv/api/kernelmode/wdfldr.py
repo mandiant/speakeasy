@@ -442,8 +442,11 @@ class Wdfldr(api.ApiHandler):
         queue_config = self.types.WDF_IO_QUEUE_CONFIG(emu.get_ptr_size())
         queue_config = self.mem_cast(queue_config, Config)
 
-        hnd = self.get_handle()
         driver = self.wdf_drivers.get(DriverGlobals)
+        if driver is None:
+            return ddk.STATUS_INVALID_PARAMETER
+
+        hnd = self.get_handle()
         driver.queues.update({hnd: queue_config})
 
         if Queue:
@@ -815,7 +818,7 @@ class Wdfldr(api.ApiHandler):
         DriverGlobals, Pipe, PipeInformation = argv
 
         _pipe = self.usb_pipes.get(Pipe)
-        if _pipe:
+        if _pipe and _pipe.interface:
             uif = _pipe.interface
 
             interfaces = self.parse_usb_config(uif.config_desc)
