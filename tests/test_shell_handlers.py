@@ -240,7 +240,7 @@ def test_string_from_clsid_writes_the_string(dll_emu: Speakeasy) -> None:
     clsid = alloc(dll_emu, uuid.UUID(com.CLSID_WbemLocator).bytes_le)
     out = alloc(dll_emu, b"\x00" * 4)
     rv, _ = call(dll_emu, "ole32", "StringFromCLSID", [clsid, out])
-    assert rv == com.S_OK
+    assert rv == windefs.S_OK
     assert read_wstr(dll_emu, struct.unpack("<I", dll_emu.mem_read(out, 4))[0]) == com.CLSID_WbemLocator
 
 
@@ -271,21 +271,21 @@ def test_co_create_instance_fails_for_unknown_class_or_interface(
 
 def test_co_initialize_ex_counts_calls_and_checks_the_model(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == windefs.S_OK
     assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == com.S_FALSE
     assert call(dll_emu, "ole32", "CoInitializeEx", [0, 2])[0] == com.RPC_E_CHANGED_MODE
     call(dll_emu, "ole32", "CoUninitialize", [])
     call(dll_emu, "ole32", "CoUninitialize", [])
-    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 2])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 2])[0] == windefs.S_OK
     assert call(dll_emu, "ole32", "CoInitialize", [0])[0] == com.S_FALSE
     assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == com.S_FALSE
 
 
 def test_ole_initialize_fails_on_a_multithreaded_apartment(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == windefs.S_OK
     call(dll_emu, "ole32", "OleUninitialize", [])
-    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == com.S_OK
+    assert call(dll_emu, "ole32", "CoInitializeEx", [0, 0])[0] == windefs.S_OK
     assert call(dll_emu, "ole32", "OleInitialize", [0])[0] == com.RPC_E_CHANGED_MODE
 
 
@@ -293,13 +293,13 @@ def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
     ppv = alloc(dll_emu, b"\xcc" * 4)
     clsid, iid = guid(dll_emu, com.CLSID_WbemLocator), guid(dll_emu, com.IID_IWbemLocator)
     rv, _ = call(dll_emu, "ole32", "CoCreateInstance", [clsid, 0, 1, iid, ppv])
-    assert rv == com.S_OK
+    assert rv == windefs.S_OK
     obj = read_ptr(dll_emu, ppv)
     assert read_ptr(dll_emu, read_ptr(dll_emu, obj)) != 0
 
     out = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "com_api", "IUnknown.QueryInterface", [obj, guid(dll_emu, com.IID_IUnknown), out])
-    assert rv == com.S_OK
+    assert rv == windefs.S_OK
     assert read_ptr(dll_emu, out) == obj
 
     rv, _ = call(dll_emu, "com_api", "IUnknown.QueryInterface", [obj, guid(dll_emu, str(uuid.UUID(int=1))), out])
@@ -310,7 +310,7 @@ def test_co_create_instance_returns_an_object(dll_emu: Speakeasy) -> None:
 def test_sh_get_malloc_returns_an_object_with_a_vtable(dll_emu: Speakeasy) -> None:
     pp = alloc(dll_emu, b"\xcc" * 4)
     rv, _ = call(dll_emu, "shell32", "SHGetMalloc", [pp])
-    assert rv == com.S_OK
+    assert rv == windefs.S_OK
     obj = read_ptr(dll_emu, pp)
     query_interface = read_ptr(dll_emu, read_ptr(dll_emu, obj))
     assert dll_emu.emu.get_symbols()[query_interface] == ("com_api", "IUnknown.QueryInterface")
@@ -322,7 +322,7 @@ def test_imalloc_alloc_get_size_and_did_alloc(emu_fixture: str, request: pytest.
     ptr_size = se.emu.get_ptr_size()
     pp = alloc(se, b"\xcc" * ptr_size)
     rv, _ = call(se, "shell32", "SHGetMalloc", [pp])
-    assert rv == com.S_OK
+    assert rv == windefs.S_OK
     obj = int.from_bytes(se.mem_read(pp, ptr_size), "little")
     unknown = alloc(se, b"\x00" * 16)
 

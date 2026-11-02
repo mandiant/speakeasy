@@ -3,6 +3,7 @@
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.com as comdefs
+import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
 
@@ -47,7 +48,7 @@ class ComApi(api.ApiHandler):
         if iid_name:
             ctx.args[1].display = iid_name
             self.write_ptr(ppvObject, ptr)
-            return comdefs.S_OK
+            return windefs.S_OK
 
         self.mem_write(ppvObject, b"\x00" * emu.get_ptr_size())
         return comdefs.E_NOINTERFACE
@@ -183,7 +184,7 @@ class ComApi(api.ApiHandler):
             self.write_ptr(pNamespace, ci.address)
             self.write_ptr(ppNamespace, pNamespace)
 
-        return comdefs.S_OK
+        return windefs.S_OK
 
     @apihook("IWbemServices.GetObject", argc=6)
     def IWbemServices_GetObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

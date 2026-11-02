@@ -16,7 +16,6 @@ from .. import api
 if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
 
-ERROR_MORE_DATA = 234
 
 CRYPT_STRING_BASE64 = 1
 BASE64_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
@@ -99,7 +98,7 @@ class Crypt32(api.ApiHandler):
             return 1
 
         if out_len > cbBinary:
-            emu.set_last_error(ERROR_MORE_DATA)
+            emu.set_last_error(windefs.ERROR_MORE_DATA)
             return 0
 
         self.mem_write(pbBinary, decoded)

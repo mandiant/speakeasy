@@ -5,7 +5,6 @@ from enum import IntEnum
 
 from speakeasy.struct import EmuStruct, Ptr
 
-S_OK = 0
 S_FALSE = 1
 E_NOINTERFACE = 0x80004002
 E_POINTER = 0x80004003

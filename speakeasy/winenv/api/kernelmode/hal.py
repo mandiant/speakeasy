@@ -3,12 +3,11 @@
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.winenv.api import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.kernel import WinKernelEmulator
-
-PERF_FREQUENCY = 10_000_000
 
 
 class Hal(api.ApiHandler):
@@ -52,8 +51,8 @@ class Hal(api.ApiHandler):
         """
         (PerformanceFrequency,) = argv
         if PerformanceFrequency:
-            self.write_qword(PerformanceFrequency, PERF_FREQUENCY)
-        self.perf_counter += PERF_FREQUENCY // 1000
+            self.write_qword(PerformanceFrequency, windefs.PERF_FREQUENCY)
+        self.perf_counter += windefs.PERF_FREQUENCY // 1000
         if emu.get_ptr_size() == 4:
             emu.reg_write(_arch.X86_REG_EDX, self.perf_counter >> 32)
             return self.perf_counter & 0xFFFFFFFF

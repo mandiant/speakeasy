@@ -37,7 +37,7 @@ class Ole32(api.ApiHandler):
         if count and current != model:
             return comdefs.RPC_E_CHANGED_MODE
         self.com_init[tid] = (count + 1, model)
-        return comdefs.S_FALSE if count else comdefs.S_OK
+        return comdefs.S_FALSE if count else windefs.S_OK
 
     def co_uninitialize(self, emu):
         tid = emu.get_current_thread().id
