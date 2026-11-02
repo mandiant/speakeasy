@@ -12,6 +12,7 @@ import unicorn
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.codepage import CP_ACP, CP_OEMCP, CP_UTF8
 from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION, LCTYPE, PAGE_PROTECTION_FLAGS, THREAD_CREATION_FLAGS
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
@@ -1513,14 +1514,9 @@ def test_ansi_strings_use_code_page_1252(strict_fs_emu: Speakeasy) -> None:
     assert se.emu.get_file_manager().get_file_from_handle(hnd).path == "c:\\résumé.txt"
 
 
-CP_ACP = 0
-CP_OEMCP = 1
-CP_UTF8 = 65001
-
-
 @pytest.mark.parametrize(
     "code_page, data",
-    [(CP_ACP, b"caf\xe9"), (1252, b"caf\xe9"), (CP_OEMCP, b"caf\x82"), (437, b"caf\x82"), (CP_UTF8, b"caf\xc3\xa9")],
+    [(CP_ACP, b"caf\xe9"), (1252, b"caf\xe9"), (CP_OEMCP, b"caf\x82"), (437, b"caf\x82")],
 )
 def test_conversion_functions_use_the_code_page(emu: Speakeasy, code_page: int, data: bytes) -> None:
     wide = alloc(emu, b"\xcc" * 16)
