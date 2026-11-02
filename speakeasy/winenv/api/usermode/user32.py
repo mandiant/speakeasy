@@ -213,7 +213,7 @@ class User32(api.ApiHandler):
         self.dialog_results: dict[int, int] = {}
         self.timers: list[tuple[int, int, int]] = []
         self.next_timer: int = 0
-        self.sessman: sessman.SessionManager = sessman.SessionManager(config=None, allocator=emu.handle_allocator)
+        self.sessman: sessman.SessionManager = emu.get_session_manager()
         self.foreground_window: int = 0
         self.synthetic_async_keys: list[int] = [0x41, 0x42, 0x43]
         self.synthetic_async_key_index: int = 0
