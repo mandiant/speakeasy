@@ -1,12 +1,16 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.com as comdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class RPCRT4(api.ApiHandler):
@@ -22,7 +26,7 @@ class RPCRT4(api.ApiHandler):
         super().__init__(emu)
 
     @apihook("UuidCreate", argc=1)
-    def UuidCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def UuidCreate(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         RPC_STATUS UuidCreate(
             UUID *Uuid
@@ -38,7 +42,7 @@ class RPCRT4(api.ApiHandler):
         return 0
 
     @apihook("UuidToStringA", argc=2)
-    def UuidToStringA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def UuidToStringA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         RPC_STATUS UuidToStringA(
             const UUID *Uuid,
@@ -87,7 +91,7 @@ class RPCRT4(api.ApiHandler):
         return interfaces
 
     @apihook("NdrDllRegisterProxy", argc=3)
-    def NdrDllRegisterProxy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdrDllRegisterProxy(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllRegisterProxy(
             HMODULE hDll,
@@ -125,7 +129,7 @@ class RPCRT4(api.ApiHandler):
         return comdefs.S_OK
 
     @apihook("NdrDllUnregisterProxy", argc=3)
-    def NdrDllUnregisterProxy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdrDllUnregisterProxy(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllUnregisterProxy(
             HMODULE hDll,
@@ -136,7 +140,7 @@ class RPCRT4(api.ApiHandler):
         return comdefs.S_OK
 
     @apihook("NdrDllGetClassObject", argc=6)
-    def NdrDllGetClassObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdrDllGetClassObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllGetClassObject(
             REFCLSID rclsid,
@@ -154,7 +158,7 @@ class RPCRT4(api.ApiHandler):
         return comdefs.CLASS_E_CLASSNOTAVAILABLE
 
     @apihook("NdrDllCanUnloadNow", argc=1)
-    def NdrDllCanUnloadNow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdrDllCanUnloadNow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT NdrDllCanUnloadNow(
             CStdPSFactoryBuffer *pPSFactoryBuffer
