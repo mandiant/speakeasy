@@ -65,7 +65,7 @@ Boolean toggles:
 - `--exceptions-dispatch-handlers` / `--no-exceptions-dispatch-handlers`
 - `--user-is-admin` / `--no-user-is-admin`
 - `--api-hammering-enabled` / `--no-api-hammering-enabled`
-- `--modules-modules-always-exist` / `--no-modules-modules-always-exist`
+- `--modules-always-exist` / `--no-modules-always-exist`
 - `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
 
 Scalars:
@@ -84,8 +84,8 @@ Scalars:
 - `--user-name`
 - `--user-sid`
 - `--api-hammering-threshold`
-- `--modules-module-directory-x86`
-- `--modules-module-directory-x64`
+- `--module-directory-x86`
+- `--module-directory-x64`
 
 Mappings/lists:
 - `--env KEY=VALUE` (repeatable)
