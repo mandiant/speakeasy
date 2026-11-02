@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
 from speakeasy.errors import ApiEmuError
-from speakeasy.windows import netman, objman
+from speakeasy.windows import objman
 from speakeasy.winenv.defs import wsk
 from speakeasy.winenv.defs.nt import ddk
 
@@ -90,8 +90,6 @@ class Netio(api.ApiHandler):
 
         self.win = wsk
         self.nt = ntos
-
-        self.netman: netman.NetworkManager = netman.NetworkManager(emu.handle_allocator, config=emu.config.network)
 
         super().__get_hook_attrs__(self)
 
