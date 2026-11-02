@@ -1,85 +1,72 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
 
 class NDIS_OBJECT_HEADER(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint8
-        self.Revision = ct.c_uint8
-        self.Size = ct.c_uint16
+    Type: Annotated[int, ct.c_uint8]
+    Revision: Annotated[int, ct.c_uint8]
+    Size: Annotated[int, ct.c_uint16]
 
 
 class NDIS_GENERIC_OBJECT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Header = NDIS_OBJECT_HEADER
-        self.Caller = Ptr
-        self.CallersCaller = Ptr
-        self.DriverObject = Ptr
+    Header: NDIS_OBJECT_HEADER
+    Caller: Annotated[int, Ptr]
+    CallersCaller: Annotated[int, Ptr]
+    DriverObject: Annotated[int, Ptr]
 
 
 class NET_BUFFER_LIST_POOL_PARAMETERS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Header = NDIS_OBJECT_HEADER
-        self.ProtocolId = ct.c_uint8
-        self.fAllocateNetBuffer = ct.c_uint8
-        self.ContextSize = ct.c_uint16
-        self.PoolTag = ct.c_uint32
-        self.DataSize = ct.c_uint32
+    Header: NDIS_OBJECT_HEADER
+    ProtocolId: Annotated[int, ct.c_uint8]
+    fAllocateNetBuffer: Annotated[int, ct.c_uint8]
+    ContextSize: Annotated[int, ct.c_uint16]
+    PoolTag: Annotated[int, ct.c_uint32]
+    DataSize: Annotated[int, ct.c_uint32]
 
 
 class NET_BUFFER_LIST(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Next = Ptr
-        self.FirstNetBuffer = Ptr
-        self.Context = Ptr
-        self.ParentNetBufferList = Ptr
-        self.NdisPoolHandle = Ptr
-        self.NdisReserved = Ptr * 2
-        self.ProtocolReserved = Ptr * 4
-        self.MiniportReserved = Ptr * 2
-        self.Scratch = Ptr
-        self.SourceHandle = Ptr
-        self.NblFlags = ct.c_uint32
-        self.ChildRefCount = ct.c_uint32
-        self.Flags = ct.c_uint32
-        self.NetBufferListInfo = Ptr * 11
+    Next: Annotated[int, Ptr]
+    FirstNetBuffer: Annotated[int, Ptr]
+    Context: Annotated[int, Ptr]
+    ParentNetBufferList: Annotated[int, Ptr]
+    NdisPoolHandle: Annotated[int, Ptr]
+    NdisReserved: Annotated[list[int], Ptr * 2]
+    ProtocolReserved: Annotated[list[int], Ptr * 4]
+    MiniportReserved: Annotated[list[int], Ptr * 2]
+    Scratch: Annotated[int, Ptr]
+    SourceHandle: Annotated[int, Ptr]
+    NblFlags: Annotated[int, ct.c_uint32]
+    ChildRefCount: Annotated[int, ct.c_uint32]
+    Flags: Annotated[int, ct.c_uint32]
+    NetBufferListInfo: Annotated[list[int], Ptr * 11]
 
 
 class NET_BUFFER_DATA(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Next = Ptr
-        self.CurrentMdl = Ptr
-        self.CurrentMdlOffset = ct.c_uint32
-        self.NbDataLength = ct.c_uint32
-        self.MdlChain = Ptr
-        self.DataOffset = ct.c_uint32
+    Next: Annotated[int, Ptr]
+    CurrentMdl: Annotated[int, Ptr]
+    CurrentMdlOffset: Annotated[int, ct.c_uint32]
+    NbDataLength: Annotated[int, ct.c_uint32]
+    MdlChain: Annotated[int, Ptr]
+    DataOffset: Annotated[int, ct.c_uint32]
 
 
 class NET_BUFFER_HEADER(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.NetBufferData = NET_BUFFER_DATA
-        self.Link = Ptr
+    NetBufferData: NET_BUFFER_DATA
+    Link: Annotated[int, Ptr]
 
 
 class NET_BUFFER(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Link = Ptr
-        self.NetBufferHeader = NET_BUFFER_HEADER
-        self.ChecksumBias = Ptr
-        self.Reserved = Ptr
-        self.NdisPoolHandle = Ptr
-        self.NdisReserved = Ptr * 2
-        self.ProtocolReserved = Ptr * 6
-        self.MiniportReserved = Ptr * 4
-        self.DataPhysicalAddress = ct.c_uint64
-        self.SharedMemoryInfo = Ptr
+    Link: Annotated[int, Ptr]
+    NetBufferHeader: NET_BUFFER_HEADER
+    ChecksumBias: Annotated[int, Ptr]
+    Reserved: Annotated[int, Ptr]
+    NdisPoolHandle: Annotated[int, Ptr]
+    NdisReserved: Annotated[list[int], Ptr * 2]
+    ProtocolReserved: Annotated[list[int], Ptr * 6]
+    MiniportReserved: Annotated[list[int], Ptr * 4]
+    DataPhysicalAddress: Annotated[int, ct.c_uint64]
+    SharedMemoryInfo: Annotated[int, Ptr]
