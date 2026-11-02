@@ -168,7 +168,7 @@ def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_ex
             assert entry.error is None
             assert api_names(entry) == [f"kernel32.{unknown}", "kernel32.GetTickCount"]
             event = next(event for event in entry.events if event.event == "api")
-            assert event.ret_val == "0x1" and len(event.args) == 4
+            assert event.ret_val == 1 and len(event.args) == 4
         else:
             assert entry.error.type == "unsupported_api"
             assert entry.error.api_name == f"kernel32.{unknown}"
@@ -257,7 +257,7 @@ def test_public_sp_changing_hook_stops_once_without_redispatch():
         assert entry.error.type == "api_handler_did_not_return"
         assert entry.error.api_name == "kernel32.GetTickCount"
         events = [event for event in entry.events if event.event == "api"]
-        assert len(events) == 1 and events[0].ret_val == "0x7"
+        assert len(events) == 1 and events[0].ret_val == 7
 
 
 @pytest.mark.parametrize("architecture", [32, 64])
@@ -327,4 +327,4 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
     assert callbacks == [(module.base, "WINE_REGISTRY", name, enum.args[3].value)]
     assert find.api_name == "kernel32.FindResourceW"
     assert [arg.display for arg in find.args[1:]] == [name, "WINE_REGISTRY"]
-    assert int(find.ret_val, 16)
+    assert find.ret_val

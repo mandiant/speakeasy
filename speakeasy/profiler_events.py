@@ -1,7 +1,9 @@
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Discriminator, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field
+
+from speakeasy.report_types import HexIntOptional
 
 
 class EventType(str, Enum):
@@ -52,6 +54,8 @@ class TracePosition(BaseModel):
     disassembly alignment.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     tick: int = Field(
         description=(
             "Instruction-count tick at the time of the event.\n\n"
@@ -70,7 +74,7 @@ class TracePosition(BaseModel):
             "Use this to separate behavior across process boundaries."
         )
     )
-    pc: int | None = Field(
+    pc: HexIntOptional = Field(
         default=None,
         description=(
             "Program counter at event emission time, when available.\n\n"
@@ -88,6 +92,8 @@ class Event(BaseModel):
     Consumers should discriminate event payloads using the ``event`` field.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     pos: TracePosition = Field(
         description=(
             "Execution position metadata for this event.\n\n"
@@ -99,14 +105,33 @@ class Event(BaseModel):
     )
 
 
+class ApiArgType(str, Enum):
+    """How to read the ``display`` of an API argument."""
+
+    INT = "int"
+    PTR = "ptr"
+    HANDLE = "handle"
+    STR = "str"
+    BOOL = "bool"
+    ENUM = "enum"
+    FLAGS = "flags"
+    STRUCT = "struct"
+    BYTES = "bytes"
+    GUID = "guid"
+    FLOAT = "float"
+    TEXT = "text"
+
+
 class ApiArg(BaseModel):
     """One argument of an API call, as passed by the caller and as shown in the trace."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(
         default=None,
         description="Parameter name from the API signature. Absent when the signature is not known.",
     )
-    type: str = Field(
+    type: ApiArgType = Field(
         description=(
             "How to read ``display``: "
             "``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), "
@@ -116,7 +141,7 @@ class ApiArg(BaseModel):
             "``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler)."
         )
     )
-    value: int | None = Field(
+    value: HexIntOptional = Field(
         default=None,
         description=(
             "Raw value as the caller passed it. "
@@ -152,10 +177,10 @@ class ApiEvent(Event):
             "otherwise one entry per argument slot, plus any entries a variadic handler adds."
         )
     )
-    ret_val: str | None = Field(
+    ret_val: HexIntOptional = Field(
         default=None,
         description=(
-            "Formatted return value for the API call, when available.\n\n"
+            "Return value of the API call, when available.\n\n"
             "Use this to identify failure codes and branch-driving outcomes."
         ),
     )

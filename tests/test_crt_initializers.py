@@ -48,8 +48,8 @@ def test_iostream_static_constructors_are_thiscall_on_x86(config, load_test_bin)
         (e.api_name, e.ret_val) for e in run.events or [] if e.event == "api" and e.api_name.startswith("msvcrt.??0")
     ]
     assert ctors == [
-        ("msvcrt.??0Init@ios_base@std@@QAE@XZ", hex(module.base + 0x44F9)),
-        ("msvcrt.??0_Winit@std@@QAE@XZ", hex(module.base + 0x44F8)),
+        ("msvcrt.??0Init@ios_base@std@@QAE@XZ", module.base + 0x44F9),
+        ("msvcrt.??0_Winit@std@@QAE@XZ", module.base + 0x44F8),
     ]
     [(esp, saved_esp)] = stacks
     assert esp == saved_esp

@@ -30,7 +30,7 @@ from speakeasy.config import parse_start_time
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
-from speakeasy.profiler_events import ApiArg, EventType, TracePosition
+from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, TracePosition
 from speakeasy.report import ErrorInfo, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
@@ -2649,7 +2649,7 @@ class WindowsEmulator(BinaryEmulator):
     def format_api_arg(arg: ApiArg) -> str:
         """Render a single API argument the way it appears in the API trace."""
         text = arg.display
-        if arg.type == "str" or (arg.name is None and arg.type == "text"):
+        if arg.type == ApiArgType.STR or (arg.name is None and arg.type == ApiArgType.TEXT):
             text = sigfmt.quote_string(text)
         return f"{arg.name}: {text}" if arg.name is not None else text
 
@@ -2762,7 +2762,7 @@ class WindowsEmulator(BinaryEmulator):
             return self.get_signature_formatter().render_param(param, value, index)
         except Exception:
             logger.debug("failed to render %s (%s)", param.name, param.code, exc_info=True)
-            return sigfmt.RenderedArg(hex(value), "int")
+            return sigfmt.RenderedArg(hex(value), ApiArgType.INT)
 
     def _render_signature_args(self, sig: sigdb.FuncSig, argv: list[int]) -> list[sigfmt.RenderedArg]:
         values = sig.values_from_slots(argv, self.get_ptr_size())
@@ -3150,7 +3150,7 @@ class WindowsEmulator(BinaryEmulator):
         else:
             run.guest_callbacks.pop()
             if frame.event is not None:
-                frame.event.ret_val = hex(frame.result) if frame.result is not None else None
+                frame.event.ret_val = frame.result
             self.restore_caller_registers(frame)
             self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
 

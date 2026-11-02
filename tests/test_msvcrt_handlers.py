@@ -1940,11 +1940,11 @@ def test_ifstream_of_a_missing_file_sets_failbit(config: dict[str, Any], load_te
         f"msvcrt.??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z",
         f"msvcrt.??0{BASIC_STREAMBUF}IEAA@XZ",
     ]
-    assert all(e.ret_val == hex(e.args[0].value or 0) for e in ctors)
+    assert all(e.ret_val == (e.args[0].value or 0) for e in ctors)
     assert init.api_name == f"msvcrt.?_Init@{BASIC_STREAMBUF}IEAAXXZ"
     assert fiopen.api_name == f"msvcrt.{FIOPEN_W}"
     assert fiopen.args[0].display.endswith("\\config.json")
-    assert fiopen.ret_val == "0x0"
+    assert fiopen.ret_val == 0
     assert setstate.api_name == f"msvcrt.?setstate@{BASIC_IOS}QEAAXH_N@Z"
     assert state == 2  # failbit
 

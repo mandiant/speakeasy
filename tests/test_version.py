@@ -19,7 +19,7 @@ INSTALLED_STUB = "C:\\Windows\\system32\\MpSigStub.exe"
 @dataclass
 class VersionRun:
     module_path: str
-    calls: list[tuple[str, str, str]] = field(default_factory=list)
+    calls: list[tuple[str, str, int | None]] = field(default_factory=list)
     roots: list[tuple[int, bytes]] = field(default_factory=list)
 
 
@@ -103,7 +103,7 @@ def test_query_root_returns_the_fixed_file_info(mpsigstub_run: VersionRun) -> No
     the path from GetModuleFileNameW, then VerQueryValueW(block, "\\") for the VS_FIXEDFILEINFO.
     """
     own = [(api, ok) for api, path, ok in mpsigstub_run.calls if path == mpsigstub_run.module_path]
-    assert own[:2] == [("version.GetFileVersionInfoSizeExW", "0xc1c"), ("version.GetFileVersionInfoExW", "0x1")]
+    assert own[:2] == [("version.GetFileVersionInfoSizeExW", 0xC1C), ("version.GetFileVersionInfoExW", 1)]
     length, fixed_file_info = mpsigstub_run.roots[0]
     assert length == 52
     assert file_version(fixed_file_info) == FILE_VERSION
@@ -148,7 +148,7 @@ def test_an_emulated_file_has_its_version_resource(mpsigstub_run: VersionRun) ->
     VS_FIXEDFILEINFO.
     """
     installed = [(api, ok) for api, path, ok in mpsigstub_run.calls if path == INSTALLED_STUB]
-    assert installed == [("version.GetFileVersionInfoSizeExW", "0xc1c"), ("version.GetFileVersionInfoExW", "0x1")]
+    assert installed == [("version.GetFileVersionInfoSizeExW", 0xC1C), ("version.GetFileVersionInfoExW", 1)]
     length, fixed_file_info = mpsigstub_run.roots[-1]
     assert length == 52
     assert file_version(fixed_file_info) == FILE_VERSION
@@ -224,7 +224,7 @@ def test_handler_takes_precedence_over_signature_fallback(arch, build):
     entry = se.get_report().entry_points[0]
     assert entry.error is None
     results = {event.api_name: event.ret_val for event in entry.events if event.api_name.startswith("version.")}
-    assert results == {"version.GetFileVersionInfoSizeA": "0x0", "version.VerQueryValueA": "0x0"}
+    assert results == {"version.GetFileVersionInfoSizeA": 0, "version.VerQueryValueA": 0}
     assert emu.get_last_error() == ERROR_RESOURCE_TYPE_NOT_FOUND
     assert emu.mem_read(base + labels["handle"], 4) == b"\0" * 4
     assert emu.mem_read(base + labels["pointer"], width) == b"\xee" * width

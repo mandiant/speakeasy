@@ -1,6 +1,7 @@
 {
   "$defs": {
     "ApiArg": {
+      "additionalProperties": false,
       "description": "One argument of an API call, as passed by the caller and as shown in the trace.",
       "properties": {
         "name": {
@@ -17,14 +18,13 @@
           "title": "Name"
         },
         "type": {
-          "description": "How to read ``display``: ``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), ``bool`` (TRUE or FALSE), ``enum`` (a member name), ``flags`` (member names joined by ``|``, maybe with a hex remainder), ``struct`` (``{field: value, ...}`` display text, not JSON), ``bytes`` (hex dump), ``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler).",
-          "title": "Type",
-          "type": "string"
+          "$ref": "#/$defs/ApiArgType",
+          "description": "How to read ``display``: ``int`` (hex), ``ptr`` (address, hex), ``handle`` (hex), ``str`` (decoded string, unquoted), ``bool`` (TRUE or FALSE), ``enum`` (a member name), ``flags`` (member names joined by ``|``, maybe with a hex remainder), ``struct`` (``{field: value, ...}`` display text, not JSON), ``bytes`` (hex dump), ``guid``, ``float`` (decimal), or ``text`` (a value decoded by a handler)."
         },
         "value": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "string"
             },
             {
               "type": "null"
@@ -47,7 +47,27 @@
       "title": "ApiArg",
       "type": "object"
     },
+    "ApiArgType": {
+      "description": "How to read the ``display`` of an API argument.",
+      "enum": [
+        "int",
+        "ptr",
+        "handle",
+        "str",
+        "bool",
+        "enum",
+        "flags",
+        "struct",
+        "bytes",
+        "guid",
+        "float",
+        "text"
+      ],
+      "title": "ApiArgType",
+      "type": "string"
+    },
     "ApiEvent": {
+      "additionalProperties": false,
       "description": "Records one intercepted API invocation.\n\nAPI events are emitted by import-call handlers and represent core behavioral\ntelemetry for most runs.\n\nUse these entries to understand control flow and argument-level intent.",
       "properties": {
         "pos": {
@@ -84,7 +104,7 @@
             }
           ],
           "default": null,
-          "description": "Formatted return value for the API call, when available.\n\nUse this to identify failure codes and branch-driving outcomes.",
+          "description": "Return value of the API call, when available.\n\nUse this to identify failure codes and branch-driving outcomes.",
           "title": "Ret Val"
         }
       },
@@ -131,6 +151,7 @@
       "type": "object"
     },
     "DirectoryCreateEvent": {
+      "additionalProperties": false,
       "description": "Records directory creation.\n\nEmitted when file APIs create a directory.\n\nUse with file create events to track where a sample drops files.",
       "properties": {
         "pos": {
@@ -158,6 +179,7 @@
       "type": "object"
     },
     "DirectoryDeleteEvent": {
+      "additionalProperties": false,
       "description": "Records directory removal.\n\nEmitted when file APIs remove a directory.\n\nUse with directory create events to track staging directories.",
       "properties": {
         "pos": {
@@ -820,6 +842,7 @@
       "type": "object"
     },
     "ExceptionEvent": {
+      "additionalProperties": false,
       "description": "Records handled exception dispatch activity.\n\nEmitted when exception handling telemetry is captured during execution.\n\nUse this to understand exception-driven control flow and anti-analysis logic.",
       "properties": {
         "pos": {
@@ -910,6 +933,7 @@
       "type": "object"
     },
     "FileCreateEvent": {
+      "additionalProperties": false,
       "description": "Records file creation/open-with-create semantics.\n\nEmitted when file APIs request creation semantics for a path.\n\nUse with follow-up write events to track dropped artifacts.",
       "properties": {
         "pos": {
@@ -982,6 +1006,7 @@
       "type": "object"
     },
     "FileDeleteEvent": {
+      "additionalProperties": false,
       "description": "Records file deletion.\n\nEmitted when file APIs delete a file.\n\nUse with file create events to track files that a sample removes after use.",
       "properties": {
         "pos": {
@@ -1009,6 +1034,7 @@
       "type": "object"
     },
     "FileOpenEvent": {
+      "additionalProperties": false,
       "description": "Records file open operations without explicit create intent.\n\nEmitted for open-style file API calls.\n\nUse to reconstruct file-read dependency chains.",
       "properties": {
         "pos": {
@@ -1081,6 +1107,7 @@
       "type": "object"
     },
     "FileReadEvent": {
+      "additionalProperties": false,
       "description": "Records reads from a file handle.\n\nEmitted when file-read APIs pull bytes from emulated files.\n\nUseful for identifying configuration ingestion and payload loading.",
       "properties": {
         "pos": {
@@ -1160,6 +1187,7 @@
       "type": "object"
     },
     "FileWriteEvent": {
+      "additionalProperties": false,
       "description": "Records writes to a file handle.\n\nEmitted when file-write APIs append or overwrite emulated file data.\n\nCombine with dropped-file summaries to recover persisted payloads.",
       "properties": {
         "pos": {
@@ -1281,6 +1309,7 @@
       "type": "object"
     },
     "MemAllocEvent": {
+      "additionalProperties": false,
       "description": "Records remote or explicit process memory allocation activity.\n\nEmitted by memory allocation APIs that target process virtual memory.\n\nCommonly seen in injection and unpacking workflows.",
       "properties": {
         "pos": {
@@ -1346,6 +1375,7 @@
       "type": "object"
     },
     "MemFreeEvent": {
+      "additionalProperties": false,
       "description": "Records memory free/decommit operations.\n\nEmitted when memory free APIs are invoked against process regions.\n\nUse this to track lifecycle of allocation artifacts.",
       "properties": {
         "pos": {
@@ -1398,6 +1428,7 @@
       "type": "object"
     },
     "MemProtectEvent": {
+      "additionalProperties": false,
       "description": "Records memory protection changes.\n\nEmitted for API paths that alter page permissions in process memory.\n\nThis is a key indicator for RWX transitions and shellcode staging.",
       "properties": {
         "pos": {
@@ -1463,6 +1494,7 @@
       "type": "object"
     },
     "MemReadEvent": {
+      "additionalProperties": false,
       "description": "Records reads from process memory.\n\nEmitted for API-mediated memory reads and may merge adjacent reads in the\nprofiler for compactness.\n\nUseful for identifying memory scraping or credential theft behavior.",
       "properties": {
         "pos": {
@@ -1528,6 +1560,7 @@
       "type": "object"
     },
     "MemWriteEvent": {
+      "additionalProperties": false,
       "description": "Records writes into process memory.\n\nEmitted for API-mediated memory writes and may merge adjacent writes in the\nprofiler for compactness.\n\nUse with thread/process events to identify code injection flows.",
       "properties": {
         "pos": {
@@ -1710,6 +1743,7 @@
       "type": "object"
     },
     "ModuleLoadEvent": {
+      "additionalProperties": false,
       "description": "Records dynamic module loading activity.\n\nEmitted when module load operations map additional images during runtime.\n\nUseful for dependency discovery and staged import behavior.",
       "properties": {
         "pos": {
@@ -1789,6 +1823,7 @@
       "type": "object"
     },
     "NetDnsEvent": {
+      "additionalProperties": false,
       "description": "Records DNS name resolution activity.\n\nEmitted when DNS APIs request host resolution or related lookups.\n\nUse for C2 endpoint discovery and fallback behavior analysis.",
       "properties": {
         "pos": {
@@ -1829,6 +1864,7 @@
       "type": "object"
     },
     "NetHttpEvent": {
+      "additionalProperties": false,
       "description": "Records HTTP request telemetry.\n\nEmitted by WinInet/WinHTTP handlers when requests are issued.\n\nUse these records to inspect request metadata and transmitted body content.",
       "properties": {
         "pos": {
@@ -1894,6 +1930,7 @@
       "type": "object"
     },
     "NetTrafficEvent": {
+      "additionalProperties": false,
       "description": "Records non-HTTP network traffic and socket-level activity.\n\nEmitted for connect/bind/send/recv style network events.\n\nUse this for protocol flow reconstruction outside HTTP abstractions.",
       "properties": {
         "pos": {
@@ -1972,6 +2009,7 @@
       "type": "object"
     },
     "ProcessCreateEvent": {
+      "additionalProperties": false,
       "description": "Records creation of a child process context.\n\nEmitted when process-creation APIs are invoked and accepted by emulation.\n\nThese events indicate lateral execution or staged payload spawning.",
       "properties": {
         "pos": {
@@ -2018,6 +2056,7 @@
       "type": "object"
     },
     "RegCreateKeyEvent": {
+      "additionalProperties": false,
       "description": "Records registry key creation operations.\n\nEmitted when registry APIs create new keys.\n\nStrong signal for persistence and installation behavior.",
       "properties": {
         "pos": {
@@ -2090,6 +2129,7 @@
       "type": "object"
     },
     "RegDeleteKeyEvent": {
+      "additionalProperties": false,
       "description": "Records registry key deletion.\n\nEmitted when registry APIs delete a key.\n\nUse this to track persistence cleanup and anti-forensics behavior.",
       "properties": {
         "pos": {
@@ -2130,6 +2170,7 @@
       "type": "object"
     },
     "RegDeleteValueEvent": {
+      "additionalProperties": false,
       "description": "Records registry value deletion.\n\nEmitted when registry APIs delete a value from a key.\n\nUse this to track persistence cleanup and anti-forensics behavior.",
       "properties": {
         "pos": {
@@ -2183,6 +2224,7 @@
       "type": "object"
     },
     "RegListSubkeysEvent": {
+      "additionalProperties": false,
       "description": "Records enumeration of registry subkeys.\n\nEmitted when APIs list child keys beneath a registry path.\n\nHelps reveal discovery behavior for installed software and services.",
       "properties": {
         "pos": {
@@ -2223,6 +2265,7 @@
       "type": "object"
     },
     "RegOpenKeyEvent": {
+      "additionalProperties": false,
       "description": "Records registry key open operations.\n\nEmitted when registry APIs open existing keys.\n\nUse these to identify configuration and persistence probing paths.",
       "properties": {
         "pos": {
@@ -2295,6 +2338,7 @@
       "type": "object"
     },
     "RegReadValueEvent": {
+      "additionalProperties": false,
       "description": "Records registry value read operations.\n\nEmitted when value-query APIs request data from a key.\n\nUse this to identify configuration keys and anti-analysis checks.",
       "properties": {
         "pos": {
@@ -2387,6 +2431,7 @@
       "type": "object"
     },
     "RegWriteValueEvent": {
+      "additionalProperties": false,
       "description": "Records registry value write operations.\n\nEmitted when APIs set or overwrite a registry value.\n\nUse this to capture persistence and configuration mutations.",
       "properties": {
         "pos": {
@@ -2594,6 +2639,7 @@
       "type": "object"
     },
     "ThreadCreateEvent": {
+      "additionalProperties": false,
       "description": "Records thread creation in a process context.\n\nEmitted for thread creation APIs and often accompanies process injection\nworkflows.\n\nCombine with memory-write and start-address analysis for attribution.",
       "properties": {
         "pos": {
@@ -2659,6 +2705,7 @@
       "type": "object"
     },
     "ThreadInjectEvent": {
+      "additionalProperties": false,
       "description": "Records thread injection activity into another process.\n\nEmitted for injection-oriented thread APIs.\n\nTreat these as high-signal indicators of code injection behavior.",
       "properties": {
         "pos": {
@@ -2724,6 +2771,7 @@
       "type": "object"
     },
     "TracePosition": {
+      "additionalProperties": false,
       "description": "Locates where an event occurred in execution time and context.\n\nEvery emitted event carries this structure so consumers can reconstruct\nchronology and thread/process ownership.\n\nUse ``tick`` ordering for timeline reconstruction and ``pc`` for direct\ndisassembly alignment.",
       "properties": {
         "tick": {
@@ -2744,7 +2792,7 @@
         "pc": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "string"
             },
             {
               "type": "null"

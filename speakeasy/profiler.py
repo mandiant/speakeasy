@@ -249,8 +249,7 @@ class Profiler:
             run.api_hash.update(name.lower().encode("utf-8"))
             run.unique_apis.append(name)
 
-        ret_str = hex(ret) if ret is not None else None
-        event = ApiEvent(pos=pos, api_name=name, args=args, ret_val=ret_str)
+        event = ApiEvent(pos=pos, api_name=name, args=args, ret_val=ret)
 
         shown = [(a.name, a.type, a.display) for a in args]
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
