@@ -44,7 +44,7 @@ class WskSocket(objman.KernelObject):
 
             # We need a ptr to the dispatch table ptr
             self.dispatch_addr = self.dispatch_ptr + self.emu.get_ptr_size()
-            self.emu.mem_write(self.dispatch_ptr, self.dispatch_addr.to_bytes(self.emu.get_ptr_size(), "little"))
+            api.write_ptr(self.dispatch_ptr, self.dispatch_addr)
 
             addr = self.emu.add_callback(Netio.name, api.WskControlSocket.__apihook__[0])
             self.dispatch.Basic.WskControlSocket = addr

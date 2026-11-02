@@ -149,7 +149,7 @@ class Wdfldr(api.ApiHandler):
         if not self.component_globals:
             components = self.types.WDF_COMPONENT_GLOBALS(ptr_size)
             self.component_globals = self.mem_alloc(components.sizeof(), tag="api.struct.WDF_COMPONENT_GLOBALS")
-        self.mem_write(ComponentGlobals, (self.component_globals).to_bytes(ptr_size, "little"))
+        self.write_ptr(ComponentGlobals, self.component_globals)
 
         self.set_func_table(emu)
 
@@ -159,7 +159,7 @@ class Wdfldr(api.ApiHandler):
             table = self.func_table.get_bytes()[:table_size]
             self.mem_write(wbi.FuncTable, table.ljust(table_size, b"\x00"))
         else:
-            self.mem_write(wbi.FuncTable, self.func_table_ptr.to_bytes(ptr_size, "little"))
+            self.write_ptr(wbi.FuncTable, self.func_table_ptr)
 
         # For now, just leave the handle open so we can reference it later
         return rv
@@ -190,7 +190,7 @@ class Wdfldr(api.ApiHandler):
         self.handles[handle] = driver
         for out in (DriverGlobals, Driver):
             if out:
-                self.mem_write(out, handle.to_bytes(emu.get_ptr_size(), "little"))
+                self.write_ptr(out, handle)
 
         if DriverConfig:
             self.mem_cast(
@@ -269,7 +269,7 @@ class Wdfldr(api.ApiHandler):
             handle = self.get_handle()
             dev = WdfDevice()
             self.wdf_devices.update({handle: dev})
-            self.mem_write(Device, (handle).to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(Device, handle)
 
             do = ntos.DEVICE_OBJECT(emu.get_ptr_size())
             dev.device_object_addr = self.mem_alloc(do.sizeof(), tag="api.struct.DEVICE_OBJECT")
@@ -298,10 +298,10 @@ class Wdfldr(api.ApiHandler):
             return 0
 
         ps = emu.get_ptr_size()
-        unique = emu.read_ptr(TypeInfo + 3 * ps) or TypeInfo
+        unique = self.read_ptr(TypeInfo + 3 * ps) or TypeInfo
         key = (Handle, unique)
         if key not in self.typed_contexts:
-            size = emu.read_ptr(unique + 2 * ps) or ps
+            size = self.read_ptr(unique + 2 * ps) or ps
             self.typed_contexts[key] = self.mem_alloc(size, tag="api.struct.WDF_OBJECT_CONTEXT")
         return self.typed_contexts[key]
 
@@ -330,7 +330,7 @@ class Wdfldr(api.ApiHandler):
             rv = ddk.STATUS_SUCCESS
 
         if Key:
-            self.mem_write(Key, (hnd).to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(Key, hnd)
 
         return rv
 
@@ -447,7 +447,7 @@ class Wdfldr(api.ApiHandler):
         driver.queues.update({hnd: queue_config})
 
         if Queue:
-            self.mem_write(Queue, (hnd).to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(Queue, hnd)
 
         return rv
 
@@ -490,7 +490,7 @@ class Wdfldr(api.ApiHandler):
         usb = WdfUsbDevice()
         self.usb_devices.update({handle: usb})
 
-        self.mem_write(UsbDevice, (handle).to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(UsbDevice, handle)
 
         return rv
 
@@ -550,9 +550,9 @@ class Wdfldr(api.ApiHandler):
         ptr = self.mem_alloc(BufferSize, tag="api.struct.WDFMEMORY")
 
         if Memory:
-            self.mem_write(Memory, (ptr).to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(Memory, ptr)
         if Buffer:
-            self.mem_write(Buffer, (ptr).to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(Buffer, ptr)
 
         return rv
 
