@@ -478,8 +478,6 @@ class User32(api.ApiHandler):
         """
         (hWnd,) = argv
         window = self.sessman.get_window(hWnd)
-        if not window:
-            return False
 
         wc = self.sessman.get_window_class(window.class_name)
         if wc and wc.wclass.lpfnWndProc:
@@ -853,7 +851,7 @@ class User32(api.ApiHandler):
         );
         """
         hWnd, Msg, wParam, lParam = argv
-        window = self.sessman.get_window(hWnd)
+        window = self.sessman.windows.get(hWnd)
         if window and isinstance(window.class_name, str) and window.class_name.lower() == "syslistview32":
             if Msg in LIST_VIEW_COLUMN_MESSAGES:
                 return self.send_list_view_column_message(emu, window, Msg, wParam, lParam)
@@ -1039,7 +1037,7 @@ class User32(api.ApiHandler):
             self.setup_callback(msg.lParam, (msg.hwnd, msg.message, msg.wParam, msg.time))
             return 0
         wndproc = self.wndprocs.get(msg.hwnd)
-        window = self.sessman.get_window(msg.hwnd)
+        window = self.sessman.windows.get(msg.hwnd)
         if not wndproc and window:
             wc = self.sessman.get_window_class(window.class_name)
             wndproc = wc.wclass.lpfnWndProc if wc else 0
@@ -1242,11 +1240,9 @@ class User32(api.ApiHandler):
         );
         """
         (hWnd,) = argv
-        window = self.sessman.get_window(hWnd)
-        if not window:
-            if hWnd != self.sessman.get_current_desktop().desktop_window.get_handle():
-                emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
+        if hWnd == self.sessman.get_current_desktop().desktop_window.get_handle():
             return 0
+        window = self.sessman.get_window(hWnd)
         if window.style & (WS_POPUP | WS_CHILD):
             return window.parent
         return 0
@@ -1257,12 +1253,6 @@ class User32(api.ApiHandler):
         name = self.read_mem_string(lpString, self.get_char_width(ctx))
         ctx.args["lpString"].display = name
         return name.upper()
-
-    def get_prop_window(self, emu, hnd):
-        window = self.sessman.get_window(hnd)
-        if not window:
-            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
-        return window
 
     @apihook("SetProp", argc=3)
     def SetProp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1275,9 +1265,7 @@ class User32(api.ApiHandler):
         """
         hWnd, lpString, hData = argv
         key = self.get_prop_key(lpString, ctx)
-        window = self.get_prop_window(emu, hWnd)
-        if not window:
-            return False
+        window = self.sessman.get_window(hWnd)
         window.props[key] = hData
         return True
 
@@ -1291,10 +1279,7 @@ class User32(api.ApiHandler):
         """
         hWnd, lpString = argv
         key = self.get_prop_key(lpString, ctx)
-        window = self.get_prop_window(emu, hWnd)
-        if not window:
-            return 0
-        return window.props.get(key, 0)
+        return self.sessman.get_window(hWnd).props.get(key, 0)
 
     @apihook("RemoveProp", argc=2)
     def RemoveProp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1306,10 +1291,7 @@ class User32(api.ApiHandler):
         """
         hWnd, lpString = argv
         key = self.get_prop_key(lpString, ctx)
-        window = self.get_prop_window(emu, hWnd)
-        if not window:
-            return 0
-        return window.props.pop(key, 0)
+        return self.sessman.get_window(hWnd).props.pop(key, 0)
 
     @apihook("GetWindowThreadProcessId", argc=2)
     def GetWindowThreadProcessId(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1329,9 +1311,6 @@ class User32(api.ApiHandler):
                 window.thread_id = emu.handle_allocator.allocate_kernel_object_id()
         else:
             window = self.sessman.get_window(hWnd)
-        if not window:
-            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
-            return 0
         if lpdwProcessId:
             self.write_dword(lpdwProcessId, window.process_id)
         return window.thread_id
@@ -1348,24 +1327,24 @@ class User32(api.ApiHandler):
 
         return rv
 
-    def get_window_longs(self, emu, hWnd):
+    def get_window_longs(self, hWnd):
         """
-        Get the values that SetWindowLong stored for ``hWnd``. For an unknown
-        window, set ERROR_INVALID_WINDOW_HANDLE and return None.
+        Get the values that SetWindowLong stored for ``hWnd``.
+
+        Raises:
+            InvalidHandle: if ``hWnd`` does not refer to a window.
         """
-        if self.sessman.get_handle_object(hWnd, sessman.Window) is None:
-            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
-            return None
+        self.sessman.get_window(hWnd)
         return self.window_longs.setdefault(hWnd, {})
 
     def get_window_long(self, hWnd, index, longs):
         if index == GWL_WNDPROC and hWnd in self.wndprocs:
             return self.wndprocs[hWnd]
         window = self.sessman.get_window(hWnd)
-        if index == GWL_WNDPROC and window:
+        if index == GWL_WNDPROC:
             wc = self.sessman.get_window_class(window.class_name)
             return wc.wclass.lpfnWndProc if wc else 0
-        if index == GWL_STYLE and window:
+        if index == GWL_STYLE:
             return window.style
         return longs.get(index, 0)
 
@@ -1378,9 +1357,7 @@ class User32(api.ApiHandler):
         );
         """
         hWnd, nIndex = argv
-        longs = self.get_window_longs(emu, hWnd)
-        if longs is None:
-            return 0
+        longs = self.get_window_longs(hWnd)
         return self.get_window_long(hWnd, ctypes.c_int32(nIndex).value, longs)
 
     @apihook("GetWindowLongPtr", argc=2)
@@ -1403,15 +1380,13 @@ class User32(api.ApiHandler):
         );
         """
         hWnd, nIndex, dwNewLong = argv
-        longs = self.get_window_longs(emu, hWnd)
-        if longs is None:
-            return 0
+        longs = self.get_window_longs(hWnd)
         index = ctypes.c_int32(nIndex).value
         rv = self.get_window_long(hWnd, index, longs)
         window = self.sessman.get_window(hWnd)
         if index == GWL_WNDPROC:
             self.wndprocs[hWnd] = dwNewLong
-        elif index == GWL_STYLE and window:
+        elif index == GWL_STYLE:
             window.style = dwNewLong
         else:
             longs[index] = dwNewLong
