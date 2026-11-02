@@ -143,10 +143,10 @@ class ExceptionApis(_ApiHandlerBase):
             PVOID *BaseOfImage
         );
         """
-        pc, base_out = argv
-        mod = emu.get_mod_from_addr(pc)
+        PcValue, BaseOfImage = argv
+        mod = emu.get_mod_from_addr(PcValue)
         base = mod.base if mod else 0
-        self.mem_write(base_out, base.to_bytes(self.get_ptr_size(), "little"))
+        self.mem_write(BaseOfImage, base.to_bytes(self.get_ptr_size(), "little"))
         return base
 
     @apihook("RtlLookupFunctionEntry", argc=3)
