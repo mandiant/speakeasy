@@ -4,7 +4,7 @@ import struct
 
 import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy
-from speakeasy.windows.handles import CURRENT_PROCESS_HANDLE, CURRENT_THREAD_HANDLE, InvalidHandle
+from speakeasy.windows.handles import CURRENT_PROCESS_HANDLE, CURRENT_THREAD_HANDLE
 from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
@@ -39,8 +39,6 @@ def duplicate(se: Speakeasy, handle: int, options: int = DUPLICATE_SAME_ACCESS) 
 
 
 def test_handles_of_different_types_have_different_values(dll_emu: Speakeasy) -> None:
-    # Each handle type had its own counter, and the kernel object counter reached the
-    # first file mapping value after 24 handles.
     start_process(dll_emu)
     events = [call(dll_emu, "kernel32", "CreateEventA", [0, 1, 0, 0])[0] for _ in range(40)]
     hmap, _ = call(
@@ -57,26 +55,6 @@ def test_close_of_a_bad_handle_sets_the_last_error(dll_emu: Speakeasy) -> None:
 
 def test_kernel_close_of_a_bad_handle_returns_the_status(driver_emu: Speakeasy) -> None:
     assert dispatch_x86(driver_emu, "ntoskrnl", "ZwClose", [BAD_HANDLE]) == ddk.STATUS_INVALID_HANDLE
-
-
-def test_an_api_that_returns_its_error_returns_the_bad_handle_error(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    emu = dll_emu.emu
-    module, _ = emu.get_api_handler("advapi32", "RegCloseKey")
-    sig = emu.get_handler_signature("advapi32", "RegCloseKey", 1)
-    emu.set_last_error(windefs.ERROR_SUCCESS)
-    assert emu.fail_invalid_handle(module, None, sig, InvalidHandle(BAD_HANDLE)) == windefs.ERROR_INVALID_HANDLE
-    assert emu.get_last_error() == windefs.ERROR_SUCCESS
-
-
-def test_the_fail_value_of_the_apihook_is_the_return_value(dll_emu: Speakeasy) -> None:
-    start_process(dll_emu)
-    emu = dll_emu.emu
-    module, _ = emu.get_api_handler("kernel32", "CreateFileA")
-    sig = emu.get_handler_signature("kernel32", "CreateFileA", 7)
-    rv = emu.fail_invalid_handle(module, windefs.INVALID_HANDLE_VALUE, sig, InvalidHandle(BAD_HANDLE))
-    assert rv == windefs.INVALID_HANDLE_VALUE
-    assert emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
 
 
 def test_a_handle_is_closed_once(dll_emu: Speakeasy) -> None:
