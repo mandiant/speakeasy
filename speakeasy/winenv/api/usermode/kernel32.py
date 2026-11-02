@@ -4304,7 +4304,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         file_data = k32defs.WIN32_FILE_ATTRIBUTE_DATA(emu.get_ptr_size())
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.dwFileAttributes to Normal
-        file_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_NORMAL
+        file_data.dwFileAttributes = windefs.FILE_ATTRIBUTE_NORMAL
 
         timestamp = self.get_system_time()
         for ft in (file_data.ftCreationTime, file_data.ftLastAccessTime, file_data.ftLastWriteTime):
@@ -5931,9 +5931,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         find_data = k32defs.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
         if is_dir:
-            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_DIRECTORY
+            find_data.dwFileAttributes = windefs.FILE_ATTRIBUTE_DIRECTORY
         else:
-            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_NORMAL
+            find_data.dwFileAttributes = windefs.FILE_ATTRIBUTE_NORMAL
         find_data.cFileName = cfn
         self.mem_write(lpFindFileData, find_data.get_bytes())
 
@@ -5973,9 +5973,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         find_data = k32defs.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
         if is_dir:
-            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_DIRECTORY
+            find_data.dwFileAttributes = windefs.FILE_ATTRIBUTE_DIRECTORY
         else:
-            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_NORMAL
+            find_data.dwFileAttributes = windefs.FILE_ATTRIBUTE_NORMAL
         find_data.cFileName = cfn
         self.mem_write(lpFindFileData, find_data.get_bytes())
 
@@ -6992,9 +6992,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         info = k32defs.BY_HANDLE_FILE_INFORMATION(emu.get_ptr_size())
         if f.is_dir or emu.get_file_manager().is_directory(f.path):
-            info.dwFileAttributes = k32defs.FILE_ATTRIBUTE_DIRECTORY
+            info.dwFileAttributes = windefs.FILE_ATTRIBUTE_DIRECTORY
         else:
-            info.dwFileAttributes = k32defs.FILE_ATTRIBUTE_ARCHIVE
+            info.dwFileAttributes = windefs.FILE_ATTRIBUTE_ARCHIVE
             size = f.get_size()
             info.nFileSizeHigh = 0xFFFFFFFF & (size >> 32)
             info.nFileSizeLow = 0xFFFFFFFF & size
@@ -7179,7 +7179,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (lpFrequency,) = argv
-        self.write_qword(lpFrequency, 10000000)
+        self.write_qword(lpFrequency, windefs.PERF_FREQUENCY)
         return 1
 
     @apihook("FindFirstVolume", argc=2)
@@ -7918,7 +7918,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             struct _EXCEPTION_POINTERS *ExceptionInfo
         );
         """
-        return k32defs.EXCEPTION_EXECUTE_HANDLER
+        return windefs.EXCEPTION_EXECUTE_HANDLER
 
     @apihook("GetSystemTimePreciseAsFileTime", argc=1)
     def GetSystemTimePreciseAsFileTime(

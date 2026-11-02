@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
 import speakeasy.winenv.arch as e_arch
+import speakeasy.winenv.defs.windows.com as comdefs
+import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
@@ -14,9 +16,6 @@ from .shell32 import write_dll_version
 if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
 
-MAX_PATH = 260
-E_INVALIDARG = 0x80070057
-E_POINTER = 0x80004003
 
 OS_NT = 1
 OS_NT4ORGREATER = 3
@@ -491,7 +490,7 @@ class Shlwapi(api.ApiHandler):
             if directory and not directory.endswith("\\"):
                 directory += "\\"
             path = directory + file
-        if path is None or len(path) >= MAX_PATH:
+        if path is None or len(path) >= k32defs.MAX_PATH:
             self.write_mem_string("\0", pszDest, cw)
             return 0
         self.write_mem_string(get_canonical_path(path) + "\0", pszDest, cw)
@@ -540,7 +539,7 @@ class Shlwapi(api.ApiHandler):
         """
         pszBase, pszRelative, pszCombined, pcchCombined, dwFlags = argv
         if not pszBase or not pszRelative or not pcchCombined:
-            return E_INVALIDARG
+            return windefs.E_INVALIDARG
         cw = self.get_char_width(ctx)
         base = self.read_mem_string(pszBase, cw)
         relative = self.read_mem_string(pszRelative, cw)
@@ -550,7 +549,7 @@ class Shlwapi(api.ApiHandler):
         size = self.read_dword(pcchCombined)
         if not pszCombined or size <= len(combined):
             self.write_dword(pcchCombined, len(combined) + 1)
-            return E_POINTER
+            return comdefs.E_POINTER
         self.write_mem_string(combined + "\0", pszCombined, cw)
         self.write_dword(pcchCombined, len(combined))
         return 0
@@ -567,7 +566,7 @@ class Shlwapi(api.ApiHandler):
         s = self.read_mem_string(pszPath, cw)
         if not s.endswith("\\"):
             s += "\\"
-            if len(s) > MAX_PATH:
+            if len(s) > k32defs.MAX_PATH:
                 return 0
 
         self.write_mem_string(s, pszPath, cw)
@@ -596,7 +595,7 @@ class Shlwapi(api.ApiHandler):
         else:
             path = path[:i] + ext
 
-        if len(path) > MAX_PATH:
+        if len(path) > k32defs.MAX_PATH:
             return 0
 
         self.write_mem_string(path, pszPath, cw)

@@ -155,7 +155,6 @@ DRIVE_C = 2
 RAND_BASE = 0
 TICK_BASE = 86400000  # 1 day in millisecs
 PERF_COUNTER_BASE = 0x5FD27D571F
-PERF_FREQUENCY = 10_000_000
 
 # Signal types
 SIGINT = 2  # interrupt
@@ -1997,14 +1996,14 @@ class Msvcrt(api.ApiHandler):
         """
         long long _Query_perf_frequency();
         """
-        return self.return_int64(emu, PERF_FREQUENCY)
+        return self.return_int64(emu, windefs.PERF_FREQUENCY)
 
     @apihook("_Query_perf_counter", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _Query_perf_counter(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         long long _Query_perf_counter();
         """
-        self.perf_counter += PERF_FREQUENCY // 50
+        self.perf_counter += windefs.PERF_FREQUENCY // 50
         return self.return_int64(emu, self.perf_counter)
 
     @apihook("_Xtime_get_ticks", argc=0, conv=e_arch.CALL_CONV_CDECL)

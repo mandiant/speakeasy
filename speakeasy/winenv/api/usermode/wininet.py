@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.arch as _arch
+import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.wininet as inetdefs
 from speakeasy.windows import netman
 from speakeasy.winenv.defs.lookup import decode
@@ -191,7 +192,7 @@ class Wininet(api.ApiHandler):
                     if length <= len(text):
                         setattr(url_comp, f"dw{part}Length", len(text) + 1)
                         self.mem_write(lpUrlComponents, url_comp.get_bytes())
-                        emu.set_last_error(inetdefs.ERROR_INSUFFICIENT_BUFFER)
+                        emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
                         return False
                     self.write_mem_string(text, buf, cw)
                 else:
@@ -325,7 +326,7 @@ class Wininet(api.ApiHandler):
 
         req = self.netman.get_wininet_object(hFile)
         if not isinstance(req, netman.WininetRequest):
-            emu.set_last_error(inetdefs.ERROR_INVALID_HANDLE)
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return False
         resp = req.get_response()
         data = resp.read(dwNumberOfBytesToRead)
@@ -364,7 +365,7 @@ class Wininet(api.ApiHandler):
         else:
             req = self.netman.get_wininet_object(hRequest)
             if not isinstance(req, netman.WininetRequest):
-                emu.set_last_error(inetdefs.ERROR_INVALID_HANDLE)
+                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
                 return False
             text = inetdefs.get_header_text(header_id, req.get_response_headers())
             if text is None:
@@ -382,7 +383,7 @@ class Wininet(api.ApiHandler):
             out_len = len(out) - cw
         if not lpBuffer or self.read_dword(lpdwBufferLength) < len(out):
             self.write_dword(lpdwBufferLength, len(out))
-            emu.set_last_error(inetdefs.ERROR_INSUFFICIENT_BUFFER)
+            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return False
         self.mem_write(lpBuffer, out)
         self.write_dword(lpdwBufferLength, out_len)

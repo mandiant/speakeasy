@@ -107,7 +107,7 @@ class RPCRT4(api.ApiHandler):
         elif interfaces:
             clsid = interfaces[0][0]
         else:
-            return comdefs.S_OK
+            return windefs.S_OK
 
         for iid, name, method_count in interfaces:
             key = emu.regman.create_key(f"HKEY_CLASSES_ROOT\\Interface\\{iid}")
@@ -126,7 +126,7 @@ class RPCRT4(api.ApiHandler):
             key.create_value("", REG_VALUE_TYPE.REG_SZ, mod.emu_path)
             key.create_value("ThreadingModel", REG_VALUE_TYPE.REG_SZ, "Both")
 
-        return comdefs.S_OK
+        return windefs.S_OK
 
     @apihook("NdrDllUnregisterProxy", argc=3)
     def NdrDllUnregisterProxy(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -137,7 +137,7 @@ class RPCRT4(api.ApiHandler):
             const CLSID *pclsid
         );
         """
-        return comdefs.S_OK
+        return windefs.S_OK
 
     @apihook("NdrDllGetClassObject", argc=6)
     def NdrDllGetClassObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -167,4 +167,4 @@ class RPCRT4(api.ApiHandler):
         (pPSFactoryBuffer,) = argv
 
         ref_count = self.read_dword(pPSFactoryBuffer + self.get_ptr_size())
-        return comdefs.S_FALSE if ref_count else comdefs.S_OK
+        return comdefs.S_FALSE if ref_count else windefs.S_OK
