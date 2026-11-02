@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from speakeasy.windows.handles import HandleTable, InvalidHandle
+from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.windows.windows import ERROR_INVALID_WINDOW_HANDLE
 
 if TYPE_CHECKING:
@@ -154,15 +154,14 @@ class SessionManager:
     def get_window_class(self, atom):
         return self.window_classes.get(atom)
 
-    def get_window(self, handle):
-        return self.windows.get(handle)
+    def get_window(self, handle) -> Window:
+        """
+        Get the window of a window handle.
 
-    def get_handle_object(self, handle, *types):
-        """Get the object of an open USER object handle if it is one of ``types``, else None."""
-        try:
-            return self.handles.get(handle, *types)
-        except InvalidHandle:
-            return None
+        Raises:
+            InvalidHandle: if the handle does not refer to a window, with ERROR_INVALID_WINDOW_HANDLE.
+        """
+        return self.handles.get(handle, Window)
 
     def get_device_context(self):
         return self.dev_ctx
