@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Bcryptprimitives(api.ApiHandler):
@@ -17,7 +22,7 @@ class Bcryptprimitives(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("ProcessPrng", argc=2)
-    def ProcessPrng(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ProcessPrng(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ProcessPrng(
             PBYTE pbData,
