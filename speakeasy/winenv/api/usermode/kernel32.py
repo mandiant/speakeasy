@@ -110,8 +110,6 @@ VER_COMPARE = {
     4: lambda a, b: a < b,
     5: lambda a, b: a <= b,
 }
-VER_PLATFORM_WIN32_NT = 2
-VER_NT_WORKSTATION = 1
 SERVICE_PACK_BUILDS = {6001: 1, 6002: 2, 7601: 1}
 
 JobObjectBasicAccountingInformation = 1
@@ -5718,12 +5716,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         osver.dwMajorVersion = ver.major or 0
         osver.dwMinorVersion = ver.minor or 0
         osver.dwBuildNumber = ver.build or 0
-        osver.dwPlatformId = VER_PLATFORM_WIN32_NT
+        osver.dwPlatformId = windefs.VER_PLATFORM_WIN32_NT
         if isinstance(osver, self.k32types.OSVERSIONINFOEX):
             osver.wServicePackMajor = SERVICE_PACK_BUILDS.get(ver.build or 0, 0)
             osver.wServicePackMinor = 0
             osver.wSuiteMask = 0
-            osver.wProductType = VER_NT_WORKSTATION
+            osver.wProductType = windefs.VER_NT_WORKSTATION
 
         rv = 1
         self.mem_write(lpVersionInformation, osver.get_bytes())
@@ -6536,8 +6534,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                     break
         for bit, current, wanted in (
             (VER_BUILDNUMBER, cur_build, build),
-            (VER_PLATFORMID, VER_PLATFORM_WIN32_NT, platform),
-            (VER_PRODUCT_TYPE, VER_NT_WORKSTATION, product),
+            (VER_PLATFORMID, windefs.VER_PLATFORM_WIN32_NT, platform),
+            (VER_PRODUCT_TYPE, windefs.VER_NT_WORKSTATION, product),
         ):
             if ok and type_mask & bit:
                 ok = check(bit, current, wanted)
