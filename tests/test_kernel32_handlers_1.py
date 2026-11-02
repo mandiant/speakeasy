@@ -1022,6 +1022,21 @@ def test_verify_version_info_compares_with_the_emulated_version(
     assert emu.get_last_error() == (0 if rv else ERROR_OLD_WIN_VERSION)
 
 
+@pytest.mark.parametrize("name, width", [("GetVersionExA", 1), ("GetVersionExW", 2)])
+@pytest.mark.parametrize("ex", [False, True])
+def test_get_version_ex_fills_the_struct_of_the_given_size(dll_emu: Speakeasy, name: str, width: int, ex: bool) -> None:
+    ptr_size = dll_emu.get_ptr_size()
+    info = (k32defs.OSVERSIONINFOEX if ex else k32defs.OSVERSIONINFO)(ptr_size, width)
+    info.dwOSVersionInfoSize = info.sizeof()
+    addr = alloc(dll_emu, info.get_bytes() + b"\xcc" * 0x10)
+    assert call(dll_emu, "kernel32", name, [addr])[0] == 1
+    info.cast(dll_emu.mem_read(addr, info.sizeof()))
+    assert (info.dwMajorVersion, info.dwMinorVersion, info.dwBuildNumber) == (6, 1, 7601)
+    if ex:
+        assert (info.wServicePackMajor, info.wProductType) == (1, 1)
+    assert dll_emu.mem_read(addr + info.sizeof(), 0x10) == b"\xcc" * 0x10
+
+
 def test_process_id_to_session_id(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
