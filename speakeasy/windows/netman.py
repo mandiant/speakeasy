@@ -6,7 +6,7 @@ import io
 import os
 from io import BytesIO
 from socket import inet_aton
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
@@ -16,6 +16,8 @@ from speakeasy.winenv.defs.winsock.winsock import WSAENOTSOCK
 
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
+
+T = TypeVar("T", bound="WininetComponent")
 
 
 def is_ip_address(ip):
@@ -327,11 +329,23 @@ class NetworkManager:
         except InvalidHandle:
             return None
 
+    def get_wininet(self, handle, cls: type[T]) -> T:
+        """
+        Get the WinInet object of an open handle.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to an object of type ``cls``.
+        """
+        return self.wininets.get(handle, cls)
+
     def close_wininet_object(self, handle):
-        """Close a WinInet handle and the open handles of the objects under it."""
-        obj = self.get_wininet_object(handle)
-        if obj is None:
-            return
+        """
+        Close a WinInet handle and the open handles of the objects under it.
+
+        Raises:
+            InvalidHandle: if the handle is not an open WinInet handle.
+        """
+        obj = self.get_wininet(handle, WininetComponent)
         for child in obj.children:
             if child.handle in self.wininets:
                 self.close_wininet_object(child.handle)
