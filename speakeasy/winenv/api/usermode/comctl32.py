@@ -8,6 +8,7 @@ from .shell32 import write_dll_version
 
 if TYPE_CHECKING:
     from speakeasy.windows.netman import NetworkManager
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Comctl32(api.ApiHandler):
@@ -23,7 +24,7 @@ class Comctl32(api.ApiHandler):
         self.netman: NetworkManager = emu.get_network_manager()
 
     @apihook("InitCommonControlsEx", argc=1)
-    def InitCommonControlsEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InitCommonControlsEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InitCommonControlsEx(
             const INITCOMMONCONTROLSEX *picce
@@ -35,7 +36,7 @@ class Comctl32(api.ApiHandler):
         return rv
 
     @apihook("InitCommonControls", argc=0)
-    def InitCommonControls(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InitCommonControls(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void InitCommonControls();
 
@@ -45,7 +46,7 @@ class Comctl32(api.ApiHandler):
         return
 
     @apihook("DllGetVersion", argc=1)
-    def DllGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DllGetVersion(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HRESULT DllGetVersion(
             DLLVERSIONINFO *pdvi
