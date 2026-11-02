@@ -28,7 +28,10 @@ from speakeasy.profiler_events import (
     MemWriteEvent,
     NetDnsEvent,
     NetHttpEvent,
+    NetHttpProtocol,
     NetTrafficEvent,
+    NetTrafficProtocol,
+    NetTrafficType,
     ProcessCreateEvent,
     RegCreateKeyEvent,
     RegDeleteKeyEvent,
@@ -579,20 +582,15 @@ class Profiler:
         )
         run.events.append(event)
 
-    def record_http_event(
-        self, run, pos: TracePosition, server, port, proto="http", headers="", body=b"", secure=False
-    ):
+    def record_http_event(self, run, pos: TracePosition, server, port, headers="", body=b"", secure=False):
         """Log HTTP traffic that occurs during emulation."""
-        proto_str = "https" if secure else "http"
-        body_ref = self.put_binary_data(body or b"", limit=0x3000)
-
         event = NetHttpEvent(
             pos=pos,
             server=server,
             port=port,
-            proto=f"tcp.{proto_str}",
+            proto=NetHttpProtocol.HTTPS if secure else NetHttpProtocol.HTTP,
             headers=headers if headers else None,
-            body_ref=body_ref,
+            data_ref=self.put_binary_data(body or b"", limit=0x3000),
         )
 
         for evt in run.events:
@@ -615,7 +613,15 @@ class Profiler:
             run.dyn_code["base_addrs"].add(base)
 
     def record_network_event(
-        self, run, pos: TracePosition, server, port, typ="unknown", proto="unknown", data=b"", method=""
+        self,
+        run,
+        pos: TracePosition,
+        server,
+        port,
+        typ: NetTrafficType | None = None,
+        proto: NetTrafficProtocol = NetTrafficProtocol.UNKNOWN,
+        data=b"",
+        method="",
     ):
         """Log network activity for an emulation run."""
         data_ref = self.put_binary_data(data or b"", limit=0x3000)
@@ -625,7 +631,7 @@ class Profiler:
             server=server,
             port=port,
             proto=proto,
-            type=typ if typ != "unknown" else None,
+            type=typ,
             data_ref=data_ref,
             method=method if method else None,
         )

@@ -742,6 +742,32 @@ class NetDnsEvent(Event):
     )
 
 
+class NetTrafficType(str, Enum):
+    """Socket operation of a ``net_traffic`` event."""
+
+    CONNECT = "connect"
+    BIND = "bind"
+    ACCEPT = "accept"
+    DATA_IN = "data_in"
+    DATA_OUT = "data_out"
+
+
+class NetTrafficProtocol(str, Enum):
+    """Protocol of the socket type of a ``net_traffic`` event."""
+
+    TCP = "tcp"
+    UDP = "udp"
+    RAW = "raw"
+    UNKNOWN = "unknown"
+
+
+class NetHttpProtocol(str, Enum):
+    """Protocol of a ``net_http`` event."""
+
+    HTTP = "http"
+    HTTPS = "https"
+
+
 class NetTrafficEvent(Event):
     """
     Records non-HTTP network traffic and socket-level activity.
@@ -756,8 +782,10 @@ class NetTrafficEvent(Event):
     )
     server: str = Field(description="Remote endpoint hostname or IP address.")
     port: int = Field(description="Remote endpoint port number.")
-    proto: str = Field(description="Protocol label such as tcp/udp variants.")
-    type: str | None = Field(default=None, description="Traffic subtype (connect, bind, data_in, data_out, etc.).")
+    proto: NetTrafficProtocol = Field(
+        description="Protocol of the socket type: ``tcp``, ``udp``, ``raw``, or ``unknown`` for another socket type."
+    )
+    type: NetTrafficType | None = Field(default=None, description="Socket operation that produced the event.")
     data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the captured traffic payload bytes.",
@@ -777,9 +805,9 @@ class NetHttpEvent(Event):
     event: Literal[EventType.NET_HTTP] = Field(default=EventType.NET_HTTP, description="Discriminator for HTTP events.")
     server: str = Field(description="HTTP server hostname or address.")
     port: int = Field(description="HTTP server port.")
-    proto: str = Field(description="Transport/protocol label, e.g. tcp.http or tcp.https.")
+    proto: NetHttpProtocol = Field(description="``http``, or ``https`` for a secure request.")
     headers: str | None = Field(default=None, description="Serialized HTTP request headers, when available.")
-    body_ref: str | None = Field(
+    data_ref: str | None = Field(
         default=None,
         description="Reference into the top-level report ``data`` store for the captured HTTP body bytes.",
     )

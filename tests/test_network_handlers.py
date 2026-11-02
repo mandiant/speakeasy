@@ -226,10 +226,10 @@ def _http_events(se: Speakeasy) -> list[Any]:
 @pytest.mark.parametrize(
     "flags, proto, connection",
     [
-        (0, "tcp.http", "Connection: Close"),
+        (0, "http", "Connection: Close"),
         (
             INTERNET_FLAGS.INTERNET_FLAG_SECURE | INTERNET_FLAGS.INTERNET_FLAG_KEEP_CONNECTION,
-            "tcp.https",
+            "https",
             "Connection: Keep-Alive",
         ),
     ],
@@ -247,7 +247,7 @@ def test_http_send_request_follows_the_request_flags(
 def test_win_http_send_request_is_secure_with_the_secure_flag(dll_emu: Speakeasy) -> None:
     req = _winhttp_request(dll_emu, "GET", "/a", WINHTTP_OPEN_REQUEST_FLAGS.WINHTTP_FLAG_SECURE)
     assert call(dll_emu, "winhttp", "WinHttpSendRequest", [req, 0, 0, 0, 0, 0, 0])[0] == 1
-    assert [e.proto for e in _http_events(dll_emu)] == ["tcp.https"]
+    assert [e.proto for e in _http_events(dll_emu)] == ["https"]
 
 
 def test_internet_read_file_without_a_configured_response(dll_emu: Speakeasy) -> None:

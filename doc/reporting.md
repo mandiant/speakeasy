@@ -369,9 +369,9 @@ thread, even for a local create.
           "event": "net_http",
           "server": "example.org",
           "port": 443,
-          "proto": "tcp.https",
+          "proto": "https",
           "headers": "GET /stage HTTP/1.1\nHost: example.org\n",
-          "body_ref": null
+          "data_ref": null
         },
         {
           "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": "0x4010d2"},
