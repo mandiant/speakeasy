@@ -19,7 +19,6 @@ from speakeasy.profiler_events import (
     TracePosition,
 )
 from speakeasy.windows.fileman import File
-from speakeasy.windows.objman import HandleAllocator
 
 
 @dataclass(frozen=True)
@@ -43,7 +42,7 @@ def build_report(profiler: Profiler, run: Run):
 def test_dropped_file_embeds_data_ref_when_within_limit():
     profiler = Profiler()
     run = Run()
-    file_obj = File(HandleAllocator(), "C:\\temp\\drop.bin", data=b"payload")
+    file_obj = File("C:\\temp\\drop.bin", data=b"payload")
 
     profiler.record_dropped_files_event(run, [file_obj])
     report = build_report(profiler, run)
@@ -57,7 +56,7 @@ def test_dropped_file_embeds_data_ref_when_within_limit():
 def test_dropped_file_holds_the_whole_contents_whatever_the_file_pointer():
     profiler = Profiler()
     run = Run()
-    file_obj = File(HandleAllocator(), "C:\\temp\\drop.bin", data=b"payload")
+    file_obj = File("C:\\temp\\drop.bin", data=b"payload")
     file_obj.seek(0, io.SEEK_END)
 
     profiler.record_dropped_files_event(run, [file_obj])
@@ -72,7 +71,7 @@ def test_dropped_file_skips_large_embedded_payload():
     profiler = Profiler()
     run = Run()
     payload = b"A" * ((10 * 1024 * 1024) + 1)
-    file_obj = File(HandleAllocator(), "C:\\temp\\large.bin", data=payload)
+    file_obj = File("C:\\temp\\large.bin", data=payload)
 
     profiler.record_dropped_files_event(run, [file_obj])
     report = build_report(profiler, run)

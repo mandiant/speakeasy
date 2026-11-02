@@ -1902,12 +1902,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_object_from_handle(self, handle):
         om = self.get_object_manager("object lookup by handle")
-        obj = om.get_object_from_handle(handle)
-        if obj:
-            return obj
-        obj = self.fileman.get_object_from_handle(handle)
-        if obj:
-            return obj
+        return om.get_object_from_handle(handle)
 
     def get_object_handle(self, obj):
         om = self.get_object_manager("object handle lookup")

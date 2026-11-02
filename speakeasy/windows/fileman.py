@@ -15,9 +15,10 @@ from typing import TYPE_CHECKING, Any
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.config import FileEntry, FileEntryFullPath, FilesystemConfig, SpeakeasyConfig
 from speakeasy.errors import FileSystemEmuError
+from speakeasy.windows.handles import HandleTable, InvalidHandle
 
 if TYPE_CHECKING:
-    from speakeasy.windows.objman import HandleAllocator, Process
+    from speakeasy.windows.objman import Process
 
 logger = logging.getLogger(__name__)
 
@@ -88,16 +89,12 @@ def get_object_name_key(name):
 class FileMap:
     """Represents a memory mapped file."""
 
-    def __init__(self, allocator, name, size, prot, backed_file=None):
-        self.allocator: HandleAllocator = allocator
+    def __init__(self, name, size, prot, backed_file=None):
         self.name: str | None = name
         self.backed_file: File | None = backed_file
         self.views: dict[int, MapView] = {}
         self.size: int = size
         self.prot: int = prot
-
-    def get_handle(self):
-        return self.allocator.allocate_file_map_handle()
 
     def add_view(self, base, offset, size, protect):
         view = MapView(base, offset, size, protect)
@@ -107,8 +104,7 @@ class FileMap:
 class File:
     """Base class for an emulated file."""
 
-    def __init__(self, allocator, path, config=None, data=b""):
-        self.allocator: HandleAllocator = allocator
+    def __init__(self, path, config=None, data=b""):
         self.path: str = path
         self.data: io.BytesIO | None = None
         self.pos: int = 0
@@ -127,14 +123,11 @@ class File:
 
     def duplicate(self):
         """Get a new file object for another handle: it shares the contents and has its own position."""
-        new = File(self.allocator, self.path, config=self.config)
+        new = File(self.path, config=self.config)
         new.data = self.get_buffer()
         new.origin = self.origin or self
         new.is_dir = self.is_dir
         return new
-
-    def get_handle(self):
-        return self.allocator.allocate_file_handle()
 
     def get_hash(self):
         return hashlib.sha256(self.get_contents()).hexdigest()
@@ -224,7 +217,7 @@ class NullDevice(File):
     """The NUL device: reads give no data and writes discard the data."""
 
     def duplicate(self):
-        return NullDevice(self.allocator, self.path)
+        return NullDevice(self.path)
 
     def get_data(self, size=-1, reset_pointer=False):
         return b""
@@ -239,16 +232,13 @@ class NullDevice(File):
 class Pipe(File):
     """Emulated named pipe objects."""
 
-    def __init__(self, allocator, name, mode, num_instances, out_size, in_size, config=None):
-        super().__init__(allocator, path=name, config=config)
+    def __init__(self, name, mode, num_instances, out_size, in_size, config=None):
+        super().__init__(path=name, config=config)
         self.name: str = name
         self.mode: int = mode
         self.num_instances: int = num_instances
         self.out_size: int = out_size
         self.in_size: int = in_size
-
-    def get_handle(self):
-        return self.allocator.allocate_pipe_handle()
 
 
 class FileManager:
@@ -256,9 +246,8 @@ class FileManager:
 
     def __init__(self, config, emu):
         super().__init__()
-        self.file_handles: dict[int, File] = {}
-        self.pipe_handles: dict[int, Pipe] = {}
-        self.file_maps: dict[int, FileMap] = {}
+        # A view keeps its mapping after the last handle to the mapping closes
+        self.mappings: list[FileMap] = []
 
         # top level config
         self.config: SpeakeasyConfig = config
@@ -281,17 +270,27 @@ class FileManager:
             for f in full_path_entries:
                 logger.debug("  emu_path=%s  host_path=%s", f.emu_path, getattr(f, "path", None))
 
+    def new_handle(self, obj: File | FileMap) -> int:
+        """Open a handle to a file, pipe or mapping in the handle table of the current process."""
+        table: HandleTable = self.emu.get_handle_table()
+        return table.new_handle(obj)
+
+    def get_handle_object(self, handle, *types: type):
+        """Get the object of an open handle if it is one of ``types``, else None."""
+        if handle is None:
+            return None
+        try:
+            return self.emu.get_handle_table().get(handle, *types)
+        except InvalidHandle:
+            return None
+
     def file_create_mapping(self, hfile, name, size, prot):
+        f = None
         if hfile and ct.c_int32(hfile).value != windefs.INVALID_HANDLE_VALUE:
             f = self.get_file_from_handle(hfile)
-            fm = FileMap(self.emu.handle_allocator, name, size, prot, f)
-            hnd = fm.get_handle()
-            self.file_maps.update({hnd: fm})
-            return hnd
-        fm = FileMap(self.emu.handle_allocator, name, size, prot, None)
-        hnd = fm.get_handle()
-        self.file_maps.update({hnd: fm})
-        return hnd
+        fm = FileMap(name, size, prot, f)
+        self.mappings.append(fm)
+        return self.new_handle(fm)
 
     def walk_files(self):
         for f in self.file_config.files:
@@ -336,26 +335,26 @@ class FileManager:
     def open_mapping(self, name):
         """Open a new handle to the named file mapping, or return None when no mapping has the name."""
         key = get_object_name_key(name)
-        for fm in list(self.file_maps.values()):
+        for fm in self.mappings:
             if fm.name and get_object_name_key(fm.name) == key:
-                hnd = fm.get_handle()
-                self.file_maps[hnd] = fm
-                return hnd
+                return self.new_handle(fm)
         return None
 
     def get_mapping_from_handle(self, handle):
-        return self.file_maps.get(handle)
+        return self.get_handle_object(handle, FileMap)
 
     def get_mapping_from_addr(self, addr):
-        for fmap in self.file_maps.values():
+        for fmap in self.mappings:
             if addr in fmap.views:
                 return fmap
 
     def get_file_from_handle(self, handle):
-        return self.file_handles.get(handle)
+        """Get the file of a handle, or None for a pipe or a handle that is not a file."""
+        f = self.get_handle_object(handle, File)
+        return None if isinstance(f, Pipe) else f
 
     def get_pipe_from_handle(self, handle):
-        return self.pipe_handles.get(handle)
+        return self.get_handle_object(handle, Pipe)
 
     def get_full_path(self, path):
         """Resolve a relative path against the current directory."""
@@ -388,7 +387,7 @@ class FileManager:
 
     def add_existing_file(self, path, data):
         """Register an existing file that the emulation space already includes, with its data."""
-        f = File(self.emu.handle_allocator, path, data=data)
+        f = File(path, data=data)
         self.files.append(f)
         return f
 
@@ -397,7 +396,7 @@ class FileManager:
         if f:
             self.files.remove(f)
         self.deleted_paths.discard(get_path_key(self.get_full_path(path)))
-        f = File(self.emu.handle_allocator, path)
+        f = File(path)
         self.files.append(f)
         return f
 
@@ -441,14 +440,11 @@ class FileManager:
         return None
 
     def pipe_open(self, path, mode, num_instances, out_size, in_size):
-        hnd = None
         fconf = self.get_emu_file(path)
         if not fconf:
             fconf = {}
-        p = Pipe(self.emu.handle_allocator, path, mode, num_instances, out_size, in_size, config=fconf)
-        hnd = p.get_handle()
-        self.pipe_handles.update({hnd: p})
-        return hnd
+        p = Pipe(path, mode, num_instances, out_size, in_size, config=fconf)
+        return self.new_handle(p)
 
     def get_directories(self):
         """
@@ -503,41 +499,26 @@ class FileManager:
         return fconf is not None and fconf.mode == "full_path"
 
     def get_object_from_handle(self, handle):
-        obj: FileMap | File | None = self.file_maps.get(handle)
-        if obj:
-            return obj
-        obj = self.pipe_handles.get(handle)
-        if obj:
-            return obj
-        obj = self.file_handles.get(handle)
-        if obj:
-            return obj
+        return self.get_handle_object(handle, FileMap, File)
 
     def file_open(self, path, create=False, truncate=False, is_dir=False):
         f: File | None
         if is_null_device(path):
-            f = NullDevice(self.emu.handle_allocator, path)
-            hnd = f.get_handle()
-            self.file_handles.update({hnd: f})
-            return hnd
+            return self.new_handle(NullDevice(path))
 
         hnd = None
         path = self.get_full_path(path)
 
         if create:
             f = self.create_file(path)
-            hnd = f.get_handle()
-            self.file_handles.update({hnd: f})
+            hnd = self.new_handle(f)
         else:
             f = self.get_file_from_path(path)
 
             if f:
                 # Deep-copy this file so we can have separate file
                 # offset pointers
-                dup = f.duplicate()
-                hnd = dup.get_handle()
-                self.file_handles.update({hnd: dup})
-                return hnd
+                return self.new_handle(f.duplicate())
 
             fconf = self.get_emu_file(path)
             if not fconf:
@@ -549,14 +530,13 @@ class FileManager:
             if not truncate:
                 if real_path and not os.path.exists(real_path):
                     raise FileSystemEmuError(f"File path not found: {real_path}")
-                f = File(self.emu.handle_allocator, path, config=fconf)
+                f = File(path, config=fconf)
                 self.files.append(f)
             else:
                 if real_path and not os.path.exists(real_path):
                     raise FileSystemEmuError(f"File path not found: {real_path}")
-                f = File(self.emu.handle_allocator, path, config=fconf)
+                f = File(path, config=fconf)
                 self.files.append(f)
-            hnd = f.get_handle()
-            self.file_handles.update({hnd: f})
+            hnd = self.new_handle(f)
 
         return hnd

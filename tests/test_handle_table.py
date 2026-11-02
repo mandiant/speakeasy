@@ -5,11 +5,13 @@ import struct
 import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy
 from speakeasy.windows.handles import CURRENT_PROCESS_HANDLE, CURRENT_THREAD_HANDLE, InvalidHandle
+from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, start_process
 
 PAGE_READWRITE = 0x04
+GENERIC_WRITE = 0x40000000
 DUPLICATE_CLOSE_SOURCE = 0x1
 DUPLICATE_SAME_ACCESS = 0x2
 RET_ADDR = 0x41414141
@@ -145,3 +147,18 @@ def test_a_duplicate_of_a_bad_handle_fails(dll_emu: Speakeasy) -> None:
     )
     assert rv == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
+
+
+def test_close_of_a_file_closes_the_file_handle(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    name = alloc(dll_emu, b"c:\\drop.bin\x00")
+    written = alloc(dll_emu, b"\x00" * 4)
+    hnd, _ = call(
+        dll_emu, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, FILE_CREATION_DISPOSITION.CREATE_ALWAYS, 0, 0]
+    )
+    assert call(dll_emu, "kernel32", "WriteFile", [hnd, alloc(dll_emu, b"data"), 4, written, 0])[0] == 1
+
+    assert call(dll_emu, "kernel32", "CloseHandle", [hnd])[0] == 1
+    assert call(dll_emu, "kernel32", "CloseHandle", [hnd])[0] == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
+    assert call(dll_emu, "kernel32", "GetFileSize", [hnd, 0])[0] == 0xFFFFFFFF
