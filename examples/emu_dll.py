@@ -54,7 +54,6 @@ def hook_mem_write(emu, access, address, size, value):
 
                 msg = f"Stack written to: instr: {instr} addr:0x{address:x}"
                 logger.info(msg)
-    return
 
 
 def main(args):

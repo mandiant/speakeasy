@@ -278,8 +278,6 @@ class Wininet(api.ApiHandler):
         """
         hWnd, req, error, flags, data = argv
 
-        return
-
     @apihook("InternetQueryOption", argc=4)
     def InternetQueryOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """

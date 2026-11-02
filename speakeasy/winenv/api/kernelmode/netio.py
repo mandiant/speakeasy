@@ -413,8 +413,6 @@ class Netio(api.ApiHandler):
         """
         (reg,) = argv
 
-        return
-
     @apihook("NsiEnumerateObjectsAllParametersEx", argc=0)
     def NsiEnumerateObjectsAllParametersEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -433,5 +431,3 @@ class Netio(api.ApiHandler):
         );
         """
         (reg,) = argv
-
-        return

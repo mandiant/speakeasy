@@ -120,7 +120,6 @@ class UsbEmu(speakeasy.Speakeasy):
         DriverGlobals, UsbDevice, UsbDeviceDescriptor = params
 
         self.mem_write(UsbDeviceDescriptor, self.ddesc.get_bytes())
-        return
 
     def wdf_get_usb_info(self, emu, api_name, func, params):
         DriverGlobals, UsbDevice, Information = params

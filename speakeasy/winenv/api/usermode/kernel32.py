@@ -962,7 +962,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         hLibModule, dwExitCode = argv
         emu.get_current_thread().exit_code = dwExitCode
         emu.exit_process()
-        return
 
     @apihook("ExitThread", argc=1)
     def ExitThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -974,7 +973,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (dwExitCode,) = argv
         emu.get_current_thread().exit_code = dwExitCode
         emu.exit_process()
-        return
 
     @apihook("WinExec", argc=2)
     def WinExec(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1855,8 +1853,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         emu.set_last_error(dwErrCode)
 
-        return None
-
     def _expand_message(self, text, flags, arguments, cw):
         """
         Expand the inserts and escapes of a message definition. Return None for a
@@ -2081,8 +2077,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         self.mem_write(lpSystemTimeAsFileTime, self.get_bytes(ft))
 
-        return
-
     @apihook("SystemTimeToFileTime", argc=2)
     def SystemTimeToFileTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2177,8 +2171,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (lpSystemTime,) = argv
         st = self.get_system_time_struct(self.get_system_time())
         self.mem_write(lpSystemTime, self.get_bytes(st))
-
-        return
 
     @apihook("GetTimeZoneInformation", argc=1)
     def GetTimeZoneInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2697,8 +2689,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if millisec != 0xFFFFFFFF:
             self.advance_clock(millisec)
 
-        return
-
     @apihook("SwitchToThread", argc=0)
     def SwitchToThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -2717,8 +2707,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         millisec, bAlertable = argv
         if millisec != 0xFFFFFFFF:
             self.advance_clock(millisec)
-
-        return
 
     @apihook("GlobalAlloc", argc=2)
     def GlobalAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -3448,8 +3436,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         si.hStdError = 2
 
         self.mem_write(lpStartupInfo, self.get_bytes(si))
-
-        return None
 
     @apihook("GetStdHandle", argc=1)
     def GetStdHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4258,7 +4244,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             si.dwProcessorType = k32types.PROCESSOR_AMD_X8664
 
         self.mem_write(lpSystemInfo, si.get_bytes())
-        return
 
     @apihook("GetFileAttributes", argc=1)
     def GetFileAttributes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5303,7 +5288,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         emu.set_last_error(windefs.ERROR_SUCCESS)
-        return None
 
     @apihook("GetOEMCP", argc=0)
     def GetOEMCP(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5355,8 +5339,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         (ListHead,) = argv
 
         self.mem_write(ListHead, b"\x00" * 8)
-
-        return None
 
     @apihook("FreeLibrary", argc=1)
     def FreeLibrary(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7354,7 +7336,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         fmt = "<II" + ("I" if emu.get_ptr_size() == 4 else "Q") * len(sizes)
         buf = struct.pack(fmt, struct.calcsize(fmt), 80, *(min(n, lim) for n, lim in zip(sizes, limits)))
         emu.mem_write(lpBuffer, buf)
-        return
 
     def is_large_address_aware(self, emu):
         proc = emu.get_current_process()
@@ -7920,8 +7901,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ft.dwHighDateTime = timestamp >> 32
 
         self.mem_write(lpSystemTimeAsFileTime, self.get_bytes(ft))
-
-        return
 
     @apihook("AddVectoredExceptionHandler", argc=2)
     def AddVectoredExceptionHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

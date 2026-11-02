@@ -65,7 +65,6 @@ class Gdiplus(api.ApiHandler):
         (ptr,) = argv
         if ptr:
             self.mem_free(ptr)
-        return None
 
     def fail_image(self, emu, out):
         if out:

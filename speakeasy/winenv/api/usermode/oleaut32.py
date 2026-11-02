@@ -113,7 +113,6 @@ class OleAut32(api.ApiHandler):
         """
         if argv[0]:
             ctx.args["bstrString"].display = self.read_wide_string(argv[0])
-        return
 
     @apihook("SysStringLen", argc=1, ordinal=7)
     def SysStringLen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -147,4 +146,3 @@ class OleAut32(api.ApiHandler):
         if pvarg:
             size = 0x18 if emu.get_ptr_size() == 8 else 0x10
             self.mem_write(pvarg, b"\x00" * size)
-        return

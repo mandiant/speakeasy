@@ -209,8 +209,6 @@ class Wdfldr(api.ApiHandler):
         """
         DriverGlobals, DeviceInit, PnpPowerEventCallbacks = argv
 
-        return
-
     @apihook("WdfDeviceInitSetRequestAttributes", argc=3)
     def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -221,8 +219,6 @@ class Wdfldr(api.ApiHandler):
         );
         """
         DriverGlobals, DeviceInit, RequestAttributes = argv
-
-        return
 
     @apihook("WdfDeviceInitSetFileObjectConfig", argc=4)
     def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -236,8 +232,6 @@ class Wdfldr(api.ApiHandler):
         """
         DriverGlobals, DeviceInit, FileObjectConfig, FileObjectAttributes = argv
 
-        return
-
     @apihook("WdfDeviceInitSetIoType", argc=3)
     def WdfDeviceInitSetIoType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -248,8 +242,6 @@ class Wdfldr(api.ApiHandler):
         );
         """
         DriverGlobals, DeviceInit, IoType = argv
-
-        return
 
     @apihook("WdfDeviceCreate", argc=4)
     def WdfDeviceCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -365,7 +357,6 @@ class Wdfldr(api.ApiHandler):
         );
         """
         DriverGlobals, Key = argv
-        return
 
     @apihook("WdfDeviceSetPnpCapabilities", argc=3)
     def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -377,7 +368,6 @@ class Wdfldr(api.ApiHandler):
         );
         """
         DriverGlobals, Device, PnpCapabilities = argv
-        return
 
     @apihook("WdfIoQueueReadyNotify", argc=4)
     def WdfIoQueueReadyNotify(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -514,7 +504,6 @@ class Wdfldr(api.ApiHandler):
         if dev:
             dd = usbdefs.USB_DEVICE_DESCRIPTOR()
             self.mem_write(UsbDeviceDescriptor, dd.get_bytes())
-        return
 
     @apihook("WdfMemoryCreate", argc=7)
     def WdfMemoryCreate(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -802,8 +791,6 @@ class Wdfldr(api.ApiHandler):
                         info.Interval = ep.bInterval
                         info.PipeType = self.get_pipe_type(ep)
                         self.mem_write(PipeInfo, info.get_bytes())
-
-        return
 
     @apihook("WdfUsbInterfaceGetInterfaceNumber", argc=2)
     def WdfUsbInterfaceGetInterfaceNumber(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):

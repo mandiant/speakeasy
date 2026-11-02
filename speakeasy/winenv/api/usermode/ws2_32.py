@@ -248,7 +248,6 @@ class Ws2_32(api.ApiHandler):
         (iError,) = argv
 
         emu.set_last_error(iError)
-        return
 
     @apihook("WSAGetLastError", argc=0, ordinal=111)
     def WSAGetLastError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
@@ -835,8 +834,6 @@ class Ws2_32(api.ApiHandler):
         );
         """
         self.mem_free(argv[0])
-
-        return
 
     @apihook("getsockopt", argc=5, ordinal=7)
     def getsockopt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
