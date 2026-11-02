@@ -16,7 +16,7 @@ from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.handler_harness import alloc, call, invalid_handle, load_emu, start_process
 
 PAGE_READWRITE = 0x04
 MEM_COMMIT = 0x1000
@@ -53,7 +53,7 @@ def test_map_view_of_unknown_mapping_fails(dll_emu: Speakeasy) -> None:
 
 def test_map_view_of_pagefile_section_maps_the_whole_section(dll_emu: Speakeasy) -> None:
     hmap, _ = call(
-        dll_emu, "kernel32", "CreateFileMappingA", [windefs.INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, 0x10000, 0]
+        dll_emu, "kernel32", "CreateFileMappingA", [invalid_handle(dll_emu), 0, PAGE_READWRITE, 0, 0x10000, 0]
     )
     view, _ = call(dll_emu, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 0])
     assert view
@@ -65,7 +65,7 @@ def test_map_view_of_pagefile_section_maps_the_whole_section(dll_emu: Speakeasy)
 def test_map_view_of_file_ex_maps_at_the_requested_base(dll_emu: Speakeasy, base: int, mapped: bool) -> None:
     start_process(dll_emu)
     hmap, _ = call(
-        dll_emu, "kernel32", "CreateFileMappingA", [windefs.INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, 0x1000, 0]
+        dll_emu, "kernel32", "CreateFileMappingA", [invalid_handle(dll_emu), 0, PAGE_READWRITE, 0, 0x1000, 0]
     )
     view, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, base])
     if not mapped:
@@ -82,7 +82,7 @@ def test_map_view_of_file_ex_maps_at_the_requested_base(dll_emu: Speakeasy, base
 def test_unmap_view_of_section_frees_a_view_of_the_current_process(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     hmap, _ = call(
-        dll_emu, "kernel32", "CreateFileMappingA", [windefs.INVALID_HANDLE_VALUE, 0, PAGE_READWRITE, 0, 0x1000, 0]
+        dll_emu, "kernel32", "CreateFileMappingA", [invalid_handle(dll_emu), 0, PAGE_READWRITE, 0, 0x1000, 0]
     )
     view, _ = call(dll_emu, "kernel32", "MapViewOfFileEx", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 4, 0x30000000])
     rv, _ = call(dll_emu, "ntdll", "NtUnmapViewOfSection", [0xFFFFFFFF, view + 4])
@@ -1136,7 +1136,7 @@ def test_create_image_section_of_a_file_that_is_not_a_pe_fails(file_emu: Speakea
     start_process(file_emu)
     name = alloc(file_emu, path + b"\x00")
     hfile, _ = call(file_emu, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0])
-    assert hfile != windefs.INVALID_HANDLE_VALUE
+    assert hfile != invalid_handle(file_emu)
     hmap, _ = call(file_emu, "kernel32", "CreateFileMappingA", [hfile, 0, 0x02 | SEC_IMAGE, 0, 0, 0])
     assert hmap == 0
     assert file_emu.emu.get_last_error() == windefs.ERROR_BAD_EXE_FORMAT

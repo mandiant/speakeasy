@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes as ct
 import fnmatch
 import hashlib
 import io
@@ -281,7 +282,7 @@ class FileManager:
                 logger.debug("  emu_path=%s  host_path=%s", f.emu_path, getattr(f, "path", None))
 
     def file_create_mapping(self, hfile, name, size, prot):
-        if hfile and (hfile & 0xFFFFFFFF) != windefs.INVALID_HANDLE_VALUE:
+        if hfile and ct.c_int32(hfile).value != windefs.INVALID_HANDLE_VALUE:
             f = self.get_file_from_handle(hfile)
             fm = FileMap(self.emu.handle_allocator, name, size, prot, f)
             hnd = fm.get_handle()

@@ -15,7 +15,7 @@ from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION, LCTYPE, PAGE_PROTECTION_FLAGS, THREAD_CREATION_FLAGS
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, load_emu, start_process
+from tests.handler_harness import alloc, call, invalid_handle, load_emu, start_process
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
 
@@ -329,10 +329,10 @@ TRUNCATE_EXISTING = 5
 def test_create_file_open_always_reports_existing_files(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     set_last_error(se, windefs.ERROR_ALREADY_EXISTS)
-    assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != invalid_handle(se)
     assert last_error(se) == windefs.ERROR_SUCCESS
 
-    assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "c:\\marker.txt", OPEN_ALWAYS) != invalid_handle(se)
     assert last_error(se) == windefs.ERROR_ALREADY_EXISTS
 
 
@@ -340,10 +340,10 @@ def test_create_file_truncate_existing(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     name = alloc(se, BYTE_FILL_PATH.encode() + b"\x00")
     hnd, displays = call(se, "kernel32", "CreateFileA", [name, GENERIC_READ, 0, 0, TRUNCATE_EXISTING, 0, 0])
-    assert hnd != windefs.INVALID_HANDLE_VALUE
+    assert hnd != invalid_handle(se)
     assert displays["dwCreationDisposition"] == "TRUNCATE_EXISTING"
 
-    assert open_file(se, "c:\\missing.txt", TRUNCATE_EXISTING) == windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "c:\\missing.txt", TRUNCATE_EXISTING) == invalid_handle(se)
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
 
 
@@ -358,10 +358,10 @@ def move_file_ex(se: Speakeasy, src: str, dst: str | None, flags: int) -> int:
 
 def test_move_file_ex_moves_the_file(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
-    assert open_file(se, "c:\\src.txt", OPEN_ALWAYS) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "c:\\src.txt", OPEN_ALWAYS) != invalid_handle(se)
     assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", MOVEFILE_REPLACE_EXISTING) == 1
-    assert open_file(se, "c:\\dst.txt") != windefs.INVALID_HANDLE_VALUE
-    assert open_file(se, "c:\\src.txt") == windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "c:\\dst.txt") != invalid_handle(se)
+    assert open_file(se, "c:\\src.txt") == invalid_handle(se)
 
 
 def call_and_return(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, int]:
@@ -574,7 +574,7 @@ def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
     data = alloc(se, b"\x00" * 0x200)
     pattern = alloc(se, b"c:\\programdata\\mydir\\*.bin\x00")
     hnd, _ = call(se, "kernel32", "FindFirstFileA", [pattern, data])
-    assert hnd != windefs.INVALID_HANDLE_VALUE
+    assert hnd != invalid_handle(se)
     assert call(se, "kernel32", "FindNextFileA", [hnd, data])[0] == 0
     assert last_error(se) == windefs.ERROR_NO_MORE_FILES
 
@@ -582,7 +582,7 @@ def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
     assert last_error(se) == windefs.ERROR_INVALID_HANDLE
 
     nomatch = alloc(se, b"c:\\programdata\\mydir\\*.xyz\x00")
-    assert call(se, "kernel32", "FindFirstFileA", [nomatch, data])[0] == windefs.INVALID_HANDLE_VALUE
+    assert call(se, "kernel32", "FindFirstFileA", [nomatch, data])[0] == invalid_handle(se)
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
 
 
@@ -997,7 +997,7 @@ def test_a_file_created_by_a_relative_path_is_found_again(strict_fs_emu: Speakea
         assert se.mem_read(buf, 4) == b"data"
 
     assert call(se, "kernel32", "DeleteFileA", [name])[0]
-    assert open_file(se, "out.txt") == windefs.INVALID_HANDLE_VALUE
+    assert open_file(se, "out.txt") == invalid_handle(se)
 
 
 FILE_APPEND_DATA = 0x4
@@ -1318,7 +1318,7 @@ def test_a_deleted_file_is_gone_until_it_is_created_again(emu: Speakeasy) -> Non
     assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.INVALID_FILE_ATTRIBUTES
     assert last_error(emu) == windefs.ERROR_FILE_NOT_FOUND
     assert call(emu, "kernel32", "DeleteFileW", [dst])[0] == 0
-    assert open_file(emu, "C:\\tmp\\x\\a.exe") == windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\x\\a.exe") == invalid_handle(emu)
 
     assert call(emu, "kernel32", "CopyFileW", [sample, dst, 1])[0] == 1
     assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.FILE_ATTRIBUTE_NORMAL
@@ -1326,7 +1326,7 @@ def test_a_deleted_file_is_gone_until_it_is_created_again(emu: Speakeasy) -> Non
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
     assert call(emu, "kernel32", "DeleteFileW", [dst])[0] == 1
-    assert open_file(emu, "C:\\tmp\\x\\a.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\x\\a.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) != invalid_handle(emu)
     assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.FILE_ATTRIBUTE_NORMAL
 
 
@@ -1334,13 +1334,13 @@ def test_fail_if_exists_ignores_the_extension_and_default_handlers(emu: Speakeas
     sample = wide(emu, emu.emu.modules[0].emu_path)
 
     assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\tmp\\y\\b.exe"), 1])[0] == 1
-    assert open_file(emu, "C:\\tmp\\y\\c.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
-    assert open_file(emu, "C:\\tmp\\y\\c.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\y\\c.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) != invalid_handle(emu)
+    assert open_file(emu, "C:\\tmp\\y\\c.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) == invalid_handle(emu)
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
     assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\Windows\\system32\\cmd.exe"), 1])[0] == 0
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
-    assert open_file(emu, BYTE_FILL_PATH, FILE_CREATION_DISPOSITION.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, BYTE_FILL_PATH, FILE_CREATION_DISPOSITION.CREATE_NEW) == invalid_handle(emu)
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
 
@@ -1425,7 +1425,7 @@ def test_format_message_formats_inserts_and_escapes(emu: Speakeasy, name: str, w
 def test_create_file_opens_the_null_device(strict_fs_emu: Speakeasy, path: str, disposition: int) -> None:
     se = strict_fs_emu
     hnd = open_file(se, path, disposition)
-    assert hnd != windefs.INVALID_HANDLE_VALUE
+    assert hnd != invalid_handle(se)
 
     count = alloc(se, b"\xcc" * 4)
     assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"hello"), 5, count, 0])[0] == 1

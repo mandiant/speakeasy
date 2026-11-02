@@ -126,7 +126,7 @@ class Dispatch:
         for handler in list(self.emu.veh_handlers):
             self.offer(handler)
             verdict = as_long((yield GuestCall(handler, (self.pointers,))))
-            if verdict == as_long(windefs.EXCEPTION_CONTINUE_EXECUTION):
+            if verdict == windefs.EXCEPTION_CONTINUE_EXECUTION:
                 return True
         return False
 
@@ -147,7 +147,7 @@ class Dispatch:
         if top_level_filter:
             self.offer(top_level_filter)
             verdict = as_long((yield GuestCall(top_level_filter, (self.pointers,))))
-            if verdict == as_long(windefs.EXCEPTION_CONTINUE_EXECUTION):
+            if verdict == windefs.EXCEPTION_CONTINUE_EXECUTION:
                 return self.resume()
         raise UnhandledException(self.code, self.address, self.information)
 
