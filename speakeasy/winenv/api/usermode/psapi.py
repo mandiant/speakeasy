@@ -60,6 +60,13 @@ class Psapi(api.ApiHandler):
 
     @apihook("EnumProcesses", argc=3)
     def EnumProcesses(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumProcesses(
+            DWORD *lpidProcess,
+            DWORD cb,
+            LPDWORD lpcbNeeded
+        );
+        """
         lpidProcess, cb, lpcbNeeded = argv
         processes = emu.get_processes()
 
@@ -82,6 +89,14 @@ class Psapi(api.ApiHandler):
 
     @apihook("EnumProcessModules", argc=4)
     def EnumProcessModules(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumProcessModules(
+            HANDLE hProcess,
+            HMODULE *lphModule,
+            DWORD cb,
+            LPDWORD lpcbNeeded
+        );
+        """
         hProcess, lphModule, cb, lpcbNeeded = argv
         proc = self._get_process(hProcess)
         if not proc:
@@ -106,10 +121,31 @@ class Psapi(api.ApiHandler):
 
     @apihook("EnumProcessModulesEx", argc=5)
     def EnumProcessModulesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumProcessModulesEx(
+            HANDLE hProcess,
+            HMODULE *lphModule,
+            DWORD cb,
+            LPDWORD lpcbNeeded,
+            DWORD dwFilterFlag
+        );
+
+        The handler ignores dwFilterFlag.
+        """
         return self.EnumProcessModules(emu, argv[:4], ctx)
 
     @apihook("GetModuleBaseName", argc=4)
     def GetModuleBaseName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetModuleBaseNameW(
+            HANDLE hProcess,
+            HMODULE hModule,
+            LPWSTR lpBaseName,
+            DWORD nSize
+        );
+
+        The ANSI variant GetModuleBaseNameA takes LPSTR and writes narrow characters.
+        """
         hProcess, hModule, lpBaseName, nSize = argv
         if not lpBaseName or nSize == 0:
             return 0
@@ -135,6 +171,16 @@ class Psapi(api.ApiHandler):
 
     @apihook("GetModuleFileNameEx", argc=4)
     def GetModuleFileNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        DWORD GetModuleFileNameExW(
+            HANDLE hProcess,
+            HMODULE hModule,
+            LPWSTR lpFilename,
+            DWORD nSize
+        );
+
+        The ANSI variant GetModuleFileNameExA takes LPSTR and writes narrow characters.
+        """
         hProcess, hModule, lpFilename, nSize = argv
         if not lpFilename or nSize == 0:
             return 0

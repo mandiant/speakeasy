@@ -24,6 +24,12 @@ class Iphlpapi(api.ApiHandler):
 
     @apihook("GetAdaptersInfo", argc=2)
     def GetAdaptersInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        ULONG GetAdaptersInfo(
+            PIP_ADAPTER_INFO AdapterInfo,
+            PULONG SizePointer
+        );
+        """
         ptr_adapter_info, size_ptr = argv
         rv = 0
 

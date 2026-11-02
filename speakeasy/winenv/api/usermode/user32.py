@@ -772,9 +772,9 @@ class User32(api.ApiHandler):
     @apihook("wsprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
     def wsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int V wsprintf(
-            LPSTR,
-            LPCSTR,
+        int wsprintfA(
+            LPSTR lpOut,
+            LPCSTR lpFmt,
             ...
         );
         """

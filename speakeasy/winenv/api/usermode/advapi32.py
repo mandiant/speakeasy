@@ -828,6 +828,13 @@ class AdvApi32(api.ApiHandler):
 
     @apihook("StartServiceA", argc=3)
     def StartServiceA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL StartServiceA(
+            SC_HANDLE hService,
+            DWORD dwNumServiceArgs,
+            LPCSTR *lpServiceArgVectors
+        );
+        """
         return self.StartService(emu, argv, ctx)
 
     @apihook("ControlService", argc=3)
@@ -1003,10 +1010,12 @@ class AdvApi32(api.ApiHandler):
     @apihook("SystemFunction036", argc=2)
     def RtlGenRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOLEAN RtlGenRandom(
+        BOOLEAN SystemFunction036(
             PVOID RandomBuffer,
             ULONG RandomBufferLength
         );
+
+        Exported as RtlGenRandom.
         """
         RandomBuffer, RandomBufferLength = argv
 

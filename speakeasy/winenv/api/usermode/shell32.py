@@ -266,7 +266,7 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetMalloc", argc=1)
     def SHGetMalloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SHSTDAPI SHGetMalloc(
+        HRESULT SHGetMalloc(
             IMalloc **ppMalloc
         );
         """
@@ -337,11 +337,13 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetFolderPath", argc=5)
     def SHGetFolderPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HWND   hwnd,
-        int    csidl,
-        HANDLE hToken,
-        DWORD  dwFlags,
-        LPWSTR pszPath
+        HRESULT SHGetFolderPathW(
+            HWND hwnd,
+            int csidl,
+            HANDLE hToken,
+            DWORD dwFlags,
+            LPWSTR pszPath
+        );
         """
         hwnd, csidl, hToken, dwFlags, pszPath = argv
         csidl &= ~shell32_defs.CSIDL_FLAG_MASK
@@ -398,10 +400,10 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetSpecialFolderLocation", argc=3)
     def SHGetSpecialFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SHSTDAPI SHGetSpecialFolderLocation(
-          HWND             hwnd,
-          int              csidl,
-          PIDLIST_ABSOLUTE *ppidl
+        HRESULT SHGetSpecialFolderLocation(
+            HWND hwnd,
+            int csidl,
+            PIDLIST_ABSOLUTE *ppidl
         );
         """
         hwnd, csidl, ppidl = argv
@@ -410,12 +412,12 @@ class Shell32(api.ApiHandler):
     @apihook("SHGetFolderLocation", argc=5)
     def SHGetFolderLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SHSTDAPI SHGetFolderLocation(
-          HWND             hwnd,
-          int              csidl,
-          HANDLE           hToken,
-          DWORD            dwFlags,
-          PIDLIST_ABSOLUTE *ppidl
+        HRESULT SHGetFolderLocation(
+            HWND hwnd,
+            int csidl,
+            HANDLE hToken,
+            DWORD dwFlags,
+            PIDLIST_ABSOLUTE *ppidl
         );
         """
         hwnd, csidl, hToken, dwFlags, ppidl = argv

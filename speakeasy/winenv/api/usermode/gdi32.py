@@ -157,15 +157,16 @@ class GDI32(api.ApiHandler):
     def BitBlt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL BitBlt(
-        HDC   hdc,
-        int   x,
-        int   y,
-        int   cx,
-        int   cy,
-        HDC   hdcSrc,
-        int   x1,
-        int   y1,
-        DWORD rop
+            HDC hdc,
+            int x,
+            int y,
+            int cx,
+            int cy,
+            HDC hdcSrc,
+            int x1,
+            int y1,
+            DWORD rop
+        );
         """
         return 1
 

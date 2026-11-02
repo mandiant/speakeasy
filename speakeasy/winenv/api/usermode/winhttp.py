@@ -167,14 +167,11 @@ class WinHttp(api.ApiHandler):
     @apihook("WinHttpSetOption", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpSetOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL WinHttpSendRequest(
-            HINTERNET hRequest,
-            LPCWSTR lpszHeaders,
-            DWORD dwHeadersLength,
-            LPVOID lpOptional,
-            DWORD dwOptionalLength,
-            DWORD dwTotalLength,
-            DWORD_PTR dwContext
+        BOOL WinHttpSetOption(
+            HINTERNET hInternet,
+            DWORD dwOption,
+            LPVOID lpBuffer,
+            DWORD dwBufferLength
         );
         """
         hnd, option, buff, buflen = argv
