@@ -107,6 +107,8 @@ JobObjectBasicAccountingInformation = 1
 JobObjectBasicLimitInformation = 2
 JobObjectExtendedLimitInformation = 9
 
+ACPI_PROVIDER = 0x41435049
+FIRM_PROVIDER = 0x4649524D
 RSMB_PROVIDER = 0x52534D42
 
 VOLUME_SERIAL_NUMBER = 0x6C2E1F4A
@@ -6685,6 +6687,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if firm_buf and buf_size >= len(table):
                 self.mem_write(firm_buf, table)
             return len(table)
+
+        if sig not in (ACPI_PROVIDER, FIRM_PROVIDER):
+            emu.set_last_error(windefs.ERROR_INVALID_FUNCTION)
+            return 0
 
         if not firm_buf:
             rv = 0x100
