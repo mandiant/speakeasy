@@ -7,7 +7,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.wininet as inetdefs
 from speakeasy.windows import netman
 from speakeasy.winenv.defs.lookup import decode
-from speakeasy.winenv.defs.wininet import WINHTTP_OPEN_REQUEST_FLAGS
+from speakeasy.winenv.defs.wininet import WINHTTP_ADDREQ_FLAG, WINHTTP_OPEN_REQUEST_FLAGS, WINHTTP_QUERY
 
 from .. import api
 
@@ -343,8 +343,7 @@ class WinHttp(api.ApiHandler):
 
         lpszHeaders = self.read_wide_string(lpszHeaders, dwHeadersLength)
         ctx.args["lpszHeaders"].display = lpszHeaders
-        flags = inetdefs.get_header_info_winhttp(dwModifiers)
-        ctx.args["dwModifiers"].display = " | ".join(flags)
+        ctx.args["dwModifiers"].display = decode(WINHTTP_ADDREQ_FLAG, dwModifiers)
         rv = 1
 
         return rv
@@ -365,13 +364,12 @@ class WinHttp(api.ApiHandler):
 
         header_id = dwInfoLevel & inetdefs.HTTP_QUERY_HEADER_MASK
         as_number = bool(dwInfoLevel & inetdefs.WINHTTP_QUERY_FLAG_NUMBER)
-        header_query = inetdefs.get_header_query(header_id)
-        if header_query:
-            if as_number:
-                header_query += " | WINHTTP_QUERY_FLAG_NUMBER"
-            ctx.args["dwInfoLevel"].display = header_query
+        header_query = decode(WINHTTP_QUERY, header_id)
+        if as_number:
+            header_query += "|WINHTTP_QUERY_FLAG_NUMBER"
+        ctx.args["dwInfoLevel"].display = header_query
 
-        if header_id == inetdefs.WINHTTP_QUERY_STATUS_CODE:
+        if header_id == WINHTTP_QUERY.WINHTTP_QUERY_STATUS_CODE:
             text = inetdefs.HTTP_STATUS_OK
         else:
             req = self.netman.get_wininet_object(hRequest)
