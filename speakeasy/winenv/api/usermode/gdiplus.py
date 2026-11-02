@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 OK = 0
 GENERIC_ERROR = 1
@@ -20,7 +25,7 @@ class Gdiplus(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("GdiplusStartup", argc=3)
-    def GdiplusStartup(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdiplusStartup(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         Status GdiplusStartup(
             ULONG_PTR *token,
@@ -37,7 +42,7 @@ class Gdiplus(api.ApiHandler):
         return OK
 
     @apihook("GdiplusShutdown", argc=1)
-    def GdiplusShutdown(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdiplusShutdown(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID GdiplusShutdown(
             ULONG_PTR token
@@ -46,7 +51,7 @@ class Gdiplus(api.ApiHandler):
         return
 
     @apihook("GdipAlloc", argc=1)
-    def GdipAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipAlloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void *GdipAlloc(
             size_t size
@@ -56,7 +61,7 @@ class Gdiplus(api.ApiHandler):
         return self.heap_alloc(size, heap="HeapAlloc")
 
     @apihook("GdipFree", argc=1)
-    def GdipFree(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipFree(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void GdipFree(
             void *ptr
@@ -72,7 +77,7 @@ class Gdiplus(api.ApiHandler):
         return GENERIC_ERROR
 
     @apihook("GdipCreateBitmapFromStream", argc=2)
-    def GdipCreateBitmapFromStream(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipCreateBitmapFromStream(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipCreateBitmapFromStream(
             IStream *stream,
@@ -82,7 +87,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipCreateBitmapFromFile", argc=2)
-    def GdipCreateBitmapFromFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipCreateBitmapFromFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipCreateBitmapFromFile(
             const WCHAR *filename,
@@ -92,7 +97,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipLoadImageFromStream", argc=2)
-    def GdipLoadImageFromStream(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipLoadImageFromStream(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipLoadImageFromStream(
             IStream *stream,
@@ -102,7 +107,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipLoadImageFromFile", argc=2)
-    def GdipLoadImageFromFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipLoadImageFromFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipLoadImageFromFile(
             const WCHAR *filename,
@@ -112,7 +117,9 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipCreateBitmapFromStreamICM", argc=2)
-    def GdipCreateBitmapFromStreamICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipCreateBitmapFromStreamICM(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         GpStatus GdipCreateBitmapFromStreamICM(
             IStream *stream,
@@ -122,7 +129,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipCreateBitmapFromFileICM", argc=2)
-    def GdipCreateBitmapFromFileICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipCreateBitmapFromFileICM(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipCreateBitmapFromFileICM(
             const WCHAR *filename,
@@ -132,7 +139,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipLoadImageFromStreamICM", argc=2)
-    def GdipLoadImageFromStreamICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipLoadImageFromStreamICM(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipLoadImageFromStreamICM(
             IStream *stream,
@@ -142,7 +149,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipLoadImageFromFileICM", argc=2)
-    def GdipLoadImageFromFileICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipLoadImageFromFileICM(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipLoadImageFromFileICM(
             const WCHAR *filename,
@@ -152,7 +159,7 @@ class Gdiplus(api.ApiHandler):
         return self.fail_image(emu, argv[1])
 
     @apihook("GdipDisposeImage", argc=1)
-    def GdipDisposeImage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GdipDisposeImage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         GpStatus GdipDisposeImage(
             GpImage *image
