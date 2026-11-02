@@ -425,11 +425,6 @@ class ApiHandler:
         run.args = run_args
         self.emu.add_run(run)
 
-    def record_file_access_event(
-        self, path, event_type: EventType, data=None, handle=0, disposition=None, access=None, buffer=0, size=None
-    ):
-        self.emu.record_file_event(path, event_type, data, handle, disposition, access, buffer, size)
-
     def record_process_event(self, proc, event_type: EventType, **kwargs):
         logger.debug("%s: pid=%d", event_type.value, proc.id)
         profiler = self.emu.get_profiler()
@@ -468,8 +463,8 @@ class ApiHandler:
     def mem_read(self, addr, size):
         return self.emu.mem_read(addr, size)
 
-    def file_open(self, path, create=False, truncate=False):
-        return self.emu.file_open(path, create, truncate=truncate)
+    def file_open(self, path, create=False, truncate=False, disposition=None, access=None):
+        return self.emu.file_open(path, create, truncate=truncate, disposition=disposition, access=access)
 
     def file_create_mapping(self, hfile, name, size, prot):
         return self.emu.file_create_mapping(hfile, name, size, prot)

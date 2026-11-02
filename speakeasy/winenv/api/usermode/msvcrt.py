@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.profiler_events import EventType
 from speakeasy.windows import seh32
 from speakeasy.windows.common import FILETIME_UNIX_EPOCH
 from speakeasy.windows.guest_callbacks import GuestCall
@@ -4105,7 +4104,7 @@ class Msvcrt(api.ApiHandler):
                 return 0
             self.set_errno(EBADF)
             return -1
-        data = fobj.get_data(size=buffer_size) if buffer_size else b""
+        data = self.emu.get_file_manager().read_file(fobj, buffer_size, buffer=buffer) if buffer_size else b""
         if data:
             self.mem_write(buffer, data)
         return len(data)
@@ -4129,8 +4128,7 @@ class Msvcrt(api.ApiHandler):
                 return count
             self.set_errno(EBADF)
             return -1
-        fobj.write_data(data)
-        self.record_file_access_event(fobj.path, EventType.FILE_WRITE, data=data, buffer=buffer, size=len(data))
+        self.emu.get_file_manager().write_file(fobj, data, buffer=buffer)
         return count
 
     @apihook("_open", argc=3, conv=e_arch.CALL_CONV_CDECL)
@@ -4167,12 +4165,14 @@ class Msvcrt(api.ApiHandler):
         path = self.read_mem_string(filename, width)
         ctx.args[0].display = path
 
-        hfile = self.file_open(path)
-        if hfile is not None and oflag & O_CREAT and oflag & O_EXCL:
+        exists = self.does_file_exist(path)
+        if exists and oflag & O_CREAT and oflag & O_EXCL:
             self.set_errno(EEXIST)
             return -1
-        if oflag & O_CREAT and (hfile is None or oflag & O_TRUNC):
+        if oflag & O_CREAT and (not exists or oflag & O_TRUNC):
             hfile = self.file_open(path, create=True, truncate=True)
+        else:
+            hfile = self.file_open(path)
         if hfile is None:
             self.set_errno(ENOENT)
             return -1
@@ -6979,9 +6979,10 @@ class Msvcrt(api.ApiHandler):
         """
         if "w" in mode_str:
             return self.file_open(path, create=True, truncate=True)
-        hfile = self.file_open(path)
-        if hfile is None and "a" in mode_str:
+        if "a" in mode_str and not self.does_file_exist(path):
             hfile = self.file_open(path, create=True)
+        else:
+            hfile = self.file_open(path)
         if hfile is not None and "a" in mode_str:
             self.file_get(hfile).append = True
         return hfile
@@ -7073,11 +7074,11 @@ class Msvcrt(api.ApiHandler):
         path = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
         ctx.args[0].display = path
 
-        hfile = self.file_open(path)
-        if hfile is None:
+        size = self.emu.get_file_manager().get_file_size(path)
+        if size is None:
             self.set_errno(ENOENT)
             return -1
-        self.mem_write(buf, render_stat(self.file_get(hfile).get_size(), size64, time64))
+        self.mem_write(buf, render_stat(size, size64, time64))
         return 0
 
     def stat_fd(self, argv, size64, time64):
@@ -7290,12 +7291,18 @@ class Msvcrt(api.ApiHandler):
         emu.file_delete(path)
         return 0
 
-    def change_directory(self, argv, ctx, wide):
+    def change_directory(self, argv, ctx, wide, remove):
         (path_ptr,) = argv
         if not path_ptr:
             self.set_errno(EINVAL)
             return -1
-        ctx.args[0].display = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
+        path = self.read_wide_string(path_ptr) if wide else self.read_string(path_ptr)
+        ctx.args[0].display = path
+        fm = self.emu.get_file_manager()
+        if remove:
+            fm.remove_directory(path)
+        else:
+            fm.create_directory(path)
         return 0
 
     @apihook("_mkdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -7305,7 +7312,7 @@ class Msvcrt(api.ApiHandler):
             const char *dirname
         );
         """
-        return self.change_directory(argv, ctx, False)
+        return self.change_directory(argv, ctx, False, remove=False)
 
     @apihook("_wmkdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _wmkdir(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7314,7 +7321,7 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *dirname
         );
         """
-        return self.change_directory(argv, ctx, True)
+        return self.change_directory(argv, ctx, True, remove=False)
 
     @apihook("_rmdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _rmdir(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7323,7 +7330,7 @@ class Msvcrt(api.ApiHandler):
             const char *dirname
         );
         """
-        return self.change_directory(argv, ctx, False)
+        return self.change_directory(argv, ctx, False, remove=True)
 
     @apihook("_wrmdir", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def _wrmdir(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7332,7 +7339,7 @@ class Msvcrt(api.ApiHandler):
             const wchar_t *dirname
         );
         """
-        return self.change_directory(argv, ctx, True)
+        return self.change_directory(argv, ctx, True, remove=True)
 
     @apihook("rename", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def rename(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7349,19 +7356,9 @@ class Msvcrt(api.ApiHandler):
         old, new = self.read_string(oldname), self.read_string(newname)
         ctx.args[0].display = old
         ctx.args[1].display = new
-        if not emu.does_file_exist(old):
+        if emu.get_file_manager().move_file(old, new) is None:
             self.set_errno(ENOENT)
             return -1
-        src = self.file_get(self.file_open(old))
-        dst_handle = self.file_open(new, create=True)
-        dst = self.file_get(dst_handle) if dst_handle is not None else None
-        if src is None or dst is None:
-            self.set_errno(ENOENT)
-            return -1
-        dst.add_data(src.get_data(reset_pointer=True) or b"")
-        emu.file_delete(old)
-        self.record_file_access_event(new, EventType.FILE_CREATE)
-        self.record_file_access_event(new, EventType.FILE_WRITE)
         return 0
 
     @apihook("_unlink", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -7543,7 +7540,7 @@ class Msvcrt(api.ApiHandler):
             return 0
 
         total = size * count
-        data = fobj.get_data(size=total)
+        data = self.emu.get_file_manager().read_file(fobj, total, buffer=buffer)
         if not data:
             return 0
 
@@ -7663,8 +7660,7 @@ class Msvcrt(api.ApiHandler):
         fobj = self.file_get(hfile) if hfile is not None else None
         if hfile is None or not fobj:
             return None
-        fobj.add_data(data)
-        self.record_file_access_event(fobj.path, EventType.FILE_WRITE, data=data, buffer=buffer, size=len(data))
+        self.emu.get_file_manager().write_file(fobj, data, buffer=buffer, at_end=True)
         return hfile
 
     @apihook("fputc", argc=2, conv=e_arch.CALL_CONV_CDECL)

@@ -2954,46 +2954,50 @@ class Ntoskrnl(api.ApiHandler):
             npath = name.removeprefix("\\??\\")
         npath = npath.rstrip("\\")
 
+        open_flags = {"disposition": cd, "access": ad}
         obj = self.get_object_from_name(name)
         if obj:
             hnd = self.get_object_handle(obj)
             self.write_ptr(FileHandle, hnd)
-            self.record_file_access_event(name, EventType.FILE_OPEN, disposition=cd, access=ad)
+            emu.get_file_manager().record_open(name, handle=hnd, **open_flags)
 
         else:
             hfile = 0
             # Does the file being opened exist in our emulation space?
             if self.does_file_exist(npath):
                 if CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_SUPERSEDE:
-                    hfile = self.file_open(npath, create=True)
+                    hfile = self.file_open(npath, create=True, **open_flags)
                 elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_CREATE:
                     nts = ddk.STATUS_UNSUCCESSFUL
+                    emu.get_file_manager().record_open(npath, **open_flags)
                 elif CreateDisposition in (
                     NT_CREATE_FILE_DISPOSITION.FILE_OPEN,
                     NT_CREATE_FILE_DISPOSITION.FILE_OPEN_IF,
                 ):
-                    hfile = self.file_open(npath, create=False)
+                    hfile = self.file_open(npath, create=False, **open_flags)
                 elif CreateDisposition in (
                     NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE,
                     NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE_IF,
                 ):
-                    hfile = self.file_open(npath, create=True)
+                    hfile = self.file_open(npath, create=True, **open_flags)
             elif CreateDisposition in (
                 NT_CREATE_FILE_DISPOSITION.FILE_SUPERSEDE,
                 NT_CREATE_FILE_DISPOSITION.FILE_CREATE,
             ):
-                hfile = self.file_open(npath, create=True)
-            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OPEN:
+                hfile = self.file_open(npath, create=True, **open_flags)
+            elif CreateDisposition in (
+                NT_CREATE_FILE_DISPOSITION.FILE_OPEN,
+                NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE,
+            ):
                 nts = ddk.STATUS_UNSUCCESSFUL
-            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OPEN_IF:
-                hfile = self.file_open(npath, create=True)
-            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE:
-                nts = ddk.STATUS_UNSUCCESSFUL
-            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE_IF:
-                hfile = self.file_open(npath, create=True)
+                emu.get_file_manager().record_open(npath, **open_flags)
+            elif CreateDisposition in (
+                NT_CREATE_FILE_DISPOSITION.FILE_OPEN_IF,
+                NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE_IF,
+            ):
+                hfile = self.file_open(npath, create=True, **open_flags)
 
             self.write_ptr(FileHandle, hfile)
-            self.record_file_access_event(npath, EventType.FILE_OPEN, disposition=cd, access=ad)
 
         return nts
 
@@ -3026,17 +3030,16 @@ class Ntoskrnl(api.ApiHandler):
         if obj:
             nts = ddk.STATUS_SUCCESS
             hfile = self.get_object_handle(obj)
+            emu.get_file_manager().record_open(path, handle=hfile, access=ad)
         else:
             # Is a file being opened?
             npath = path
             if path.startswith("\\??\\"):
                 npath = path.removeprefix("\\??\\")
             npath = npath.rstrip("\\")
-            hfile = emu.file_open(npath)
+            hfile = emu.file_open(npath, access=ad)
             if hfile:
                 nts = ddk.STATUS_SUCCESS
-
-        self.record_file_access_event(path, EventType.FILE_OPEN, disposition=None, access=ad)
 
         if hfile:
             self.write_ptr(FileHandle, hfile)
@@ -3152,9 +3155,7 @@ class Ntoskrnl(api.ApiHandler):
             data = self.mem_read(Buffer, Length)
             if data:
                 self.seek_to_byte_offset(_file, ByteOffset)
-                _file.write_data(data)
-                # Log the file event
-                self.record_file_access_event(path, EventType.FILE_WRITE, data=data, size=Length)
+                emu.get_file_manager().write_file(_file, data, buffer=Buffer)
 
                 # Is it ascii?
                 try:
@@ -3196,11 +3197,8 @@ class Ntoskrnl(api.ApiHandler):
             ctx.args["FileHandle"].display = path
 
             self.seek_to_byte_offset(_file, ByteOffset)
-            data = _file.get_data(Length)
+            data = emu.get_file_manager().read_file(_file, Length, buffer=Buffer)
             self.mem_write(Buffer, data)
-
-            # Log the file event
-            self.record_file_access_event(path, EventType.FILE_READ, buffer=Buffer, size=Length)
 
             nts = ddk.STATUS_SUCCESS if data or not Length else ddk.STATUS_END_OF_FILE
             self.write_io_status(IoStatusBlock, nts, len(data))

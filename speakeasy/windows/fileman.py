@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.config import FileEntry, FileEntryFullPath, FilesystemConfig, SpeakeasyConfig
 from speakeasy.errors import FileSystemEmuError
+from speakeasy.profiler_events import EventType
 from speakeasy.windows.handles import HandleTable
 
 if TYPE_CHECKING:
@@ -263,6 +264,8 @@ class FileManager:
         # First file in this list seems to always be the module itself
         self.files: list[File] = []
         self.deleted_paths: set[str] = set()
+        self.created_dirs: set[str] = set()
+        self.removed_dirs: set[str] = set()
 
         full_path_entries = [f for f in self.file_config.files if f.mode == "full_path"]
         if full_path_entries:
@@ -414,13 +417,103 @@ class FileManager:
         self.files.append(f)
         return f
 
-    def delete_file(self, path):
+    def remove_file(self, path):
+        """
+        Remove a file from the emulation space, and return the removed file or None.
+
+        After the removal, the configuration does not serve the path.
+        """
         self.deleted_paths.add(get_path_key(self.get_full_path(path)))
         f = self.get_file_from_path(path)
         if f:
             self.files.remove(f)
-            return True
-        return False
+        return f
+
+    def delete_file(self, path):
+        """Delete a file, and return False when no file has the path."""
+        exists = self.does_file_exist(path)
+        self.remove_file(path)
+        if not exists:
+            return False
+        self.emu.record_file_event(self.get_full_path(path), EventType.FILE_DELETE)
+        return True
+
+    def copy_file(self, src, dst):
+        """
+        Copy the data of a file to a new file, and return the new file.
+
+        Return None when the source file does not exist.
+
+        Raises:
+            FileSystemEmuError: if the configuration of the source names a host file that does not exist.
+        """
+        sf = self.get_file_by_path(src)
+        if sf is None:
+            return None
+        data = sf.get_contents()
+        df = self.create_file(self.get_full_path(dst))
+        df.add_data(data)
+        self.emu.record_file_event(df.path, EventType.FILE_CREATE)
+        self.emu.record_file_event(df.path, EventType.FILE_WRITE, data=data, size=len(data))
+        return df
+
+    def move_file(self, src, dst):
+        """
+        Copy a file to a new file and remove the source, and return the new file.
+
+        Return None when the source file does not exist.
+
+        Raises:
+            FileSystemEmuError: if the configuration of the source names a host file that does not exist.
+        """
+        df = self.copy_file(src, dst)
+        if df is not None:
+            self.remove_file(src)
+        return df
+
+    def record_download(self, path):
+        """
+        Record that a download writes a file.
+
+        The emulator has no content for the download, so the file manager does not create the file.
+        """
+        path = self.get_full_path(path)
+        self.emu.record_file_event(path, EventType.FILE_CREATE)
+        self.emu.record_file_event(path, EventType.FILE_WRITE)
+
+    def read_file(self, f, size=-1, buffer=0):
+        """Read data from the file pointer of a file, and move the file pointer past the data."""
+        data = f.get_data(size)
+        self.emu.record_file_event(f.path, EventType.FILE_READ, data=data, buffer=buffer, size=len(data))
+        return data
+
+    def write_file(self, f, data, buffer=0, at_end=False):
+        """
+        Write data to a file.
+
+        The data goes to the file pointer, or to the end of an append-only handle, and the
+        file pointer moves past the data. With ``at_end``, the data goes to the end of the
+        file and the file pointer does not move.
+        """
+        if at_end:
+            f.add_data(data)
+        else:
+            f.write_data(data)
+        self.emu.record_file_event(f.path, EventType.FILE_WRITE, data=data, buffer=buffer, size=len(data))
+
+    def create_directory(self, path):
+        path = self.get_full_path(path)
+        key = get_path_key(path)
+        self.removed_dirs.discard(key)
+        self.created_dirs.add(key)
+        self.emu.record_file_event(path, EventType.DIRECTORY_CREATE)
+
+    def remove_directory(self, path):
+        path = self.get_full_path(path)
+        key = get_path_key(path)
+        self.created_dirs.discard(key)
+        self.removed_dirs.add(key)
+        self.emu.record_file_event(path, EventType.DIRECTORY_DELETE)
 
     def get_emu_file(self, path):
         path = self.get_full_path(path)
@@ -465,10 +558,11 @@ class FileManager:
         Get the keys of the directories that exist.
 
         These are the current directory, the directories that the environment names, the
-        parents of the known files, and their ancestors.
+        parents of the known files, the directories that the program created, and their
+        ancestors. A directory that the program removed does not exist.
         """
         env = {k.lower(): v for k, v in self.config.env.items()}
-        dirs = [self.config.current_dir]
+        dirs = [self.config.current_dir, *self.created_dirs]
         for name in DIRECTORY_ENV_VARS:
             dirs.extend(env.get(name, "").split(";"))
         modules = self.config.modules
@@ -485,7 +579,7 @@ class FileManager:
             while key not in keys:
                 keys.add(key)
                 key = get_path_key(ntpath.dirname(key))
-        return keys
+        return keys - self.removed_dirs
 
     def is_directory(self, path):
         return get_path_key(self.get_full_path(path)) in self.get_directories()
@@ -515,42 +609,83 @@ class FileManager:
     def get_object_from_handle(self, handle):
         return self.get_handle_object(handle, FileMap, File)
 
-    def file_open(self, path, create=False, truncate=False, is_dir=False):
-        f: File | None
-        if is_null_device(path):
-            return self.new_handle(NullDevice(path))
+    def get_file_by_path(self, path):
+        """
+        Get the file that a path names, or None when no file or handler has the path.
 
-        hnd = None
+        The configuration can give the file. The file manager then adds the file to the emulation space.
+
+        Raises:
+            FileSystemEmuError: if the configuration names a host file that does not exist.
+        """
         path = self.get_full_path(path)
+        f = self.get_file_from_path(path)
+        if f:
+            return f
 
-        if create:
-            f = self.create_file(path)
-            hnd = self.new_handle(f)
+        fconf = self.get_emu_file(path)
+        if not fconf:
+            logger.debug("file_open: no handler for path %r", path)
+            return None
+
+        real_path = getattr(fconf, "path", None) or ""
+        real_path = normalize_response_path(real_path)
+        if real_path and not os.path.exists(real_path):
+            raise FileSystemEmuError(f"File path not found: {real_path}")
+        f = File(path, config=fconf)
+        self.files.append(f)
+        return f
+
+    def get_file_size(self, path):
+        """
+        Get the size of the file that a path names, or None when no file or handler has the path.
+
+        Raises:
+            FileSystemEmuError: if the configuration names a host file that does not exist.
+        """
+        f = self.get_file_by_path(path)
+        return f.get_size() if f else None
+
+    def file_open(self, path, create=False, truncate=False, is_dir=False, disposition=None, access=None):
+        """
+        Open or create a file, and return a new handle.
+
+        Return None when no file or handler has the path, and record the event with no
+        handle. ``disposition`` and ``access`` are the names of the open flags that the
+        caller gives, for the event.
+
+        Raises:
+            FileSystemEmuError: if the configuration names a host file that does not exist.
+        """
+        f: File | None
+        event_type = EventType.FILE_OPEN
+        if is_null_device(path):
+            f = NullDevice(path)
+        elif create:
+            f = self.create_file(self.get_full_path(path))
+            event_type = EventType.FILE_CREATE
         else:
             f = self.get_file_from_path(path)
-
             if f:
                 # Deep-copy this file so we can have separate file
                 # offset pointers
-                return self.new_handle(f.duplicate())
-
-            fconf = self.get_emu_file(path)
-            if not fconf:
-                logger.debug("file_open: no handler for path %r", path)
-                return hnd
-
-            real_path = getattr(fconf, "path", None) or ""
-            real_path = normalize_response_path(real_path)
-            if not truncate:
-                if real_path and not os.path.exists(real_path):
-                    raise FileSystemEmuError(f"File path not found: {real_path}")
-                f = File(path, config=fconf)
-                self.files.append(f)
+                f = f.duplicate()
             else:
-                if real_path and not os.path.exists(real_path):
-                    raise FileSystemEmuError(f"File path not found: {real_path}")
-                f = File(path, config=fconf)
-                self.files.append(f)
-            hnd = self.new_handle(f)
+                f = self.get_file_by_path(path)
 
+        hnd = None
+        if f is not None:
+            hnd = self.new_handle(f)
+        self.record_open(path, event_type, hnd, disposition, access)
         return hnd
+
+    def record_open(self, path, event_type=EventType.FILE_OPEN, handle=None, disposition=None, access=None):
+        """
+        Record a file open or create in the report.
+
+        A failed open records its event with no handle, because analysts look for these
+        probes. The other file methods record an event only when the operation succeeds.
+        """
+        self.emu.record_file_event(
+            self.get_full_path(path), event_type, handle=handle, disposition=disposition or [], access=access or []
+        )

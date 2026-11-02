@@ -139,7 +139,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         sample="Practical Malware Analysis Lab 11-01.exe_",
         expected_apis=("KERNEL32.FindResourceA", "ADVAPI32.RegSetValueExA"),
         indicators=IndicatorExpectations(
-            files=("msgina32.dll",),
+            files=("C:\\Windows\\system32\\msgina32.dll",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon",),
         ),
     ),
@@ -190,7 +190,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-12-03-exe",
         sample="Practical Malware Analysis Lab 12-03.exe_",
         expected_apis=("USER32.SetWindowsHookExA", "USER32.CallNextHookEx", "USER32.UnhookWindowsHookEx"),
-        indicators=IndicatorExpectations(files=("practicalmalwareanalysis.log",)),
+        indicators=IndicatorExpectations(files=("C:\\Windows\\system32\\practicalmalwareanalysis.log",)),
         profile=profile_pma_1203_deep,
     ),
     PmaCase(
