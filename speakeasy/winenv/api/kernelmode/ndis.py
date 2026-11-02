@@ -242,7 +242,7 @@ class Ndis(api.ApiHandler):
         ctx.args[1].display = stag
 
         go = self.ndis.NDIS_GENERIC_OBJECT(emu.get_ptr_size())
-        go.DriverObject = DriverObject  # type: ignore[assignment]
+        go.DriverObject = DriverObject
 
         total = Size + self.sizeof(go)
         ptr = self.mem_alloc(size=total, tag=f"api.struct.NDIS_GENERIC_OBJECT.{stag}")
