@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import ctypes as ct
-from typing import Any
+from typing import Annotated, Any
 
 import pytest
 
@@ -83,3 +85,73 @@ def test_irp_cast_reads_nested_fields_after_padding(ptr_size: int) -> None:
     irp.Tail.Overlay.CurrentStackLocation = 0x3344
     copy: Any = ntdefs.IRP(ptr_size).cast(irp.get_bytes())
     assert (copy.IoStatus.Information, copy.Tail.Overlay.CurrentStackLocation) == (0x1122, 0x3344)
+
+
+class POINT_BY_INIT(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.x = ct.c_int32
+        self.y = ct.c_int32
+
+
+class RECORD_BY_INIT(EmuStruct):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.Size = ct.c_uint16
+        self.Buffer = Ptr
+        self.Origin = POINT_BY_INIT
+        self.Corners = POINT_BY_INIT * 2
+        self.Slots = Ptr * 3
+        self.Name = ct.c_uint8 * 6
+        if ptr_size == 8:
+            self.Padding = ct.c_uint32
+        self.Flags = ct.c_uint32
+
+
+class RECORD(EmuStruct):
+    Size: Annotated[int, ct.c_uint16]
+    Buffer: Annotated[int, Ptr]
+    # POINT comes later in the module
+    Origin: POINT
+    Corners: Annotated[list[POINT], POINT * 2]
+    Slots: Annotated[list[int], Ptr * 3]
+    Name: Annotated[bytes, ct.c_uint8 * 6]
+
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        if ptr_size == 8:
+            self.Padding = ct.c_uint32
+        self.Flags = ct.c_uint32
+
+
+class POINT(EmuStruct):
+    x: Annotated[int, ct.c_int32]
+    y: Annotated[int, ct.c_int32]
+
+
+def fill(record: Any) -> bytes:
+    record.Size = 0x1122
+    record.Buffer = 0x33445566
+    record.Origin.y = -2
+    record.Corners[1].x = 7
+    record.Slots[2] = 0x77
+    record.Name = b"abcdef"
+    record.Flags = 0x88
+    return bytes(record.get_bytes())
+
+
+@pytest.mark.parametrize("ptr_size", [4, 8])
+def test_class_level_fields_give_the_layout_of_init_fields(ptr_size: int) -> None:
+    by_init = RECORD_BY_INIT(ptr_size)
+    declared = RECORD(ptr_size)
+    assert declared.sizeof() == by_init.sizeof()
+    assert [name for name, _ in declared.get_cstruct()._fields_] == [name for name, _ in by_init.get_cstruct()._fields_]
+    assert fill(declared) == fill(by_init)
+
+
+class EXTENDED_POINT(POINT):
+    z: Annotated[int, ct.c_int32]
+
+
+def test_class_level_fields_of_a_base_class_come_first() -> None:
+    assert [name for name, _ in EXTENDED_POINT(4).get_cstruct()._fields_] == ["x", "y", "z"]
