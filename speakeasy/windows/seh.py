@@ -32,11 +32,6 @@ EXCEPTION_EXIT_UNWIND = 0x04
 EXCEPTION_TARGET_UNWIND = 0x20
 UNWINDING = EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND
 
-# Verdicts of exception filters and vectored handlers, as LONGs
-EXCEPTION_CONTINUE_EXECUTION = -1
-EXCEPTION_CONTINUE_SEARCH = 0
-EXCEPTION_EXECUTE_HANDLER = 1
-
 STATUS_UNWIND = 0xC0000027
 STATUS_NONCONTINUABLE_EXCEPTION = 0xC0000025
 
@@ -129,7 +124,8 @@ class Dispatch:
         """Offer the exception to the vectored handlers; return whether one continues execution."""
         for handler in list(self.emu.veh_handlers):
             self.offer(handler)
-            if as_long((yield GuestCall(handler, (self.pointers,)))) == EXCEPTION_CONTINUE_EXECUTION:
+            verdict = as_long((yield GuestCall(handler, (self.pointers,))))
+            if verdict == as_long(windefs.EXCEPTION_CONTINUE_EXECUTION):
                 return True
         return False
 
@@ -149,7 +145,8 @@ class Dispatch:
         top_level_filter = self.emu.unhandled_exception_filter
         if top_level_filter:
             self.offer(top_level_filter)
-            if as_long((yield GuestCall(top_level_filter, (self.pointers,)))) == EXCEPTION_CONTINUE_EXECUTION:
+            verdict = as_long((yield GuestCall(top_level_filter, (self.pointers,))))
+            if verdict == as_long(windefs.EXCEPTION_CONTINUE_EXECUTION):
                 return self.resume()
         raise UnhandledException(self.code, self.address, self.information)
 

@@ -15,8 +15,6 @@ import speakeasy.winenv.arch as _arch
 from speakeasy.winenv.defs.nt import ddk
 
 STATUS_GUARD_PAGE_VIOLATION = 0x80000001
-STATUS_ILLEGAL_INSTRUCTION = 0xC000001D
-STATUS_PRIVILEGED_INSTRUCTION = 0xC0000096
 STATUS_ASSERTION_FAILURE = 0xC0000420
 
 # Interrupt gates user mode may use; any other `int n` is a general protection fault
@@ -90,11 +88,11 @@ def from_invalid_instruction(pc: int, code_bytes: bytes) -> CpuException:
     """The exception for an instruction at pc that Unicorn cannot execute."""
     if code_bytes[:1] == b"\xf1":  # icebp: a debug trap after the instruction
         return CpuException(ddk.STATUS_SINGLE_STEP, pc + 1, pc + 1)
-    return CpuException(STATUS_ILLEGAL_INSTRUCTION, pc, pc)
+    return CpuException(ddk.STATUS_ILLEGAL_INSTRUCTION, pc, pc)
 
 
 def privileged_instruction(pc: int) -> CpuException:
-    return CpuException(STATUS_PRIVILEGED_INSTRUCTION, pc, pc)
+    return CpuException(ddk.STATUS_PRIVILEGED_INSTRUCTION, pc, pc)
 
 
 def memory_fault(

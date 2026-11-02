@@ -9,14 +9,9 @@ PACKAGE = Path(__file__).resolve().parent.parent / "speakeasy"
 # Names with more than one definition today. Remove a name when its copies become one.
 ALLOWED = {
     "DISASM_SIZE",
-    "EXCEPTION_CONTINUE_EXECUTION",
-    "EXCEPTION_CONTINUE_SEARCH",
-    "EXCEPTION_EXECUTE_HANDLER",
     "MAX_EXPORTS_TO_EMULATE",
     "PAGE_SIZE",
     "SIGSEGV",
-    "STATUS_ILLEGAL_INSTRUCTION",
-    "STATUS_PRIVILEGED_INSTRUCTION",
     "X86_REG_CS",
     "X86_REG_DS",
 }

@@ -28,7 +28,6 @@ from speakeasy.windows import guest_callbacks, seh, unwind
 from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall
 from speakeasy.windows.seh import (
-    EXCEPTION_EXECUTE_HANDLER,
     EXCEPTION_RECORD64,
     EXCEPTION_TARGET_UNWIND,
     EXCEPTION_UNWINDING,
@@ -207,8 +206,8 @@ def c_specific_handler(
         for begin, end, filter_rva, target in scopes[dc.ScopeIndex :]:
             if not (begin <= pc < end and target):
                 continue
-            if filter_rva == EXCEPTION_EXECUTE_HANDLER:
-                verdict = EXCEPTION_EXECUTE_HANDLER
+            if filter_rva == windefs.EXCEPTION_EXECUTE_HANDLER:
+                verdict = windefs.EXCEPTION_EXECUTE_HANDLER
             else:
                 verdict = as_long((yield GuestCall(image_base + filter_rva, (pointers, establisher_frame))))
             if verdict < 0:
