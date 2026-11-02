@@ -534,26 +534,32 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
     return entry
 
 
-def build_enum_table(resolver: TypeResolver, constants: dict[str, int], overrides: dict) -> dict[str, dict]:
+def get_enum_values(td: dict, constants: dict[str, int], overrides: dict) -> list[list]:
     """
-    Flatten every enum some resolved type referenced.
+    Get the ``[name, value]`` members of one enum, in the order of win32json.
 
     Values are masked to the enum's integer size so negative members compare equal to the unsigned
     argument slots the emulator reads. ``overrides["enum_extra"]`` appends named constants that
     win32metadata keeps outside the enum (e.g. ``GENERIC_READ`` for ``FILE_ACCESS_FLAGS``).
     """
+    name = td["Name"]
+    mask = (1 << (_enum_size(td) * 8)) - 1
+    values = [[v["Name"], v["Value"] & mask] for v in td["Values"]]
+    seen = {v[0] for v in values}
+    for extra in overrides["enum_extra"].get(name, ()):
+        if extra in seen:
+            continue
+        if extra not in constants:
+            raise SystemExit(f"enum_extra: constant {extra!r} for enum {name} not found in win32json")
+        values.append([extra, constants[extra] & mask])
+    return values
+
+
+def build_enum_table(resolver: TypeResolver, constants: dict[str, int], overrides: dict) -> dict[str, dict]:
+    """Flatten every enum some resolved type referenced."""
     enums: dict[str, dict] = {}
     for name, td in sorted(resolver.used_enums.items()):
-        mask = (1 << (_enum_size(td) * 8)) - 1
-        values = [[v["Name"], v["Value"] & mask] for v in td["Values"]]
-        seen = {v[0] for v in values}
-        for extra in overrides["enum_extra"].get(name, ()):
-            if extra in seen:
-                continue
-            if extra not in constants:
-                raise SystemExit(f"enum_extra: constant {extra!r} for enum {name} not found in win32json")
-            values.append([extra, constants[extra] & mask])
-        entry: dict = {"v": values}
+        entry: dict = {"v": get_enum_values(td, constants, overrides)}
         if td.get("Flags"):
             entry["f"] = True
         enums[name] = entry
