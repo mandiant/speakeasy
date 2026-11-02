@@ -534,9 +534,6 @@ class ApiHandler:
     def reg_open_key(self, path, create=False):
         return self.emu.reg_open_key(path, create)
 
-    def reg_get_key(self, handle):
-        return self.emu.reg_get_key(handle)
-
     def get_reg_key(self, handle):
         """
         Get the key of a predefined key or an open key handle.
