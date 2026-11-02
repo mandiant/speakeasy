@@ -52,7 +52,7 @@ Check:
 
 Include the following so others can reproduce quickly:
 
-- Speakeasy version and install method
+- Speakeasy version (`speakeasy --version`) and install method
 - full command line used
 - config overlay (if any)
 - target type (`exe`, `dll`, `sys`, raw shellcode)
