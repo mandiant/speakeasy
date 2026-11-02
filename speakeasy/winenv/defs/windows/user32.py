@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -38,9 +39,10 @@ DISPLAY_DEVICE_ATTACHED = 0x2
 
 
 class DISPLAY_DEVICE(EmuStruct):
+    cb: Annotated[int, ct.c_uint32]
+
     def __init__(self, ptr_size, width):
         super().__init__(ptr_size)
-        self.cb = ct.c_uint32
         self.DeviceName = ct.c_uint8 * (32 * width)
         self.DeviceString = ct.c_uint8 * (128 * width)
         self.StateFlags = ct.c_uint32
@@ -49,95 +51,81 @@ class DISPLAY_DEVICE(EmuStruct):
 
 
 class MSG(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.hwnd = Ptr
-        self.message = ct.c_uint32
-        self.wParam = Ptr
-        self.lParam = Ptr
-        self.time = ct.c_uint32
-        self.pt_x = ct.c_int32
-        self.pt_y = ct.c_int32
+    hwnd: Annotated[int, Ptr]
+    message: Annotated[int, ct.c_uint32]
+    wParam: Annotated[int, Ptr]
+    lParam: Annotated[int, Ptr]
+    time: Annotated[int, ct.c_uint32]
+    pt_x: Annotated[int, ct.c_int32]
+    pt_y: Annotated[int, ct.c_int32]
 
 
 class CREATESTRUCT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.lpCreateParams = Ptr
-        self.hInstance = Ptr
-        self.hMenu = Ptr
-        self.hwndParent = Ptr
-        self.cy = ct.c_int32
-        self.cx = ct.c_int32
-        self.y = ct.c_int32
-        self.x = ct.c_int32
-        self.style = ct.c_uint32
-        self.lpszName = Ptr
-        self.lpszClass = Ptr
-        self.dwExStyle = ct.c_uint32
+    lpCreateParams: Annotated[int, Ptr]
+    hInstance: Annotated[int, Ptr]
+    hMenu: Annotated[int, Ptr]
+    hwndParent: Annotated[int, Ptr]
+    cy: Annotated[int, ct.c_int32]
+    cx: Annotated[int, ct.c_int32]
+    y: Annotated[int, ct.c_int32]
+    x: Annotated[int, ct.c_int32]
+    style: Annotated[int, ct.c_uint32]
+    lpszName: Annotated[int, Ptr]
+    lpszClass: Annotated[int, Ptr]
+    dwExStyle: Annotated[int, ct.c_uint32]
 
 
 class LVCOLUMN(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.mask = ct.c_uint32
-        self.fmt = ct.c_int32
-        self.cx = ct.c_int32
-        self.pszText = Ptr
-        self.cchTextMax = ct.c_int32
-        self.iSubItem = ct.c_int32
-        self.iImage = ct.c_int32
-        self.iOrder = ct.c_int32
-        self.cxMin = ct.c_int32
-        self.cxDefault = ct.c_int32
-        self.cxIdeal = ct.c_int32
+    mask: Annotated[int, ct.c_uint32]
+    fmt: Annotated[int, ct.c_int32]
+    cx: Annotated[int, ct.c_int32]
+    pszText: Annotated[int, Ptr]
+    cchTextMax: Annotated[int, ct.c_int32]
+    iSubItem: Annotated[int, ct.c_int32]
+    iImage: Annotated[int, ct.c_int32]
+    iOrder: Annotated[int, ct.c_int32]
+    cxMin: Annotated[int, ct.c_int32]
+    cxDefault: Annotated[int, ct.c_int32]
+    cxIdeal: Annotated[int, ct.c_int32]
 
 
 class KBDLLHOOKSTRUCT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.vkCode = ct.c_uint32
-        self.scanCode = ct.c_uint32
-        self.flags = ct.c_uint32
-        self.time = ct.c_uint32
-        self.dwExtraInfo = Ptr
+    vkCode: Annotated[int, ct.c_uint32]
+    scanCode: Annotated[int, ct.c_uint32]
+    flags: Annotated[int, ct.c_uint32]
+    time: Annotated[int, ct.c_uint32]
+    dwExtraInfo: Annotated[int, Ptr]
 
 
 class USEROBJECTFLAGS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.fInherit = ct.c_uint32
-        self.fReserved = ct.c_uint32
-        self.dwFlags = ct.c_uint32
+    fInherit: Annotated[int, ct.c_uint32]
+    fReserved: Annotated[int, ct.c_uint32]
+    dwFlags: Annotated[int, ct.c_uint32]
 
 
 class WNDCLASS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.style = ct.c_uint32
-        self.lpfnWndProc = Ptr
-        self.cbClsExtra = ct.c_uint32
-        self.cbWndExtra = ct.c_uint32
-        self.hInstance = Ptr
-        self.hIcon = Ptr
-        self.hCursor = Ptr
-        self.hbrBackground = Ptr
-        self.lpszMenuName = Ptr
-        self.lpszClassName = Ptr
+    style: Annotated[int, ct.c_uint32]
+    lpfnWndProc: Annotated[int, Ptr]
+    cbClsExtra: Annotated[int, ct.c_uint32]
+    cbWndExtra: Annotated[int, ct.c_uint32]
+    hInstance: Annotated[int, Ptr]
+    hIcon: Annotated[int, Ptr]
+    hCursor: Annotated[int, Ptr]
+    hbrBackground: Annotated[int, Ptr]
+    lpszMenuName: Annotated[int, Ptr]
+    lpszClassName: Annotated[int, Ptr]
 
 
 class WNDCLASSEX(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.cbSize = ct.c_uint32
-        self.style = ct.c_uint32
-        self.lpfnWndProc = Ptr
-        self.cbClsExtra = ct.c_uint32
-        self.cbWndExtra = ct.c_uint32
-        self.hInstance = Ptr
-        self.hIcon = Ptr
-        self.hCursor = Ptr
-        self.hbrBackground = Ptr
-        self.lpszMenuName = Ptr
-        self.lpszClassName = Ptr
-        self.hIconSm = Ptr
+    cbSize: Annotated[int, ct.c_uint32]
+    style: Annotated[int, ct.c_uint32]
+    lpfnWndProc: Annotated[int, Ptr]
+    cbClsExtra: Annotated[int, ct.c_uint32]
+    cbWndExtra: Annotated[int, ct.c_uint32]
+    hInstance: Annotated[int, Ptr]
+    hIcon: Annotated[int, Ptr]
+    hCursor: Annotated[int, Ptr]
+    hbrBackground: Annotated[int, Ptr]
+    lpszMenuName: Annotated[int, Ptr]
+    lpszClassName: Annotated[int, Ptr]
+    hIconSm: Annotated[int, Ptr]
