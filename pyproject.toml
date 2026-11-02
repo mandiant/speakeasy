@@ -70,6 +70,7 @@ select = [
     "D",
     "D213",
     "B",
+    "T20",
     "PLR0402",
     "PLR1711",
     "PLR5501",
@@ -94,6 +95,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "speakeasy/winenv/api/**/*.py" = ["D200", "D205", "D402", "D403", "D415"]
+"{examples,scripts,tests}/**/*.py" = ["T20"]
 
 [tool.mypy]
 python_version = "3.10"
