@@ -36,25 +36,25 @@ class WskSocket(objman.KernelObject):
             self.dispatch_ptr = self.emu.mem_map(
                 size=self.sizeof(self.dispatch) + self.emu.get_ptr_size(),
                 tag="api.struct.WSK_PROVIDER_DATAGRAM_DISPATCH",
-            )  # noqa
+            )
 
             # We need a ptr to the dispatch table ptr
             self.dispatch_addr = self.dispatch_ptr + self.emu.get_ptr_size()
-            self.emu.mem_write(self.dispatch_ptr, self.dispatch_addr.to_bytes(self.emu.get_ptr_size(), "little"))  # noqa
+            self.emu.mem_write(self.dispatch_ptr, self.dispatch_addr.to_bytes(self.emu.get_ptr_size(), "little"))
 
-            addr = self.emu.add_callback(Netio.name, api.WskControlSocket.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskControlSocket.__apihook__[0])
             self.dispatch.Basic.WskControlSocket = addr
-            addr = self.emu.add_callback(Netio.name, api.WskCloseSocket.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskCloseSocket.__apihook__[0])
             self.dispatch.Basic.WskCloseSocket = addr
-            addr = self.emu.add_callback(Netio.name, api.WskBind.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskBind.__apihook__[0])
             self.dispatch.WskBind = addr
-            addr = self.emu.add_callback(Netio.name, api.WskSendTo.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskSendTo.__apihook__[0])
             self.dispatch.WskSendTo = addr
-            addr = self.emu.add_callback(Netio.name, api.WskReceiveFrom.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskReceiveFrom.__apihook__[0])
             self.dispatch.WskReceiveFrom = addr
-            addr = self.emu.add_callback(Netio.name, api.WskRelease.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskRelease.__apihook__[0])
             self.dispatch.WskRelease = addr
-            addr = self.emu.add_callback(Netio.name, api.WskGetLocalAddress.__apihook__[0])  # noqa
+            addr = self.emu.add_callback(Netio.name, api.WskGetLocalAddress.__apihook__[0])
             self.dispatch.WskGetLocalAddress = addr
 
             self.emu.mem_write(self.dispatch_addr, self.get_bytes(self.dispatch))
@@ -94,15 +94,15 @@ class Netio(api.ApiHandler):
         self.prov_disp: wsk.WSK_PROVIDER_DISPATCH = self.win.WSK_PROVIDER_DISPATCH(emu.get_ptr_size())
         self.prov_disp.Version = 0x100
 
-        addr = emu.add_callback(Netio.name, self.WskSocket.__apihook__[0])  # noqa
+        addr = emu.add_callback(Netio.name, self.WskSocket.__apihook__[0])
         self.prov_disp.WskSocket = addr
-        addr = emu.add_callback(Netio.name, self.WskSocketConnect.__apihook__[0])  # noqa
+        addr = emu.add_callback(Netio.name, self.WskSocketConnect.__apihook__[0])
         self.prov_disp.WskSocketConnect = addr
-        addr = emu.add_callback(Netio.name, self.WskControlClient.__apihook__[0])  # noqa
+        addr = emu.add_callback(Netio.name, self.WskControlClient.__apihook__[0])
         self.prov_disp.WskControlClient = addr
-        addr = emu.add_callback(Netio.name, self.WskGetAddressInfo.__apihook__[0])  # noqa
+        addr = emu.add_callback(Netio.name, self.WskGetAddressInfo.__apihook__[0])
         self.prov_disp.WskGetAddressInfo = addr
-        addr = emu.add_callback(Netio.name, self.WskFreeAddressInfo.__apihook__[0])  # noqa
+        addr = emu.add_callback(Netio.name, self.WskFreeAddressInfo.__apihook__[0])
         self.prov_disp.WskFreeAddressInfo = addr
         addr = emu.add_callback(Netio.name, self.WskGetNameInfo.__apihook__[0])
         self.prov_disp.WskGetNameInfo = addr
@@ -144,7 +144,7 @@ class Netio(api.ApiHandler):
                 wpn.Client = cli
                 # Allocate the wpn dispatch table
                 wpd_addr = self.mem_alloc(
-                    size=self.sizeof(self.prov_disp),  # noqa
+                    size=self.sizeof(self.prov_disp),
                     tag="api.struct.WSK_PROVIDER_DISPATCH",
                 )
                 wpn.Dispatch = wpd_addr
@@ -172,7 +172,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, af, stype, proto, flags, sctx, disp, proc, thr, secdesc, pIrp = argv  # noqa
+        cli, af, stype, proto, flags, sctx, disp, proc, thr, secdesc, pIrp = argv
         rv = ddk.STATUS_INVALID_PARAMETER
 
         if pIrp:
@@ -205,7 +205,7 @@ class Netio(api.ApiHandler):
             PIRP Irp
         );
         """
-        cli, stype, proto, laddr, raddr, flags, sctx, disp, proc, thr, secdesc, irp = argv  # noqa
+        cli, stype, proto, laddr, raddr, flags, sctx, disp, proc, thr, secdesc, irp = argv
 
         rv = 0
 

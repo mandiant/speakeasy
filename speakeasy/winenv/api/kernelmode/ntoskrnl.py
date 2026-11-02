@@ -68,7 +68,7 @@ class Ntoskrnl(api.ApiHandler):
                 or win_perms & windefs.PAGE_READONLY
                 or win_perms & windefs.PAGE_READWRITE
                 or win_perms & windefs.PAGE_WRITECOPY
-            ):  # noqa
+            ):
                 new |= common.PERM_MEM_READ
             if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
                 new |= common.PERM_MEM_WRITE
@@ -1549,7 +1549,7 @@ class Ntoskrnl(api.ApiHandler):
         if ProcessId == 4:
             proc = emu.get_system_process()
             proc.ref_cnt += 1
-            self.mem_write(Process, proc.address.to_bytes(self.get_ptr_size(), "little"))  # noqa
+            self.mem_write(Process, proc.address.to_bytes(self.get_ptr_size(), "little"))
             return rv
 
         proc = self.get_object_from_id(ProcessId)
@@ -1557,7 +1557,7 @@ class Ntoskrnl(api.ApiHandler):
             rv = ddk.STATUS_INVALID_CID
         else:
             proc.ref_cnt += 1
-            self.mem_write(Process, proc.address.to_bytes(self.get_ptr_size(), "little"))  # noqa
+            self.mem_write(Process, proc.address.to_bytes(self.get_ptr_size(), "little"))
 
         return rv
 
@@ -1912,7 +1912,7 @@ class Ntoskrnl(api.ApiHandler):
         obj = self.get_object_from_name(s1)
         if obj:
             if obj.file_object:
-                self.mem_write(pFileObject, obj.file_object.address.to_bytes(self.get_ptr_size(), "little"))  # noqa
+                self.mem_write(pFileObject, obj.file_object.address.to_bytes(self.get_ptr_size(), "little"))
             self.mem_write(pDeviceObject, obj.address.to_bytes(self.get_ptr_size(), "little"))
             rv = ddk.STATUS_SUCCESS
 
@@ -2595,7 +2595,7 @@ class Ntoskrnl(api.ApiHandler):
             ULONG OutputBufferLength
         );
         """
-        hnd, evt, apc_func, apc_ctx, isb, ioctl, InputBuffer, in_len, out_buf, out_len = argv  # noqa
+        hnd, evt, apc_func, apc_ctx, isb, ioctl, InputBuffer, in_len, out_buf, out_len = argv
         nts = ddk.STATUS_SUCCESS
 
         obj = self.get_object_from_handle(hnd)
@@ -2658,7 +2658,7 @@ class Ntoskrnl(api.ApiHandler):
             obj = self.get_object_from_handle(hnd)
         if obj:
             if Object:
-                self.mem_write(Object, obj.address.to_bytes(self.get_ptr_size(), "little"))  # noqa
+                self.mem_write(Object, obj.address.to_bytes(self.get_ptr_size(), "little"))
         else:
             nts = ddk.STATUS_INVALID_HANDLE
 

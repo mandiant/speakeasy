@@ -610,7 +610,8 @@ def eval_const(expr: str, env: dict[str, int]) -> int:
         else:
             py.append(t)
     try:
-        return int(eval("".join(py), {"__builtins__": {}}, {}))  # noqa: S307 - tokens are validated above
+        # eval is safe here, because the tokens are validated above
+        return int(eval("".join(py), {"__builtins__": {}}, {}))
     except Exception as e:
         raise ValueError(expr) from e
 

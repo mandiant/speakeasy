@@ -308,7 +308,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 or win_perms & windefs.PAGE_READONLY
                 or win_perms & windefs.PAGE_READWRITE
                 or win_perms & windefs.PAGE_WRITECOPY
-            ):  # noqa
+            ):
                 new |= common.PERM_MEM_READ
             if win_perms & (windefs.PAGE_READWRITE | windefs.PAGE_WRITECOPY):
                 new |= common.PERM_MEM_WRITE
@@ -7562,7 +7562,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPOVERLAPPED lpOverlapped
         );
         """
-        hnd, ioctl, InputBuffer, in_len, out_buf, out_len, bytes_ret, overlap = argv  # noqa
+        hnd, ioctl, InputBuffer, in_len, out_buf, out_len, bytes_ret, overlap = argv
         nts = ddk.STATUS_SUCCESS
         out_written = 0
 
