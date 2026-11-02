@@ -8,7 +8,7 @@ from speakeasy.windows.handles import CURRENT_PROCESS_HANDLE, CURRENT_THREAD_HAN
 from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.handler_harness import alloc, call, start_process
+from tests.handler_harness import alloc, call, object_attributes, start_process
 
 PAGE_READWRITE = 0x04
 GENERIC_WRITE = 0x40000000
@@ -162,3 +162,13 @@ def test_close_of_a_file_closes_the_file_handle(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "kernel32", "CloseHandle", [hnd])[0] == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
     assert call(dll_emu, "kernel32", "GetFileSize", [hnd, 0])[0] == 0xFFFFFFFF
+
+
+def test_kernel_close_of_a_registry_key_closes_the_key(driver_emu: Speakeasy) -> None:
+    phnd = alloc(driver_emu, b"\x00" * 4)
+    oa = object_attributes(driver_emu, "\\Registry\\Machine\\Software\\Contoso")
+    assert call(driver_emu, "ntoskrnl", "ZwCreateKey", [phnd, 0xF003F, oa, 0, 0, 0, 0])[0] == ddk.STATUS_SUCCESS
+    hkey = struct.unpack("<I", driver_emu.mem_read(phnd, 4))[0]
+
+    assert call(driver_emu, "ntoskrnl", "ZwClose", [hkey])[0] == ddk.STATUS_SUCCESS
+    assert call(driver_emu, "ntoskrnl", "ZwClose", [hkey])[0] == ddk.STATUS_INVALID_HANDLE

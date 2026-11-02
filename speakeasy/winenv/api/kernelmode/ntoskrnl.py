@@ -175,11 +175,7 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (Handle,) = argv
-        table = emu.get_handle_table()
-        # Registry key handles are not in the handle table yet, so they stay open
-        if Handle not in table and emu.reg_get_key(handle=Handle):
-            return ddk.STATUS_SUCCESS
-        table.close(Handle)
+        emu.get_handle_table().close(Handle)
         return ddk.STATUS_SUCCESS
 
     @apihook("DbgPrint", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)

@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import base64
 import fnmatch
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
+from speakeasy.windows.handles import HandleTable, InvalidHandle
 from speakeasy.winenv.defs.enums import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import RegistryConfig
-    from speakeasy.windows.objman import HandleAllocator
 
 CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
 WINDOWS_CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion"
@@ -127,13 +128,9 @@ class RegValue:
 class RegKey:
     """Represents a registry key."""
 
-    def __init__(self, allocator, path):
-        self.allocator: HandleAllocator = allocator
+    def __init__(self, path):
         self.path: str = path
         self.values: list[RegValue] = []
-
-    def get_handle(self):
-        return self.allocator.allocate_reg_key_handle()
 
     def get_path(self):
         return self.path
@@ -154,18 +151,24 @@ class RegKey:
 
 
 class RegistryManager:
-    """Manages the emulation of the windows registry. This includes creating keys, subkeys and values."""
+    """
+    Manages the emulation of the windows registry. This includes creating keys, subkeys and values.
 
-    def __init__(self, allocator, config=None, os_ver=None):
+    The handles of open keys go into the table that ``get_handle_table`` returns, the table of the
+    current process. The predefined keys, such as ``HKEY_LOCAL_MACHINE``, are fixed values and not
+    table entries.
+    """
+
+    def __init__(self, get_handle_table: Callable[[], HandleTable], config=None, os_ver=None):
         super().__init__()
-        self.reg_handles: dict[int, RegKey] = {}
+        self.get_handle_table: Callable[[], HandleTable] = get_handle_table
+        self.predefined_keys: dict[int, RegKey] = {}
         self.keys: list[RegKey] = []
         self.config: RegistryConfig | None = config
-        self.allocator: HandleAllocator = allocator
 
         for hk in HKEY:
             key = self.create_key(hk.name)
-            self.reg_handles.update({hk: key})
+            self.predefined_keys.update({hk: key})
 
         if os_ver:
             self.add_default_values(CURRENT_VERSION_KEY, get_current_version_values(os_ver))
@@ -193,14 +196,24 @@ class RegistryManager:
         return path
 
     def get_key_from_handle(self, handle):
-        return self.reg_handles.get(regdefs.normalize_hkey(handle))
+        """Get the key of a predefined key or an open key handle, else None."""
+        handle = regdefs.normalize_hkey(handle)
+        key = self.predefined_keys.get(handle)
+        if key:
+            return key
+        try:
+            return self.get_handle_table().get(handle, RegKey)
+        except InvalidHandle:
+            return None
 
     def close_key(self, handle) -> bool:
+        """Close an open key handle. Closing a predefined key does nothing."""
         handle = regdefs.normalize_hkey(handle)
-        if handle not in self.reg_handles:
+        if handle in self.predefined_keys:
+            return True
+        if self.get_key_from_handle(handle) is None:
             return False
-        if regdefs.get_hkey_type(handle) is None:
-            del self.reg_handles[handle]
+        self.get_handle_table().close(handle)
         return True
 
     def get_key_from_path(self, path):
@@ -248,7 +261,7 @@ class RegistryManager:
             return None
         for key in self.config.keys:
             if key.path.lower() == path.lower():
-                new_key = RegKey(self.allocator, path)
+                new_key = RegKey(path)
                 for value in key.values:
                     val_name = value.name or ""
                     new_key.create_value(val_name, REG_VALUE_TYPE.__members__.get(value.type), value.data)
@@ -269,7 +282,7 @@ class RegistryManager:
             self.keys.append(key)
             return key
 
-        key = RegKey(self.allocator, path)
+        key = RegKey(path)
         self.keys.append(key)
         return key
 
@@ -280,22 +293,17 @@ class RegistryManager:
         # Does the key already exist?
         key = self.get_key_from_path(path)
         if key:
-            hnd = key.get_handle()
-            self.reg_handles.update({hnd: key})
-            return hnd
+            return self.get_handle_table().new_handle(key)
 
         # Does this key exist in our config
         key = self.get_key_from_config(path)
         if key:
             self.keys.append(key)
-            hnd = key.get_handle()
-            self.reg_handles.update({hnd: key})
-            return hnd
+            return self.get_handle_table().new_handle(key)
 
         # If we are instructed to create the key, do so
         if create or self.is_key_a_parent_key(path):
-            key = RegKey(self.allocator, path)
-            hnd = key.get_handle()
-            self.reg_handles.update({hnd: key})
+            key = RegKey(path)
+            hnd = self.get_handle_table().new_handle(key)
             self.keys.append(key)
         return hnd
