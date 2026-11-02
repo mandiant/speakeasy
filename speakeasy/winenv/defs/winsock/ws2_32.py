@@ -60,7 +60,7 @@ class addrinfo(EmuStruct):
         self.ai_family = ct.c_uint32
         self.ai_socktype = ct.c_uint32
         self.ai_protocol = ct.c_uint32
-        self.ai_addrlen = ct.c_uint
+        self.ai_addrlen = Ptr
         self.ai_canonname = Ptr
         self.ai_addr = Ptr
         self.ai_next = Ptr
