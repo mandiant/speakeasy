@@ -49,6 +49,7 @@ from speakeasy.winenv.defs.windows import com as comdefs
 from speakeasy.winenv.defs.windows.kernel32 import LCID
 
 from .. import api
+from ..compare import Fold, get_string_order
 from ..exception_apis import ExceptionApis
 from . import shlwapi
 
@@ -2283,7 +2284,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         lpString1, lpString2 = argv
-        rv = 1
 
         cs1 = self.read_mem_string(lpString1, cw)
         cs2 = self.read_mem_string(lpString2, cw)
@@ -2291,10 +2291,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ctx.args["lpString1"].display = cs1
         ctx.args["lpString2"].display = cs2
 
-        if cs1.lower() == cs2.lower():
-            rv = 0
-
-        return rv
+        # lstrcmpi is CompareString with the user locale and NORM_IGNORECASE, minus 2.
+        return get_string_order(cs1, cs2, Fold.LINGUISTIC_IGNORE_CASE)
 
     @apihook("lstrcmp", argc=2)
     def lstrcmp(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2307,7 +2305,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         lpString1, lpString2 = argv
-        rv = 1
 
         cs1 = self.read_mem_string(lpString1, cw)
         cs2 = self.read_mem_string(lpString2, cw)
@@ -2315,10 +2312,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ctx.args["lpString1"].display = cs1
         ctx.args["lpString2"].display = cs2
 
-        if cs1 == cs2:
-            rv = 0
-
-        return rv
+        # lstrcmp is CompareString with the user locale, minus 2.
+        return get_string_order(cs1, cs2, Fold.LINGUISTIC)
 
     @apihook("CompareStringOrdinal", argc=5)
     def CompareStringOrdinal(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2332,7 +2327,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         lpString1, cchCount1, lpString2, cchCount2, bIgnoreCase = argv
-        units = []
+        texts = []
         for i, (ptr, count) in enumerate(((lpString1, cchCount1), (lpString2, cchCount2))):
             count = ct.c_int32(count).value
             if count < -1 or (not ptr and count):
@@ -2345,15 +2340,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             elif count:
                 data = self.mem_read(ptr, 2 * count)
             ctx.args[2 * i].display = data.decode("utf-16le", "replace")
-            chars = [chr(c) for c in struct.unpack(f"<{len(data) // 2}H", data)]
-            if bIgnoreCase:
-                chars = [c.upper() if len(c.upper()) == 1 else c for c in chars]
-            units.append(chars)
-        return 2 + (units[0] > units[1]) - (units[0] < units[1])
+            texts.append(data.decode("utf-16le", "surrogatepass"))
+        return 2 + get_string_order(texts[0], texts[1], Fold.UPPER if bIgnoreCase else Fold.NONE)
 
     def compare_locale_strings(self, emu, argv, cw, ctx):
         flags, string1, count1, string2, count2 = argv
-        keys = []
+        texts = []
         for i, (ptr, count) in enumerate(((string1, count1), (string2, count2))):
             count = ct.c_int32(count).value
             if count < -1 or (not ptr and count):
@@ -2364,9 +2356,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             else:
                 text = self.decode_string(self.mem_read(ptr, cw * count), cw)
             ctx.args[2 + 2 * i].display = text
-            # Case is only a tie breaker in a linguistic sort, and lower case sorts first.
-            keys.append((text.casefold(),) if flags & NORM_IGNORECASE else (text.casefold(), text.swapcase()))
-        return 2 + (keys[0] > keys[1]) - (keys[0] < keys[1])
+            texts.append(text)
+        fold = Fold.LINGUISTIC_IGNORE_CASE if flags & NORM_IGNORECASE else Fold.LINGUISTIC
+        return 2 + get_string_order(texts[0], texts[1], fold)
 
     @apihook("CompareString", argc=6)
     def CompareString(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
