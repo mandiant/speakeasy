@@ -858,8 +858,7 @@ class Msvcrt(api.ApiHandler):
             fmt_env = []
             total = ptr_size
             for k, v in env.items():
-                envstr = f"{k}={v}\x00"
-                envstr = envstr.encode(encoding)
+                envstr = f"{k}={v}\x00".encode(encoding)
                 total += len(envstr)
                 fmt_env.append(envstr)
                 total += ptr_size
@@ -1076,8 +1075,7 @@ class Msvcrt(api.ApiHandler):
         pptr = 0
         fmt_env = []
         for k, v in env.items():
-            envstr = f"{k}={v}\x00"
-            envstr = envstr.encode("utf-8")
+            envstr = f"{k}={v}\x00".encode()
             total += len(envstr)
             fmt_env.append(envstr)
             total += ptr_size
@@ -1109,8 +1107,7 @@ class Msvcrt(api.ApiHandler):
         pptr = 0
         fmt_env = []
         for k, v in env.items():
-            envstr = f"{k}={v}\x00"
-            envstr = envstr.encode("utf-16le")
+            envstr = f"{k}={v}\x00".encode("utf-16le")
             total += len(envstr)
             fmt_env.append(envstr)
             total += ptr_size

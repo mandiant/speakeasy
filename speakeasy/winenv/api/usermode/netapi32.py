@@ -65,6 +65,7 @@ class NetApi32(api.ApiHandler):
         if level not in [100, 101, 102]:
             return windefs.ERROR_INVALID_LEVEL
 
+        wki: netapi32defs.WKSTA_INFO_100 | netapi32defs.WKSTA_INFO_101 | netapi32defs.WKSTA_INFO_102
         if level == 100:
             wki = netapi32defs.WKSTA_INFO_100(emu.get_ptr_size())
         elif level == 101:

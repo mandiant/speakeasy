@@ -1388,6 +1388,7 @@ class Ntoskrnl(api.ApiHandler):
         osver = emu.config.os_ver
         size = self.read_dword(VersionInformation)
 
+        verinfo: ntos.RTL_OSVERSIONINFOW | ntos.RTL_OSVERSIONINFOEXW
         if size == self.sizeof(self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())):
             verinfo = self.win.RTL_OSVERSIONINFOW(emu.get_ptr_size())
         else:
@@ -2760,10 +2761,10 @@ class Ntoskrnl(api.ApiHandler):
                 data = ValueName.get_bytes(2)
                 output = b""
                 if KeyValueInformationClass == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation:
-                    vi = regdefs.KEY_VALUE_PARTIAL_INFORMATION(emu.get_ptr_size())
-                    vi.Type = ValueName.get_type()
-                    vi.DataLength = len(data)
-                    output = self.get_bytes(vi) + data
+                    partial = regdefs.KEY_VALUE_PARTIAL_INFORMATION(emu.get_ptr_size())
+                    partial.Type = ValueName.get_type()
+                    partial.DataLength = len(data)
+                    output = self.get_bytes(partial) + data
                 elif KeyValueInformationClass in (
                     regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformation,
                     regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64,
@@ -3458,6 +3459,7 @@ class Ntoskrnl(api.ApiHandler):
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
+        context: windefs.CONTEXT | windefs.CONTEXT64
         if emu.get_arch() == _arch.ARCH_AMD64:
             context = windefs.CONTEXT64(emu.get_ptr_size())
         else:
