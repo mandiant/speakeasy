@@ -605,9 +605,6 @@ class ApiHandler:
     def get_object_handle(self, obj):
         return self.emu.get_object_handle(obj)
 
-    def get_object_from_handle(self, hnd):
-        return self.emu.get_object_from_handle(hnd)
-
     def get_object_from_name(self, name):
         return self.emu.get_object_from_name(name)
 
