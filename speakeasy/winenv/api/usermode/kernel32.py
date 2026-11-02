@@ -677,15 +677,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     def _write_process_entry(self, emu, ctx, pe32, proc):
         cw = self.get_char_width(ctx)
-        enc = "utf-16le" if cw == 2 else "utf-8"
-
         pe = self.k32types.PROCESSENTRY32(emu.get_ptr_size(), cw)
         pe.dwSize = self.read_dword(pe32)
         pe.th32ProcessID = proc.pid
         pe.cntThreads = max(len(proc.threads), 1)
         pe.th32ParentProcessID = self._get_parent_pid(emu, proc)
         pe.pcPriClassBase = 8
-        pe.szExeFile = proc.image[: k32defs.MAX_PATH - 1].encode(enc) + b"\x00" * cw
+        pe.szExeFile = self.encode_string(proc.image[: k32defs.MAX_PATH - 1], cw) + b"\x00" * cw
         self.mem_write(pe32, self.get_bytes(pe))
 
     @apihook("Process32First", argc=2)
@@ -826,16 +824,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
     def _write_module_entry(self, emu, ctx, mod32, module, pid):
         cw = self.get_char_width(ctx)
-        enc = "utf-16le" if cw == 2 else "utf-8"
-
         mod = self.k32types.MODULEENTRY32(emu.get_ptr_size(), cw)
         data = self.mem_cast(mod, mod32)
         mod.th32ProcessID = pid
         mod.modBaseAddr = module.base
         mod.modBaseSize = module.image_size
         mod.hModule = module.base
-        mod.szModule = module.name[: k32defs.MAX_MODULE_NAME32].encode(enc) + b"\x00" * cw
-        mod.szExePath = module.emu_path[: k32defs.MAX_PATH - 1].encode(enc) + b"\x00" * cw
+        mod.szModule = self.encode_string(module.name[: k32defs.MAX_MODULE_NAME32], cw) + b"\x00" * cw
+        mod.szExePath = self.encode_string(module.emu_path[: k32defs.MAX_PATH - 1], cw) + b"\x00" * cw
         self.mem_write(mod32, self.get_bytes(data))
 
     @apihook("Module32First", argc=2)
@@ -1926,7 +1922,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        data = msg.encode("utf-16le" if cw == 2 else "utf-8") + b"\x00" * cw
+        data = self.encode_string(msg, cw) + b"\x00" * cw
         count = len(data) // cw - 1
         if dwFlags & k32defs.FORMAT_MESSAGE_ALLOCATE_BUFFER:
             buf = self.heap_alloc(max(len(data), nSize * cw), heap="LocalAlloc")
@@ -2366,7 +2362,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if count == -1:
                 text = self.read_mem_string(ptr, cw)
             else:
-                text = self.mem_read(ptr, cw * count).decode("utf-16le" if cw == 2 else "latin-1", "replace")
+                text = self.decode_string(self.mem_read(ptr, cw * count), cw)
             ctx.args[2 + 2 * i].display = text
             # Case is only a tie breaker in a linguistic sort, and lower case sorts first.
             keys.append((text.casefold(),) if flags & NORM_IGNORECASE else (text.casefold(), text.swapcase()))
@@ -2446,7 +2442,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             values = list(mappings)
         text = "\0".join(values) + "\0\0"
-        encoded = text.encode("utf-16le" if width == 2 else "ascii")
+        encoded = self.encode_string(text, width)
         characters = len(encoded) // width
         if ucchMax < characters:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -2837,10 +2833,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         ctx.args["lpString1"].display = s1
         ctx.args["lpString2"].display = s2
 
-        if cw == 2:
-            new = (s1 + s2).encode("utf-16le")
-        else:
-            new = (s1 + s2).encode("utf-8")
+        new = self.encode_string(s1 + s2, cw)
 
         self.mem_write(lpString1, new + b"\x00" * cw)
 
@@ -3228,10 +3221,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             cmd_ptr = self.mem_alloc((len(cmdline) + 1) * cw, tag=f"api.command_line.{fn}")
             self.command_lines[cw] = cmd_ptr
 
-        if cw == 2:
-            cl = cmdline.encode("utf-16le")
-        elif cw == 1:
-            cl = cmdline.encode("utf-8")
+        cl = self.encode_string(cmdline, cw)
 
         self.mem_write(cmd_ptr, cl)
 
@@ -3282,10 +3272,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         env_ptr = self.mem_alloc(len(out) * cw, tag=f"api.environment.{fn}")
 
-        if cw == 2:
-            ev = out.encode("utf-16le")
-        elif cw == 1:
-            ev = out.encode("utf-8")
+        ev = self.encode_string(out, cw)
 
         self.mem_write(env_ptr, ev)
 
@@ -3416,7 +3403,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             sn = "W" if cw == 2 else "A"
             ptrs = []
             for field, text in (("lpDesktop", proc.get_desktop_name()), ("lpTitle", proc.title or proc.path)):
-                size = len(text.encode("utf-16le" if cw == 2 else "utf-8")) + cw
+                size = len(self.encode_string(text, cw)) + cw
                 ptr = self.mem_alloc(size, tag=f"api.struct.STARTUPINFO{sn}.{field}")
                 self.write_mem_string(text, ptr, cw)
                 ptrs.append(ptr)
@@ -3838,10 +3825,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if filename:
             ctx.args["lpFilename"].display = filename
-            if cw == 2:
-                out = filename.encode("utf-16le")
-            elif cw == 1:
-                out = filename.encode("utf-8")
+            out = self.encode_string(filename, cw)
 
             size = int(len(out) / cw)
             if nSize < size + 1:  # null terminator
@@ -3944,10 +3928,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         ctx.args["lpBuffer"].display = sysroot
         sysroot += "\x00"
-        if cw == 2:
-            out = sysroot.encode("utf-16le")
-        elif cw == 1:
-            out = sysroot.encode("utf-8")
+        out = self.encode_string(sysroot, cw)
 
         if len(sysroot) > uSize:
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
@@ -5409,7 +5390,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if lpBuffer and nNumberOfCharsToWrite:
             data = self.mem_read(lpBuffer, nNumberOfCharsToWrite * cw)
-            ctx.args["lpBuffer"].display = repr(data.decode("utf-16le" if cw == 2 else "latin-1", "replace"))
+            ctx.args["lpBuffer"].display = repr(self.decode_string(data, cw))
         if lpNumberOfCharsWritten:
             self.write_dword(lpNumberOfCharsWritten, nNumberOfCharsToWrite)
         return True
@@ -5898,10 +5879,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return self.get_max_int()
 
-        if cw == 2:
-            cfn = name.encode("utf-16le")
-        else:
-            cfn = name.encode("utf-8")
+        cfn = self.encode_string(name, cw)
 
         find_data = k32defs.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
         if is_dir:
@@ -5940,10 +5918,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         ctx.args["lpFindFileData"].display = name
 
-        if cw == 2:
-            cfn = name.encode("utf-16le")
-        else:
-            cfn = name.encode("utf-8")
+        cfn = self.encode_string(name, cw)
 
         find_data = k32defs.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
         if is_dir:
@@ -6258,7 +6233,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         for id_ in dict.fromkeys(ids):
             buf = 0
             if isinstance(id_, str):
-                data = (id_ + "\0").encode("utf-16le" if cw == 2 else "utf-8")
+                data = self.encode_string(id_ + "\0", cw)
                 buf = self.mem_alloc(len(data), tag="api.enum_resource")
                 self.mem_write(buf, data)
             try:
@@ -6680,10 +6655,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         tempdir = emu.get_env().get("temp", "C:\\Windows\\temp")
         if not tempdir.endswith("\\"):
             tempdir += "\\"
-        if cw == 2:
-            new = (tempdir).encode("utf-16le") + b"\x00\x00"
-        else:
-            new = (tempdir).encode("utf-8") + b"\x00"
+        new = self.encode_string(tempdir, cw) + b"\x00" * cw
         if not lpBuffer or nBufferLength <= len(tempdir):
             return len(tempdir) + 1
         rv = len(tempdir)
@@ -7887,10 +7859,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         filename = proc.path
 
         if filename:
-            if cw == 2:
-                out = filename.encode("utf-16le")
-            elif cw == 1:
-                out = filename.encode("utf-8")
+            out = self.encode_string(filename, cw)
 
             size = len(out) // cw
             if nSize < size + 1 * cw:  # null terminator
