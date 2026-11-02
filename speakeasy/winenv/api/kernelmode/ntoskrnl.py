@@ -19,6 +19,7 @@ from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
+from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import FILE_ACCESS_FLAGS, NT_CREATE_FILE_DISPOSITION, REG_VALUE_TYPE
 from speakeasy.winenv.defs.lookup import decode, decode_flags
 from speakeasy.winenv.defs.nt import ddk
@@ -737,7 +738,7 @@ class Ntoskrnl(api.ApiHandler):
                     sm = self.win.SYSTEM_MODULE(emu.get_ptr_size())
                     sm.Base = mod.base
                     sm.Size = mod.image_size
-                    image_name = b"\\??\\" + mod.emu_path.encode("utf-8")
+                    image_name = encode_ansi("\\??\\" + mod.emu_path)
                     sm.ImageName = image_name
                     sm.LoadCount = 1
                     sm.Index = i
