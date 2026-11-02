@@ -386,9 +386,8 @@ class Ntoskrnl(api.ApiHandler):
             us.MaximumLength = size
             ptr = self.mem_alloc(size, tag=f"api.struct.STRING.{ansi_str}")
             us.Buffer = ptr
-        else:
-            if us.MaximumLength < size:
-                nts = ddk.STATUS_UNSUCCESSFUL
+        elif us.MaximumLength < size:
+            nts = ddk.STATUS_UNSUCCESSFUL
 
         if nts == ddk.STATUS_SUCCESS:
             us.Length = size
@@ -3292,19 +3291,18 @@ class Ntoskrnl(api.ApiHandler):
                     hfile = self.file_open(npath, create=True)
                 elif create_disp == ddk.FILE_OVERWRITE_IF:
                     hfile = self.file_open(npath, create=True)
-            else:
-                if create_disp == ddk.FILE_SUPERSEDE:
-                    hfile = self.file_open(npath, create=True)
-                elif create_disp == ddk.FILE_CREATE:
-                    hfile = self.file_open(npath, create=True)
-                elif create_disp == ddk.FILE_OPEN:
-                    nts = ddk.STATUS_UNSUCCESSFUL
-                elif create_disp == ddk.FILE_OPEN_IF:
-                    hfile = self.file_open(npath, create=True)
-                elif create_disp == ddk.FILE_OVERWRITE:
-                    nts = ddk.STATUS_UNSUCCESSFUL
-                elif create_disp == ddk.FILE_OVERWRITE_IF:
-                    hfile = self.file_open(npath, create=True)
+            elif create_disp == ddk.FILE_SUPERSEDE:
+                hfile = self.file_open(npath, create=True)
+            elif create_disp == ddk.FILE_CREATE:
+                hfile = self.file_open(npath, create=True)
+            elif create_disp == ddk.FILE_OPEN:
+                nts = ddk.STATUS_UNSUCCESSFUL
+            elif create_disp == ddk.FILE_OPEN_IF:
+                hfile = self.file_open(npath, create=True)
+            elif create_disp == ddk.FILE_OVERWRITE:
+                nts = ddk.STATUS_UNSUCCESSFUL
+            elif create_disp == ddk.FILE_OVERWRITE_IF:
+                hfile = self.file_open(npath, create=True)
 
             self.mem_write(pHndl, hfile.to_bytes(self.ptr_size, "little"))
             self.record_file_access_event(npath, FILE_OPEN, disposition=cd, access=ad)

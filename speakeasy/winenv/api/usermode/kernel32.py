@@ -1175,49 +1175,48 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             buf = lpAddress
             if flAllocationType & windefs.MEM_COMMIT:
                 buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
-        else:
-            if dwSize:
-                if lpAddress:
-                    test = lpAddress & 0xFFFFFFFFFFFFF000
-                else:
-                    # This is an arbitrary base address and will be
-                    # auto-adjusted by the memory manager
-                    test = emu.virtual_mem_base
-                size = dwSize
-                try:
-                    base, size = emu.get_valid_ranges(size, addr=test)
-                except OutOfMemoryError:
-                    emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
-                    return 0
-                if lpAddress and base != test:
-                    emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
-                    return 0
-                while base and base & 0xFFF:
-                    base, size = emu.get_valid_ranges(size, addr=test)
-                    test += PAGE_SIZE
+        elif dwSize:
+            if lpAddress:
+                test = lpAddress & 0xFFFFFFFFFFFFF000
+            else:
+                # This is an arbitrary base address and will be
+                # auto-adjusted by the memory manager
+                test = emu.virtual_mem_base
+            size = dwSize
+            try:
+                base, size = emu.get_valid_ranges(size, addr=test)
+            except OutOfMemoryError:
+                emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
+                return 0
+            if lpAddress and base != test:
+                emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                return 0
+            while base and base & 0xFFF:
+                base, size = emu.get_valid_ranges(size, addr=test)
+                test += PAGE_SIZE
 
-                emu_perms = self.win_perms_to_emu_perms(flProtect)
-                buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms)
-                if flProtect & windefs.PAGE_GUARD:
-                    emu.set_guard_pages(buf, size, emu_perms)
+            emu_perms = self.win_perms_to_emu_perms(flProtect)
+            buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms)
+            if flProtect & windefs.PAGE_GUARD:
+                emu.set_guard_pages(buf, size, emu_perms)
 
-                proc = emu.get_current_process()
-                if proc:
-                    self.record_process_event(
-                        proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
-                    )
+            proc = emu.get_current_process()
+            if proc:
+                self.record_process_event(
+                    proc, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect
+                )
 
-                emu._set_dyn_code_hook(buf, size)
+            emu._set_dyn_code_hook(buf, size)
 
-                # In the wild, I noticed some x64 malware samples that
-                # will rely on the new buffer pointer being placed into the first
-                # location in the x64 register backup on the stack (performed by
-                # the Windows API). Let's do that here.
-                arch = emu.get_arch()
-                if arch == e_arch.ARCH_AMD64:
-                    sp = emu.get_stack_ptr()
-                    p = buf.to_bytes(8, "little")
-                    self.mem_write(sp + 8, p)
+            # In the wild, I noticed some x64 malware samples that
+            # will rely on the new buffer pointer being placed into the first
+            # location in the x64 register backup on the stack (performed by
+            # the Windows API). Let's do that here.
+            arch = emu.get_arch()
+            if arch == e_arch.ARCH_AMD64:
+                sp = emu.get_stack_ptr()
+                p = buf.to_bytes(8, "little")
+                self.mem_write(sp + 8, p)
 
         return buf
 
@@ -1264,29 +1263,26 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             buf = lpAddress
             if flAllocationType & windefs.MEM_COMMIT:
                 buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
-        else:
-            if dwSize:
-                if lpAddress:
-                    test = lpAddress & 0xFFFFFFFFFFFFF000
-                else:
-                    test = emu.virtual_mem_base
-                size = dwSize
+        elif dwSize:
+            if lpAddress:
+                test = lpAddress & 0xFFFFFFFFFFFFF000
+            else:
+                test = emu.virtual_mem_base
+            size = dwSize
+            base, size = emu.get_valid_ranges(size, addr=test)
+            while base and base & 0xFFF:
                 base, size = emu.get_valid_ranges(size, addr=test)
-                while base and base & 0xFFF:
-                    base, size = emu.get_valid_ranges(size, addr=test)
-                    test += PAGE_SIZE
+                test += PAGE_SIZE
 
-                emu_perms = self.win_perms_to_emu_perms(flProtect)
-                buf = self.mem_alloc(
-                    base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms, process=obj
-                )
-                if flProtect & windefs.PAGE_GUARD and obj is emu.get_current_process():
-                    emu.set_guard_pages(buf, size, emu_perms)
-                mm = emu.get_address_map(buf)
+            emu_perms = self.win_perms_to_emu_perms(flProtect)
+            buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms, process=obj)
+            if flProtect & windefs.PAGE_GUARD and obj is emu.get_current_process():
+                emu.set_guard_pages(buf, size, emu_perms)
+            mm = emu.get_address_map(buf)
 
-                self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect)
+            self.record_process_event(obj, MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=protect)
 
-                emu._set_dyn_code_hook(buf, size)
+            emu._set_dyn_code_hook(buf, size)
 
         return buf
 
