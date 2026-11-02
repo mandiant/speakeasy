@@ -1,21 +1,36 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-# Address families
-AF_UNSPEC = 0
-AF_INET = 2
-AF_IPX = 6
-AF_APPLETALK = 16
-AF_NETBIOS = 17
-AF_INET6 = 23
-AF_IRDA = 26
-AF_BTH = 32
+from enum import IntEnum
 
-# Socket types
-SOCK_STREAM = 1
-SOCK_DGRAM = 2
-SOCK_RAW = 3
-SOCK_RDM = 4
-SOCK_SEQPACKET = 5
+
+class ADDRESS_FAMILY(IntEnum):
+    AF_INET = 2
+    AF_INET6 = 23
+    AF_UNSPEC = 0
+
+
+class SOCKET_TYPE(IntEnum):
+    """The socket types of the SOCK_* constants. The SDK has no enum type for them."""
+
+    SOCK_STREAM = 1
+    SOCK_DGRAM = 2
+    SOCK_RAW = 3
+    SOCK_RDM = 4
+    SOCK_SEQPACKET = 5
+
+
+class SOCKET_OPTION_LEVEL(IntEnum):
+    """The option levels of getsockopt and setsockopt that the handlers know. The SDK has no enum type for them."""
+
+    SOL_SOCKET = 0xFFFF
+
+
+class SOCKET_OPTION(IntEnum):
+    """The SOL_SOCKET options that the handlers know. The SDK has no enum type for them."""
+
+    SO_SNDBUF = 0x1001
+    SO_RCVBUF = 0x1002
+
 
 # Protocol types
 IPPROTO_ICMP = 1
@@ -39,44 +54,11 @@ WSATYPE_NOT_FOUND = 10109
 
 MSG_PEEK = 0x2
 
+INADDR_NONE = 0xFFFFFFFF
+
 AI_NUMERICHOST = 4
 
 # Incomplete mapping of services to ports
 SERVICE_PORTS = dict(ftp=21, ssh=22, smtp=25, http=80, https=443)
 
-SOL_SOCKET = 0xFFFF
-
-SO_SNDBUF = 0x1001
-SO_RCVBUF = 0x1002
-
 SOCK_BUF_SIZE = 0x2000
-
-
-def get_flag_defines(flags, prefix=""):
-    defs = []
-    for k, v in globals().items():
-        if not isinstance(v, int):
-            continue
-        if v & flags:
-            if prefix and k.startswith(prefix):
-                defs.append(k)
-    return defs
-
-
-def get_define(define, prefix=""):
-    for k, v in globals().items():
-        if not isinstance(v, int) or v != define:
-            continue
-        if prefix:
-            if k.startswith(prefix):
-                return k
-        else:
-            return k
-
-
-def get_addr_family(define):
-    return get_define(define, prefix="AF_")
-
-
-def get_sock_type(define):
-    return get_define(define, prefix="SOCK_")

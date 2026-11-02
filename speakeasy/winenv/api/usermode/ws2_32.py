@@ -7,17 +7,15 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
+from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.winsock import winsock
+from speakeasy.winenv.defs.winsock.winsock import ADDRESS_FAMILY, SOCKET_OPTION, SOCKET_OPTION_LEVEL, SOCKET_TYPE
 
 from .. import api
 
 if TYPE_CHECKING:
     from speakeasy.windows.netman import NetworkManager
     from speakeasy.windows.win32 import Win32Emulator
-
-INADDR_NONE = 0xFFFFFFFF
-HOST_NOT_FOUND = 11001
-WSAENOTSOCK = 10038
 
 
 class Ws2_32(api.ApiHandler):
@@ -87,15 +85,12 @@ class Ws2_32(api.ApiHandler):
         """
         af, type, protocol, lpProtocolInfo, g, dwFlags = argv
 
-        fam_str = winsock.get_addr_family(af)
-        sock_str = winsock.get_sock_type(type)
-
-        sock = self.netman.new_socket(fam_str, sock_str, protocol, dwFlags)
+        sock = self.netman.new_socket(af, type, protocol, dwFlags)
 
         fd = sock.fd
 
-        ctx.args["af"].display = fam_str
-        ctx.args["type"].display = sock_str
+        ctx.args["af"].display = decode(ADDRESS_FAMILY, af)
+        ctx.args["type"].display = decode(SOCKET_TYPE, type)
 
         return fd
 
@@ -146,15 +141,12 @@ class Ws2_32(api.ApiHandler):
         """
         af, type, protocol = argv
 
-        fam_str = winsock.get_addr_family(af)
-        sock_str = winsock.get_sock_type(type)
-
-        sock = self.netman.new_socket(fam_str, sock_str, protocol, 0)
+        sock = self.netman.new_socket(af, type, protocol, 0)
 
         fd = sock.fd
 
-        ctx.args["af"].display = fam_str
-        ctx.args["type"].display = sock_str
+        ctx.args["af"].display = decode(ADDRESS_FAMILY, af)
+        ctx.args["type"].display = decode(SOCKET_TYPE, type)
 
         return fd
 
@@ -166,7 +158,7 @@ class Ws2_32(api.ApiHandler):
         );
         """
         (cp,) = argv
-        rv = INADDR_NONE
+        rv = winsock.INADDR_NONE
 
         if cp:
             addr = self.read_mem_string(cp, 1)
@@ -174,7 +166,7 @@ class Ws2_32(api.ApiHandler):
             try:
                 rv = int.from_bytes(inet_aton(addr), "little")
             except OSError:
-                rv = INADDR_NONE
+                rv = winsock.INADDR_NONE
 
         return rv
 
@@ -227,15 +219,11 @@ class Ws2_32(api.ApiHandler):
         s, level, optname, optval, optlen = argv
         rv = 0
 
-        opt_level = winsock.get_define(level, "SOL_")
-        if opt_level:
-            ctx.args["level"].display = opt_level
+        ctx.args["level"].display = decode(SOCKET_OPTION_LEVEL, level)
 
-        opt_name = winsock.get_define(optname, "SO_")
-        if opt_name:
-            ctx.args["optname"].display = opt_name
+        ctx.args["optname"].display = decode(SOCKET_OPTION, optname)
 
-        if opt_name == "SO_RCVBUF" or opt_name == "SO_SNDBUF":
+        if optname in (SOCKET_OPTION.SO_RCVBUF, SOCKET_OPTION.SO_SNDBUF):
             opt_val = self.mem_read(optval, optlen)
             ctx.args["optval"].display = hex(struct.unpack("<I", opt_val)[0])
 
@@ -305,7 +293,7 @@ class Ws2_32(api.ApiHandler):
             ptr_h_aliases = self.mem_alloc(emu.get_ptr_size(), tag="api.struct.HOSTENT.h_aliases")
             hostent.h_aliases = ptr_h_aliases
 
-            hostent.h_addrtype = winsock.AF_INET
+            hostent.h_addrtype = ADDRESS_FAMILY.AF_INET
             hostent.h_length = 4
 
             # List contains one addr pointer and the NULL terminator
@@ -351,11 +339,11 @@ class Ws2_32(api.ApiHandler):
             return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
-        if stype == "SOCK_STREAM":
+        if stype == SOCKET_TYPE.SOCK_STREAM:
             proto = "tcp"
-        elif stype == "SOCK_DGRAM":
+        elif stype == SOCKET_TYPE.SOCK_DGRAM:
             proto = "udp"
-        elif stype == "SOCK_RAW":
+        elif stype == SOCKET_TYPE.SOCK_RAW:
             proto = "raw"
 
         socket.set_connection_info(raddr, rport)
@@ -389,11 +377,11 @@ class Ws2_32(api.ApiHandler):
             return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
-        if stype == "SOCK_STREAM":
+        if stype == SOCKET_TYPE.SOCK_STREAM:
             proto = "tcp"
-        elif stype == "SOCK_DGRAM":
+        elif stype == SOCKET_TYPE.SOCK_DGRAM:
             proto = "udp"
-        elif stype == "SOCK_RAW":
+        elif stype == SOCKET_TYPE.SOCK_RAW:
             proto = "raw"
 
         socket.set_connection_info(raddr, rport)
@@ -456,11 +444,11 @@ class Ws2_32(api.ApiHandler):
             return self.get_max_int()
         stype = socket.type
         proto = "unknown"
-        if stype == "SOCK_STREAM":
+        if stype == SOCKET_TYPE.SOCK_STREAM:
             proto = "tcp"
-        elif stype == "SOCK_DGRAM":
+        elif stype == SOCKET_TYPE.SOCK_DGRAM:
             proto = "udp"
-        elif stype == "SOCK_RAW":
+        elif stype == SOCKET_TYPE.SOCK_RAW:
             proto = "raw"
 
         new_sock = self.netman.new_socket(socket.family, socket.type, socket.protocol, 0)
@@ -479,7 +467,7 @@ class Ws2_32(api.ApiHandler):
         if addr:
             sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
             sockaddr = self.mem_cast(sockaddr, addr)
-            sockaddr.sin_family = winsock.AF_INET
+            sockaddr.sin_family = ADDRESS_FAMILY.AF_INET
             sockaddr.sin_addr = nip
             sockaddr.sin_port = htons(port)
             self.mem_write(addr, sockaddr.get_bytes())
@@ -492,7 +480,7 @@ class Ws2_32(api.ApiHandler):
             emu.set_last_error(winsock.WSAEFAULT)
             return winsock.SOCKET_ERROR
         sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
-        sockaddr.sin_family = winsock.AF_INET
+        sockaddr.sin_family = ADDRESS_FAMILY.AF_INET
         sockaddr.sin_addr = int.from_bytes(inet_aton(host), "little")
         sockaddr.sin_port = htons(port)
         self.mem_write(name, sockaddr.get_bytes())
@@ -565,11 +553,10 @@ class Ws2_32(api.ApiHandler):
         """
         Family, pAddr, pStringBuf, StringBufSize = argv
 
-        fam_str = winsock.get_addr_family(Family)
-        ctx.args["Family"].display = fam_str
+        ctx.args["Family"].display = decode(ADDRESS_FAMILY, Family)
 
         # TODO: implement case AF_INET6
-        if fam_str == "AF_INET":
+        if Family == ADDRESS_FAMILY.AF_INET:
             ipv4_bytes = self.mem_read(pAddr, 4)
             ctx.args["pAddr"].display = hex(int.from_bytes(ipv4_bytes, "big"))
             try:
@@ -593,11 +580,10 @@ class Ws2_32(api.ApiHandler):
         """
         Family, pszAddrString, pAddrBuf = argv
 
-        fam_str = winsock.get_addr_family(Family)
-        ctx.args["Family"].display = fam_str
+        ctx.args["Family"].display = decode(ADDRESS_FAMILY, Family)
 
         # TODO: implement case AF_INET6
-        if fam_str == "AF_INET":
+        if Family == ADDRESS_FAMILY.AF_INET:
             ipv4_str = self.read_string(pszAddrString)
             ctx.args["pszAddrString"].display = ipv4_str
             try:
@@ -672,11 +658,11 @@ class Ws2_32(api.ApiHandler):
 
         stype = sock.type
         proto = "unknown"
-        if stype == "SOCK_STREAM":
+        if stype == SOCKET_TYPE.SOCK_STREAM:
             proto = "tcp"
-        elif stype == "SOCK_DGRAM":
+        elif stype == SOCKET_TYPE.SOCK_DGRAM:
             proto = "udp"
-        elif stype == "SOCK_RAW":
+        elif stype == SOCKET_TYPE.SOCK_RAW:
             proto = "raw"
 
         raddr, rport = sock.get_connection_info()
@@ -703,11 +689,11 @@ class Ws2_32(api.ApiHandler):
             return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
-        if stype == "SOCK_STREAM":
+        if stype == SOCKET_TYPE.SOCK_STREAM:
             proto = "tcp"
-        elif stype == "SOCK_DGRAM":
+        elif stype == SOCKET_TYPE.SOCK_DGRAM:
             proto = "udp"
-        elif stype == "SOCK_RAW":
+        elif stype == SOCKET_TYPE.SOCK_RAW:
             proto = "raw"
 
         if buf:
@@ -806,7 +792,7 @@ class Ws2_32(api.ApiHandler):
 
         # Populate sockaddr_in
         sockaddr_in = self.wstypes.sockaddr_in(emu.get_ptr_size())
-        sockaddr_in.sin_family = winsock.AF_INET
+        sockaddr_in.sin_family = ADDRESS_FAMILY.AF_INET
         sockaddr_in.sin_port = htons(port)
         sockaddr_in.sin_addr = htonl(int(ip_bytes.hex(), 16))
         p_sockaddr = self.mem_alloc(sockaddr_in.sizeof(), tag="api.struct.sockaddr_in")
@@ -816,7 +802,7 @@ class Ws2_32(api.ApiHandler):
         addrinfo = self.wstypes.addrinfo(emu.get_ptr_size())
         # TODO: Update ai_flags as additional cases are added
         addrinfo.ai_flags = winsock.AI_NUMERICHOST
-        addrinfo.ai_family = winsock.AF_INET
+        addrinfo.ai_family = ADDRESS_FAMILY.AF_INET
         addrinfo.ai_socktype = hints_ai.ai_socktype
         addrinfo.ai_protocol = hints_ai.ai_protocol
         addrinfo.ai_addrlen = sockaddr_in.sizeof()
@@ -852,19 +838,15 @@ class Ws2_32(api.ApiHandler):
         s, level, optname, optval, optlen = argv
         rv = 0
 
-        opt_level = winsock.get_define(level, "SOL_")
-        if opt_level:
-            ctx.args["level"].display = opt_level
+        ctx.args["level"].display = decode(SOCKET_OPTION_LEVEL, level)
 
         opt_len = self.mem_read(optlen, 4)
         opt_len = struct.unpack("<I", opt_len)[0]
         ctx.args["optlen"].display = hex(opt_len)
 
-        opt_name = winsock.get_define(optname, "SO_")
-        if opt_name:
-            ctx.args["optname"].display = opt_name
-            if opt_name == "SO_RCVBUF" or opt_name == "SO_SNDBUF":
-                opt_val = winsock.SOCK_BUF_SIZE
-                self.mem_write(optval, opt_val.to_bytes(opt_len, "little"))
+        ctx.args["optname"].display = decode(SOCKET_OPTION, optname)
+        if optname in (SOCKET_OPTION.SO_RCVBUF, SOCKET_OPTION.SO_SNDBUF):
+            opt_val = winsock.SOCK_BUF_SIZE
+            self.mem_write(optval, opt_val.to_bytes(opt_len, "little"))
 
         return rv
