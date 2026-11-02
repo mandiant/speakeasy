@@ -1,12 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import speakeasy.winenv.defs.wfp.fwpmtypes as fwp
 from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.kernel import WinKernelEmulator
 
 FWP_E_NOT_FOUND = 0x80320008
 FWP_E_CALLOUT_NOT_FOUND = 0x80320001
@@ -68,7 +71,7 @@ class Fwpkclnt(api.ApiHandler):
         return ret
 
     @apihook("FwpmEngineOpen0", argc=5)
-    def FwpmEngineOpen0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmEngineOpen0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmEngineOpen0(
             const wchar_t *serverName,
@@ -89,7 +92,9 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsInjectionHandleCreate0", argc=3)
-    def FwpsInjectionHandleCreate0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpsInjectionHandleCreate0(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NTSTATUS FwpsInjectionHandleCreate0(
             ADDRESS_FAMILY addressFamily,
@@ -108,7 +113,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmSubLayerAdd0", argc=3)
-    def FwpmSubLayerAdd0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmSubLayerAdd0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmSubLayerAdd0(
             HANDLE engineHandle,
@@ -150,7 +155,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsCalloutRegister1", argc=3)
-    def FwpsCalloutRegister1(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpsCalloutRegister1(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS FwpsCalloutRegister1(
             void *deviceObject,
@@ -193,7 +198,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmCalloutAdd0", argc=4)
-    def FwpmCalloutAdd0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmCalloutAdd0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmCalloutAdd0(
             HANDLE engineHandle,
@@ -234,7 +239,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmFilterAdd0", argc=4)
-    def FwpmFilterAdd0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmFilterAdd0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmFilterAdd0(
             HANDLE engineHandle,
@@ -273,7 +278,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmFilterDeleteById0", argc=3)
-    def FwpmFilterDeleteById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmFilterDeleteById0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmFilterDeleteById0(
             HANDLE engineHandle,
@@ -292,7 +297,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmCalloutDeleteById0", argc=2)
-    def FwpmCalloutDeleteById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmCalloutDeleteById0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmCalloutDeleteById0(
             HANDLE engineHandle,
@@ -308,7 +313,9 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsCalloutUnregisterById0", argc=1)
-    def FwpsCalloutUnregisterById0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpsCalloutUnregisterById0(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NTSTATUS FwpsCalloutUnregisterById0(
             const UINT32 calloutId
@@ -323,7 +330,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmSubLayerDeleteByKey0", argc=2)
-    def FwpmSubLayerDeleteByKey0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmSubLayerDeleteByKey0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmSubLayerDeleteByKey0(
             HANDLE engineHandle,
@@ -343,7 +350,7 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpmEngineClose0", argc=1)
-    def FwpmEngineClose0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpmEngineClose0(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD FwpmEngineClose0(
             HANDLE engineHandle
@@ -355,7 +362,9 @@ class Fwpkclnt(api.ApiHandler):
         return rv
 
     @apihook("FwpsInjectionHandleDestroy0", argc=1)
-    def FwpsInjectionHandleDestroy0(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FwpsInjectionHandleDestroy0(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NTSTATUS FwpsInjectionHandleDestroy0(
             HANDLE injectionHandle
