@@ -1,6 +1,7 @@
 # Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -13,33 +14,27 @@ NetSetupDomainName = 3
 
 
 class WKSTA_INFO_100(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.wki_platform_id = Ptr
-        self.wki_computername = Ptr
-        self.wki_langroup = Ptr
-        self.wki_ver_major = ct.c_uint32
-        self.wki_ver_minor = ct.c_uint32
+    wki_platform_id: Annotated[int, Ptr]
+    wki_computername: Annotated[int, Ptr]
+    wki_langroup: Annotated[int, Ptr]
+    wki_ver_major: Annotated[int, ct.c_uint32]
+    wki_ver_minor: Annotated[int, ct.c_uint32]
 
 
 class WKSTA_INFO_101(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.wki_platform_id = Ptr
-        self.wki_computername = Ptr
-        self.wki_langroup = Ptr
-        self.wki_ver_major = ct.c_uint32
-        self.wki_ver_minor = ct.c_uint32
-        self.wki_lanroot = Ptr
+    wki_platform_id: Annotated[int, Ptr]
+    wki_computername: Annotated[int, Ptr]
+    wki_langroup: Annotated[int, Ptr]
+    wki_ver_major: Annotated[int, ct.c_uint32]
+    wki_ver_minor: Annotated[int, ct.c_uint32]
+    wki_lanroot: Annotated[int, Ptr]
 
 
 class WKSTA_INFO_102(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.wki_platform_id = Ptr
-        self.wki_computername = Ptr
-        self.wki_langroup = Ptr
-        self.wki_ver_major = ct.c_uint32
-        self.wki_ver_minor = ct.c_uint32
-        self.wki_lanroot = Ptr
-        self.wki_logged_on_users = Ptr
+    wki_platform_id: Annotated[int, Ptr]
+    wki_computername: Annotated[int, Ptr]
+    wki_langroup: Annotated[int, Ptr]
+    wki_ver_major: Annotated[int, ct.c_uint32]
+    wki_ver_minor: Annotated[int, ct.c_uint32]
+    wki_lanroot: Annotated[int, Ptr]
+    wki_logged_on_users: Annotated[int, Ptr]
