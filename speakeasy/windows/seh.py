@@ -123,7 +123,7 @@ class Dispatch:
 
     def vectored(self) -> GeneratorHandler:
         """Offer the exception to the vectored handlers; return whether one continues execution."""
-        for handler in list(self.emu.veh_handlers):
+        for handler in list(self.emu.get_veh_handlers()):
             self.offer(handler)
             verdict = as_long((yield GuestCall(handler, (self.pointers,))))
             if verdict == windefs.EXCEPTION_CONTINUE_EXECUTION:
@@ -143,7 +143,7 @@ class Dispatch:
         The filter is the one that SetUnhandledExceptionFilter sets. It Windows calls from the outermost frame of
         the thread, and continue if it says so. Otherwise the exception is unhandled.
         """
-        top_level_filter = self.emu.unhandled_exception_filter
+        top_level_filter = self.emu.get_unhandled_exception_handler()
         if top_level_filter:
             self.offer(top_level_filter)
             verdict = as_long((yield GuestCall(top_level_filter, (self.pointers,))))

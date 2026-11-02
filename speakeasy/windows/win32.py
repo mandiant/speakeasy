@@ -117,17 +117,19 @@ class Win32Emulator(WindowsEmulator):
 
     def add_vectored_exception_handler(self, first, handler):
         """Add a vectored exception handler that will be executed on an exception."""
-        if handler in self.veh_handlers:
+        handlers = self.get_veh_handlers()
+        if handler in handlers:
             return
         if first:
-            self.veh_handlers.insert(0, handler)
+            handlers.insert(0, handler)
         else:
-            self.veh_handlers.append(handler)
+            handlers.append(handler)
 
     def remove_vectored_exception_handler(self, handler):
         """Remove a vectored exception handler."""
-        if handler in self.veh_handlers:
-            self.veh_handlers.remove(handler)
+        handlers = self.get_veh_handlers()
+        if handler in handlers:
+            handlers.remove(handler)
 
     def get_processes(self):
         if len(self.processes) <= 1:
@@ -563,7 +565,7 @@ class Win32Emulator(WindowsEmulator):
 
     def set_unhandled_exception_handler(self, handler_addr):
         """Establish a handler for unhandled exceptions that occur during emulation."""
-        self.unhandled_exception_filter = handler_addr
+        self._get_process_state().unhandled_exception_filter = handler_addr
 
     def init_machine_structures(self):
         self.om = objman.ObjectManager(emu=self)

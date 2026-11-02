@@ -440,9 +440,9 @@ def test_get_file_attributes_of_an_empty_path_fails(emu: Speakeasy, api: str) ->
 
 def test_remove_vectored_exception_handler(emu: Speakeasy) -> None:
     handle, _ = call(emu, "kernel32", "AddVectoredExceptionHandler", [1, 0x401000])
-    assert 0x401000 in emu.emu.veh_handlers
+    assert 0x401000 in emu.emu.get_veh_handlers()
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] != 0
-    assert 0x401000 not in emu.emu.veh_handlers
+    assert 0x401000 not in emu.emu.get_veh_handlers()
     assert call(emu, "kernel32", "RemoveVectoredExceptionHandler", [handle])[0] == 0
 
 

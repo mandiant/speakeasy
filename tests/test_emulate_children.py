@@ -82,3 +82,23 @@ def test_finished_parent_gives_up_its_image_peb_and_heap(config, load_test_bin):
     assert all(m.free for m in maps if m.base <= parent.peb.address < m.base + m.size)
     assert len(heap) == 1
     assert all(m.free for m in maps if m.base <= heap[0] < m.base + m.size)
+
+
+def test_child_does_not_get_the_exception_handlers_of_the_parent(config, load_test_bin):
+    def create_process(e, api, original, args):
+        # As AddVectoredExceptionHandler and SetUnhandledExceptionFilter do before CreateProcessA
+        e.add_vectored_exception_handler(True, module.base + 0x1000)
+        e.set_unhandled_exception_handler(module.base + 0x1100)
+        return original(args)
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
+        se.add_api_hook(create_process, "kernel32", "CreateProcessA")
+        se.run_module(module, emulate_children=True)
+        child = (se.emu.get_veh_handlers(), se.emu.get_unhandled_exception_handler())
+        se.emu.set_current_process(se.emu.processes[0])
+        parent = (se.emu.get_veh_handlers(), se.emu.get_unhandled_exception_handler())
+
+    assert parent == ([module.base + 0x1000], module.base + 0x1100)
+    assert child == ([], 0)

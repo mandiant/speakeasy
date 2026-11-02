@@ -7991,7 +7991,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (Handle,) = argv
-        if Handle not in emu.veh_handlers:
+        if Handle not in emu.get_veh_handlers():
             return 0
         emu.remove_vectored_exception_handler(Handle)
         return 1
