@@ -47,7 +47,7 @@ class Ncrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         hnd = cm.crypt_open(pname=prov_str, flags=dwFlags)
         if hnd:
-            self.mem_write(phProvider, hnd.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(phProvider, hnd)
 
         return windefs.ERROR_SUCCESS
 
@@ -87,7 +87,7 @@ class Ncrypt(api.ApiHandler):
                 flags=dwFlags,
             )
             if hnd:
-                self.mem_write(phKey, hnd.to_bytes(emu.get_ptr_size(), "little"))
+                self.write_ptr(phKey, hnd)
 
         return windefs.ERROR_SUCCESS
 

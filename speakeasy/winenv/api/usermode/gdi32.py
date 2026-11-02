@@ -263,7 +263,7 @@ class GDI32(api.ApiHandler):
             bits = self.mem_alloc(size, tag="api.gdi32.CreateDIBSection")
             hbm = self.get_handle()
         if ppvBits:
-            self.mem_write(ppvBits, bits.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(ppvBits, bits)
         return hbm
 
     @apihook("CreateDCA", argc=4)
@@ -355,7 +355,7 @@ class GDI32(api.ApiHandler):
         (unnamedParam1,) = argv
         # No display adapters: NumAdapters is 0 and pAdapters is not touched
         if unnamedParam1:
-            self.mem_write(unnamedParam1, (0).to_bytes(4, "little"))
+            self.write_dword(unnamedParam1, 0)
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTEnumAdapters", argc=1)
@@ -367,7 +367,7 @@ class GDI32(api.ApiHandler):
         """
         (unnamedParam1,) = argv
         if unnamedParam1:
-            self.mem_write(unnamedParam1, (0).to_bytes(4, "little"))
+            self.write_dword(unnamedParam1, 0)
         return ddk.STATUS_SUCCESS
 
     @apihook("D3DKMTCloseAdapter", argc=1)

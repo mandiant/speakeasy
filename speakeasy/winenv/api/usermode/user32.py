@@ -678,7 +678,7 @@ class User32(api.ApiHandler):
         if cchBufferMax == 0:
             if cw != 2:
                 return 0
-            self.mem_write(lpBuffer, address.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(lpBuffer, address)
             ctx.args["lpBuffer"].display = s
             return len(s)
 
@@ -1338,7 +1338,7 @@ class User32(api.ApiHandler):
             emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
             return 0
         if lpdwProcessId:
-            self.mem_write(lpdwProcessId, window.process_id.to_bytes(4, "little"))
+            self.write_dword(lpdwProcessId, window.process_id)
         return window.thread_id
 
     @apihook("GetSysColorBrush", argc=1)
@@ -1634,11 +1634,11 @@ class User32(api.ApiHandler):
         types = (windefs.RIM_TYPEKEYBOARD, windefs.RIM_TYPEMOUSE, windefs.RIM_TYPEHID, windefs.RIM_TYPEHID)
         num_devices = len(types)
         if not pRawInputDeviceList:
-            self.mem_write(puiNumDevices, num_devices.to_bytes(4, "little"))
+            self.write_dword(puiNumDevices, num_devices)
             return 0
 
-        if int.from_bytes(self.mem_read(puiNumDevices, 4), "little") < num_devices:
-            self.mem_write(puiNumDevices, num_devices.to_bytes(4, "little"))
+        if self.read_dword(puiNumDevices) < num_devices:
+            self.write_dword(puiNumDevices, num_devices)
             emu.set_last_error(windows.ERROR_INSUFFICIENT_BUFFER)
             return 0xFFFFFFFF
 
@@ -1934,7 +1934,7 @@ class User32(api.ApiHandler):
             # number of items
             return 1
         hkl = 0x04090409  # English - United States
-        self.mem_write(lpList, hkl.to_bytes(self.get_ptr_size(), "little"))
+        self.write_ptr(lpList, hkl)
 
         return 1
 
@@ -2124,7 +2124,7 @@ class User32(api.ApiHandler):
             return 0
 
         dd = windefs.DISPLAY_DEVICE(emu.get_ptr_size(), cw)
-        cb = int.from_bytes(self.mem_read(lpDisplayDevice, 4), "little")
+        cb = self.read_dword(lpDisplayDevice)
         if cb < dd.get_cstruct().DeviceID.offset:
             return 0
 

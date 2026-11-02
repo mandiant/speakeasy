@@ -46,7 +46,7 @@ class ComApi(api.ApiHandler):
         iid_name = comdefs.get_iid(iid)
         if iid_name:
             ctx.args[1].display = iid_name
-            self.mem_write(ppvObject, ptr.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(ppvObject, ptr)
             return comdefs.S_OK
 
         self.mem_write(ppvObject, b"\x00" * emu.get_ptr_size())
@@ -180,8 +180,8 @@ class ComApi(api.ApiHandler):
         if ppNamespace:
             ci = emu.com.get_interface(emu, emu.get_ptr_size(), "IWbemServices")
             pNamespace = self.mem_alloc(emu.get_ptr_size(), tag="emu.COM.ppNamespace_IWbemServices")
-            self.mem_write(pNamespace, ci.address.to_bytes(emu.get_ptr_size(), "little"))
-            self.mem_write(ppNamespace, pNamespace.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(pNamespace, ci.address)
+            self.write_ptr(ppNamespace, pNamespace)
 
         return comdefs.S_OK
 

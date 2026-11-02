@@ -313,7 +313,7 @@ class Ws2_32(api.ApiHandler):
             ptr_h_addr_0 = self.mem_alloc(hostent.h_length, tag="api.struct.HOSTENT.h_addr_0")
             ip_bytes = inet_aton(ip)
             self.mem_write(ptr_h_addr_0, ip_bytes)
-            self.mem_write(ptr_h_addr_list, ptr_h_addr_0.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(ptr_h_addr_list, ptr_h_addr_0)
             hostent.h_addr_list = ptr_h_addr_list
 
             # Write the hostent struct
@@ -432,7 +432,7 @@ class Ws2_32(api.ApiHandler):
 
         for fds in (readfds, writefds):
             if fds:
-                fd_count += int.from_bytes(self.mem_read(fds, 4), "little")
+                fd_count += self.read_dword(fds)
 
         if exceptfds:
             self.mem_write(exceptfds, b"\x00" * 4)
@@ -488,7 +488,7 @@ class Ws2_32(api.ApiHandler):
 
     def write_sockaddr(self, emu, name, namelen, host, port):
         size = self.wstypes.sockaddr_in(emu.get_ptr_size()).sizeof()
-        if not name or not namelen or int.from_bytes(self.mem_read(namelen, 4), "little") < size:
+        if not name or not namelen or self.read_dword(namelen) < size:
             emu.set_last_error(winsock.WSAEFAULT)
             return winsock.SOCKET_ERROR
         sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
@@ -496,7 +496,7 @@ class Ws2_32(api.ApiHandler):
         sockaddr.sin_addr = int.from_bytes(inet_aton(host), "little")
         sockaddr.sin_port = htons(port)
         self.mem_write(name, sockaddr.get_bytes())
-        self.mem_write(namelen, size.to_bytes(4, "little"))
+        self.write_dword(namelen, size)
         return 0
 
     @apihook("getpeername", argc=3, ordinal=5)
@@ -632,7 +632,7 @@ class Ws2_32(api.ApiHandler):
         if not set:
             return 0
         ptr_size = emu.get_ptr_size()
-        count = min(int.from_bytes(self.mem_read(set, 4), "little"), 64)
+        count = min(self.read_dword(set), 64)
         fds = self.mem_read(set + ptr_size, count * ptr_size)
         return int(any(int.from_bytes(fds[i : i + ptr_size], "little") == fd for i in range(0, len(fds), ptr_size)))
 
@@ -825,7 +825,7 @@ class Ws2_32(api.ApiHandler):
         # Populate ppResult with addrinfo
         pResult = self.mem_alloc(addrinfo.sizeof(), tag="api.struct.addrinfo")
         self.mem_write(pResult, addrinfo.get_bytes())
-        self.mem_write(ppResult, pResult.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(ppResult, pResult)
 
         return rv
 

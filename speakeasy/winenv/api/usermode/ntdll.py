@@ -293,7 +293,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             return STATUS_DLL_NOT_FOUND
 
         if DllHandle:
-            self.mem_write(DllHandle, hmod.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(DllHandle, hmod)
         frame = emu.active_api_frame
         if frame is not None and frame.initializers:
             frame.failure_result = 0xC0000142  # STATUS_DLL_INIT_FAILED
@@ -333,7 +333,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
                 addr = emu.resolve_export(mod, proc)
                 if addr:
                     rv = ddk.STATUS_SUCCESS
-                    self.mem_write(ProcedureAddress, addr.to_bytes(self.get_ptr_size(), "little"))
+                    self.write_ptr(ProcedureAddress, addr)
                 break
 
         return rv
@@ -346,8 +346,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         );
         """
         (Seed,) = argv
-        value = (int.from_bytes(self.mem_read(Seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) % 0x7FFFFFFF
-        self.mem_write(Seed, value.to_bytes(4, "little"))
+        value = (self.read_dword(Seed) * 0x7FFFFFED + 0x7FFFFFC3) % 0x7FFFFFFF
+        self.write_dword(Seed, value)
         return value
 
     @apihook("RtlRandom", argc=1)
@@ -358,9 +358,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         );
         """
         (Seed,) = argv
-        value = ((int.from_bytes(self.mem_read(Seed, 4), "little") * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
+        value = ((self.read_dword(Seed) * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
         next_seed = ((value * 0x7FFFFFED + 0x7FFFFFC3) & 0xFFFFFFFF) % 0x7FFFFFFF
-        self.mem_write(Seed, next_seed.to_bytes(4, "little"))
+        self.write_dword(Seed, next_seed)
         pos = next_seed & 0x7F
         result, self.random_values[pos] = self.random_values[pos], value
         return result
@@ -515,8 +515,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         if not pe:
             return ddk.STATUS_INVALID_HANDLE
 
-        type_ptr = emu.read_ptr(ResourcePath)
-        name_ptr = emu.read_ptr(ResourcePath + emu.get_ptr_size())
+        type_ptr = self.read_ptr(ResourcePath)
+        name_ptr = self.read_ptr(ResourcePath + emu.get_ptr_size())
 
         try:
             name = k32.normalize_res_identifier(emu, cw, name_ptr)
@@ -531,7 +531,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         struct_ptr = pe.base + res.entry_rva
 
         # Write the output parameter with the address of the data entry
-        emu.write_ptr(ResourceDataEntry, struct_ptr)
+        self.write_ptr(ResourceDataEntry, struct_ptr)
 
         return ddk.STATUS_SUCCESS
 
@@ -553,10 +553,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         offset, size = struct.unpack("<II", self.mem_read(ResourceDataEntry, 8))
 
         if ResourceLength:
-            self.mem_write(ResourceLength, size.to_bytes(4, "little"))
+            self.write_dword(ResourceLength, size)
 
         if ResourceBuffer:
-            emu.write_ptr(ResourceBuffer, DllHandle + offset)
+            self.write_ptr(ResourceBuffer, DllHandle + offset)
 
         return ddk.STATUS_SUCCESS
 
@@ -571,11 +571,11 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         NtMajorVersion, NtMinorVersion, NtBuildNumber = argv
         if NtMajorVersion:
-            self.mem_write(NtMajorVersion, (10).to_bytes(4, "little"))
+            self.write_dword(NtMajorVersion, 10)
         if NtMinorVersion:
-            self.mem_write(NtMinorVersion, (0).to_bytes(4, "little"))
+            self.write_dword(NtMinorVersion, 0)
         if NtBuildNumber:
-            self.mem_write(NtBuildNumber, (0xF0004A61).to_bytes(4, "little"))
+            self.write_dword(NtBuildNumber, 0xF0004A61)
 
     @apihook("RtlFormatCurrentUserKeyPath", argc=1)
     def RtlFormatCurrentUserKeyPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -641,7 +641,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         if not handle_ptr:
             return windefs.ERROR_INVALID_PARAMETER
         self.trace_handle += 4
-        self.mem_write(handle_ptr, self.trace_handle.to_bytes(8, "little"))
+        self.write_qword(handle_ptr, self.trace_handle)
         return windefs.ERROR_SUCCESS
 
     @apihook("EtwRegisterTraceGuidsA", argc=8)
@@ -746,7 +746,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         data = (self.read_mem_string(DefaultPath, 2) + "\x00").encode("utf-16le")
         if BufferLengthOut:
-            self.mem_write(BufferLengthOut, len(data).to_bytes(4, "little"))
+            self.write_dword(BufferLengthOut, len(data))
         if not TargetPath or BufferLengthIn < len(data):
             return ddk.STATUS_BUFFER_TOO_SMALL
 
@@ -829,7 +829,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             return ddk.STATUS_UNSUCCESSFUL
 
         if ThreadHandle:
-            self.mem_write(ThreadHandle, handle.to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(ThreadHandle, handle)
 
         self.record_process_event(proc_obj, evt_type, start_addr=StartRoutine, param=Argument, tid=obj.id)
 

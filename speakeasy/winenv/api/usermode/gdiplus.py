@@ -36,7 +36,7 @@ class Gdiplus(api.ApiHandler):
         token, input, output = argv
         if not token or not input:
             return INVALID_PARAMETER
-        self.mem_write(token, (1).to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(token, 1)
         if output:
             self.mem_write(output, b"\x00" * 2 * emu.get_ptr_size())
         return OK

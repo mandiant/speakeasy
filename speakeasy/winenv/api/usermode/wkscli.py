@@ -43,9 +43,9 @@ class Wkscli(api.ApiHandler):
         ctx.args["lpNameBuffer"].display = domain
         namebuf = self.mem_alloc((len(domain) + 1) * 2)
         self.write_wide_string(domain, namebuf)
-        self.mem_write(lpNameBuffer, namebuf.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(lpNameBuffer, namebuf)
 
         ctx.args["BufferType"].display = "NetSetupDomainName"
-        self.mem_write(BufferType, netapi32defs.NetSetupDomainName.to_bytes(4, "little"))
+        self.write_dword(BufferType, netapi32defs.NetSetupDomainName)
 
         return netapi32defs.NERR_Success

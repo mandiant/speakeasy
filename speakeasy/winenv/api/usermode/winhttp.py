@@ -265,7 +265,7 @@ class WinHttp(api.ApiHandler):
             self.mem_write(lpBuffer, data)
 
         if lpdwNumberOfBytesRead:
-            self.mem_write(lpdwNumberOfBytesRead, (len(data)).to_bytes(4, "little"))
+            self.write_dword(lpdwNumberOfBytesRead, len(data))
 
         return rv
 
@@ -283,7 +283,7 @@ class WinHttp(api.ApiHandler):
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
-            self.mem_write(lpdwNumberOfBytesAvailable, avail.to_bytes(4, "little"))
+            self.write_dword(lpdwNumberOfBytesAvailable, avail)
 
         return True
 
@@ -400,12 +400,12 @@ class WinHttp(api.ApiHandler):
         else:
             out = (text + "\x00").encode("utf-16le")
             out_len = len(out) - 2
-        if lpBuffer == 0 or int.from_bytes(self.mem_read(lpdwBufferLength, 4), "little") < len(out):
-            self.mem_write(lpdwBufferLength, len(out).to_bytes(4, "little"))
+        if lpBuffer == 0 or self.read_dword(lpdwBufferLength) < len(out):
+            self.write_dword(lpdwBufferLength, len(out))
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
         self.mem_write(lpBuffer, out)
-        self.mem_write(lpdwBufferLength, out_len.to_bytes(4, "little"))
+        self.write_dword(lpdwBufferLength, out_len)
         return 1
 
     @apihook("WinHttpCloseHandle", argc=1, conv=_arch.CALL_CONV_STDCALL)

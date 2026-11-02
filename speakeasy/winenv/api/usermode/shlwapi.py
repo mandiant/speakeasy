@@ -547,12 +547,12 @@ class Shlwapi(api.ApiHandler):
         ctx.args[0].display = base
         ctx.args[1].display = relative
         combined = urljoin(base, relative)
-        size = int.from_bytes(self.mem_read(pcchCombined, 4), "little")
+        size = self.read_dword(pcchCombined)
         if not pszCombined or size <= len(combined):
-            self.mem_write(pcchCombined, (len(combined) + 1).to_bytes(4, "little"))
+            self.write_dword(pcchCombined, len(combined) + 1)
             return E_POINTER
         self.write_mem_string(combined + "\0", pszCombined, cw)
-        self.mem_write(pcchCombined, len(combined).to_bytes(4, "little"))
+        self.write_dword(pcchCombined, len(combined))
         return 0
 
     @apihook("PathAddBackslash", argc=1)

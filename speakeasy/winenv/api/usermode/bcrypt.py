@@ -81,7 +81,7 @@ class Bcrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         hnd = cm.crypt_open(pname=implementation, ptype=algid, flags=dwFlags)
         if hnd:
-            self.mem_write(phAlgorithm, hnd.to_bytes(emu.get_ptr_size(), "little"))
+            self.write_ptr(phAlgorithm, hnd)
             ctx.args["phAlgorithm"].display = hex(hnd)
 
         return ntdefs.STATUS_SUCCESS
@@ -115,7 +115,7 @@ class Bcrypt(api.ApiHandler):
                 return ntdefs.STATUS_INVALID_HANDLE
             hnd = alg_ctx.import_key(blob_type=blob_type, blob=blob, blob_len=cbInput, flags=dwFlags)
             if hnd:
-                self.mem_write(phKey, hnd.to_bytes(emu.get_ptr_size(), "little"))
+                self.write_ptr(phKey, hnd)
                 ctx.args["phKey"].display = hex(hnd)
 
         return ntdefs.STATUS_SUCCESS
@@ -229,7 +229,7 @@ class Bcrypt(api.ApiHandler):
         ctx.args["pbSecret"].display = secret.hex()
         hnd = alg_ctx.import_key(blob=secret, blob_len=cbSecret, flags=dwFlags)
         alg_ctx.get_key(hnd).chaining_mode = alg_ctx.chaining_mode
-        self.mem_write(phKey, hnd.to_bytes(emu.get_ptr_size(), "little"))
+        self.write_ptr(phKey, hnd)
         ctx.args["phKey"].display = hex(hnd)
         return ntdefs.STATUS_SUCCESS
 
@@ -271,7 +271,7 @@ class Bcrypt(api.ApiHandler):
 
     def write_result_size(self, pcbResult, size):
         if pcbResult:
-            self.mem_write(pcbResult, size.to_bytes(4, "little"))
+            self.write_dword(pcbResult, size)
 
     def get_key(self, emu, hKey):
         """Get the algorithm context and the key of a key handle, or (None, None)."""

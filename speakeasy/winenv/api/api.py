@@ -588,7 +588,7 @@ class ApiHandler:
         ptrsize = self.get_ptr_size()
 
         for _ in range(num_args):
-            arg = int.from_bytes(self.emu.mem_read(ptr, ptrsize), "little")
+            arg = self.read_ptr(ptr)
             args.append(arg)
             ptr += ptrsize
         return args
@@ -678,7 +678,7 @@ class ApiHandler:
                     out.append((fmt + "s") % "(null)")
                 elif conv == "Z":
                     count = int.from_bytes(self.mem_read(value, 2), "little")
-                    buf = int.from_bytes(self.mem_read(value + ptr_size, ptr_size), "little")
+                    buf = self.read_ptr(value + ptr_size)
                     text = self.mem_read(buf, count).decode("utf-16le" if is_wide else "latin-1", "replace")
                     out.append((fmt + "s") % text)
                 else:

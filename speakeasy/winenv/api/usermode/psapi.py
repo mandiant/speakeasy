@@ -76,18 +76,18 @@ class Psapi(api.ApiHandler):
 
         if not lpidProcess or cb < 4:
             if lpcbNeeded:
-                self.mem_write(lpcbNeeded, (len(processes) * 4).to_bytes(4, "little"))
+                self.write_dword(lpcbNeeded, len(processes) * 4)
             return 1
 
         count = min(cb // 4, len(processes))
         cursor = lpidProcess
         for process in processes[:count]:
             pid = process.pid or 0
-            self.mem_write(cursor, int(pid).to_bytes(4, "little"))
+            self.write_dword(cursor, int(pid))
             cursor += 4
 
         if lpcbNeeded:
-            self.mem_write(lpcbNeeded, (count * 4).to_bytes(4, "little"))
+            self.write_dword(lpcbNeeded, count * 4)
 
         return 1
 
@@ -110,7 +110,7 @@ class Psapi(api.ApiHandler):
         ptr_size = self.get_ptr_size()
 
         if lpcbNeeded:
-            self.mem_write(lpcbNeeded, (len(module_bases) * ptr_size).to_bytes(4, "little"))
+            self.write_dword(lpcbNeeded, len(module_bases) * ptr_size)
 
         if not lphModule or cb < ptr_size:
             return 1
@@ -118,7 +118,7 @@ class Psapi(api.ApiHandler):
         count = min(cb // ptr_size, len(module_bases))
         cursor = lphModule
         for module_base in module_bases[:count]:
-            self.mem_write(cursor, int(module_base).to_bytes(ptr_size, "little"))
+            self.write_ptr(cursor, int(module_base))
             cursor += ptr_size
 
         return 1

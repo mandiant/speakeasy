@@ -238,7 +238,7 @@ class Wininet(api.ApiHandler):
         flags = windefs.INTERNET_CONNECTION_LAN
 
         if lpdwFlags:
-            self.mem_write(lpdwFlags, flags.to_bytes(4, "little"))
+            self.write_dword(lpdwFlags, flags)
             ctx.args["lpdwFlags"].display = "INTERNET_CONNECTION_LAN"
 
         return rv
@@ -312,7 +312,7 @@ class Wininet(api.ApiHandler):
         if dwOption == windefs.INTERNET_OPTION_SECURITY_FLAGS:
             if lpBuffer:
                 sec_flags = windefs.SECURITY_FLAG_SECURE
-                self.mem_write(lpBuffer, (sec_flags).to_bytes(4, "little"))
+                self.write_dword(lpBuffer, sec_flags)
                 rv = True
 
         return rv
@@ -342,7 +342,7 @@ class Wininet(api.ApiHandler):
             self.mem_write(lpBuffer, data)
 
         if lpdwNumberOfBytesRead:
-            self.mem_write(lpdwNumberOfBytesRead, (len(data)).to_bytes(4, "little"))
+            self.write_dword(lpdwNumberOfBytesRead, len(data))
 
         return rv
 
@@ -389,12 +389,12 @@ class Wininet(api.ApiHandler):
         else:
             out = (text + "\x00").encode(self.get_encoding(cw))
             out_len = len(out) - cw
-        if not lpBuffer or int.from_bytes(self.mem_read(lpdwBufferLength, 4), "little") < len(out):
-            self.mem_write(lpdwBufferLength, len(out).to_bytes(4, "little"))
+        if not lpBuffer or self.read_dword(lpdwBufferLength) < len(out):
+            self.write_dword(lpdwBufferLength, len(out))
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return False
         self.mem_write(lpBuffer, out)
-        self.mem_write(lpdwBufferLength, out_len.to_bytes(4, "little"))
+        self.write_dword(lpdwBufferLength, out_len)
         return True
 
     @apihook("InternetQueryDataAvailable", argc=4)
@@ -414,7 +414,7 @@ class Wininet(api.ApiHandler):
         avail = req.get_response_size()
 
         if lpdwNumberOfBytesAvailable:
-            self.mem_write(lpdwNumberOfBytesAvailable, (avail.to_bytes(4, "little")))
+            self.write_dword(lpdwNumberOfBytesAvailable, avail)
             rv = True
 
         return rv

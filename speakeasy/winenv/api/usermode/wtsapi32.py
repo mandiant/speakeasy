@@ -71,9 +71,9 @@ class WtsApi32(api.ApiHandler):
 
         # Write the total session count
         if ppSessionInfo and pCount:
-            self.mem_write(pCount, (1).to_bytes(4, "little"))
+            self.write_dword(pCount, 1)
             # Write the session buffer
-            self.mem_write(ppSessionInfo, (buf).to_bytes(self.get_ptr_size(), "little"))
+            self.write_ptr(ppSessionInfo, buf)
 
             rv = 1
 
