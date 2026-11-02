@@ -1,6 +1,9 @@
 # Copyright (C) 2022 Mandiant, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -19,35 +22,31 @@ IF_TYPE_IEEE80211 = 71
 
 
 class IP_ADAPTER_INFO(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Next = Ptr
-        self.ComboIndex = ct.c_uint32
-        self.AdapterName = ct.c_uint8 * (MAX_ADAPTER_NAME_LENGTH + 4)
-        self.Description = ct.c_uint8 * (MAX_ADAPTER_DESCRIPTION_LENGTH + 4)
-        self.AddressLength = ct.c_uint32
-        self.Address = ct.c_uint8 * MAX_ADAPTER_ADDRESS_LENGTH
-        self.Index = ct.c_uint32
-        self.Type = ct.c_uint32
-        self.DhcpEnabled = ct.c_uint32
-        self.CurrentIpAddress = Ptr
-        self.IpAddressList = IP_ADDR_STRING
-        self.GatewayList = IP_ADDR_STRING
-        self.DhcpServer = IP_ADDR_STRING
-        self.HaveWins = ct.c_uint32
-        self.PrimaryWinsServer = IP_ADDR_STRING
-        self.SecondaryWinsServer = IP_ADDR_STRING
-        self.LeaseObtained = ct.c_int64
-        self.LeaseExpires = ct.c_int64
+    Next: Annotated[int, Ptr]
+    ComboIndex: Annotated[int, ct.c_uint32]
+    AdapterName: Annotated[bytes, ct.c_uint8 * (MAX_ADAPTER_NAME_LENGTH + 4)]
+    Description: Annotated[bytes, ct.c_uint8 * (MAX_ADAPTER_DESCRIPTION_LENGTH + 4)]
+    AddressLength: Annotated[int, ct.c_uint32]
+    Address: Annotated[bytes, ct.c_uint8 * MAX_ADAPTER_ADDRESS_LENGTH]
+    Index: Annotated[int, ct.c_uint32]
+    Type: Annotated[int, ct.c_uint32]
+    DhcpEnabled: Annotated[int, ct.c_uint32]
+    CurrentIpAddress: Annotated[int, Ptr]
+    IpAddressList: IP_ADDR_STRING
+    GatewayList: IP_ADDR_STRING
+    DhcpServer: IP_ADDR_STRING
+    HaveWins: Annotated[int, ct.c_uint32]
+    PrimaryWinsServer: IP_ADDR_STRING
+    SecondaryWinsServer: IP_ADDR_STRING
+    LeaseObtained: Annotated[int, ct.c_int64]
+    LeaseExpires: Annotated[int, ct.c_int64]
 
 
 class IP_ADDR_STRING(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Next = Ptr
-        self.IpAddress = ct.c_uint8 * 16
-        self.IpMask = ct.c_uint8 * 16
-        self.Context = ct.c_uint32
+    Next: Annotated[int, Ptr]
+    IpAddress: Annotated[bytes, ct.c_uint8 * 16]
+    IpMask: Annotated[bytes, ct.c_uint8 * 16]
+    Context: Annotated[int, ct.c_uint32]
 
 
 def get_adapter_type(type_str):
