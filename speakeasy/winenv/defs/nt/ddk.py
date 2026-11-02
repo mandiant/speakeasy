@@ -256,9 +256,7 @@ def get_access_defines(flags):
 
 def get_file_access_defines(flags):
     defs = get_flag_defines(flags, "FILE_")
-    defs = [d for d in defs if d.startswith(("FILE_READ", "FILE_WRITE", "FILE_DELETE", "FILE_APPEND", "FILE_EXECUTE"))]
-
-    return defs
+    return [d for d in defs if d.startswith(("FILE_READ", "FILE_WRITE", "FILE_DELETE", "FILE_APPEND", "FILE_EXECUTE"))]
 
 
 def get_create_disposition(disp):

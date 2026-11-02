@@ -153,8 +153,7 @@ class BinaryEmulator(MemoryManager, ABC):
             major = osver.major
             minor = osver.minor
             if major is not None and minor is not None:
-                verstr = f"{os_name}.{major}_{minor}"
-                return verstr
+                return f"{os_name}.{major}_{minor}"
         return None
 
     def sizeof(self, obj):

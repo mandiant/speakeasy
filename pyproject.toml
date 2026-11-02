@@ -76,6 +76,7 @@ select = [
     "PLR5501",
     "RET501",
     "RET502",
+    "RET504",
     "RET505",
     "RET508",
     "PIE790",
@@ -94,7 +95,8 @@ extend-immutable-calls = ["speakeasy.gdb.ResumeAction"]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"speakeasy/winenv/api/**/*.py" = ["D200", "D205", "D402", "D403", "D415"]
+# RET504: handlers assign the return value to rv before they return it
+"speakeasy/winenv/api/**/*.py" = ["D200", "D205", "D402", "D403", "D415", "RET504"]
 "{examples,scripts,tests}/**/*.py" = ["T20"]
 
 [tool.mypy]

@@ -94,9 +94,7 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         image.name = mod_name
         image.emu_path = emu_path
 
-        rtmod = self.load_image(image, is_input=True)
-
-        return rtmod
+        return self.load_image(image, is_input=True)
 
     def pool_alloc(self, pooltype, size, tag="None"):
         """Allocate memory in the emulated "pool"."""

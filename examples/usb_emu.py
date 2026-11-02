@@ -82,9 +82,7 @@ class UsbEmu(speakeasy.Speakeasy):
         config = self.mem_cast(wdf.WDF_DRIVER_CONFIG(emu.get_ptr_size()), DriverConfig)
         self.device_add_func = config.EvtDriverDeviceAdd
 
-        rv = func(params)
-
-        return rv
+        return func(params)
 
     def wdf_device_set_pnp_hooks(self, emu, api_name, func, params):
         DriverGlobals, DeviceInit, PnpPowerEventCallbacks = params
@@ -112,9 +110,7 @@ class UsbEmu(speakeasy.Speakeasy):
             self.mem_write(ConfigDescriptor, cfg)
             self.mem_write(ConfigDescriptorLength, (len(cfg)).to_bytes(2, "little"))
 
-        rv = func(params)
-
-        return rv
+        return func(params)
 
     def wdf_get_usb_device_descriptor(self, emu, api_name, func, params):
         DriverGlobals, UsbDevice, UsbDeviceDescriptor = params
@@ -131,8 +127,7 @@ class UsbEmu(speakeasy.Speakeasy):
         info.Traits |= wdf.WDF_USB_DEVICE_TRAIT_AT_HIGH_SPEED
         self.mem_write(Information, info.get_bytes())
 
-        rv = func(params)
-        return rv
+        return func(params)
 
     def wdf_queue_create_hook(self, emu, api_name, func, params):
         DriverGlobals, Device, Config, QueueAttributes, Queue = params

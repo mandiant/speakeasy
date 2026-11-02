@@ -795,7 +795,7 @@ class Profiler:
         errors: list[ErrorInfo] | None = self.meta.get("errors") or None
 
         report_data = self.artifact_store.to_report_data()
-        report = Report(
+        return Report(
             report_version=__report_version__,
             emulation_total_runtime=round(self.runtime, 3),
             timestamp=int(self.start_time),
@@ -810,4 +810,3 @@ class Profiler:
             data=report_data or None,
             entry_points=entry_points,
         )
-        return report
