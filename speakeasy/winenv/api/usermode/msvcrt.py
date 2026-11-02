@@ -5042,31 +5042,6 @@ class Msvcrt(api.ApiHandler):
         cs1, cs2 = cs1.lower(), cs2.lower()
         return (cs1 > cs2) - (cs1 < cs2)
 
-    @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
-    def _wcsicmp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _wcsicmp(
-            const wchar_t *string1,
-            const wchar_t *string2
-        );
-        """
-        string1, string2 = argv
-        rv = 1
-
-        if not string1 or not string2:
-            return rv
-
-        cs1 = self.read_wide_string(string1)
-        cs2 = self.read_wide_string(string2)
-
-        ctx.args[0].display = cs1
-        ctx.args[1].display = cs2
-
-        if cs1.lower() == cs2.lower():
-            rv = 0
-
-        return rv
-
     @apihook("??3@YAXPAX@Z", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __3_YAXPAX_Z(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -6448,7 +6423,7 @@ class Msvcrt(api.ApiHandler):
         cs1, cs2 = cs1.lower(), cs2.lower()
         return (cs1 > cs2) - (cs1 < cs2)
 
-    @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)  # type: ignore[no-redef]
+    @apihook("_wcsicmp", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _wcsicmp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _wcsicmp(
