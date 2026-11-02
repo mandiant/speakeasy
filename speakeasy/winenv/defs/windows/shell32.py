@@ -1,4 +1,5 @@
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 
@@ -146,20 +147,18 @@ KNOWN_FOLDERS_X64 = {
 
 
 class SHELLEXECUTEINFOA(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.cbSize = ct.c_uint32
-        self.fMask = ct.c_uint32
-        self.hwnd = Ptr
-        self.lpVerb = Ptr
-        self.lpFile = Ptr
-        self.lpParameters = Ptr
-        self.lpDirectory = Ptr
-        self.nShow = ct.c_int32
-        self.hInstApp = Ptr
-        self.lpIDList = Ptr
-        self.lpClass = Ptr
-        self.hkeyClass = Ptr
-        self.dwHotKey = ct.c_uint32
-        self.DummyUnionName = Ptr
-        self.handle = Ptr
+    cbSize: Annotated[int, ct.c_uint32]
+    fMask: Annotated[int, ct.c_uint32]
+    hwnd: Annotated[int, Ptr]
+    lpVerb: Annotated[int, Ptr]
+    lpFile: Annotated[int, Ptr]
+    lpParameters: Annotated[int, Ptr]
+    lpDirectory: Annotated[int, Ptr]
+    nShow: Annotated[int, ct.c_int32]
+    hInstApp: Annotated[int, Ptr]
+    lpIDList: Annotated[int, Ptr]
+    lpClass: Annotated[int, Ptr]
+    hkeyClass: Annotated[int, Ptr]
+    dwHotKey: Annotated[int, ct.c_uint32]
+    DummyUnionName: Annotated[int, Ptr]
+    handle: Annotated[int, Ptr]
