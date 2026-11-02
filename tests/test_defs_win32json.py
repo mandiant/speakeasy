@@ -19,7 +19,16 @@ OVERRIDES = REPO_ROOT / "scripts" / "win32_overrides.json"
 WIN32JSON = REPO_ROOT / "deps" / "win32json"
 
 # Flag sets that the SDK keeps as loose constants, with no enum type in win32json
-NOT_IN_WIN32JSON = {"DRIVE_TYPE", "HKEY", "INTERNET_FLAGS", "LCID", "LCTYPE"}
+NOT_IN_WIN32JSON = {
+    "DRIVE_TYPE",
+    "HKEY",
+    "INTERNET_FLAGS",
+    "LCID",
+    "LCTYPE",
+    "SOCKET_OPTION",
+    "SOCKET_OPTION_LEVEL",
+    "SOCKET_TYPE",
+}
 
 
 @dataclass
