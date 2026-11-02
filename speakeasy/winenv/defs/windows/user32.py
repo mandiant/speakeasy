@@ -46,6 +46,22 @@ RIM_TYPEMOUSE = 0
 RIM_TYPEKEYBOARD = 1
 RIM_TYPEHID = 2
 
+DISPLAY_DEVICE_ATTACHED_TO_DESKTOP = 0x1
+DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4
+DISPLAY_DEVICE_ACTIVE = 0x1
+DISPLAY_DEVICE_ATTACHED = 0x2
+
+
+class DISPLAY_DEVICE(EmuStruct):
+    def __init__(self, ptr_size, width):
+        super().__init__(ptr_size)
+        self.cb = ct.c_uint32
+        self.DeviceName = ct.c_uint8 * (32 * width)
+        self.DeviceString = ct.c_uint8 * (128 * width)
+        self.StateFlags = ct.c_uint32
+        self.DeviceID = ct.c_uint8 * (128 * width)
+        self.DeviceKey = ct.c_uint8 * (128 * width)
+
 
 class MSG(EmuStruct):
     def __init__(self, ptr_size):
