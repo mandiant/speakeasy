@@ -331,7 +331,7 @@ class User32(api.ApiHandler):
             LPSECURITY_ATTRIBUTES lpsa
         );
         """
-        winsta, flags, access, sa = argv
+        lpwinsta, dwFlags, dwDesiredAccess, lpsa = argv
 
         return self.get_handle()
 
@@ -342,10 +342,10 @@ class User32(api.ApiHandler):
             HWINSTA hWinSta
         );
         """
-        (winsta,) = argv
+        (hWinSta,) = argv
 
         rv = False
-        if winsta:
+        if hWinSta:
             rv = True
 
         return rv
@@ -374,11 +374,11 @@ class User32(api.ApiHandler):
     def RegisterClassEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ATOM RegisterClassEx(
-            const WNDCLASSEX *unnamedParam1
+            const WNDCLASSEX *lpwcx
         );
         """
-        (Arg1,) = argv
-        return self.register_window_class(windefs.WNDCLASSEX(emu.get_ptr_size()), Arg1, ctx)
+        (lpwcx,) = argv
+        return self.register_window_class(windefs.WNDCLASSEX(emu.get_ptr_size()), lpwcx, ctx)
 
     @apihook("RegisterClass", argc=1)
     def RegisterClass(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -466,7 +466,7 @@ class User32(api.ApiHandler):
             DWORD dwFlag
         );
         """
-        msg, flag = argv
+        message, dwFlag = argv
         emu.enable_deferred_work_hook()
         return True
 
@@ -477,14 +477,14 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        (hnd,) = argv
-        window = self.sessman.get_window(hnd)
+        (hWnd,) = argv
+        window = self.sessman.get_window(hWnd)
         if not window:
             return False
 
         wc = self.sessman.get_window_class(window.class_name)
         if wc and wc.wclass.lpfnWndProc:
-            cb_args = (hnd, windefs.WM_PAINT, 0, 0)
+            cb_args = (hWnd, windefs.WM_PAINT, 0, 0)
             self.setup_callback(wc.wclass.lpfnWndProc, cb_args)
 
         return True
@@ -555,8 +555,10 @@ class User32(api.ApiHandler):
         );
         """
         cw = self.get_char_width(ctx)
-        ex_style, class_arg, name_arg, style, x, y, width, height, parent, menu, inst, param = argv
-        cn, wn = class_arg, name_arg
+        dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam = (
+            argv
+        )
+        cn, wn = lpClassName, lpWindowName
         if cn > 0xFFFF:
             cn = self.read_mem_string(cn, cw)
             ctx.args["lpClassName"].display = cn
@@ -569,14 +571,16 @@ class User32(api.ApiHandler):
             wn = None
         thread = emu.get_current_thread()
         proc = emu.get_current_process()
-        hnd = self.sessman.create_window(wn, cn, style, parent, thread.id if thread else 0, proc.pid if proc else 0)
+        hnd = self.sessman.create_window(
+            wn, cn, dwStyle, hWndParent, thread.id if thread else 0, proc.pid if proc else 0
+        )
         wc = self.sessman.get_window_class(cn) if cn else None
         if not wc or not wc.wclass.lpfnWndProc:
             return hnd
         cs = windefs.CREATESTRUCT(emu.get_ptr_size())
-        cs.lpCreateParams, cs.hInstance, cs.hMenu, cs.hwndParent = param, inst, menu, parent
-        cs.cy, cs.cx, cs.y, cs.x = height, width, y, x
-        cs.style, cs.lpszName, cs.lpszClass, cs.dwExStyle = style, name_arg, class_arg, ex_style
+        cs.lpCreateParams, cs.hInstance, cs.hMenu, cs.hwndParent = lpParam, hInstance, hMenu, hWndParent
+        cs.cy, cs.cx, cs.y, cs.x = nHeight, nWidth, Y, X
+        cs.style, cs.lpszName, cs.lpszClass, cs.dwExStyle = dwStyle, lpWindowName, lpClassName, dwExStyle
         return self.send_create_messages(emu, hnd, wc.wclass.lpfnWndProc, cs)
 
     def send_create_messages(self, emu, hnd, wndproc, cs):
@@ -653,7 +657,7 @@ class User32(api.ApiHandler):
         When cchBufferMax is 0, LoadStringW writes a pointer to the string resource,
         which has no terminator, into lpBuffer.
         """
-        hInstance, uID, lpBuffer, ccBufferMax = argv
+        hInstance, uID, lpBuffer, cchBufferMax = argv
         cw = self.get_char_width(ctx)
 
         if hInstance == 0:
@@ -671,14 +675,14 @@ class User32(api.ApiHandler):
             return 0
         address, s = found
 
-        if ccBufferMax == 0:
+        if cchBufferMax == 0:
             if cw != 2:
                 return 0
             self.mem_write(lpBuffer, address.to_bytes(emu.get_ptr_size(), "little"))
             ctx.args["lpBuffer"].display = s
             return len(s)
 
-        s = s[: ccBufferMax - 1]
+        s = s[: cchBufferMax - 1]
         self.write_mem_string(s, lpBuffer, cw)
         ctx.args["lpBuffer"].display = s
 
@@ -720,8 +724,8 @@ class User32(api.ApiHandler):
             int vKey
         );
         """
-        (vkey,) = argv
-        return self.get_synthetic_async_key_state(vkey)
+        (vKey,) = argv
+        return self.get_synthetic_async_key_state(vKey)
 
     @apihook("GetKeyboardType", argc=1)
     def GetKeyboardType(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -730,12 +734,12 @@ class User32(api.ApiHandler):
             int nTypeFlag
         );
         """
-        (_type,) = argv
-        if _type == 0:
+        (nTypeFlag,) = argv
+        if nTypeFlag == 0:
             return 4
-        if _type == 1:
+        if nTypeFlag == 1:
             return 0
-        if _type == 2:
+        if nTypeFlag == 2:
             return 12
         return 0
 
@@ -1071,7 +1075,7 @@ class User32(api.ApiHandler):
             LPCTSTR lpCursorName
         );
         """
-        _, lpCursorName = argv
+        hInstance, lpCursorName = argv
         self.read_res_identifier(emu, ctx, "lpCursorName", self.get_char_width(ctx), lpCursorName)
         return self.get_handle()
 
@@ -1103,7 +1107,7 @@ class User32(api.ApiHandler):
             LPCTSTR lpszWindow
         );
         """
-        _, _, lpszClass, lpszWindow = argv
+        hWndParent, hWndChildAfter, lpszClass, lpszWindow = argv
         cw = self.get_char_width(ctx)
         if lpszClass > 0xFFFF:
             ctx.args["lpszClass"].display = self.read_mem_string(lpszClass, cw)
@@ -1120,14 +1124,14 @@ class User32(api.ApiHandler):
             int nMaxCount
         );
         """
-        hnd, pstr, maxc = argv
+        hWnd, lpString, nMaxCount = argv
 
         cw = self.get_char_width(ctx)
         win_text = "speakeasy window"
-        if not pstr or not 0 < maxc <= 0x7FFFFFFF:
+        if not lpString or not 0 < nMaxCount <= 0x7FFFFFFF:
             return 0
-        win_text = win_text[: maxc - 1]
-        self.write_mem_string(win_text, pstr, cw)
+        win_text = win_text[: nMaxCount - 1]
+        self.write_mem_string(win_text, lpString, cw)
 
         return len(win_text)
 
@@ -1144,19 +1148,19 @@ class User32(api.ApiHandler):
     def wvsprintf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int wvsprintf(
-            LPTSTR unnamedParam1,
-            LPCTSTR unnamedParam2,
+            LPTSTR lpOutput,
+            LPCTSTR lpFmt,
             va_list arglist
         );
         """
-        buf, fmt, va_list = argv
+        lpOutput, lpFmt, arglist = argv
         cw = self.get_char_width(ctx)
-        fmt_str = self.read_mem_string(fmt, cw)
+        fmt_str = self.read_mem_string(lpFmt, cw)
         fmt_cnt = self.get_va_arg_count(fmt_str)
 
-        vargs = self.va_args(va_list, fmt_cnt)
+        vargs = self.va_args(arglist, fmt_cnt)
         fin = self.do_str_format(fmt_str, vargs, wide=cw == 2)
-        self.write_mem_string(fin, buf, cw)
+        self.write_mem_string(fin, lpOutput, cw)
         ctx.args.clear()
         ctx.args.append(fin)
         ctx.args.append(fmt_str)
@@ -1180,11 +1184,11 @@ class User32(api.ApiHandler):
             LPCTSTR lpsz
         );
         """
-        (s,) = argv
-        rv = s
+        (lpsz,) = argv
+        rv = lpsz
         cw = self.get_char_width(ctx)
-        if s and int.from_bytes(self.mem_read(s, cw), "little"):
-            rv = s + cw
+        if lpsz and int.from_bytes(self.mem_read(lpsz, cw), "little"):
+            rv = lpsz + cw
         return rv
 
     @apihook("CharPrev", argc=2)
@@ -1199,15 +1203,15 @@ class User32(api.ApiHandler):
         Got this from wine.          
         https://github.com/wine-mirror/wine/blob/a8c1d5c108fc57e4d78e9db126f395c89083a83d/dlls/kernelbase/string.c
         """
-        s, c = argv
+        lpszStart, lpszCurrent = argv
         cw = self.get_char_width(ctx)
-        while s < c:
-            n = s + cw
-            if n >= c:
+        while lpszStart < lpszCurrent:
+            n = lpszStart + cw
+            if n >= lpszCurrent:
                 break
-            s = n
+            lpszStart = n
 
-        return s
+        return lpszStart
 
     @apihook("EnumWindows", argc=2)
     def EnumWindows(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1242,10 +1246,10 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        (hnd,) = argv
-        window = self.sessman.get_window(hnd)
+        (hWnd,) = argv
+        window = self.sessman.get_window(hWnd)
         if not window:
-            if hnd != self.sessman.get_current_desktop().desktop_window.get_handle():
+            if hWnd != self.sessman.get_current_desktop().desktop_window.get_handle():
                 emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
             return 0
         if window.style & (WS_POPUP | WS_CHILD):
@@ -1274,9 +1278,9 @@ class User32(api.ApiHandler):
             HANDLE hData
         );
         """
-        hnd, lpString, hData = argv
+        hWnd, lpString, hData = argv
         key = self.get_prop_key(lpString, ctx)
-        window = self.get_prop_window(emu, hnd)
+        window = self.get_prop_window(emu, hWnd)
         if not window:
             return False
         window.props[key] = hData
@@ -1290,9 +1294,9 @@ class User32(api.ApiHandler):
             LPCTSTR lpString
         );
         """
-        hnd, lpString = argv
+        hWnd, lpString = argv
         key = self.get_prop_key(lpString, ctx)
-        window = self.get_prop_window(emu, hnd)
+        window = self.get_prop_window(emu, hWnd)
         if not window:
             return 0
         return window.props.get(key, 0)
@@ -1305,9 +1309,9 @@ class User32(api.ApiHandler):
             LPCTSTR lpString
         );
         """
-        hnd, lpString = argv
+        hWnd, lpString = argv
         key = self.get_prop_key(lpString, ctx)
-        window = self.get_prop_window(emu, hnd)
+        window = self.get_prop_window(emu, hWnd)
         if not window:
             return 0
         return window.props.pop(key, 0)
@@ -1320,16 +1324,16 @@ class User32(api.ApiHandler):
             LPDWORD lpdwProcessId
         );
         """
-        hnd, lpdwProcessId = argv
+        hWnd, lpdwProcessId = argv
         desktop_window = self.sessman.get_current_desktop().desktop_window
-        if hnd == desktop_window.get_handle():
+        if hWnd == desktop_window.get_handle():
             window = desktop_window
             if not window.thread_id:
                 csrss = next((p for p in emu.get_processes() if p.name.lower() == "csrss"), None)
                 window.process_id = csrss.pid if csrss else 0
                 window.thread_id = emu.handle_allocator.allocate_kernel_object_id()
         else:
-            window = self.sessman.get_window(hnd)
+            window = self.sessman.get_window(hWnd)
         if not window:
             emu.set_last_error(windows.ERROR_INVALID_WINDOW_HANDLE)
             return 0
@@ -1477,24 +1481,24 @@ class User32(api.ApiHandler):
         );
         """
         (
-            hnd,
-            template,
-            hnd_parent,
-            func,
-            param,
+            hInstance,
+            lpTemplate,
+            hWndParent,
+            lpDialogFunc,
+            dwInitParam,
         ) = argv
 
         hdlg = self.get_handle()
-        cb_args = (hdlg, windefs.WM_INITDIALOG, 0, param)
-        self.setup_callback(func, cb_args)
+        cb_args = (hdlg, windefs.WM_INITDIALOG, 0, dwInitParam)
+        self.setup_callback(lpDialogFunc, cb_args)
         return hdlg
 
     @apihook("GetMenuInfo", argc=2)
     def GetMenuInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetMenuInfo(
-            HMENU unnamedParam1,
-            LPMENUINFO unnamedParam2
+            HMENU hmenu,
+            LPMENUINFO lpcmi
         );
         """
         return 1
@@ -1515,7 +1519,7 @@ class User32(api.ApiHandler):
             LPCTSTR lpTableName
         );
         """
-        _, lpTableName = argv
+        hInstance, lpTableName = argv
         self.read_res_identifier(emu, ctx, "lpTableName", self.get_char_width(ctx), lpTableName)
         return self.get_handle()
 
@@ -1576,15 +1580,15 @@ class User32(api.ApiHandler):
             LPDWORD lpnLengthNeeded
         );
         """
-        obj, index, info, length, needed = argv
+        hObj, nIndex, pvInfo, nLength, lpnLengthNeeded = argv
 
-        if index == UOI_FLAGS:
+        if nIndex == UOI_FLAGS:
             uoi = windefs.USEROBJECTFLAGS(emu.get_ptr_size())
             uoi.fInherit = 1
             uoi.dwFlags = 1
 
-            if info:
-                self.mem_write(info, uoi.get_bytes())
+            if pvInfo:
+                self.mem_write(pvInfo, uoi.get_bytes())
 
         return True
 
@@ -1597,12 +1601,12 @@ class User32(api.ApiHandler):
         );
         """
         (
-            inst,
-            name,
+            hInstance,
+            lpIconName,
         ) = argv
-        self.read_res_identifier(emu, ctx, "lpIconName", self.get_char_width(ctx), name)
+        self.read_res_identifier(emu, ctx, "lpIconName", self.get_char_width(ctx), lpIconName)
 
-        if name not in (
+        if lpIconName not in (
             IDI_APPLICATION,
             IDI_ASTERISK,
             IDI_ERROR,
@@ -1773,7 +1777,7 @@ class User32(api.ApiHandler):
             HWND hWnd
         );
         """
-        (hnd,) = argv
+        (hWnd,) = argv
 
         return True
 
@@ -1785,7 +1789,7 @@ class User32(api.ApiHandler):
             BOOL bEnable
         );
         """
-        hnd, bEnable = argv
+        hWnd, bEnable = argv
 
         return False
 
@@ -1797,13 +1801,13 @@ class User32(api.ApiHandler):
             DWORD cchLength
         );
         """
-        _str, cchLength = argv
+        lpsz, cchLength = argv
         cw = self.get_char_width(ctx)
         if not cchLength:
             return 0
-        raw = self.mem_read(_str, cchLength * cw)
+        raw = self.mem_read(lpsz, cchLength * cw)
         ctx.args["lpsz"].display = raw.decode("utf-8" if cw == 1 else "utf-16le", "ignore").replace("\x00", "")
-        self.mem_write(_str, map_char_case(raw, cw, upper=False))
+        self.mem_write(lpsz, map_char_case(raw, cw, upper=False))
         return cchLength
 
     @apihook("CharUpperBuff", argc=2)
@@ -1814,13 +1818,13 @@ class User32(api.ApiHandler):
             DWORD cchLength
         );
         """
-        _str, cchLength = argv
+        lpsz, cchLength = argv
         cw = self.get_char_width(ctx)
         if not cchLength:
             return 0
-        raw = self.mem_read(_str, cchLength * cw)
+        raw = self.mem_read(lpsz, cchLength * cw)
         ctx.args["lpsz"].display = raw.decode("utf-8" if cw == 1 else "utf-16le", "ignore").replace("\x00", "")
-        self.mem_write(_str, map_char_case(raw, cw, upper=True))
+        self.mem_write(lpsz, map_char_case(raw, cw, upper=True))
         return cchLength
 
     @apihook("CharLower", argc=1)
@@ -1830,17 +1834,17 @@ class User32(api.ApiHandler):
             LPTSTR lpsz
         );
         """
-        (_str,) = argv
+        (lpsz,) = argv
         cw = self.get_char_width(ctx)
-        bits = _str.bit_length()
+        bits = lpsz.bit_length()
         if bits <= 16:
-            if cw == 1 and _str > 0xFF:
-                return _str
-            val = map_char_case(_str.to_bytes(cw, "little"), cw, upper=False)
+            if cw == 1 and lpsz > 0xFF:
+                return lpsz
+            val = map_char_case(lpsz.to_bytes(cw, "little"), cw, upper=False)
             return int.from_bytes(val, byteorder="little")
-        raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
-        self.mem_write(_str, map_char_case(raw, cw, upper=False))
-        return _str
+        raw = self.mem_read(lpsz, self.mem_string_len(lpsz, cw) * cw)
+        self.mem_write(lpsz, map_char_case(raw, cw, upper=False))
+        return lpsz
 
     @apihook("CharUpper", argc=1)
     def CharUpper(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1849,17 +1853,17 @@ class User32(api.ApiHandler):
             LPTSTR lpsz
         );
         """
-        (_str,) = argv
+        (lpsz,) = argv
         cw = self.get_char_width(ctx)
-        bits = _str.bit_length()
+        bits = lpsz.bit_length()
         if bits <= 16:
-            if cw == 1 and _str > 0xFF:
-                return _str
-            val = map_char_case(_str.to_bytes(cw, "little"), cw, upper=True)
+            if cw == 1 and lpsz > 0xFF:
+                return lpsz
+            val = map_char_case(lpsz.to_bytes(cw, "little"), cw, upper=True)
             return int.from_bytes(val, byteorder="little")
-        raw = self.mem_read(_str, self.mem_string_len(_str, cw) * cw)
-        self.mem_write(_str, map_char_case(raw, cw, upper=True))
-        return _str
+        raw = self.mem_read(lpsz, self.mem_string_len(lpsz, cw) * cw)
+        self.mem_write(lpsz, map_char_case(raw, cw, upper=True))
+        return lpsz
 
     @apihook("SetTimer", argc=4)
     def SetTimer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2143,18 +2147,18 @@ class User32(api.ApiHandler):
             LPSTR pDst
         );
         """
-        src, dst = argv
+        pSrc, pDst = argv
 
         # If destination buffer exists, copy source bytes into it.
-        if src and dst:
+        if pSrc and pDst:
             try:
-                data = emu.mem_read(src, self.mem_string_len(src, 1) + 1)
+                data = emu.mem_read(pSrc, self.mem_string_len(pSrc, 1) + 1)
                 try:
-                    emu.mem_write(dst, data)
+                    emu.mem_write(pDst, data)
                 except Exception:
-                    base_addr = dst & ~0xFFF
+                    base_addr = pDst & ~0xFFF
                     emu.mem_map(0x1000, base=base_addr)
-                    emu.mem_write(dst, data)
+                    emu.mem_write(pDst, data)
             except Exception:
                 pass
 
@@ -2169,14 +2173,14 @@ class User32(api.ApiHandler):
             LPCWSTR lpszCurrent
         );
         """
-        start, current = argv
+        lpszStart, lpszCurrent = argv
 
         # If current > start, return current - 2 (one WCHAR back)
         try:
-            if current and start and current > start:
-                return current - 2
+            if lpszCurrent and lpszStart and lpszCurrent > lpszStart:
+                return lpszCurrent - 2
         except Exception:
             pass
 
         # Otherwise return start
-        return start
+        return lpszStart
