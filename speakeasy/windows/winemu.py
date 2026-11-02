@@ -1181,6 +1181,11 @@ class WindowsEmulator(BinaryEmulator):
             self._native_exit = None
         return address
 
+    def _take_pending_fault_stop(self) -> StopReason | None:
+        """Get the fault stop that a hook set during the last run, and clear it."""
+        stop, self._pending_fault_stop = self._pending_fault_stop, None
+        return stop
+
     def _cancel_execution_runs(self, prepared=None):
         """Cancel unexecuted work without leaving DLL attachments initializing."""
         canceled = [*self.run_queue, *self.suspended_runs]
@@ -1290,7 +1295,7 @@ class WindowsEmulator(BinaryEmulator):
                     if stop_reason is not None and stop_reason.kind == "step" and self.is_emu_complete:
                         # A step that ends emulation gets the final stop instead.
                         stop_reason = None
-                    fault_stop, self._pending_fault_stop = self._pending_fault_stop, None
+                    fault_stop = self._take_pending_fault_stop()
                     if fault_stop is not None:
                         stop_reason = fault_stop
                         terminal_signal = fault_stop.signal

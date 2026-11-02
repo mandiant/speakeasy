@@ -179,8 +179,8 @@ class WininetRequest(WininetComponent):
                 resp_files = res.files
                 if resp_files:
                     for file in resp_files:
-                        mode = file.mode or ""
-                        if mode.lower() == "by_ext":
+                        mode = file.mode
+                        if mode == "by_ext":
                             ext = getattr(file, "ext", "") or ""
                             fn, obj_ext = os.path.splitext(self.objname.path)
 
@@ -190,7 +190,7 @@ class WininetRequest(WininetComponent):
                                     path = normalize_response_path(path)
                                     with open(path, "rb") as f:
                                         self.response = BytesIO(f.read())
-                        elif mode.lower() == "default":
+                        elif mode == "default":
                             default_resp_path = getattr(file, "path", None)
                             if default_resp_path:
                                 default_resp_path = normalize_response_path(default_resp_path)

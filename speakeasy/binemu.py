@@ -149,7 +149,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """Get the human readable OS version string."""
         osver = self.config.os_ver
         if osver:
-            os_name = osver.name or ""
+            os_name = osver.name
             major = osver.major
             minor = osver.minor
             if major is not None and minor is not None:
@@ -930,7 +930,7 @@ class BinaryEmulator(MemoryManager, ABC):
         if size > max_hook_size:
             size = max_hook_size
 
-        hook_ref = [None]
+        hook_ref: list[common.CodeHook | None] = [None]
 
         def _dynamic_code_cb(emu, addr, size):
             self._fire_dyn_code_hooks(addr)
