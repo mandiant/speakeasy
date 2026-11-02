@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from speakeasy.report import ErrorType
 from speakeasy.windows.cpu_exceptions import CpuException
 from speakeasy.winenv.defs.nt import ddk
 
@@ -73,4 +74,4 @@ class HardwareBreakpoints:
             return
         thread.debug_registers["Dr6"] |= 1 << index
         exception = CpuException(ddk.STATUS_SINGLE_STEP, address, address)
-        self.emu.raise_cpu_exception(exception, "hardware_breakpoint")
+        self.emu.raise_cpu_exception(exception, ErrorType.HARDWARE_BREAKPOINT)

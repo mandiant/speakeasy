@@ -907,8 +907,9 @@ class Speakeasy:
         return self.emu.ptr_size
 
     def get_all_registers(self) -> dict[str, str]:
-        """Get the state of all registers as a dict."""
-        return self.emu.get_register_state()
+        """Get the state of all registers as a dict of zero-padded hex strings."""
+        width = 2 + self.get_ptr_size() * 2
+        return {name: f"{value:#0{width}x}" for name, value in self.emu.get_register_state().items()}
 
     def get_symbol_from_address(self, address: int) -> str | None:
         """

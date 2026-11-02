@@ -34,6 +34,7 @@ from typing import Any
 import unicorn as uc
 
 from speakeasy.profiler import GuestCallbackFrame
+from speakeasy.report import ErrorType
 from speakeasy.windows import thread_context
 from speakeasy.winenv.arch import CALL_CONV_STDCALL
 
@@ -59,9 +60,11 @@ GeneratorHandler = Generator[GuestCall, int, "int | Resume | None"]
 class CallbackError(Exception):
     """A generator handler failure: the run ends with an error of type kind at address."""
 
-    def __init__(self, kind: str, address: int, access_type: str | None = None, pc: int | None = None, **details: Any):
-        super().__init__(f"{kind} at 0x{address:x}")
-        self.kind: str = kind
+    def __init__(
+        self, kind: ErrorType, address: int, access_type: str | None = None, pc: int | None = None, **details: Any
+    ):
+        super().__init__(f"{kind.value} at 0x{address:x}")
+        self.kind: ErrorType = kind
         self.address: int = address
         self.access_type: str | None = access_type
         self.pc: int | None = pc  # where the error happened, when that is not the current pc
@@ -88,7 +91,7 @@ def get_first_unmapped(emu, address: int, size: int) -> int:
     return address
 
 
-def get_handler_fault(emu, error: Exception, pc: int) -> tuple[str, int, str | None, str | None]:
+def get_handler_fault(emu, error: Exception, pc: int) -> tuple[ErrorType, int, str | None, str | None]:
     """
     Get the error type, address, access type and message for an exception raised by an API handler.
 
@@ -98,11 +101,11 @@ def get_handler_fault(emu, error: Exception, pc: int) -> tuple[str, int, str | N
     """
     access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
     if access is None or not error.args:
-        return "internal_error", pc, None, str(error) or type(error).__name__
+        return ErrorType.INTERNAL_ERROR, pc, None, str(error) or type(error).__name__
     address = error.args[0]
     if len(error.args) > 1:
         address = get_first_unmapped(emu, address, error.args[1])
-    return f"invalid_{access}", address, access, None
+    return ErrorType(f"invalid_{access}"), address, access, None
 
 
 @dataclass

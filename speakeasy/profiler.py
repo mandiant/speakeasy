@@ -645,20 +645,20 @@ class Profiler:
         exception_code,
         handler_address,
         registers,
-        faulting_address=None,
+        address=None,
         pc_module=None,
-        stack_trace=None,
+        stack=None,
     ):
         """Log a handled exception event."""
         event = ExceptionEvent(
             pos=pos,
             instr=instr,
-            exception_code=hex(exception_code),
-            handler_address=hex(handler_address),
+            exception_code=exception_code,
+            handler_address=handler_address,
             registers=registers,
-            faulting_address=faulting_address,
+            address=address,
             pc_module=pc_module,
-            stack_trace=stack_trace,
+            stack=stack,
         )
         run.events.append(event)
 

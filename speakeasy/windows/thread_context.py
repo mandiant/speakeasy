@@ -112,15 +112,13 @@ def set_control(ctx, ip: int, sp: int) -> None:
         ctx.Eip, ctx.Esp = ip, sp
 
 
-def register_state(ctx) -> dict[str, str]:
-    """The general purpose registers of ctx, formatted like the emulator's register state."""
+def register_state(ctx) -> dict[str, int]:
+    """The general purpose registers of ctx, named like the emulator's register state."""
     if is_amd64(ctx):
         names = ("Rsp", "Rbp", "Rip", "Rsi", "Rdi", "Rax", "Rbx", "Rcx", "Rdx") + tuple(f"R{i}" for i in range(8, 16))
-        width = 18
     else:
         names = ("Esp", "Ebp", "Eip", "Esi", "Edi", "Eax", "Ebx", "Ecx", "Edx")
-        width = 10
-    return {name.lower(): f"{getattr(ctx, name):#0{width}x}" for name in names}
+    return {name.lower(): getattr(ctx, name) for name in names}
 
 
 def copy_sections(source, target, flags: int) -> None:

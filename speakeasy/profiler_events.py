@@ -826,12 +826,14 @@ class ExceptionEvent(Event):
         default=EventType.EXCEPTION, description="Discriminator for exception events."
     )
     instr: str = Field(description="Instruction text associated with the exception.")
-    exception_code: str = Field(description="Exception code in hexadecimal string form.")
-    handler_address: str = Field(description="Address of the selected exception handler.")
-    registers: dict[str, str] = Field(description="Register snapshot captured at exception time.")
-    faulting_address: str | None = Field(default=None, description="Address that caused the fault, if applicable.")
+    exception_code: HexInt = Field(description="Exception code, such as ``0xc0000005``.")
+    handler_address: HexInt = Field(description="Address of the selected exception handler.")
+    registers: dict[str, HexInt] = Field(description="Register snapshot captured at exception time.")
+    address: HexIntOptional = Field(
+        default=None, description="Memory address that caused an access violation or a guard page violation."
+    )
     pc_module: str | None = Field(default=None, description="Module name + offset containing the faulting PC.")
-    stack_trace: list[str] | None = Field(default=None, description="Stack trace at exception time.")
+    stack: list[str] | None = Field(default=None, description="Stack entries at exception time.")
 
 
 AnyEvent = Annotated[

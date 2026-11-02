@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -80,6 +81,34 @@ class RegionInfo(BaseModel):
     perms: str | None = Field(default=None, description="Permission string (e.g. ``r-x``).")
 
 
+class ErrorType(str, Enum):
+    """Reason why a run or the emulation ended with an error."""
+
+    TIMEOUT = "timeout"
+    MAX_TOTAL_TIME = "max_total_time"
+    MAX_INSTRUCTIONS = "max_instructions"
+    MAX_API_COUNT = "max_api_count"
+    UNSUPPORTED_API = "unsupported_api"
+    INTERNAL_ERROR = "internal_error"
+    ENGINE_STOPPED = "engine_stopped"
+    INVALID_IMAGE = "invalid_image"
+    DLL_INITIALIZATION_FAILED = "dll_initialization_failed"
+    API_HANDLER_DID_NOT_RETURN = "api_handler_did_not_return"
+    INVALID_READ = "invalid_read"
+    INVALID_WRITE = "invalid_write"
+    INVALID_FETCH = "invalid_fetch"
+    INVALID_PROTECT_READ = "invalid_protect_read"
+    INVALID_PROTECT_WRITE = "invalid_protect_write"
+    INVALID_PROTECT_FETCH = "invalid_protect_fetch"
+    GUARD_PAGE_VIOLATION = "guard_page_violation"
+    PRIVILEGED_INSTRUCTION = "privileged_instruction"
+    INVALID_INSTRUCTION = "invalid_instruction"
+    UNHANDLED_INTERRUPT = "unhandled_interrupt"
+    UNHANDLED_EXCEPTION = "unhandled_exception"
+    HARDWARE_BREAKPOINT = "hardware_breakpoint"
+    BUG_CHECK = "bug_check"
+
+
 class ErrorInfo(BaseModel):
     """
     Captures failure context for top-level or per-entry-point errors.
@@ -92,7 +121,7 @@ class ErrorInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: str = Field(
+    type: ErrorType = Field(
         description=(
             "Error category identifier describing the failure mode.\n\n"
             "Examples include unsupported API paths, max API limits, and fault "
@@ -123,13 +152,13 @@ class ErrorInfo(BaseModel):
         default=None,
         description="Memory access type that faulted: read, write, or fetch.",
     )
-    regs: dict[str, str] | None = Field(
+    registers: dict[str, HexInt] | None = Field(
         default=None,
         description="Register state snapshot at the time of the error.",
     )
     stack: list[str] | None = Field(
         default=None,
-        description="Stack trace entries captured at the time of the error.",
+        description="Stack entries captured at the time of the error.",
     )
     pc_module: str | None = Field(
         default=None,
@@ -143,8 +172,8 @@ class ErrorInfo(BaseModel):
         default=None,
         description="Up to 2 nearest memory regions when the faulting address is unmapped.",
     )
-    thread_id: int | None = Field(default=None, description="Thread ID at the time of the error.")
-    process_id: int | None = Field(default=None, description="Process ID at the time of the error.")
+    tid: int | None = Field(default=None, description="Thread ID at the time of the error.")
+    pid: int | None = Field(default=None, description="Process ID at the time of the error.")
     context_summary: str | None = Field(
         default=None,
         description="Human-readable one-line triage summary of the error.",
