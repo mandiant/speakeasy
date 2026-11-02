@@ -6,16 +6,6 @@ from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parent.parent / "speakeasy"
 
-# Names with more than one definition today. Remove a name when its copies become one.
-ALLOWED = {
-    "DISASM_SIZE",
-    "MAX_EXPORTS_TO_EMULATE",
-    "PAGE_SIZE",
-    "SIGSEGV",
-    "X86_REG_CS",
-    "X86_REG_DS",
-}
-
 
 def is_int_expression(node: ast.expr) -> bool:
     if isinstance(node, ast.Constant):
@@ -40,6 +30,4 @@ def get_duplicate_constants(package: Path) -> dict[str, list[str]]:
 
 
 def test_constants_have_one_definition() -> None:
-    duplicates = get_duplicate_constants(PACKAGE)
-    assert {name: duplicates[name] for name in duplicates.keys() - ALLOWED} == {}
-    assert ALLOWED - duplicates.keys() == set()
+    assert get_duplicate_constants(PACKAGE) == {}

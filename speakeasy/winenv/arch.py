@@ -8,8 +8,9 @@ BITS_64 = 64
 
 LSTAR = 0xC0000082
 
-X86_REG_CS = 1001
-X86_REG_DS = 1002
+# The number of bytes to read to disassemble one instruction. It is larger than the longest instruction.
+DISASM_SIZE = 0x20
+
 X86_REG_EAX = 1003
 X86_REG_EBP = 1004
 X86_REG_EBX = 1005

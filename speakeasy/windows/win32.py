@@ -27,12 +27,10 @@ from speakeasy.windows.loaders import (
     get_prot_string,
 )
 from speakeasy.windows.sessman import SessionManager
-from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 
 logger = logging.getLogger(__name__)
-
-MAX_EXPORTS_TO_EMULATE = 10
 
 # An MSVC-decorated non-static member function: after the qualified name, an
 # access code, the this-pointer qualifiers and the calling convention E

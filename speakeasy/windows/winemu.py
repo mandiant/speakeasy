@@ -66,13 +66,11 @@ from speakeasy.winenv.defs.nt import ddk
 if TYPE_CHECKING:
     from speakeasy.speakeasy import Speakeasy
 
-# When disassembling, a minimum instruction size needs to be supplied
-# This number is arbitrary and just needs to be large enough to cover
-# the size of the current disasm target
-DISASM_SIZE = 0x20
+# The number of exports of a DLL that the emulator runs when it emulates all exports
+MAX_EXPORTS_TO_EMULATE = 10
 
 # GDB signal number reported for memory faults
-SIGSEGV = 11
+GDB_SIGSEGV = 11
 
 # Upper bound on the static TLS data copied for each thread
 TLS_TEMPLATE_MAX = 0x1000000
@@ -488,7 +486,7 @@ class WindowsEmulator(BinaryEmulator):
             # also if Unicorn raises an error after emu_stop. Otherwise the fault can change the next run.
             self._record_exit(FaultReturn())
             return
-        self._pending_fault_stop = StopReason(signal=SIGSEGV, kind="exception", address=pc)
+        self._pending_fault_stop = StopReason(signal=GDB_SIGSEGV, kind="exception", address=pc)
         self.emu_eng.stop()
 
     def enable_deferred_work_hook(self):
@@ -1337,7 +1335,7 @@ class WindowsEmulator(BinaryEmulator):
                 stack_trace = traceback.format_exc()
 
                 try:
-                    mnem, op, instr = self.get_disasm(self.get_pc(), DISASM_SIZE)
+                    mnem, op, instr = self.get_disasm(self.get_pc(), _arch.DISASM_SIZE)
                 except Exception as dis_err:
                     logger.error(str(dis_err))
 
@@ -1348,7 +1346,7 @@ class WindowsEmulator(BinaryEmulator):
                         "internal_error", self.get_pc(), traceback=stack_trace, message=str(e) or type(e).__name__
                     )
                 self._set_run_error(error)
-                terminal_signal = SIGSEGV
+                terminal_signal = GDB_SIGSEGV
 
                 if debugger is not None:
                     # Ensure a pending Ctrl-C cannot be lost, then report the
@@ -2445,7 +2443,7 @@ class WindowsEmulator(BinaryEmulator):
             instr = f"api_trap {api_name}"
         else:
             try:
-                mnem, op, instr = self.get_disasm(pc, DISASM_SIZE)
+                mnem, op, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
             except Exception as e:
                 logger.error(str(e))
                 instr = "disasm_failed"
@@ -3539,7 +3537,7 @@ class WindowsEmulator(BinaryEmulator):
     def record_exception(self, code, address, handler, registers, faulting_address=None):
         """Log an exception at address that is offered to a guest handler, and record it in the report."""
         try:
-            _, _, instr = self.get_disasm(address, DISASM_SIZE)
+            _, _, instr = self.get_disasm(address, _arch.DISASM_SIZE)
         except Exception as e:
             logger.error(str(e))
             instr = "disasm_failed"

@@ -12,14 +12,12 @@ from speakeasy.profiler import Run
 from speakeasy.windows import objman
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import PeLoader
-from speakeasy.windows.winemu import WindowsEmulator
+from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 
 EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
 EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1
-
-MAX_EXPORTS_TO_EMULATE = 10
 
 
 class WinKernelEmulator(WindowsEmulator, IoManager):

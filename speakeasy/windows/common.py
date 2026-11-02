@@ -32,8 +32,6 @@ GDT_FLAGS.Ring0 = 0
 
 DEFAULT_LOAD_ADDR = 0x40000
 
-PAGE_SIZE = 0x1000
-
 # The machine setup allocates memory from this base, so that the input image can use its preferred base.
 # On x86, the container image must fit between this base and TEB_ADDRESS.
 MACHINE_BASE = 0x7D000000
