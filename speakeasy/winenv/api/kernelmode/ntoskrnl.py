@@ -2445,6 +2445,41 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(frag_workspace, 0x1000.to_bytes(4, "little"))
         return ddk.STATUS_SUCCESS
 
+    @apihook("RtlCompressBuffer", argc=8)
+    def RtlCompressBuffer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlCompressBuffer(
+            USHORT CompressionFormatAndEngine,
+            PUCHAR UncompressedBuffer,
+            ULONG UncompressedBufferSize,
+            PUCHAR CompressedBuffer,
+            ULONG CompressedBufferSize,
+            ULONG UncompressedChunkSize,
+            PULONG FinalCompressedSize,
+            PVOID WorkSpace
+        );
+
+        The output is valid LZNT1, but its bytes can differ from the output of Windows.
+        """
+        fmt, uncomp_buf, uncomp_buf_size, comp_buf, comp_buf_size, chunk_size, final_size, workspace = argv
+
+        algorithm = fmt & 0xFF
+        if algorithm in (ddk.COMPRESSION_FORMAT_NONE, ddk.COMPRESSION_FORMAT_DEFAULT):
+            return ddk.STATUS_INVALID_PARAMETER
+        if algorithm != ddk.COMPRESSION_FORMAT_LZNT1:
+            return ddk.STATUS_UNSUPPORTED_COMPRESSION
+        if fmt & 0xFF00 not in (ddk.COMPRESSION_ENGINE_STANDARD, ddk.COMPRESSION_ENGINE_MAXIMUM):
+            return ddk.STATUS_NOT_SUPPORTED
+
+        data = self.mem_read(uncomp_buf, uncomp_buf_size & 0xFFFFFFFF)
+        comp = lznt1.compress(data)
+        if len(comp) > comp_buf_size & 0xFFFFFFFF:
+            return ddk.STATUS_BUFFER_TOO_SMALL
+
+        self.mem_write(comp_buf, comp)
+        self.mem_write(final_size, len(comp).to_bytes(4, "little"))
+        return ddk.STATUS_SUCCESS
+
     @apihook("RtlDecompressBuffer", argc=6)
     def RtlDecompressBuffer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
