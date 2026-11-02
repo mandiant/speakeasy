@@ -277,7 +277,7 @@ class Wdfldr(api.ApiHandler):
 
             driver = self.wdf_drivers.get(DriverGlobals)
             if driver:
-                dev.device_object.DriverObject = driver.driver_object_addr  # type: ignore[assignment]
+                dev.device_object.DriverObject = driver.driver_object_addr
                 self.mem_write(dev.device_object_addr, dev.device_object.get_bytes())
 
         return rv

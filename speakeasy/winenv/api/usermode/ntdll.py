@@ -590,8 +590,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         data = (path + "\x00").encode("utf-16le")
 
         us = ntos.UNICODE_STRING(emu.get_ptr_size())
-        us.Length = len(data) - 2  # type: ignore[assignment]
-        us.MaximumLength = len(data)  # type: ignore[assignment]
+        us.Length = len(data) - 2
+        us.MaximumLength = len(data)
         us.Buffer = self.mem_alloc(len(data), tag="api.RtlFormatCurrentUserKeyPath")
         self.mem_write(us.Buffer, data)
         self.mem_write(CurrentUserKeyPath, self.get_bytes(us))

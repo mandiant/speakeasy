@@ -1,183 +1,156 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from __future__ import annotations
+
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, EmuUnion, Ptr
 from speakeasy.winenv.defs import *  # noqa
 
 
 class KSYSTEM_TIME(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.LowPart = ct.c_uint32
-        self.High1Time = ct.c_uint32
-        self.High2Time = ct.c_uint32
+    LowPart: Annotated[int, ct.c_uint32]
+    High1Time: Annotated[int, ct.c_uint32]
+    High2Time: Annotated[int, ct.c_uint32]
 
 
 class TIME_FIELDS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Year = ct.c_uint16
-        self.Month = ct.c_uint16
-        self.Day = ct.c_uint16
-        self.Hour = ct.c_uint16
-        self.Minute = ct.c_uint16
-        self.Second = ct.c_uint16
-        self.Milliseconds = ct.c_uint16
-        self.Weekday = ct.c_uint16
+    Year: Annotated[int, ct.c_uint16]
+    Month: Annotated[int, ct.c_uint16]
+    Day: Annotated[int, ct.c_uint16]
+    Hour: Annotated[int, ct.c_uint16]
+    Minute: Annotated[int, ct.c_uint16]
+    Second: Annotated[int, ct.c_uint16]
+    Milliseconds: Annotated[int, ct.c_uint16]
+    Weekday: Annotated[int, ct.c_uint16]
 
 
 class SSDT(EmuStruct):  # KeServiceDescriptorTable
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.pServiceTable = Ptr
-        self.pCounterTable = Ptr
-        self.NumberOfServices = ct.c_uint32
-        self.pArgumentTable = Ptr
+    pServiceTable: Annotated[int, Ptr]
+    pCounterTable: Annotated[int, Ptr]
+    NumberOfServices: Annotated[int, ct.c_uint32]
+    pArgumentTable: Annotated[int, Ptr]
 
 
 class UNICODE_STRING(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Length = ct.c_uint16
-        self.MaximumLength = ct.c_uint16
-        self.Buffer = Ptr
+    Length: Annotated[int, ct.c_uint16]
+    MaximumLength: Annotated[int, ct.c_uint16]
+    Buffer: Annotated[int, Ptr]
 
 
 class DeviceIoControl(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.OutputBufferLength = ct.c_uint32
-        # ULONG POINTER_ALIGNMENT, so each takes a pointer-sized slot
-        self.InputBufferLength = Ptr
-        self.IoControlCode = Ptr
-        self.Type3InputBuffer = Ptr
+    OutputBufferLength: Annotated[int, ct.c_uint32]
+    # ULONG POINTER_ALIGNMENT, so each takes a pointer-sized slot
+    InputBufferLength: Annotated[int, Ptr]
+    IoControlCode: Annotated[int, Ptr]
+    Type3InputBuffer: Annotated[int, Ptr]
 
 
 class IO_PARAMETERS_OTHERS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Argument1 = Ptr
-        self.Argument2 = Ptr
-        self.Argument3 = Ptr
-        self.Argument4 = Ptr
+    Argument1: Annotated[int, Ptr]
+    Argument2: Annotated[int, Ptr]
+    Argument3: Annotated[int, Ptr]
+    Argument4: Annotated[int, Ptr]
 
 
 class STRING(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Length = ct.c_uint16
-        self.MaximumLength = ct.c_uint16
-        self.Buffer = Ptr
+    Length: Annotated[int, ct.c_uint16]
+    MaximumLength: Annotated[int, ct.c_uint16]
+    Buffer: Annotated[int, Ptr]
 
 
 class SYSTEM_MODULE(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Reserved = Ptr * 2
-        self.Base = Ptr
-        self.Size = ct.c_uint32
-        self.Flags = ct.c_uint32
-        self.Index = ct.c_uint16
-        self.Unknown = ct.c_uint16
-        self.LoadCount = ct.c_uint16
-        self.ModuleNameOffset = ct.c_uint16
-        self.ImageName = ct.c_uint8 * 256
+    Reserved: Annotated[list[int], Ptr * 2]
+    Base: Annotated[int, Ptr]
+    Size: Annotated[int, ct.c_uint32]
+    Flags: Annotated[int, ct.c_uint32]
+    Index: Annotated[int, ct.c_uint16]
+    Unknown: Annotated[int, ct.c_uint16]
+    LoadCount: Annotated[int, ct.c_uint16]
+    ModuleNameOffset: Annotated[int, ct.c_uint16]
+    ImageName: Annotated[bytes, ct.c_uint8 * 256]
 
 
 class SYSTEM_TIMEOFDAY_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.BootTime = ct.c_uint64
-        self.CurrentTime = ct.c_uint64
-        self.TimeZoneBias = ct.c_uint64
-        self.TimeZoneId = ct.c_uint32
-        self.Reserved = ct.c_uint32
-        self.BootTimeBias = ct.c_uint64
-        self.SleepTimeBias = ct.c_uint64
+    BootTime: Annotated[int, ct.c_uint64]
+    CurrentTime: Annotated[int, ct.c_uint64]
+    TimeZoneBias: Annotated[int, ct.c_uint64]
+    TimeZoneId: Annotated[int, ct.c_uint32]
+    Reserved: Annotated[int, ct.c_uint32]
+    BootTimeBias: Annotated[int, ct.c_uint64]
+    SleepTimeBias: Annotated[int, ct.c_uint64]
 
 
 class SYSTEM_PROCESS_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.NextEntryOffset = ct.c_uint32
-        self.NumberOfThreads = ct.c_uint32
-        self.Reserved1 = ct.c_uint8 * 48
-        self.ImageName = UNICODE_STRING
-        self.BasePriority = ct.c_uint32
-        self.UniqueProcessId = Ptr
-        self.InheritedFromUniqueProcessId = Ptr
-        self.HandleCount = ct.c_uint32
-        self.SessionId = ct.c_uint32
-        self.UniqueProcessKey = Ptr
-        self.PeakVirtualSize = Ptr
-        self.VirtualSize = Ptr
-        self.PageFaultCount = ct.c_uint32
+    NextEntryOffset: Annotated[int, ct.c_uint32]
+    NumberOfThreads: Annotated[int, ct.c_uint32]
+    Reserved1: Annotated[bytes, ct.c_uint8 * 48]
+    ImageName: UNICODE_STRING
+    BasePriority: Annotated[int, ct.c_uint32]
+    UniqueProcessId: Annotated[int, Ptr]
+    InheritedFromUniqueProcessId: Annotated[int, Ptr]
+    HandleCount: Annotated[int, ct.c_uint32]
+    SessionId: Annotated[int, ct.c_uint32]
+    UniqueProcessKey: Annotated[int, Ptr]
+    PeakVirtualSize: Annotated[int, Ptr]
+    VirtualSize: Annotated[int, Ptr]
+    PageFaultCount: Annotated[int, ct.c_uint32]
 
-        self.PeakWorkingSetSize = Ptr
-        self.WorkingSetSize = Ptr
-        self.QuotaPeakPagedPoolUsage = Ptr
-        self.QuotaPagedPoolUsage = Ptr
-        self.QuotaPeakNonPagedPoolUsage = Ptr
-        self.QuotaNonPagedPoolUsage = Ptr
-        self.PagefileUsage = Ptr
+    PeakWorkingSetSize: Annotated[int, Ptr]
+    WorkingSetSize: Annotated[int, Ptr]
+    QuotaPeakPagedPoolUsage: Annotated[int, Ptr]
+    QuotaPagedPoolUsage: Annotated[int, Ptr]
+    QuotaPeakNonPagedPoolUsage: Annotated[int, Ptr]
+    QuotaNonPagedPoolUsage: Annotated[int, Ptr]
+    PagefileUsage: Annotated[int, Ptr]
 
-        self.PeakPagefileUsage = Ptr
-        self.PrivatePageCount = Ptr
-        self.Reserved7 = LARGE_INTEGER * 6
+    PeakPagefileUsage: Annotated[int, Ptr]
+    PrivatePageCount: Annotated[int, Ptr]
+    Reserved7: Annotated[list[LARGE_INTEGER], LARGE_INTEGER * 6]
 
 
 class SYSTEM_THREAD_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Reserved1 = LARGE_INTEGER * 3
-        self.Reserved2 = ct.c_uint32
-        self.StartAddress = Ptr
-        self.ClientId = CLIENT_ID
-        self.Priority = ct.c_uint32
-        self.BasePriority = ct.c_uint32
-        self.ContextSwitches = ct.c_uint32
-        self.ThreadState = ct.c_uint32
-        self.WaitReason = ct.c_uint32
+    Reserved1: Annotated[list[LARGE_INTEGER], LARGE_INTEGER * 3]
+    Reserved2: Annotated[int, ct.c_uint32]
+    StartAddress: Annotated[int, Ptr]
+    ClientId: CLIENT_ID
+    Priority: Annotated[int, ct.c_uint32]
+    BasePriority: Annotated[int, ct.c_uint32]
+    ContextSwitches: Annotated[int, ct.c_uint32]
+    ThreadState: Annotated[int, ct.c_uint32]
+    WaitReason: Annotated[int, ct.c_uint32]
 
 
 class CLIENT_ID(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.UniqueProcess = Ptr
-        self.UniqueThread = Ptr
+    UniqueProcess: Annotated[int, Ptr]
+    UniqueThread: Annotated[int, Ptr]
 
 
 class MDL(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Next = Ptr
-        self.Size = ct.c_uint16
-        self.MdlFlags = ct.c_uint16
-        self.Process = Ptr
-        self.MappedSystemVa = Ptr
-        self.StartVa = Ptr
-        self.ByteCount = ct.c_uint32
-        self.ByteOffset = ct.c_uint32
+    Next: Annotated[int, Ptr]
+    Size: Annotated[int, ct.c_uint16]
+    MdlFlags: Annotated[int, ct.c_uint16]
+    Process: Annotated[int, Ptr]
+    MappedSystemVa: Annotated[int, Ptr]
+    StartVa: Annotated[int, Ptr]
+    ByteCount: Annotated[int, ct.c_uint32]
+    ByteOffset: Annotated[int, ct.c_uint32]
 
 
 class KIDTENTRY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.OffsetLow = ct.c_uint16
-        self.Selector = ct.c_uint16
-        self.Base = ct.c_uint32
+    OffsetLow: Annotated[int, ct.c_uint16]
+    Selector: Annotated[int, ct.c_uint16]
+    Base: Annotated[int, ct.c_uint32]
 
 
 class KIDTENTRY64(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.OffsetLow = ct.c_uint16
-        self.Selector = ct.c_uint16
-        self.Reserved0 = ct.c_uint16
-        self.OffsetMiddle = ct.c_uint16
-        self.OffsetHigh = ct.c_uint32
-        self.Reserved1 = ct.c_uint32
+    OffsetLow: Annotated[int, ct.c_uint16]
+    Selector: Annotated[int, ct.c_uint16]
+    Reserved0: Annotated[int, ct.c_uint16]
+    OffsetMiddle: Annotated[int, ct.c_uint16]
+    OffsetHigh: Annotated[int, ct.c_uint32]
+    Reserved1: Annotated[int, ct.c_uint32]
 
 
 class ETHREAD(EmuStruct):
@@ -188,9 +161,7 @@ class ETHREAD(EmuStruct):
     objman.Thread fills the bytes with 0xFF.
     """
 
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Data = ct.c_uint8 * 4096
+    Data: Annotated[bytes, ct.c_uint8 * 4096]
 
 
 class EPROCESS(EmuStruct):
@@ -202,119 +173,97 @@ class EPROCESS(EmuStruct):
     in Windows XP, and 0x188 on x64, as in Windows 7.
     """
 
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Data = ct.c_uint8 * 4096
+    Data: Annotated[bytes, ct.c_uint8 * 4096]
 
 
 class DISPATCHER_HEADER(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint8
-        self.Signalling = ct.c_uint8
-        self.Size = ct.c_uint8
-        self.Reserved1 = ct.c_uint8
-        self.SignalState = ct.c_int32
-        self.WaitListHead = LIST_ENTRY
+    Type: Annotated[int, ct.c_uint8]
+    Signalling: Annotated[int, ct.c_uint8]
+    Size: Annotated[int, ct.c_uint8]
+    Reserved1: Annotated[int, ct.c_uint8]
+    SignalState: Annotated[int, ct.c_int32]
+    WaitListHead: LIST_ENTRY
 
 
 class KEVENT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Header = DISPATCHER_HEADER
+    Header: DISPATCHER_HEADER
 
 
 class KMUTANT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Header = DISPATCHER_HEADER
-        self.MutantListEntry = LIST_ENTRY
-        self.OwnerThread = Ptr
-        self.MutantFlags = ct.c_uint8
-        self.ApcDisable = ct.c_uint8
+    Header: DISPATCHER_HEADER
+    MutantListEntry: LIST_ENTRY
+    OwnerThread: Annotated[int, Ptr]
+    MutantFlags: Annotated[int, ct.c_uint8]
+    ApcDisable: Annotated[int, ct.c_uint8]
 
 
 class KSEMAPHORE(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Header = DISPATCHER_HEADER
-        self.Limit = ct.c_int32
+    Header: DISPATCHER_HEADER
+    Limit: Annotated[int, ct.c_int32]
 
 
 class RTL_OSVERSIONINFOW(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.dwOSVersionInfoSize = ct.c_uint32
-        self.dwMajorVersion = ct.c_uint32
-        self.dwMinorVersion = ct.c_uint32
-        self.dwBuildNumber = ct.c_uint32
-        self.dwPlatformId = ct.c_uint32
-        self.szCSDVersion = ct.c_uint8 * 256
+    dwOSVersionInfoSize: Annotated[int, ct.c_uint32]
+    dwMajorVersion: Annotated[int, ct.c_uint32]
+    dwMinorVersion: Annotated[int, ct.c_uint32]
+    dwBuildNumber: Annotated[int, ct.c_uint32]
+    dwPlatformId: Annotated[int, ct.c_uint32]
+    szCSDVersion: Annotated[bytes, ct.c_uint8 * 256]
 
 
 class RTL_OSVERSIONINFOEXW(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.dwOSVersionInfoSize = ct.c_uint32
-        self.dwMajorVersion = ct.c_uint32
-        self.dwMinorVersion = ct.c_uint32
-        self.dwBuildNumber = ct.c_uint32
-        self.dwPlatformId = ct.c_uint32
-        self.szCSDVersion = ct.c_uint8 * 256
-        self.wServicePackMajor = ct.c_uint16
-        self.wServicePackMinor = ct.c_uint16
-        self.wSuiteMask = ct.c_uint16
-        self.wProductType = ct.c_uint8
-        self.wReserved = ct.c_uint8
+    dwOSVersionInfoSize: Annotated[int, ct.c_uint32]
+    dwMajorVersion: Annotated[int, ct.c_uint32]
+    dwMinorVersion: Annotated[int, ct.c_uint32]
+    dwBuildNumber: Annotated[int, ct.c_uint32]
+    dwPlatformId: Annotated[int, ct.c_uint32]
+    szCSDVersion: Annotated[bytes, ct.c_uint8 * 256]
+    wServicePackMajor: Annotated[int, ct.c_uint16]
+    wServicePackMinor: Annotated[int, ct.c_uint16]
+    wSuiteMask: Annotated[int, ct.c_uint16]
+    wProductType: Annotated[int, ct.c_uint8]
+    wReserved: Annotated[int, ct.c_uint8]
 
 
 class IDT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Limit = ct.c_uint16
-        self.Descriptors = Ptr
+    Limit: Annotated[int, ct.c_uint16]
+    Descriptors: Annotated[int, Ptr]
 
 
 class KAPC(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint8
-        self.SpareByte0 = ct.c_uint8
-        self.Size = ct.c_uint8
-        self.SpareByte1 = ct.c_uint8
-        self.SpareLong0 = ct.c_uint32
-        self.Thread = Ptr
-        self.ApcListEntry = LIST_ENTRY
-        self.KernelRoutine = Ptr
-        self.RundownRoutine = Ptr
-        self.NormalRoutine = Ptr
-        self.NormalContext = Ptr
-        self.SystemArgument1 = Ptr
-        self.SystemArgument2 = Ptr
-        self.ApcStateIndex = ct.c_uint8
-        self.ApcMode = ct.c_uint8
-        self.Inserted = ct.c_uint8
+    Type: Annotated[int, ct.c_uint8]
+    SpareByte0: Annotated[int, ct.c_uint8]
+    Size: Annotated[int, ct.c_uint8]
+    SpareByte1: Annotated[int, ct.c_uint8]
+    SpareLong0: Annotated[int, ct.c_uint32]
+    Thread: Annotated[int, Ptr]
+    ApcListEntry: LIST_ENTRY
+    KernelRoutine: Annotated[int, Ptr]
+    RundownRoutine: Annotated[int, Ptr]
+    NormalRoutine: Annotated[int, Ptr]
+    NormalContext: Annotated[int, Ptr]
+    SystemArgument1: Annotated[int, Ptr]
+    SystemArgument2: Annotated[int, Ptr]
+    ApcStateIndex: Annotated[int, ct.c_uint8]
+    ApcMode: Annotated[int, ct.c_uint8]
+    Inserted: Annotated[int, ct.c_uint8]
 
 
 class OBJECT_ATTRIBUTES(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Length = ct.c_uint32
-        self.RootDirectory = Ptr
-        self.ObjectName = Ptr
-        self.Attributes = ct.c_uint32
-        self.SecurityDescriptor = Ptr
-        self.SecurityQualityOfService = Ptr
+    Length: Annotated[int, ct.c_uint32]
+    RootDirectory: Annotated[int, Ptr]
+    ObjectName: Annotated[int, Ptr]
+    Attributes: Annotated[int, ct.c_uint32]
+    SecurityDescriptor: Annotated[int, Ptr]
+    SecurityQualityOfService: Annotated[int, Ptr]
 
 
 class FILE_STANDARD_INFORMATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.AllocationSize = LARGE_INTEGER
-        self.EndOfFile = LARGE_INTEGER
-        self.NumberOfLinks = ct.c_uint32
-        self.DeletePending = ct.c_uint8
-        self.Directory = ct.c_uint8
+    AllocationSize: LARGE_INTEGER
+    EndOfFile: LARGE_INTEGER
+    NumberOfLinks: Annotated[int, ct.c_uint32]
+    DeletePending: Annotated[int, ct.c_uint8]
+    Directory: Annotated[int, ct.c_uint8]
 
 
 class DESCRIPTOR_TABLE(EmuStruct):
@@ -327,59 +276,51 @@ class DESCRIPTOR_TABLE(EmuStruct):
 
 
 class DRIVER_OBJECT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint16
-        self.Size = ct.c_uint16
-        self.DeviceObject = Ptr
-        self.Flags = ct.c_uint32
-        self.DriverStart = Ptr
-        self.DriverSize = ct.c_uint32
-        self.DriverSection = Ptr
-        self.DriverExtension = Ptr
-        self.DriverName = UNICODE_STRING
-        self.HardwareDatabase = Ptr
-        self.FastIoDispatch = Ptr
-        self.DriverInit = Ptr
-        self.DriverStartIo = Ptr
-        self.DriverUnload = Ptr
-        self.MajorFunction = Ptr * 28
+    Type: Annotated[int, ct.c_uint16]
+    Size: Annotated[int, ct.c_uint16]
+    DeviceObject: Annotated[int, Ptr]
+    Flags: Annotated[int, ct.c_uint32]
+    DriverStart: Annotated[int, Ptr]
+    DriverSize: Annotated[int, ct.c_uint32]
+    DriverSection: Annotated[int, Ptr]
+    DriverExtension: Annotated[int, Ptr]
+    DriverName: UNICODE_STRING
+    HardwareDatabase: Annotated[int, Ptr]
+    FastIoDispatch: Annotated[int, Ptr]
+    DriverInit: Annotated[int, Ptr]
+    DriverStartIo: Annotated[int, Ptr]
+    DriverUnload: Annotated[int, Ptr]
+    MajorFunction: Annotated[list[int], Ptr * 28]
 
 
 class KDEVICE_QUEUE(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint16
-        self.Size = ct.c_uint16
-        self.DeviceListHead = LIST_ENTRY
-        self.Lock = Ptr
-        self.Busy = ct.c_uint8
+    Type: Annotated[int, ct.c_uint16]
+    Size: Annotated[int, ct.c_uint16]
+    DeviceListHead: LIST_ENTRY
+    Lock: Annotated[int, Ptr]
+    Busy: Annotated[int, ct.c_uint8]
 
 
 class KDPC(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint8
-        self.Importance = ct.c_uint8
-        self.Number = ct.c_uint16
-        self.DpcListEntry = LIST_ENTRY
-        self.DeferredRoutine = Ptr
-        self.DeferredContext = Ptr
-        self.SystemArgument1 = Ptr
-        self.SystemArgument2 = Ptr
-        self.DpcData = Ptr
+    Type: Annotated[int, ct.c_uint8]
+    Importance: Annotated[int, ct.c_uint8]
+    Number: Annotated[int, ct.c_uint16]
+    DpcListEntry: LIST_ENTRY
+    DeferredRoutine: Annotated[int, Ptr]
+    DeferredContext: Annotated[int, Ptr]
+    SystemArgument1: Annotated[int, Ptr]
+    SystemArgument2: Annotated[int, Ptr]
+    DpcData: Annotated[int, Ptr]
 
 
 class WAIT_CONTEXT_BLOCK(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.WaitQueueEntry = KDEVICE_QUEUE_ENTRY
-        self.DeviceRoutine = Ptr
-        self.DeviceContext = Ptr
-        self.NumberOfMapRegisters = ct.c_uint32
-        self.DeviceObject = Ptr
-        self.CurrentIrp = Ptr
-        self.BufferChainingDpc = Ptr
+    WaitQueueEntry: KDEVICE_QUEUE_ENTRY
+    DeviceRoutine: Annotated[int, Ptr]
+    DeviceContext: Annotated[int, Ptr]
+    NumberOfMapRegisters: Annotated[int, ct.c_uint32]
+    DeviceObject: Annotated[int, Ptr]
+    CurrentIrp: Annotated[int, Ptr]
+    BufferChainingDpc: Annotated[int, Ptr]
 
 
 class DEVICE_OBJECT_QUEUE(EmuUnion):
@@ -390,71 +331,70 @@ class DEVICE_OBJECT_QUEUE(EmuUnion):
 
 
 class DEVICE_OBJECT(EmuStruct):
+    Type: Annotated[int, ct.c_uint16]
+    Size: Annotated[int, ct.c_uint16]
+    ReferenceCount: Annotated[int, ct.c_uint32]
+    DriverObject: Annotated[int, Ptr]
+    NextDevice: Annotated[int, Ptr]
+    AttachedDevice: Annotated[int, Ptr]
+    CurrentIrp: Annotated[int, Ptr]
+    Timer: Annotated[int, Ptr]
+    Flags: Annotated[int, ct.c_uint32]
+    Characteristics: Annotated[int, ct.c_uint32]
+    Vpb: Annotated[int, Ptr]
+    DeviceExtension: Annotated[int, Ptr]
+    DeviceType: Annotated[int, ct.c_uint32]
+    StackSize: Annotated[int, ct.c_uint8]
+    Queue: DEVICE_OBJECT_QUEUE
+    AlignmentRequirement: Annotated[int, ct.c_uint32]
+    DeviceQueue: KDEVICE_QUEUE
+    Dpc: KDPC
+    ActiveThreadCount: Annotated[int, ct.c_uint32]
+    SecurityDescriptor: Annotated[int, Ptr]
+    DeviceLock: KEVENT
+    SectorSize: Annotated[int, ct.c_uint16]
+    Spare1: Annotated[int, ct.c_uint16]
+    DeviceObjectExtension: Annotated[int, Ptr]
+    Reserved: Annotated[int, Ptr]
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Type = ct.c_uint16
-        self.Size = ct.c_uint16
-        self.ReferenceCount = ct.c_uint32
-        self.DriverObject = Ptr
-        self.NextDevice = Ptr
-        self.AttachedDevice = Ptr
-        self.CurrentIrp = Ptr
-        self.Timer = Ptr
-        self.Flags = ct.c_uint32
-        self.Characteristics = ct.c_uint32
-        self.Vpb = Ptr
-        self.DeviceExtension = Ptr
-        self.DeviceType = ct.c_uint32
-        self.StackSize = ct.c_uint8
-        self.Queue = DEVICE_OBJECT_QUEUE
-        self.AlignmentRequirement = ct.c_uint32
-        self.DeviceQueue = KDEVICE_QUEUE
-        self.Dpc = KDPC
-        self.ActiveThreadCount = ct.c_uint32
-        self.SecurityDescriptor = Ptr
-        self.DeviceLock = KEVENT
-        self.SectorSize = ct.c_uint16
-        self.Spare1 = ct.c_uint16
-        self.DeviceObjectExtension = Ptr
-        self.Reserved = Ptr
         if ptr_size == 8:
             # DECLSPEC_ALIGN(MEMORY_ALLOCATION_ALIGNMENT) rounds the size up to 16 bytes
             self.Padding = ct.c_uint8 * 8
 
 
 class FILE_OBJECT(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint16
-        self.Size = ct.c_uint16
-        self.DeviceObject = Ptr
-        self.Vpb = Ptr
-        self.FsContext = Ptr
-        self.FsContext2 = Ptr
-        self.SectionObjectPointer = Ptr
-        self.PrivateCacheMap = Ptr
-        self.FinalStatus = ct.c_uint32
-        self.RelatedFileObject = Ptr
-        self.LockOperation = ct.c_uint8
-        self.DeletePending = ct.c_uint8
-        self.ReadAccess = ct.c_uint8
-        self.WriteAccess = ct.c_uint8
-        self.DeleteAccess = ct.c_uint8
-        self.SharedRead = ct.c_uint8
-        self.SharedWrite = ct.c_uint8
-        self.SharedDelete = ct.c_uint8
-        self.Flags = ct.c_uint32
-        self.FileName = UNICODE_STRING
-        self.CurrentByteOffset = LARGE_INTEGER
-        self.Waiters = ct.c_uint32
-        self.Busy = ct.c_uint32
-        self.LastLock = Ptr
-        self.Lock = KEVENT
-        self.Event = KEVENT
-        self.CompletionContext = Ptr
-        self.IrpListLock = Ptr
-        self.IrpList = LIST_ENTRY
-        self.FileObjectExtension = Ptr
+    Type: Annotated[int, ct.c_uint16]
+    Size: Annotated[int, ct.c_uint16]
+    DeviceObject: Annotated[int, Ptr]
+    Vpb: Annotated[int, Ptr]
+    FsContext: Annotated[int, Ptr]
+    FsContext2: Annotated[int, Ptr]
+    SectionObjectPointer: Annotated[int, Ptr]
+    PrivateCacheMap: Annotated[int, Ptr]
+    FinalStatus: Annotated[int, ct.c_uint32]
+    RelatedFileObject: Annotated[int, Ptr]
+    LockOperation: Annotated[int, ct.c_uint8]
+    DeletePending: Annotated[int, ct.c_uint8]
+    ReadAccess: Annotated[int, ct.c_uint8]
+    WriteAccess: Annotated[int, ct.c_uint8]
+    DeleteAccess: Annotated[int, ct.c_uint8]
+    SharedRead: Annotated[int, ct.c_uint8]
+    SharedWrite: Annotated[int, ct.c_uint8]
+    SharedDelete: Annotated[int, ct.c_uint8]
+    Flags: Annotated[int, ct.c_uint32]
+    FileName: UNICODE_STRING
+    CurrentByteOffset: LARGE_INTEGER
+    Waiters: Annotated[int, ct.c_uint32]
+    Busy: Annotated[int, ct.c_uint32]
+    LastLock: Annotated[int, Ptr]
+    Lock: KEVENT
+    Event: KEVENT
+    CompletionContext: Annotated[int, Ptr]
+    IrpListLock: Annotated[int, Ptr]
+    IrpList: LIST_ENTRY
+    FileObjectExtension: Annotated[int, Ptr]
 
 
 class IO_PARAMETERS(EmuUnion):
@@ -465,65 +405,55 @@ class IO_PARAMETERS(EmuUnion):
 
 
 class IO_STACK_LOCATION(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.MajorFunction = ct.c_uint8
-        self.MinorFunction = ct.c_uint8
-        self.Flags = ct.c_uint8
-        self.Control = ct.c_uint8
-        self.Parameters = IO_PARAMETERS
-        self.DeviceObject = Ptr
-        self.FileObject = Ptr
-        self.CompletionRoutine = Ptr
-        self.Context = Ptr
+    MajorFunction: Annotated[int, ct.c_uint8]
+    MinorFunction: Annotated[int, ct.c_uint8]
+    Flags: Annotated[int, ct.c_uint8]
+    Control: Annotated[int, ct.c_uint8]
+    Parameters: IO_PARAMETERS
+    DeviceObject: Annotated[int, Ptr]
+    FileObject: Annotated[int, Ptr]
+    CompletionRoutine: Annotated[int, Ptr]
+    Context: Annotated[int, Ptr]
 
 
 class IRP_OVERLAY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.UserApcRoutine = Ptr
-        self.UserApcContext = Ptr
+    UserApcRoutine: Annotated[int, Ptr]
+    UserApcContext: Annotated[int, Ptr]
 
 
 class IRP(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Type = ct.c_uint16
-        self.Size = ct.c_uint16
-        self.MdlAddress = Ptr
-        self.Flags = ct.c_uint32
-        self.AssociatedIrp = Ptr
-        self.ThreadListEntry = LIST_ENTRY
-        self.IoStatus = IO_STATUS_BLOCK
-        self.RequestorMode = ct.c_uint8
-        self.PendingReturned = ct.c_uint8
-        self.StackCount = ct.c_uint8
-        self.CurrentLocation = ct.c_uint8
-        self.Cancel = ct.c_uint8
-        self.CancelIrql = ct.c_uint8
-        self.ApcEnvironment = ct.c_uint8
-        self.AllocationFlags = ct.c_uint8
-        self.UserIosb = Ptr
-        self.UserEvent = Ptr
-        self.Overlay = IRP_OVERLAY
-        self.CancelRoutine = Ptr
-        self.UserBuffer = Ptr
-        self.Tail = IRP_TAIL
+    Type: Annotated[int, ct.c_uint16]
+    Size: Annotated[int, ct.c_uint16]
+    MdlAddress: Annotated[int, Ptr]
+    Flags: Annotated[int, ct.c_uint32]
+    AssociatedIrp: Annotated[int, Ptr]
+    ThreadListEntry: LIST_ENTRY
+    IoStatus: IO_STATUS_BLOCK
+    RequestorMode: Annotated[int, ct.c_uint8]
+    PendingReturned: Annotated[int, ct.c_uint8]
+    StackCount: Annotated[int, ct.c_uint8]
+    CurrentLocation: Annotated[int, ct.c_uint8]
+    Cancel: Annotated[int, ct.c_uint8]
+    CancelIrql: Annotated[int, ct.c_uint8]
+    ApcEnvironment: Annotated[int, ct.c_uint8]
+    AllocationFlags: Annotated[int, ct.c_uint8]
+    UserIosb: Annotated[int, Ptr]
+    UserEvent: Annotated[int, Ptr]
+    Overlay: IRP_OVERLAY
+    CancelRoutine: Annotated[int, Ptr]
+    UserBuffer: Annotated[int, Ptr]
+    Tail: IRP_TAIL
 
 
 class IO_STATUS_BLOCK(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Status = Ptr
-        self.Information = Ptr
+    Status: Annotated[int, Ptr]
+    Information: Annotated[int, Ptr]
 
 
 class KDEVICE_QUEUE_ENTRY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.DeviceListEntry = LIST_ENTRY
-        self.SortKey = ct.c_uint32
-        self.Inserted = ct.c_uint8
+    DeviceListEntry: LIST_ENTRY
+    SortKey: Annotated[int, ct.c_uint32]
+    Inserted: Annotated[int, ct.c_uint8]
 
 
 class TAIL_OVERLAY_QUEUE(EmuUnion):
@@ -534,115 +464,109 @@ class TAIL_OVERLAY_QUEUE(EmuUnion):
 
 
 class TAIL_OVERLAY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Anonymous = TAIL_OVERLAY_QUEUE
-        self.Thread = Ptr
-        self.AuxiliaryBuffer = Ptr
-        self.ListEntry = LIST_ENTRY
-        self.CurrentStackLocation = Ptr
-        self.OriginalFileObject = Ptr
+    Anonymous: TAIL_OVERLAY_QUEUE
+    Thread: Annotated[int, Ptr]
+    AuxiliaryBuffer: Annotated[int, Ptr]
+    ListEntry: LIST_ENTRY
+    CurrentStackLocation: Annotated[int, Ptr]
+    OriginalFileObject: Annotated[int, Ptr]
 
 
 class IRP_TAIL(EmuUnion):
+    Overlay: TAIL_OVERLAY
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.Overlay = TAIL_OVERLAY
         self.Apc = KAPC(ptr_size).get_cstruct()
         self.CompletionKey = Ptr
 
 
 class LIST_ENTRY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Flink = Ptr
-        self.Blink = Ptr
+    Flink: Annotated[int, Ptr]
+    Blink: Annotated[int, Ptr]
 
 
 class NT_TIB(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.ExceptionList = Ptr
-        self.StackBase = Ptr
-        self.StackLimit = Ptr
-        self.Reserved1 = Ptr
-        self.Reserved2 = Ptr
-        self.Reserved3 = Ptr
-        self.Self = Ptr
+    ExceptionList: Annotated[int, Ptr]
+    StackBase: Annotated[int, Ptr]
+    StackLimit: Annotated[int, Ptr]
+    Reserved1: Annotated[int, Ptr]
+    Reserved2: Annotated[int, Ptr]
+    Reserved3: Annotated[int, Ptr]
+    Self: Annotated[int, Ptr]
 
 
 class TEB(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.NtTib = NT_TIB
-        self.EnvironmentPointer = Ptr
-        self.ClientId = CLIENT_ID
-        self.ActiveRpcHandle = Ptr
-        self.ThreadLocalStoragePointer = Ptr
-        self.ProcessEnvironmentBlock = Ptr
-        self.LastErrorValue = ct.c_uint32
-        self.CountOfOwnedCriticalSections = ct.c_uint32
-        self.CsrClientThread = Ptr
-        self.Win32ThreadInfo = Ptr
-        self.User32Reserved = ct.c_uint32 * 26
-        self.UserReserved = ct.c_uint32 * 5
-        self.WOW32Reserved = Ptr
-        self.CurrentLocale = ct.c_uint32
+    NtTib: NT_TIB
+    EnvironmentPointer: Annotated[int, Ptr]
+    ClientId: CLIENT_ID
+    ActiveRpcHandle: Annotated[int, Ptr]
+    ThreadLocalStoragePointer: Annotated[int, Ptr]
+    ProcessEnvironmentBlock: Annotated[int, Ptr]
+    LastErrorValue: Annotated[int, ct.c_uint32]
+    CountOfOwnedCriticalSections: Annotated[int, ct.c_uint32]
+    CsrClientThread: Annotated[int, Ptr]
+    Win32ThreadInfo: Annotated[int, Ptr]
+    User32Reserved: Annotated[list[int], ct.c_uint32 * 26]
+    UserReserved: Annotated[list[int], ct.c_uint32 * 5]
+    WOW32Reserved: Annotated[int, Ptr]
+    CurrentLocale: Annotated[int, ct.c_uint32]
 
 
 class PEB(EmuStruct):
+    InheritedAddressSpace: Annotated[int, ct.c_uint8]
+    ReadImageFileExecOptions: Annotated[int, ct.c_uint8]
+    BeingDebugged: Annotated[int, ct.c_uint8]
+    BitField: Annotated[int, ct.c_uint8]
+    Mutant: Annotated[int, Ptr]
+    ImageBaseAddress: Annotated[int, Ptr]
+    Ldr: Annotated[int, Ptr]
+    ProcessParameters: Annotated[int, Ptr]
+    SubSystemData: Annotated[int, Ptr]
+    ProcessHeap: Annotated[int, Ptr]
+    FastPebLock: Annotated[int, Ptr]
+    AtlThunkSListPtr: Annotated[int, Ptr]
+    IFEOKey: Annotated[int, Ptr]
+    CrossProcessFlags: Annotated[int, Ptr]
+    UserSharedInfoPtr: Annotated[int, Ptr]
+    SystemReserved: Annotated[int, ct.c_uint32]
+    AtlThunkSListPtr32: Annotated[int, ct.c_uint32]
+    ApiSetMap: Annotated[int, Ptr]
+    TlsExpansionCounter: Annotated[int, Ptr]
+    TlsBitmap: Annotated[int, Ptr]
+    TlsBitmapBits: Annotated[list[int], ct.c_uint32 * 2]
+    ReadOnlySharedMemoryBase: Annotated[int, Ptr]
+    SharedData: Annotated[int, Ptr]  # HotpatchInformation
+    ReadOnlyStaticServerData: Annotated[int, Ptr]
+    AnsiCodePageData: Annotated[int, Ptr]
+    OemCodePageData: Annotated[int, Ptr]
+    UnicodeCaseTableData: Annotated[int, Ptr]
+    NumberOfProcessors: Annotated[int, ct.c_uint32]
+    NtGlobalFlag: Annotated[int, ct.c_uint32]
+    CriticalSectionTimeout: Annotated[int, ct.c_longlong]  # LARGE_INTEGER
+    HeapSegmentReserve: Annotated[int, Ptr]
+    HeapSegmentCommit: Annotated[int, Ptr]
+    HeapDeCommitTotalFreeThreshold: Annotated[int, Ptr]
+    HeapDeCommitFreeBlockThreshold: Annotated[int, Ptr]
+    NumberOfHeaps: Annotated[int, ct.c_uint32]
+    MaximumNumberOfHeaps: Annotated[int, ct.c_uint32]
+    ProcessHeaps: Annotated[int, Ptr]
+    GdiSharedHandleTable: Annotated[int, Ptr]
+    ProcessStarterHelper: Annotated[int, Ptr]
+    GdiDCAttributeList: Annotated[int, Ptr]
+    LoaderLock: Annotated[int, Ptr]
+    OSMajorVersion: Annotated[int, ct.c_uint32]
+    OSMinorVersion: Annotated[int, ct.c_uint32]
+    OSBuildNumber: Annotated[int, ct.c_uint16]
+    OSCSDVersion: Annotated[int, ct.c_uint16]
+    OSPlatformId: Annotated[int, ct.c_uint32]
+    ImageSubsystem: Annotated[int, ct.c_uint32]
+    ImageSubsystemMajorVersion: Annotated[int, ct.c_uint32]
+    ImageSubsystemMinorVersion: Annotated[int, Ptr]
+    ActiveProcessAffinityMask: Annotated[int, Ptr]
+
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
-        self.InheritedAddressSpace = ct.c_uint8
-        self.ReadImageFileExecOptions = ct.c_uint8
-        self.BeingDebugged = ct.c_uint8
-        self.BitField = ct.c_uint8
-        self.Mutant = Ptr
-        self.ImageBaseAddress = Ptr
-        self.Ldr = Ptr
-        self.ProcessParameters = Ptr
-        self.SubSystemData = Ptr
-        self.ProcessHeap = Ptr
-        self.FastPebLock = Ptr
-        self.AtlThunkSListPtr = Ptr
-        self.IFEOKey = Ptr
-        self.CrossProcessFlags = Ptr
-        self.UserSharedInfoPtr = Ptr
-        self.SystemReserved = ct.c_uint32
-        self.AtlThunkSListPtr32 = ct.c_uint32
-        self.ApiSetMap = Ptr
-        self.TlsExpansionCounter = Ptr
-        self.TlsBitmap = Ptr
-        self.TlsBitmapBits = ct.c_uint32 * 2
-        self.ReadOnlySharedMemoryBase = Ptr
-        self.SharedData = Ptr  # HotpatchInformation
-        self.ReadOnlyStaticServerData = Ptr
-        self.AnsiCodePageData = Ptr
-        self.OemCodePageData = Ptr
-        self.UnicodeCaseTableData = Ptr
-        self.NumberOfProcessors = ct.c_uint32
-        self.NtGlobalFlag = ct.c_uint32
-        self.CriticalSectionTimeout = ct.c_longlong  # LARGE_INTEGER
-        self.HeapSegmentReserve = Ptr
-        self.HeapSegmentCommit = Ptr
-        self.HeapDeCommitTotalFreeThreshold = Ptr
-        self.HeapDeCommitFreeBlockThreshold = Ptr
-        self.NumberOfHeaps = ct.c_uint32
-        self.MaximumNumberOfHeaps = ct.c_uint32
-        self.ProcessHeaps = Ptr
-        self.GdiSharedHandleTable = Ptr
-        self.ProcessStarterHelper = Ptr
-        self.GdiDCAttributeList = Ptr
-        self.LoaderLock = Ptr
-        self.OSMajorVersion = ct.c_uint32
-        self.OSMinorVersion = ct.c_uint32
-        self.OSBuildNumber = ct.c_uint16
-        self.OSCSDVersion = ct.c_uint16
-        self.OSPlatformId = ct.c_uint32
-        self.ImageSubsystem = ct.c_uint32
-        self.ImageSubsystemMajorVersion = ct.c_uint32
-        self.ImageSubsystemMinorVersion = Ptr
-        self.ActiveProcessAffinityMask = Ptr
         if ptr_size == 8:
             self.GdiHandleBuffer = ct.c_uint32 * 60
         else:
@@ -678,74 +602,64 @@ class PEB(EmuStruct):
 
 
 class PEB_LDR_DATA(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Length = ct.c_uint32
-        self.Initialized = ct.c_uint8 * 4
-        self.SsHandle = Ptr
-        self.InLoadOrderModuleList = LIST_ENTRY
-        self.InMemoryOrderModuleList = LIST_ENTRY
-        self.InInitializationOrderModuleList = LIST_ENTRY
-        self.EntryInProgress = Ptr
-        self.ShutdownInProgress = ct.c_uint8
-        self.ShutdownThreadId = Ptr
+    Length: Annotated[int, ct.c_uint32]
+    Initialized: Annotated[bytes, ct.c_uint8 * 4]
+    SsHandle: Annotated[int, Ptr]
+    InLoadOrderModuleList: LIST_ENTRY
+    InMemoryOrderModuleList: LIST_ENTRY
+    InInitializationOrderModuleList: LIST_ENTRY
+    EntryInProgress: Annotated[int, Ptr]
+    ShutdownInProgress: Annotated[int, ct.c_uint8]
+    ShutdownThreadId: Annotated[int, Ptr]
 
 
 class LDR_DATA_TABLE_ENTRY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.InLoadOrderLinks = LIST_ENTRY
-        self.InMemoryOrderLinks = LIST_ENTRY
-        self.InInitializationOrderLinks = LIST_ENTRY
-        self.DllBase = Ptr
-        self.EntryPoint = Ptr
-        self.SizeOfImage = ct.c_uint32
-        self.FullDllName = UNICODE_STRING
-        self.BaseDllName = UNICODE_STRING
-        self.Flags = ct.c_uint32
-        self.LoadCount = ct.c_uint16
+    InLoadOrderLinks: LIST_ENTRY
+    InMemoryOrderLinks: LIST_ENTRY
+    InInitializationOrderLinks: LIST_ENTRY
+    DllBase: Annotated[int, Ptr]
+    EntryPoint: Annotated[int, Ptr]
+    SizeOfImage: Annotated[int, ct.c_uint32]
+    FullDllName: UNICODE_STRING
+    BaseDllName: UNICODE_STRING
+    Flags: Annotated[int, ct.c_uint32]
+    LoadCount: Annotated[int, ct.c_uint16]
 
 
 class LARGE_INTEGER(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.QuadPart = ct.c_int64
+    QuadPart: Annotated[int, ct.c_int64]
 
 
 class CURDIR(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.DosPath = UNICODE_STRING
-        self.Handle = Ptr
+    DosPath: UNICODE_STRING
+    Handle: Annotated[int, Ptr]
 
 
 class RTL_USER_PROCESS_PARAMETERS(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.MaximumLength = ct.c_uint32
-        self.Length = ct.c_uint32
-        self.Flags = ct.c_uint32
-        self.DebugFlags = ct.c_uint32
-        self.ConsoleHandle = Ptr
-        self.ConsoleFlags = ct.c_uint32
-        self.StandardInput = Ptr
-        self.StandardOutput = Ptr
-        self.StandardError = Ptr
-        self.CurrentDirectory = CURDIR
-        self.DllPath = UNICODE_STRING
-        self.ImagePathName = UNICODE_STRING
-        self.CommandLine = UNICODE_STRING
-        self.Environment = Ptr
-        self.StartingX = ct.c_uint32
-        self.StartingY = ct.c_uint32
-        self.CountX = ct.c_uint32
-        self.CountY = ct.c_uint32
-        self.CountCharsX = ct.c_uint32
-        self.CountCharsY = ct.c_uint32
-        self.FillAttribute = ct.c_uint32
-        self.WindowFlags = ct.c_uint32
-        self.ShowWindowFlags = ct.c_uint32
-        self.WindowTitle = UNICODE_STRING
-        self.DesktopInfo = UNICODE_STRING
-        self.ShellInfo = UNICODE_STRING
-        self.RuntimeData = UNICODE_STRING
+    MaximumLength: Annotated[int, ct.c_uint32]
+    Length: Annotated[int, ct.c_uint32]
+    Flags: Annotated[int, ct.c_uint32]
+    DebugFlags: Annotated[int, ct.c_uint32]
+    ConsoleHandle: Annotated[int, Ptr]
+    ConsoleFlags: Annotated[int, ct.c_uint32]
+    StandardInput: Annotated[int, Ptr]
+    StandardOutput: Annotated[int, Ptr]
+    StandardError: Annotated[int, Ptr]
+    CurrentDirectory: CURDIR
+    DllPath: UNICODE_STRING
+    ImagePathName: UNICODE_STRING
+    CommandLine: UNICODE_STRING
+    Environment: Annotated[int, Ptr]
+    StartingX: Annotated[int, ct.c_uint32]
+    StartingY: Annotated[int, ct.c_uint32]
+    CountX: Annotated[int, ct.c_uint32]
+    CountY: Annotated[int, ct.c_uint32]
+    CountCharsX: Annotated[int, ct.c_uint32]
+    CountCharsY: Annotated[int, ct.c_uint32]
+    FillAttribute: Annotated[int, ct.c_uint32]
+    WindowFlags: Annotated[int, ct.c_uint32]
+    ShowWindowFlags: Annotated[int, ct.c_uint32]
+    WindowTitle: UNICODE_STRING
+    DesktopInfo: UNICODE_STRING
+    ShellInfo: UNICODE_STRING
+    RuntimeData: UNICODE_STRING
