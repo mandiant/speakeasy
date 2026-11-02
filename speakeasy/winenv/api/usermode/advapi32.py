@@ -21,6 +21,8 @@ from .. import api
 if TYPE_CHECKING:
     from Crypto.Cipher.ARC4 import ARC4Cipher
 
+    from speakeasy.windows.win32 import Win32Emulator
+
 MD5_INITIAL_STATE = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
 SERVICE_STATUS_HANDLE_BASE = 0x1000
 TOKEN_USER = 1
@@ -57,7 +59,7 @@ class AdvApi32(api.ApiHandler):
         return self.curr_handle
 
     @apihook("RegOpenKey", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def RegOpenKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegOpenKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegOpenKey(
             HKEY hKey,
@@ -70,7 +72,7 @@ class AdvApi32(api.ApiHandler):
         return self.open_key(hKey, lpSubKey, phkResult, ctx)
 
     @apihook("RegOpenKeyEx", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def RegOpenKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegOpenKeyEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegOpenKeyEx(
             HKEY hKey,
@@ -134,7 +136,7 @@ class AdvApi32(api.ApiHandler):
         arg.display = regdefs.get_value_type(code)
 
     @apihook("RegQueryValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def RegQueryValueEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegQueryValueEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegQueryValueEx(
             HKEY hKey,
@@ -202,7 +204,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegSetValueEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def RegSetValueEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegSetValueEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegSetValueEx(
             HKEY hKey,
@@ -261,7 +263,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegCloseKey", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def RegCloseKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegCloseKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegCloseKey(
             HKEY hKey
@@ -275,7 +277,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegEnumKey", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def RegEnumKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegEnumKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegEnumKey(
             HKEY hKey,
@@ -291,7 +293,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegEnumKeyEx", argc=8, conv=_arch.CALL_CONV_STDCALL)
-    def RegEnumKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegEnumKeyEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegEnumKeyEx(
             HKEY hKey,
@@ -342,7 +344,7 @@ class AdvApi32(api.ApiHandler):
         return rv, name
 
     @apihook("RegCreateKey", argc=3)
-    def RegCreateKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegCreateKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegCreateKey(
             HKEY hKey,
@@ -374,7 +376,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegCreateKeyEx", argc=9, conv=_arch.CALL_CONV_STDCALL)
-    def RegCreateKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegCreateKeyEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegCreateKeyEx(
             HKEY hKey,
@@ -426,7 +428,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegDeleteValue", argc=2, conv=_arch.CALL_CONV_STDCALL)
-    def RegDeleteValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegDeleteValue(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegDeleteValue(
             HKEY hKey,
@@ -453,7 +455,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("RegQueryInfoKey", argc=12, conv=_arch.CALL_CONV_STDCALL)
-    def RegQueryInfoKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegQueryInfoKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         # TODO: stub
         """
         LSTATUS RegQueryInfoKey(
@@ -519,7 +521,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("OpenProcessToken", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def OpenProcessToken(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OpenProcessToken(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL OpenProcessToken(
             HANDLE ProcessHandle,
@@ -550,7 +552,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("OpenThreadToken", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def OpenThreadToken(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OpenThreadToken(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL OpenThreadToken(
             HANDLE ThreadHandle,
@@ -582,7 +584,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("DuplicateTokenEx", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def DuplicateTokenEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DuplicateTokenEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DuplicateTokenEx(
             HANDLE hExistingToken,
@@ -613,7 +615,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("SetTokenInformation", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def SetTokenInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetTokenInformation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetTokenInformation(
             HANDLE TokenHandle,
@@ -629,7 +631,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("StartServiceCtrlDispatcher", argc=1)
-    def StartServiceCtrlDispatcher(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StartServiceCtrlDispatcher(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StartServiceCtrlDispatcher(
             const SERVICE_TABLE_ENTRY *lpServiceStartTable
@@ -670,7 +672,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("RegisterServiceCtrlHandler", argc=2)
-    def RegisterServiceCtrlHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegisterServiceCtrlHandler(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SERVICE_STATUS_HANDLE RegisterServiceCtrlHandler(
             LPCTSTR lpServiceName,
@@ -687,7 +689,7 @@ class AdvApi32(api.ApiHandler):
         return self.service_status_handle
 
     @apihook("RegisterServiceCtrlHandlerEx", argc=3)
-    def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegisterServiceCtrlHandlerEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerEx(
             LPCTSTR lpServiceName,
@@ -700,7 +702,7 @@ class AdvApi32(api.ApiHandler):
         return self.RegisterServiceCtrlHandler(emu, [lpServiceName, lpHandlerProc], ctx)
 
     @apihook("SetServiceStatus", argc=2)
-    def SetServiceStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetServiceStatus(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetServiceStatus(
             SERVICE_STATUS_HANDLE hServiceStatus,
@@ -714,14 +716,14 @@ class AdvApi32(api.ApiHandler):
         return 0x1
 
     @apihook("RevertToSelf", argc=0)
-    def RevertToSelf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RevertToSelf(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL RevertToSelf();
         """
         return 1
 
     @apihook("ImpersonateLoggedOnUser", argc=1)
-    def ImpersonateLoggedOnUser(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ImpersonateLoggedOnUser(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ImpersonateLoggedOnUser(
             HANDLE hToken
@@ -730,7 +732,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("OpenSCManager", argc=3)
-    def OpenSCManager(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OpenSCManager(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE OpenSCManager(
             LPCTSTR lpMachineName,
@@ -746,7 +748,7 @@ class AdvApi32(api.ApiHandler):
         return hScm
 
     @apihook("CreateService", argc=13)
-    def CreateService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateService(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE CreateService(
             SC_HANDLE hSCManager,
@@ -808,7 +810,7 @@ class AdvApi32(api.ApiHandler):
         return hSvc
 
     @apihook("StartService", argc=3)
-    def StartService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StartService(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StartService(
             SC_HANDLE hService,
@@ -825,7 +827,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("StartServiceA", argc=3)
-    def StartServiceA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def StartServiceA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL StartServiceA(
             SC_HANDLE hService,
@@ -836,7 +838,7 @@ class AdvApi32(api.ApiHandler):
         return self.StartService(emu, argv, ctx)
 
     @apihook("ControlService", argc=3)
-    def ControlService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ControlService(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ControlService(
             SC_HANDLE hService,
@@ -853,7 +855,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("QueryServiceStatus", argc=2)
-    def QueryServiceStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def QueryServiceStatus(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL QueryServiceStatus(
             SC_HANDLE hService,
@@ -882,7 +884,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("QueryServiceConfig", argc=4)
-    def QueryServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def QueryServiceConfig(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL QueryServiceConfig(
             SC_HANDLE hService,
@@ -923,7 +925,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CloseServiceHandle", argc=1)
-    def CloseServiceHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CloseServiceHandle(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CloseServiceHandle(
             SC_HANDLE hSCObject
@@ -940,7 +942,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("ChangeServiceConfig", argc=11)
-    def ChangeServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ChangeServiceConfig(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ChangeServiceConfig(
             SC_HANDLE hService,
@@ -989,7 +991,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("ChangeServiceConfig2", argc=3)
-    def ChangeServiceConfig2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ChangeServiceConfig2(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ChangeServiceConfig2(
             SC_HANDLE hService,
@@ -1006,7 +1008,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("SystemFunction036", argc=2)
-    def RtlGenRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGenRandom(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN SystemFunction036(
             PVOID RandomBuffer,
@@ -1025,7 +1027,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptAcquireContext", argc=5)
-    def CryptAcquireContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptAcquireContext(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptAcquireContext(
             HCRYPTPROV *phProv,
@@ -1058,7 +1060,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptGenRandom", argc=3)
-    def CryptGenRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptGenRandom(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptGenRandom(
             HCRYPTPROV hProv,
@@ -1076,7 +1078,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("AllocateAndInitializeSid", argc=11)
-    def AllocateAndInitializeSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def AllocateAndInitializeSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL AllocateAndInitializeSid(
             PSID_IDENTIFIER_AUTHORITY pIdentifierAuthority,
@@ -1106,7 +1108,7 @@ class AdvApi32(api.ApiHandler):
         return True
 
     @apihook("InitializeSid", argc=3)
-    def InitializeSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def InitializeSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InitializeSid(
             PSID Sid,
@@ -1123,7 +1125,7 @@ class AdvApi32(api.ApiHandler):
         return True
 
     @apihook("GetSidLengthRequired", argc=1)
-    def GetSidLengthRequired(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSidLengthRequired(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetSidLengthRequired(
             UCHAR nSubAuthorityCount
@@ -1138,7 +1140,7 @@ class AdvApi32(api.ApiHandler):
         return 8 + 4 * self.mem_read(sid + 1, 1)[0]
 
     @apihook("GetLengthSid", argc=1)
-    def GetLengthSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetLengthSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetLengthSid(
             PSID pSid
@@ -1148,7 +1150,7 @@ class AdvApi32(api.ApiHandler):
         return self.get_sid_length(emu, sid)
 
     @apihook("IsValidSid", argc=1)
-    def IsValidSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def IsValidSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL IsValidSid(
             PSID pSid
@@ -1161,7 +1163,7 @@ class AdvApi32(api.ApiHandler):
         return revision == 1 and count <= 15
 
     @apihook("CopySid", argc=3)
-    def CopySid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CopySid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CopySid(
             DWORD nDestinationSidLength,
@@ -1181,7 +1183,7 @@ class AdvApi32(api.ApiHandler):
         return True
 
     @apihook("CheckTokenMembership", argc=3)
-    def CheckTokenMembership(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CheckTokenMembership(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CheckTokenMembership(
             HANDLE TokenHandle,
@@ -1198,7 +1200,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("FreeSid", argc=1)
-    def FreeSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def FreeSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID FreeSid(
             PSID pSid
@@ -1213,7 +1215,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetSecurityInfo", argc=8)
-    def GetSecurityInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSecurityInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetSecurityInfo(
             HANDLE handle,
@@ -1236,7 +1238,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("SetSecurityInfo", argc=7)
-    def SetSecurityInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetSecurityInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD SetSecurityInfo(
             HANDLE handle,
@@ -1254,7 +1256,7 @@ class AdvApi32(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("CryptReleaseContext", argc=2)
-    def CryptReleaseContext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptReleaseContext(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptReleaseContext(
             HCRYPTPROV hProv,
@@ -1273,7 +1275,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetCurrentHwProfile", argc=1)
-    def GetCurrentHwProfile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetCurrentHwProfile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetCurrentHwProfile(
             LPHW_PROFILE_INFO lpHwProfileInfo
@@ -1306,7 +1308,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("GetUserName", argc=2)
-    def GetUserName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetUserName(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetUserName(
             LPTSTR lpBuffer,
@@ -1334,7 +1336,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("LookupPrivilegeValue", argc=3)
-    def LookupPrivilegeValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LookupPrivilegeValue(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupPrivilegeValue(
             LPCTSTR lpSystemName,
@@ -1347,17 +1349,15 @@ class AdvApi32(api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         if sysname:
-            sysname = self.read_mem_string(sysname, cw)
-            ctx.args["lpSystemName"].display = sysname
+            ctx.args["lpSystemName"].display = self.read_mem_string(sysname, cw)
         if name:
-            name = self.read_mem_string(name, cw)
-            ctx.args["lpName"].display = name
+            ctx.args["lpName"].display = self.read_mem_string(name, cw)
             rv = True
 
         return rv
 
     @apihook("AdjustTokenPrivileges", argc=6)
-    def AdjustTokenPrivileges(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def AdjustTokenPrivileges(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL AdjustTokenPrivileges(
             HANDLE TokenHandle,
@@ -1373,7 +1373,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetTokenInformation", argc=5)
-    def GetTokenInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetTokenInformation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetTokenInformation(
             HANDLE TokenHandle,
@@ -1417,7 +1417,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("ConvertSidToStringSid", argc=2)
-    def ConvertSidToStringSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def ConvertSidToStringSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL ConvertSidToStringSid(
             PSID Sid,
@@ -1441,7 +1441,7 @@ class AdvApi32(api.ApiHandler):
         return True
 
     @apihook("EqualSid", argc=2)
-    def EqualSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EqualSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EqualSid(
             PSID pSid1,
@@ -1455,7 +1455,7 @@ class AdvApi32(api.ApiHandler):
         return self.mem_read(sid1, len1) == self.mem_read(sid2, len2)
 
     @apihook("GetSidIdentifierAuthority", argc=1)
-    def GetSidIdentifierAuthority(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSidIdentifierAuthority(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PSID_IDENTIFIER_AUTHORITY GetSidIdentifierAuthority(
             PSID pSid
@@ -1467,7 +1467,7 @@ class AdvApi32(api.ApiHandler):
         return sid + 2
 
     @apihook("GetSidSubAuthorityCount", argc=1)
-    def GetSidSubAuthorityCount(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSidSubAuthorityCount(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PUCHAR GetSidSubAuthorityCount(
             PSID pSid
@@ -1482,7 +1482,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("GetSidSubAuthority", argc=2)
-    def GetSidSubAuthority(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def GetSidSubAuthority(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PDWORD GetSidSubAuthority(
             PSID pSid,
@@ -1495,7 +1495,7 @@ class AdvApi32(api.ApiHandler):
         return sid + 8 + (nsub * 4)
 
     @apihook("LookupAccountName", argc=7)
-    def LookupAccountName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LookupAccountName(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupAccountName(
             LPCTSTR lpSystemName,
@@ -1539,7 +1539,7 @@ class AdvApi32(api.ApiHandler):
         cbsid = int.from_bytes(cbsid, "little")
         ctx.args["cbSid"].display = hex(cbsid)
 
-        domain = emu.config.domain
+        domain = emu.config.domain or ""
         cchdomname = self.mem_read(ptr_cchdomname, 4)
         cbcchdomname = int.from_bytes(cchdomname, "little")
         ctx.args["cchReferencedDomainName"].display = hex(cbcchdomname)
@@ -1565,7 +1565,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("LookupAccountSid", argc=7)
-    def LookupAccountSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LookupAccountSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupAccountSid(
             LPCTSTR lpSystemName,
@@ -1613,7 +1613,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CreateProcessAsUser", argc=11, conv=_arch.CALL_CONV_STDCALL)
-    def CreateProcessAsUser(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CreateProcessAsUser(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CreateProcessAsUser(
             HANDLE hToken,
@@ -1669,7 +1669,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("CryptCreateHash", argc=5)
-    def CryptCreateHash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptCreateHash(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptCreateHash(
             HCRYPTPROV hProv,
@@ -1704,7 +1704,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptHashData", argc=4)
-    def CryptHashData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptHashData(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptHashData(
             HCRYPTHASH hHash,
@@ -1727,7 +1727,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptGetHashParam", argc=5)
-    def CryptGetHashParam(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptGetHashParam(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptGetHashParam(
             HCRYPTHASH hHash,
@@ -1773,7 +1773,7 @@ class AdvApi32(api.ApiHandler):
         return md5
 
     @apihook("MD5Init", argc=1)
-    def MD5Init(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MD5Init(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MD5Init(
             MD5_CTX *context
@@ -1784,7 +1784,7 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(context, struct.pack("<2I4I", 0, 0, *MD5_INITIAL_STATE) + b"\x00" * 80)
 
     @apihook("MD5Update", argc=3)
-    def MD5Update(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MD5Update(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MD5Update(
             MD5_CTX *context,
@@ -1806,7 +1806,7 @@ class AdvApi32(api.ApiHandler):
         self.mem_write(context + 24, partial)
 
     @apihook("MD5Final", argc=1)
-    def MD5Final(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MD5Final(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void MD5Final(
             MD5_CTX *context
@@ -1821,7 +1821,7 @@ class AdvApi32(api.ApiHandler):
         self.md5_contexts.pop(context, None)
 
     @apihook("CryptDestroyHash", argc=1)
-    def CryptDestroyHash(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptDestroyHash(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptDestroyHash(
             HCRYPTHASH hHash
@@ -1830,7 +1830,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptDeriveKey", argc=5)
-    def CryptDeriveKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptDeriveKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptDeriveKey(
             HCRYPTPROV hProv,
@@ -1867,7 +1867,7 @@ class AdvApi32(api.ApiHandler):
         ptrsz = emu.get_ptr_size()
 
         hKey = self.win.HCRYPTKEY(ptrsz)
-        hKey.Algid = Algid
+        hKey.Algid = Algid  # type: ignore[assignment]
         hKey.keylen = len(fixed_digest)  # type: ignore[assignment]
         hKey.keyp = self.mem_alloc(hKey.keylen)
 
@@ -1881,7 +1881,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("CryptDecrypt", argc=6)
-    def CryptDecrypt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def CryptDecrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CryptDecrypt(
             HCRYPTKEY hKey,
@@ -1928,7 +1928,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("RegGetValue", argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def RegGetValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RegGetValue(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LSTATUS RegGetValue(
             HKEY hkey,
@@ -1940,6 +1940,7 @@ class AdvApi32(api.ApiHandler):
             LPDWORD pcbData
         );
         """
+        lpSubKey: int | str
         hKey, lpSubKey, lpValue, dwFlags, lpType, lpData, lpcbData = argv
         rv = windefs.ERROR_SUCCESS
 
@@ -2001,7 +2002,7 @@ class AdvApi32(api.ApiHandler):
         return rv
 
     @apihook("EnumServicesStatus", argc=8, conv=_arch.CALL_CONV_STDCALL)
-    def EnumServicesStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EnumServicesStatus(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL EnumServicesStatus(
             SC_HANDLE hSCManager,
@@ -2080,7 +2081,7 @@ class AdvApi32(api.ApiHandler):
         return 1
 
     @apihook("OpenService", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def OpenService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def OpenService(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE OpenService(
             SC_HANDLE hSCManager,
@@ -2095,7 +2096,7 @@ class AdvApi32(api.ApiHandler):
         return self.get_handle()
 
     @apihook("DeleteService", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def DeleteService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DeleteService(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL DeleteService(
             SC_HANDLE hService
