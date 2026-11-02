@@ -220,9 +220,9 @@ class Shlwapi(api.ApiHandler):
     @apihook("StrChr", argc=2)
     def StrChr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR StrChr(
-            PCSTR pszStart,
-            WORD wMatch
+        PTSTR StrChr(
+            PCTSTR pszStart,
+            TCHAR wMatch
         );
         """
         start, match = argv
@@ -231,9 +231,9 @@ class Shlwapi(api.ApiHandler):
     @apihook("StrChrI", argc=2)
     def StrChrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR StrChrI(
-            PCSTR pszStart,
-            WORD wMatch
+        PTSTR StrChrI(
+            PCTSTR pszStart,
+            TCHAR wMatch
         );
         """
         start, match = argv
@@ -242,10 +242,10 @@ class Shlwapi(api.ApiHandler):
     @apihook("StrRChr", argc=3)
     def StrRChr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR StrRChr(
-            PCSTR pszStart,
-            PCSTR pszEnd,
-            WORD wMatch
+        PTSTR StrRChr(
+            PCTSTR pszStart,
+            PCTSTR pszEnd,
+            TCHAR wMatch
         );
         """
         start, end, match = argv
@@ -254,10 +254,10 @@ class Shlwapi(api.ApiHandler):
     @apihook("StrRChrI", argc=3)
     def StrRChrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR StrRChrI(
-            PCSTR pszStart,
-            PCSTR pszEnd,
-            WORD wMatch
+        PTSTR StrRChrI(
+            PCTSTR pszStart,
+            PCTSTR pszEnd,
+            TCHAR wMatch
         );
         """
         start, end, match = argv
@@ -287,8 +287,8 @@ class Shlwapi(api.ApiHandler):
     def StrCmpI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StrCmpI(
-            PCWSTR psz1,
-            PCWSTR psz2
+            PCTSTR psz1,
+            PCTSTR psz2
         );
         """
         return self.compare_strings(argv, ctx, ignore_case=True)
@@ -413,10 +413,10 @@ class Shlwapi(api.ApiHandler):
     @apihook("wnsprintf", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
     def wnsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int wnsprintfA(
-            PSTR pszDest,
+        int wnsprintf(
+            PTSTR pszDest,
             int cchDest,
-            PCSTR pszFmt,
+            PCTSTR pszFmt,
             ...
         );
         """

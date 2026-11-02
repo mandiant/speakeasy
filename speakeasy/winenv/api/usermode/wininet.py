@@ -41,11 +41,11 @@ class Wininet(api.ApiHandler):
     @apihook("InternetOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def InternetOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InternetOpenA(
-            LPTSTR lpszAgent,
+        HINTERNET InternetOpen(
+            LPCTSTR lpszAgent,
             DWORD dwAccessType,
-            LPTSTR lpszProxy,
-            LPTSTR lpszProxyBypass,
+            LPCTSTR lpszProxy,
+            LPCTSTR lpszProxyBypass,
             DWORD dwFlags
         );
         """
@@ -69,12 +69,12 @@ class Wininet(api.ApiHandler):
     @apihook("InternetConnect", argc=8, conv=_arch.CALL_CONV_STDCALL)
     def InternetConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InternetConnect(
+        HINTERNET InternetConnect(
             HINTERNET hInternet,
-            LPTSTR lpszServerName,
+            LPCTSTR lpszServerName,
             INTERNET_PORT nServerPort,
-            LPTSTR lpszUserName,
-            LPTSTR lpszPassword,
+            LPCTSTR lpszUserName,
+            LPCTSTR lpszPassword,
             DWORD dwService,
             DWORD dwFlags,
             DWORD_PTR dwContext
@@ -105,13 +105,13 @@ class Wininet(api.ApiHandler):
     @apihook("HttpOpenRequest", argc=8, conv=_arch.CALL_CONV_STDCALL)
     def HttpOpenRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void HttpOpenRequest(
+        HINTERNET HttpOpenRequest(
             HINTERNET hConnect,
-            LPTSTR lpszVerb,
-            LPTSTR lpszObjectName,
-            LPTSTR lpszVersion,
-            LPTSTR lpszReferrer,
-            LPTSTR *lplpszAcceptTypes,
+            LPCTSTR lpszVerb,
+            LPCTSTR lpszObjectName,
+            LPCTSTR lpszVersion,
+            LPCTSTR lpszReferrer,
+            LPCTSTR *lplpszAcceptTypes,
             DWORD dwFlags,
             DWORD_PTR dwContext
         );
@@ -267,7 +267,7 @@ class Wininet(api.ApiHandler):
     @apihook("InternetErrorDlg", argc=5, conv=_arch.CALL_CONV_STDCALL)
     def InternetErrorDlg(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InternetErrorDlg(
+        DWORD InternetErrorDlg(
             HWND hWnd,
             HINTERNET hRequest,
             DWORD dwError,
@@ -422,10 +422,10 @@ class Wininet(api.ApiHandler):
     @apihook("InternetOpenUrl", argc=6)
     def InternetOpenUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InternetOpenUrlA(
+        HINTERNET InternetOpenUrl(
             HINTERNET hInternet,
-            LPCSTR lpszUrl,
-            LPCSTR lpszHeaders,
+            LPCTSTR lpszUrl,
+            LPCTSTR lpszHeaders,
             DWORD dwHeadersLength,
             DWORD dwFlags,
             DWORD_PTR dwContext

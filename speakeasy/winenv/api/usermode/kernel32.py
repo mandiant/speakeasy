@@ -1034,18 +1034,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def CreateProcessInternal(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CreateProcessInternal(
-            PVOID Reserved1,
-            LPTSTR lpApplicationName,
+            HANDLE hUserToken,
+            LPCTSTR lpApplicationName,
             LPTSTR lpCommandLine,
             LPSECURITY_ATTRIBUTES lpProcessAttributes,
             LPSECURITY_ATTRIBUTES lpThreadAttributes,
             BOOL bInheritHandles,
             DWORD dwCreationFlags,
             LPVOID lpEnvironment,
-            LPTSTR lpCurrentDirectory,
+            LPCTSTR lpCurrentDirectory,
             LPSTARTUPINFO lpStartupInfo,
             LPPROCESS_INFORMATION lpProcessInformation,
-            PVOID Reserved2
+            HANDLE *hRestrictedUserToken
         );
         """
         # Args are the same as CreateProcess except for argv[0] and argv[-1]
@@ -3300,7 +3300,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def FreeEnvironmentStrings(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL FreeEnvironmentStrings(
-            LPCH penv
+            LPTCH penv
         );
         """
         (penv,) = argv
@@ -7141,8 +7141,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def RtlMoveMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void RtlMoveMemory(
-            void *pvDest,
-            const void *pSrc,
+            void *Destination,
+            const void *Source,
             size_t Length
         );
         """
@@ -7255,9 +7255,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetVolumePathNamesForVolumeName", argc=4)
     def GetVolumePathNamesForVolumeName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetVolumePathNamesForVolumeNameW(
-            LPCWSTR lpszVolumeName,
-            LPWCH lpszVolumePathNames,
+        BOOL GetVolumePathNamesForVolumeName(
+            LPCTSTR lpszVolumeName,
+            LPTCH lpszVolumePathNames,
             DWORD cchBufferLength,
             PDWORD lpcchReturnLength
         );

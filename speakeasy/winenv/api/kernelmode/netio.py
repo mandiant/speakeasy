@@ -255,7 +255,7 @@ class Netio(api.ApiHandler):
     @apihook("callback_WskFreeAddressInfo", argc=2)
     def WskFreeAddressInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WskFreeAddressInfo(
+        VOID WskFreeAddressInfo(
             PWSK_CLIENT Client,
             PADDRINFOEXW AddrInfo
         );
@@ -408,7 +408,7 @@ class Netio(api.ApiHandler):
     @apihook("WskReleaseProviderNPI", argc=1)
     def WskReleaseProviderNPI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WskReleaseProviderNPI(
+        VOID WskReleaseProviderNPI(
             PWSK_REGISTRATION WskRegistration
         );
         """
@@ -429,7 +429,7 @@ class Netio(api.ApiHandler):
     @apihook("WskDeregister", argc=1)
     def WskDeregister(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WskDeregister(
+        VOID WskDeregister(
             PWSK_REGISTRATION WskRegistration
         );
         """

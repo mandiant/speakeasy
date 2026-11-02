@@ -201,7 +201,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfDeviceInitSetPnpPowerEventCallbacks", argc=3)
     def WdfDeviceInitSetPnpPowerEventCallbacks(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfDeviceInitSetPnpPowerEventCallbacks(
+        VOID WdfDeviceInitSetPnpPowerEventCallbacks(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             PWDFDEVICE_INIT DeviceInit,
             PWDF_PNPPOWER_EVENT_CALLBACKS PnpPowerEventCallbacks
@@ -214,7 +214,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfDeviceInitSetRequestAttributes", argc=3)
     def WdfDeviceInitSetRequestAttributes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfDeviceInitSetRequestAttributes(
+        VOID WdfDeviceInitSetRequestAttributes(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             PWDFDEVICE_INIT DeviceInit,
             PWDF_OBJECT_ATTRIBUTES RequestAttributes
@@ -227,7 +227,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfDeviceInitSetFileObjectConfig", argc=4)
     def WdfDeviceInitSetFileObjectConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfDeviceInitSetFileObjectConfig(
+        VOID WdfDeviceInitSetFileObjectConfig(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             PWDFDEVICE_INIT DeviceInit,
             PWDF_FILEOBJECT_CONFIG FileObjectConfig,
@@ -241,7 +241,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfDeviceInitSetIoType", argc=3)
     def WdfDeviceInitSetIoType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfDeviceInitSetIoType(
+        VOID WdfDeviceInitSetIoType(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             PWDFDEVICE_INIT DeviceInit,
             WDF_DEVICE_IO_TYPE IoType
@@ -359,7 +359,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfRegistryClose", argc=2)
     def WdfRegistryClose(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfRegistryClose(
+        VOID WdfRegistryClose(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             WDFKEY Key
         );
@@ -370,7 +370,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfDeviceSetPnpCapabilities", argc=3)
     def WdfDeviceSetPnpCapabilities(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfDeviceSetPnpCapabilities(
+        VOID WdfDeviceSetPnpCapabilities(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             WDFDEVICE Device,
             PWDF_DEVICE_PNP_CAPABILITIES PnpCapabilities
@@ -502,7 +502,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfUsbTargetDeviceGetDeviceDescriptor", argc=3)
     def WdfUsbTargetDeviceGetDeviceDescriptor(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfUsbTargetDeviceGetDeviceDescriptor(
+        VOID WdfUsbTargetDeviceGetDeviceDescriptor(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             WDFUSBDEVICE UsbDevice,
             PUSB_DEVICE_DESCRIPTOR UsbDeviceDescriptor
@@ -774,7 +774,7 @@ class Wdfldr(api.ApiHandler):
     @apihook("WdfUsbTargetPipeGetInformation", argc=3)
     def WdfUsbTargetPipeGetInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WdfUsbTargetPipeGetInformation(
+        VOID WdfUsbTargetPipeGetInformation(
             PWDF_DRIVER_GLOBALS DriverGlobals,
             WDFUSBPIPE Pipe,
             PWDF_USB_PIPE_INFORMATION PipeInformation

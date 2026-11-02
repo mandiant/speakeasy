@@ -383,8 +383,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlMoveMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void RtlMoveMemory(
-            void *pvDest,
-            const void *pSrc,
+            void *Destination,
+            const void *Source,
             size_t Length
         );
         """
@@ -627,7 +627,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PTRACE_GUID_REGISTRATION TraceGuidReg,
             LPCWSTR MofImagePath,
             LPCWSTR MofResourceName,
-            PTRACEHANDLE RegistrationHandle
+            TRACEGUID_HANDLE *RegistrationHandle
         );
         """
         handle_ptr = argv[7]
@@ -648,7 +648,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PTRACE_GUID_REGISTRATION TraceGuidReg,
             LPCSTR MofImagePath,
             LPCSTR MofResourceName,
-            PTRACEHANDLE RegistrationHandle
+            TRACEGUID_HANDLE *RegistrationHandle
         );
         """
         return self.EtwRegisterTraceGuidsW(emu, argv, ctx)
@@ -657,7 +657,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def EtwUnregisterTraceGuids(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwUnregisterTraceGuids(
-            TRACEHANDLE RegistrationHandle
+            TRACEGUID_HANDLE RegistrationHandle
         );
 
         The handle takes two stack slots on x86. On x64 the second slot is unused.
@@ -667,7 +667,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("EtwGetTraceLoggerHandle", argc=1)
     def EtwGetTraceLoggerHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        TRACEHANDLE EtwGetTraceLoggerHandle(
+        TRACELOGGER_HANDLE EtwGetTraceLoggerHandle(
             PVOID Buffer
         );
         """
@@ -678,7 +678,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def EtwGetTraceEnableFlags(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwGetTraceEnableFlags(
-            TRACEHANDLE TraceHandle
+            TRACELOGGER_HANDLE TraceHandle
         );
 
         The handle takes two stack slots on x86. On x64 the second slot is unused.
@@ -689,7 +689,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def EtwGetTraceEnableLevel(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UCHAR EtwGetTraceEnableLevel(
-            TRACEHANDLE TraceHandle
+            TRACELOGGER_HANDLE TraceHandle
         );
 
         The handle takes two stack slots on x86. On x64 the second slot is unused.
@@ -700,7 +700,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def EtwTraceMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwTraceMessage(
-            TRACEHANDLE LoggerHandle,
+            TRACELOGGER_HANDLE LoggerHandle,
             ULONG MessageFlags,
             LPCGUID MessageGuid,
             USHORT MessageNumber,

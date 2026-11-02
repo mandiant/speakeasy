@@ -597,7 +597,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         PVOID ExAllocatePool2(
             POOL_FLAGS Flags,
-            SIZE_T Size,
+            SIZE_T NumberOfBytes,
             ULONG Tag
         );
 
@@ -1875,12 +1875,12 @@ class Ntoskrnl(api.ApiHandler):
         NTSTATUS ObReferenceObjectByName(
             PUNICODE_STRING ObjectName,
             ULONG Attributes,
-            PACCESS_STATE Passed,
+            PACCESS_STATE PassedAccessState,
             ACCESS_MASK DesiredAccess,
             POBJECT_TYPE ObjectType,
-            KPROCESSOR_MODE Access,
+            KPROCESSOR_MODE AccessMode,
             PVOID ParseContext,
-            PVOID *ObjectPtr
+            PVOID *Object
         );
         """
         ObjectName, Attributes, Passed, DesiredAccess, objtype, Access, ParseContext, objptr = argv
