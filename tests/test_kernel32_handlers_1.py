@@ -15,6 +15,7 @@ from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
+from speakeasy.winenv.defs.windows.windows import PAGE_PROTECTION_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 PAGE_READWRITE = 0x04
@@ -717,12 +718,12 @@ def test_code_page_1252_has_no_lead_bytes(dll_emu: Speakeasy, byte: int) -> None
 @pytest.mark.parametrize(
     "perms, protect",
     [
-        (common.PERM_MEM_READ, windefs.PAGE_READONLY),
-        (common.PERM_MEM_RW, windefs.PAGE_READWRITE),
-        (common.PERM_MEM_RX, windefs.PAGE_EXECUTE_READ),
-        (common.PERM_MEM_EXEC, windefs.PAGE_EXECUTE),
-        (common.PERM_MEM_RWX, windefs.PAGE_EXECUTE_READWRITE),
-        (common.PERM_MEM_NONE, windefs.PAGE_NOACCESS),
+        (common.PERM_MEM_READ, PAGE_PROTECTION_FLAGS.PAGE_READONLY),
+        (common.PERM_MEM_RW, PAGE_PROTECTION_FLAGS.PAGE_READWRITE),
+        (common.PERM_MEM_RX, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ),
+        (common.PERM_MEM_EXEC, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE),
+        (common.PERM_MEM_RWX, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE),
+        (common.PERM_MEM_NONE, PAGE_PROTECTION_FLAGS.PAGE_NOACCESS),
     ],
 )
 def test_virtual_query_reports_the_page_protection(dll_emu: Speakeasy, perms: int, protect: int) -> None:
@@ -736,10 +737,10 @@ def test_virtual_query_reports_the_page_protection(dll_emu: Speakeasy, perms: in
 @pytest.mark.parametrize(
     "offset, base, size, protect",
     [
-        (0x10, 0x0, 0x1000, windefs.PAGE_READONLY),
-        (0x1010, 0x1000, 0x1000, windefs.PAGE_EXECUTE_READ),
-        (0x3010, 0x3000, 0x1000, windefs.PAGE_READWRITE),
-        (0x5010, 0x4000, 0x3000, windefs.PAGE_READONLY),
+        (0x10, 0x0, 0x1000, PAGE_PROTECTION_FLAGS.PAGE_READONLY),
+        (0x1010, 0x1000, 0x1000, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ),
+        (0x3010, 0x3000, 0x1000, PAGE_PROTECTION_FLAGS.PAGE_READWRITE),
+        (0x5010, 0x4000, 0x3000, PAGE_PROTECTION_FLAGS.PAGE_READONLY),
     ],
 )
 def test_virtual_query_reports_the_section_of_a_loaded_image(
@@ -760,7 +761,7 @@ def test_virtual_query_reports_free_memory_up_to_the_next_allocation(dll_emu: Sp
     assert call(dll_emu, "kernel32", "VirtualQuery", [gap + 0x2010, mbi, 28])[0] == 28
     base_address, allocation_base, _, region_size, state, protect, _ = struct.unpack("<7I", dll_emu.mem_read(mbi, 28))
     assert (base_address, allocation_base, region_size) == (gap + 0x2000, 0, 0xE000)
-    assert (state, protect) == (windefs.MEM_FREE, windefs.PAGE_NOACCESS)
+    assert (state, protect) == (windefs.MEM_FREE, PAGE_PROTECTION_FLAGS.PAGE_NOACCESS)
 
 
 def test_virtual_query_reports_reserved_memory(dll_emu: Speakeasy) -> None:
@@ -778,7 +779,7 @@ def test_virtual_query_reports_committed_reserved_memory(dll_emu: Speakeasy) -> 
     assert call(dll_emu, "kernel32", "VirtualQuery", [base + 0x10, mbi, 28])[0] == 28
     base_address, _, allocation_protect, _, state, protect, _ = struct.unpack("<7I", dll_emu.mem_read(mbi, 28))
     assert (base_address, state) == (base, windefs.MEM_COMMIT)
-    assert allocation_protect == protect == windefs.PAGE_EXECUTE_READWRITE
+    assert allocation_protect == protect == PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE
 
 
 def test_virtual_query_rejects_addresses_above_the_application_range(dll_emu: Speakeasy) -> None:
@@ -906,7 +907,7 @@ def test_file_time_to_system_time_counts_weekdays_from_sunday(
         ("WriteProcessMemory", lambda buf: [0x9999, buf, buf, 4, 0]),
         ("ReadProcessMemory", lambda buf: [0x9999, buf, buf, 4, 0]),
         ("CreateRemoteThread", lambda buf: [0x9999, 0, 0, buf, 0, 0, 0]),
-        ("VirtualProtectEx", lambda buf: [0x9999, buf, 4, windefs.PAGE_READWRITE, buf]),
+        ("VirtualProtectEx", lambda buf: [0x9999, buf, 4, PAGE_PROTECTION_FLAGS.PAGE_READWRITE, buf]),
     ],
 )
 def test_unknown_process_handle_is_invalid(dll_emu: Speakeasy, api: str, argv: Callable[[int], list[int]]) -> None:

@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.wininet as windefs
 from speakeasy.windows import netman
+from speakeasy.winenv.defs.lookup import decode
+from speakeasy.winenv.defs.wininet import WINHTTP_OPEN_REQUEST_FLAGS
 
 from .. import api
 
@@ -123,11 +125,10 @@ class WinHttp(api.ApiHandler):
             ppwszAcceptTypes = self.read_mem_string(ppwszAcceptTypes, 2)
             ctx.args["ppwszAcceptTypes"].display = ppwszAcceptTypes
 
-        defs = windefs.get_flag_defines(dwFlags)
-        ctx.args["dwFlags"].display = " | ".join(defs)
+        ctx.args["dwFlags"].display = decode(WINHTTP_OPEN_REQUEST_FLAGS, dwFlags)
 
         sess = self.netman.get_wininet_object(hConnect)
-        req = sess.new_request(pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, defs, None)
+        req = sess.new_request(pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, dwFlags, None)
         hdl = req.get_handle()
 
         return hdl

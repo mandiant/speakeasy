@@ -14,6 +14,7 @@ from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
+from speakeasy.winenv.defs.windows.windows import FILE_CREATION_DISPOSITION, PAGE_PROTECTION_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
@@ -598,7 +599,9 @@ def test_invalid_handle_value_is_pointer_sized(request: pytest.FixtureRequest, f
     assert call(se, "kernel32", "FindFirstFileW", [nomatch, data])[0] == invalid
     assert call(se, "kernel32", "FindFirstFileExW", [nomatch, 0, data, 0, 0, 0])[0] == invalid
 
-    hmap, _ = call(se, "kernel32", "CreateFileMappingA", [invalid, 0, windefs.PAGE_READWRITE, 0, 0x1000, 0])
+    hmap, _ = call(
+        se, "kernel32", "CreateFileMappingA", [invalid, 0, PAGE_PROTECTION_FLAGS.PAGE_READWRITE, 0, 0x1000, 0]
+    )
     view, _ = call(se, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_ALL_ACCESS, 0, 0, 0])
     se.mem_write(view + 0xFF0, b"end")
     assert se.mem_read(view + 0xFF0, 3) == b"end"
@@ -872,11 +875,13 @@ def test_virtual_alloc_commit_in_a_reservation_applies_the_protection(emu: Speak
         perms: int = next(p for start, end, p in emu.emu.get_mem_regions() if start <= address <= end)
         return perms
 
-    base, _ = call(emu, "kernel32", "VirtualAlloc", [0, 0x100000, windefs.MEM_RESERVE, windefs.PAGE_NOACCESS])
+    base, _ = call(
+        emu, "kernel32", "VirtualAlloc", [0, 0x100000, windefs.MEM_RESERVE, PAGE_PROTECTION_FLAGS.PAGE_NOACCESS]
+    )
     assert base
     assert permissions(base) == unicorn.UC_PROT_NONE
     committed, _ = call(
-        emu, "kernel32", "VirtualAlloc", [base + 0x10, 0x4000, windefs.MEM_COMMIT, windefs.PAGE_READWRITE]
+        emu, "kernel32", "VirtualAlloc", [base + 0x10, 0x4000, windefs.MEM_COMMIT, PAGE_PROTECTION_FLAGS.PAGE_READWRITE]
     )
     assert committed == base
     rw = unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
@@ -887,13 +892,15 @@ def test_virtual_alloc_commit_in_a_reservation_applies_the_protection(emu: Speak
 @pytest.mark.parametrize(
     "protect, expected",
     [
-        (windefs.PAGE_WRITECOPY, unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE),
-        (windefs.PAGE_EXECUTE_WRITECOPY, unicorn.UC_PROT_ALL),
+        (PAGE_PROTECTION_FLAGS.PAGE_WRITECOPY, unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE),
+        (PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_WRITECOPY, unicorn.UC_PROT_ALL),
     ],
     ids=["PAGE_WRITECOPY", "PAGE_EXECUTE_WRITECOPY"],
 )
 def test_virtual_protect_write_copy_is_readable_and_writable(emu: Speakeasy, protect: int, expected: int) -> None:
-    base, _ = call(emu, "kernel32", "VirtualAlloc", [0, 0x1000, windefs.MEM_COMMIT, windefs.PAGE_READONLY])
+    base, _ = call(
+        emu, "kernel32", "VirtualAlloc", [0, 0x1000, windefs.MEM_COMMIT, PAGE_PROTECTION_FLAGS.PAGE_READONLY]
+    )
     old = alloc(emu, b"\x00" * 4)
     assert call(emu, "kernel32", "VirtualProtect", [base, 0x1000, protect, old])[0]
     assert next(p for start, end, p in emu.emu.get_mem_regions() if start <= base <= end) == expected
@@ -1316,7 +1323,7 @@ def test_a_deleted_file_is_gone_until_it_is_created_again(emu: Speakeasy) -> Non
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
     assert call(emu, "kernel32", "DeleteFileW", [dst])[0] == 1
-    assert open_file(emu, "C:\\tmp\\x\\a.exe", windefs.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\x\\a.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
     assert call(emu, "kernel32", "GetFileAttributesW", [dst])[0] == windefs.FILE_ATTRIBUTE_NORMAL
 
 
@@ -1324,13 +1331,13 @@ def test_fail_if_exists_ignores_the_extension_and_default_handlers(emu: Speakeas
     sample = wide(emu, emu.emu.modules[0].emu_path)
 
     assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\tmp\\y\\b.exe"), 1])[0] == 1
-    assert open_file(emu, "C:\\tmp\\y\\c.exe", windefs.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
-    assert open_file(emu, "C:\\tmp\\y\\c.exe", windefs.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\y\\c.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) != windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, "C:\\tmp\\y\\c.exe", FILE_CREATION_DISPOSITION.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
     assert call(emu, "kernel32", "CopyFileW", [sample, wide(emu, "C:\\Windows\\system32\\cmd.exe"), 1])[0] == 0
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
-    assert open_file(emu, BYTE_FILL_PATH, windefs.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
+    assert open_file(emu, BYTE_FILL_PATH, FILE_CREATION_DISPOSITION.CREATE_NEW) == windefs.INVALID_HANDLE_VALUE
     assert last_error(emu) == windefs.ERROR_FILE_EXISTS
 
 

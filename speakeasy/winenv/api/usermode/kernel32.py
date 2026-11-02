@@ -31,7 +31,10 @@ from speakeasy.profiler_events import (
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
+from speakeasy.winenv.defs.lookup import decode, decode_flags
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.nt.ddk import FILE_ACCESS_FLAGS
+from speakeasy.winenv.defs.windows.windows import FILE_CREATION_DISPOSITION, PAGE_PROTECTION_FLAGS
 
 from .. import api
 from ..exception_apis import ExceptionApis
@@ -48,7 +51,6 @@ NORM_IGNORECASE = 0x1
 MOVEFILE_REPLACE_EXISTING = 0x1
 MOVEFILE_DELAY_UNTIL_REBOOT = 0x4
 
-SEC_IMAGE = 0x1000000
 CURRENT_THREAD_HANDLE = 0xFFFFFFFE  # (HANDLE)-2
 
 FILE_MAP_COPY = 0x0001
@@ -300,18 +302,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def emu_perms_to_win_perms(self, emu_perms):
         if emu_perms & common.PERM_MEM_WRITE:
             if emu_perms & common.PERM_MEM_EXEC:
-                new = windefs.PAGE_EXECUTE_READWRITE
+                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE
             else:
-                new = windefs.PAGE_READWRITE
+                new = PAGE_PROTECTION_FLAGS.PAGE_READWRITE
         elif emu_perms & common.PERM_MEM_EXEC:
             if emu_perms & common.PERM_MEM_READ:
-                new = windefs.PAGE_EXECUTE_READ
+                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ
             else:
-                new = windefs.PAGE_EXECUTE
+                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE
         elif emu_perms & common.PERM_MEM_READ:
-            new = windefs.PAGE_READONLY
+            new = PAGE_PROTECTION_FLAGS.PAGE_READONLY
         else:
-            new = windefs.PAGE_NOACCESS
+            new = PAGE_PROTECTION_FLAGS.PAGE_NOACCESS
         return new
 
     def get_max_application_address(self, emu):
@@ -1138,7 +1140,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         perms = self.win_perms_to_emu_perms(protect)
         emu.clear_guard_pages(base, end - base)
         emu.mem_protect(base, end - base, perms)
-        if protect & windefs.PAGE_GUARD:
+        if protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
             emu.set_guard_pages(base, end - base, perms)
         return base
 
@@ -1156,12 +1158,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         buf = 0
         tag_prefix = "api.VirtualAlloc"
 
-        protect = flProtect
-        prot_def = windefs.get_page_rights(flProtect)
-        if prot_def:
-            prot_def = "|".join(prot_def)
-            ctx.args["flProtect"].display = prot_def
-            protect = prot_def
+        protect = decode(PAGE_PROTECTION_FLAGS, flProtect)
+        ctx.args["flProtect"].display = protect
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
@@ -1191,7 +1189,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
             emu_perms = self.win_perms_to_emu_perms(flProtect)
             buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms)
-            if flProtect & windefs.PAGE_GUARD:
+            if flProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
                 emu.set_guard_pages(buf, size, emu_perms)
 
             proc = emu.get_current_process()
@@ -1244,12 +1242,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         tag_prefix = f"api.VirtualAllocEx.{proc_path}.{obj.pid}"
 
-        protect = flProtect
-        prot_def = windefs.get_page_rights(flProtect)
-        if prot_def:
-            prot_def = "|".join(prot_def)
-            ctx.args["flProtect"].display = prot_def
-            protect = prot_def
+        protect = decode(PAGE_PROTECTION_FLAGS, flProtect)
+        ctx.args["flProtect"].display = protect
 
         # Was this address already commited?
         mm = emu.get_address_map(lpAddress)
@@ -1270,7 +1264,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
             emu_perms = self.win_perms_to_emu_perms(flProtect)
             buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms, process=obj)
-            if flProtect & windefs.PAGE_GUARD and obj is emu.get_current_process():
+            if flProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD and obj is emu.get_current_process():
                 emu.set_guard_pages(buf, size, emu_perms)
             mm = emu.get_address_map(buf)
 
@@ -1634,7 +1628,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 mbi.BaseAddress = page
                 mbi.RegionSize = end - page
                 mbi.State = windefs.MEM_FREE
-                mbi.Protect = windefs.PAGE_NOACCESS
+                mbi.Protect = PAGE_PROTECTION_FLAGS.PAGE_NOACCESS
             self.mem_write(lpBuffer, mbi.get_bytes())
             return mbi.sizeof()
 
@@ -1651,7 +1645,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         mbi.State = windefs.MEM_COMMIT
         page = lpAddress & ~(PAGE_SIZE - 1)
         if page in emu.guard_pages:
-            mbi.Protect = self.emu_perms_to_win_perms(emu.guard_pages[page]) | windefs.PAGE_GUARD
+            mbi.Protect = self.emu_perms_to_win_perms(emu.guard_pages[page]) | PAGE_PROTECTION_FLAGS.PAGE_GUARD
         else:
             mbi.Protect = self.emu_perms_to_win_perms(prot)
         mbi.Type = 0
@@ -1728,12 +1722,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
                 return 0
 
-            old_prot &= ~windefs.PAGE_GUARD
+            old_prot &= ~PAGE_PROTECTION_FLAGS.PAGE_GUARD
             if addr in emu.guard_pages:
-                old_prot |= windefs.PAGE_GUARD
+                old_prot |= PAGE_PROTECTION_FLAGS.PAGE_GUARD
             emu.mem_protect(addr, size, new)
             emu.clear_guard_pages(addr, size)
-            if flNewProtect & windefs.PAGE_GUARD:
+            if flNewProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
                 emu.set_guard_pages(addr, size, new)
             mm.prot = new
             self.write_dword(lpflOldProtect, old_prot)
@@ -1764,12 +1758,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         rv = self.VirtualProtect(emu, argv[1:], ctx)
 
-        prot_def = windefs.get_page_rights(flNewProtect)
-        if prot_def:
-            prot_def = " | ".join(prot_def)
-            ctx.args["flNewProtect"].display = prot_def
+        protect = decode(PAGE_PROTECTION_FLAGS, flNewProtect)
+        ctx.args["flNewProtect"].display = protect
 
-        self.record_process_event(proc_obj, MEM_PROTECT, base=lpAddress, size=dwSize, protect=prot_def)
+        self.record_process_event(proc_obj, MEM_PROTECT, base=lpAddress, size=dwSize, protect=protect)
 
         return rv
 
@@ -4080,7 +4072,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             ctx.args["lpName"].display = name
 
         f = emu.get_file_manager().get_file_from_handle(hFile)
-        if f and flProtect & SEC_IMAGE:
+        if f and flProtect & PAGE_PROTECTION_FLAGS.SEC_IMAGE:
             try:
                 emu.load_pe(data=f.get_contents())
             except WindowsEmuError:
@@ -4161,7 +4153,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 # has beed done with SEC_IMAGE protection, the mapping is not
                 # done as a contigous stream of bytes, but it is mapped as
                 # PE file
-                pe_mapping = mapping.prot & SEC_IMAGE
+                pe_mapping = mapping.prot & PAGE_PROTECTION_FLAGS.SEC_IMAGE
                 if pe_mapping:
                     # Now map the file as PE file
                     pe = emu.load_pe(data=data)
@@ -4588,60 +4580,66 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         target = self.read_mem_string(lpFileName, cw)
         ctx.args["lpFileName"].display = target
 
-        ad = ddk.get_access_defines(dwDesiredAccess)
-        if ad:
-            ctx.args["dwDesiredAccess"].display = " | ".join(ad)
+        ad = decode_flags(FILE_ACCESS_FLAGS, dwDesiredAccess) if dwDesiredAccess else None
+        ctx.args["dwDesiredAccess"].display = decode(FILE_ACCESS_FLAGS, dwDesiredAccess)
 
         disp_bytes = dwCreationDisposition.to_bytes(8, "little")
         dwCreationDisposition = int(int.from_bytes(disp_bytes[0:4], "little"))
-        cd = windefs.get_create_disposition(dwCreationDisposition)
-        if cd:
-            ctx.args["dwCreationDisposition"].display = cd
+        cd = decode(FILE_CREATION_DISPOSITION, dwCreationDisposition)
+        ctx.args["dwCreationDisposition"].display = cd
 
         obj = self.get_object_from_name(target)
         if obj:
             hnd = self.get_object_handle(obj)
         else:
             op = "open"
-            if dwCreationDisposition == windefs.CREATE_NEW:
+            if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                 exists = emu.get_file_manager().does_file_exist_by_path(target)
             else:
                 exists = self.does_file_exist(target)
             if exists:
-                if dwCreationDisposition == windefs.CREATE_ALWAYS:
+                if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_ALWAYS:
                     emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
                     hnd = self.file_open(target, create=True)
                     op = "create"
-                elif dwCreationDisposition == windefs.CREATE_NEW:
+                elif dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                     # Function fails
                     emu.set_last_error(windefs.ERROR_FILE_EXISTS)
-                elif dwCreationDisposition == windefs.OPEN_ALWAYS:
+                elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_ALWAYS:
                     emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
                     # Open the file
                     hnd = self.file_open(target, create=False)
-                elif dwCreationDisposition == windefs.OPEN_EXISTING:
+                elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_EXISTING:
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     hnd = self.file_open(target, create=False)
-                elif dwCreationDisposition == windefs.TRUNCATE_EXISTING:
+                elif dwCreationDisposition == FILE_CREATION_DISPOSITION.TRUNCATE_EXISTING:
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     hnd = self.file_open(target, create=False, truncate=True)
 
             # We don't have a handler for this file, create it
             else:
                 op = "create"
-                if dwCreationDisposition in (windefs.CREATE_ALWAYS, windefs.CREATE_NEW):
+                if dwCreationDisposition in (
+                    FILE_CREATION_DISPOSITION.CREATE_ALWAYS,
+                    FILE_CREATION_DISPOSITION.CREATE_NEW,
+                ):
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     hnd = self.file_open(target, create=True)
-                elif dwCreationDisposition == windefs.OPEN_ALWAYS:
+                elif dwCreationDisposition == FILE_CREATION_DISPOSITION.OPEN_ALWAYS:
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     # Open the file
                     hnd = self.file_open(target, create=True)
-                elif dwCreationDisposition in (windefs.OPEN_EXISTING, windefs.TRUNCATE_EXISTING):
+                elif dwCreationDisposition in (
+                    FILE_CREATION_DISPOSITION.OPEN_EXISTING,
+                    FILE_CREATION_DISPOSITION.TRUNCATE_EXISTING,
+                ):
                     emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
             f = self.file_get(hnd)
-            write_access = ddk.FILE_WRITE_DATA | ddk.GENERIC_WRITE | ddk.GENERIC_ALL
-            if f and dwDesiredAccess & ddk.FILE_APPEND_DATA and not dwDesiredAccess & write_access:
+            write_access = (
+                FILE_ACCESS_FLAGS.FILE_WRITE_DATA | FILE_ACCESS_FLAGS.GENERIC_WRITE | FILE_ACCESS_FLAGS.GENERIC_ALL
+            )
+            if f and dwDesiredAccess & FILE_ACCESS_FLAGS.FILE_APPEND_DATA and not dwDesiredAccess & write_access:
                 f.append = True
 
             self.record_file_access_event(target, op, disposition=[cd], access=ad)

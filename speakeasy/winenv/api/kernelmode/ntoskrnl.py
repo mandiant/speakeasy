@@ -19,7 +19,9 @@ from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import FILE_OPEN, FILE_READ, FILE_WRITE, MEM_WRITE, REG_CREATE, REG_WRITE
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
+from speakeasy.winenv.defs.lookup import decode, decode_flags
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.nt.ddk import FILE_ACCESS_FLAGS, NT_CREATE_FILE_DISPOSITION
 
 if TYPE_CHECKING:
     from speakeasy.windows.winemu import WindowsEmulator
@@ -2911,13 +2913,11 @@ class Ntoskrnl(api.ApiHandler):
         CreateDisposition = 0xFFFFFFFF & CreateDisposition
 
         ctx.args["ObjectAttributes"].display = name
-        cd = ddk.get_create_disposition(CreateDisposition)
-        if cd:
-            ctx.args["CreateDisposition"].display = cd
+        cd = decode(NT_CREATE_FILE_DISPOSITION, CreateDisposition)
+        ctx.args["CreateDisposition"].display = cd
 
-        ad = ddk.get_file_access_defines(DesiredAccess)
-        if ad:
-            ctx.args["DesiredAccess"].display = " | ".join(ad)
+        ad = decode_flags(FILE_ACCESS_FLAGS, DesiredAccess) if DesiredAccess else None
+        ctx.args["DesiredAccess"].display = decode(FILE_ACCESS_FLAGS, DesiredAccess)
 
         npath = name
         if name.startswith("\\??\\"):
@@ -2934,23 +2934,32 @@ class Ntoskrnl(api.ApiHandler):
             hfile = 0
             # Does the file being opened exist in our emulation space?
             if self.does_file_exist(npath):
-                if CreateDisposition == ddk.FILE_SUPERSEDE:
+                if CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_SUPERSEDE:
                     hfile = self.file_open(npath, create=True)
-                elif CreateDisposition == ddk.FILE_CREATE:
+                elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_CREATE:
                     nts = ddk.STATUS_UNSUCCESSFUL
-                elif CreateDisposition in (ddk.FILE_OPEN, ddk.FILE_OPEN_IF):
+                elif CreateDisposition in (
+                    NT_CREATE_FILE_DISPOSITION.FILE_OPEN,
+                    NT_CREATE_FILE_DISPOSITION.FILE_OPEN_IF,
+                ):
                     hfile = self.file_open(npath, create=False)
-                elif CreateDisposition in (ddk.FILE_OVERWRITE, ddk.FILE_OVERWRITE_IF):
+                elif CreateDisposition in (
+                    NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE,
+                    NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE_IF,
+                ):
                     hfile = self.file_open(npath, create=True)
-            elif CreateDisposition in (ddk.FILE_SUPERSEDE, ddk.FILE_CREATE):
+            elif CreateDisposition in (
+                NT_CREATE_FILE_DISPOSITION.FILE_SUPERSEDE,
+                NT_CREATE_FILE_DISPOSITION.FILE_CREATE,
+            ):
                 hfile = self.file_open(npath, create=True)
-            elif CreateDisposition == ddk.FILE_OPEN:
+            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OPEN:
                 nts = ddk.STATUS_UNSUCCESSFUL
-            elif CreateDisposition == ddk.FILE_OPEN_IF:
+            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OPEN_IF:
                 hfile = self.file_open(npath, create=True)
-            elif CreateDisposition == ddk.FILE_OVERWRITE:
+            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE:
                 nts = ddk.STATUS_UNSUCCESSFUL
-            elif CreateDisposition == ddk.FILE_OVERWRITE_IF:
+            elif CreateDisposition == NT_CREATE_FILE_DISPOSITION.FILE_OVERWRITE_IF:
                 hfile = self.file_open(npath, create=True)
 
             self.write_ptr(FileHandle, hfile)
@@ -2980,9 +2989,8 @@ class Ntoskrnl(api.ApiHandler):
         path = self.read_unicode_string(oa.ObjectName)
 
         ctx.args["ObjectAttributes"].display = path
-        ad = ddk.get_file_access_defines(DesiredAccess)
-        if ad:
-            ctx.args["DesiredAccess"].display = " | ".join(ad)
+        ad = decode_flags(FILE_ACCESS_FLAGS, DesiredAccess) if DesiredAccess else None
+        ctx.args["DesiredAccess"].display = decode(FILE_ACCESS_FLAGS, DesiredAccess)
 
         obj = self.get_object_from_name(path)
         if obj:

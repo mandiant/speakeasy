@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
+from speakeasy.winenv.defs.wininet import INTERNET_FLAGS
 
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
@@ -110,7 +111,7 @@ class WininetRequest(WininetComponent):
         self.ver: str = ver
         self.referrer: str | int | None = ref
         self.accept_types: int | None = accepts
-        self.flags: list[str] = flags
+        self.flags: int = flags
         self.ctx: int = ctx
         self.response: BytesIO | None = None
 
@@ -124,9 +125,8 @@ class WininetRequest(WininetComponent):
         return self.session.instance
 
     def is_secure(self):
-        if "INTERNET_FLAG_SECURE" in self.flags:
-            return True
-        return False
+        # WINHTTP_FLAG_SECURE has the same value, so this test is also correct for WinHTTP requests
+        return bool(self.flags & INTERNET_FLAGS.INTERNET_FLAG_SECURE)
 
     def format_http_request(self, headers=None):
         request_string = ""
@@ -145,12 +145,12 @@ class WininetRequest(WininetComponent):
         if ua:
             request_string += f"User-Agent: {ua}\n"
 
-        if "INTERNET_FLAG_KEEP_CONNECTION" in self.flags:
+        if self.flags & INTERNET_FLAGS.INTERNET_FLAG_KEEP_CONNECTION:
             request_string += "Connection: Keep-Alive\n"
         else:
             request_string += "Connection: Close\n"
 
-        if "INTERNET_FLAG_DONT_CACHE" in self.flags:
+        if self.flags & INTERNET_FLAGS.INTERNET_FLAG_DONT_CACHE:
             request_string += "Cache-Control: no-cache\n"
 
         return request_string
@@ -222,7 +222,7 @@ class WininetSession(WininetComponent):
         self.user: str | int = user
         self.password: str | int = password
         self.service: int | str = service
-        self.flags: int | list[str] = flags
+        self.flags: int = flags
         self.ctx: int = ctx
         self.requests: dict[int, WininetRequest] = {}
 
