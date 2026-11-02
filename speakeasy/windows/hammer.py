@@ -34,8 +34,9 @@ def _lowercase_set(tt):
 
 class ApiHammer:
     """
-    Detect and attempt to mitigate API hammering as part of anti-sandbox or
-    anti-emulation in malware samples
+    Detect and attempt to mitigate API hammering.
+
+    Malware samples use API hammering as part of anti-sandbox or anti-emulation.
     """
 
     def __init__(self, emu):
@@ -59,16 +60,11 @@ class ApiHammer:
             self.allow_list = _lowercase_set(_default_api_hammer_allowlist)
 
     def is_allowed_api(self, apiname):
-        """
-        Returns true if the given apiname is one we don't want to use api hammering
-        mitigation for
-        """
+        """Return ``True`` if the API is one that the hammering mitigation skips."""
         return apiname.lower() in self.allow_list
 
     def handle_import_func(self, imp_api, conv, argc):
-        """
-        Identifies possible API hammering and attempts to patch in mitigations.
-        """
+        """Identifies possible API hammering and attempts to patch in mitigations."""
         if not self.enabled:
             # api hammering mitigation not enabled, so exit
             return

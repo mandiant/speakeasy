@@ -1,6 +1,7 @@
 """
-x86 exception dispatch, after ntdll's RtlDispatchException and RtlUnwind: handlers
-come from the chain of EXCEPTION_REGISTRATION_RECORDs at fs:[0].
+x86 exception dispatch, after ntdll's RtlDispatchException and RtlUnwind.
+
+Handlers come from the chain of EXCEPTION_REGISTRATION_RECORDs at fs:[0].
 
 The entry points are dispatch_fault, for CPU exceptions, and the API handlers
 raise_exception, rtl_unwind, and the MSVC language handlers except_handler3 and
@@ -68,7 +69,8 @@ def exception_list(emu) -> int:
 
 def registrations(emu) -> Iterator[tuple[int, int, int]]:
     """
-    The registration, next registration and handler of each record on the chain at fs:[0].
+    Yield the registration, next registration and handler of each record on the chain at fs:[0].
+
     A record that cannot be read ends the chain, as one outside the stack does on Windows.
     """
     registration = exception_list(emu)
@@ -94,20 +96,21 @@ def dispatch_fault(emu, exception: CpuException, error: guest_callbacks.Callback
 
 
 def raise_exception(emu, code: int, flags: int = 0, params=()) -> GeneratorHandler:
-    """RaiseException"""
+    """RaiseException."""
     return seh.raise_exception(emu, code, flags, params, dispatch_exception)
 
 
 def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
-    """RtlRaiseException"""
+    """RtlRaiseException."""
     return seh.rtl_raise_exception(emu, record, dispatch_exception)
 
 
 def call_handler(emu, handler: int, record: int, registration: int, context: int, dispatcher_context: int) -> GuestCall:
     """
-    A call of an exception handler from a frame like the one ExecuteHandler2 leaves at EBP:
-    the saved EBP, a return address, then the arguments, which some handlers, such as
-    Borland C++'s, read through EBP.
+    Build a call of an exception handler from a frame like the one ExecuteHandler2 leaves at EBP.
+
+    The frame has the saved EBP, a return address, then the arguments, which some
+    handlers, such as Borland C++'s, read through EBP.
     """
     args = (record, registration, context, dispatcher_context)
     frame = guest_callbacks.alloca(emu, struct.pack("<6I", emu.reg_read(_arch.X86_REG_EBP), 0, *args))
@@ -132,6 +135,7 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
 def unwind_registrations(emu, target_frame: int, record: int = 0) -> Generator[GuestCall, int, None]:
     """
     Call the handlers of the registrations above target_frame to unwind, and unlink them.
+
     A target_frame of 0 unwinds them all.
     """
     if record:
@@ -153,8 +157,9 @@ def unwind_registrations(emu, target_frame: int, record: int = 0) -> Generator[G
 
 def rtl_unwind(emu, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
     """
-    RtlUnwind: unwind the registrations above target_frame, then return to the caller,
-    a handler that takes the exception and continues in its frame.
+    Unwind the registrations above target_frame, then return to the caller.
+
+    The caller is a handler that takes the exception and continues in its frame.
     """
     caller = guest_callbacks.caller_context(emu)  # read before the first guest call
     yield from unwind_registrations(emu, target_frame, record)
@@ -231,7 +236,7 @@ def msvc_handler(emu, frame: MsvcFrame, record: int, context: int) -> GeneratorH
 
 
 def except_handler3(emu, record: int, registration: int, context: int, dispatcher: int) -> GeneratorHandler:
-    """_except_handler3"""
+    """_except_handler3."""
     scope_table = _u32(emu, registration + SCOPE_TABLE)
     frame = MsvcFrame(emu, registration, scope_table, 0, TRYLEVEL_NONE_SEH3)
     return (yield from msvc_handler(emu, frame, record, context))

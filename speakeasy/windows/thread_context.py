@@ -1,6 +1,7 @@
 """
-Thread contexts: the sections of a CONTEXT that ContextFlags selects, and
-access to a context of either architecture.
+Thread contexts: the sections of a CONTEXT that ContextFlags selects, and access.
+
+The module gives access to a context of either architecture.
 
 GetThreadContext and SetThreadContext copy only the sections the caller asks
 for; the debug registers in particular belong to the thread, not the CPU,

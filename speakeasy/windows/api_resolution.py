@@ -1,7 +1,8 @@
 """
-The results of the search for the code to run for an API call: a handler, a user
-hook, a function from the signature database, a stub, or nothing. Also the related
-names of an API whose handler can run for it.
+The results of the search for the code to run for an API call.
+
+The code is a handler, a user hook, a function from the signature database, a stub, or
+nothing. This module also has the related names of an API whose handler can run for it.
 """
 
 from collections.abc import Callable, Iterator
@@ -17,8 +18,10 @@ from speakeasy.winenv.api.api import ApiHandler
 @dataclass(frozen=True)
 class HandlerImplementation:
     """
-    The API has a handler. For an import by ordinal, name is the handler name.
-    Otherwise it is the name that the guest called.
+    The API has a handler.
+
+    For an import by ordinal, name is the handler name. Otherwise it is the name that
+    the guest called.
     """
 
     module: ApiHandler
@@ -31,8 +34,9 @@ class HandlerImplementation:
 @dataclass(frozen=True)
 class UserHookImplementation:
     """
-    Speakeasy has no handler for the API, but the user added hooks for it with
-    add_api_hook. The module and API names of a hook can have wildcards, so one
+    Speakeasy has no handler for the API, but the user added hooks for it.
+
+    The user adds hooks with add_api_hook. The module and API names of a hook can have wildcards, so one
     hook can match many APIs. The hook takes the place of the handler: it gives
     the argument count and the calling convention, and its return value goes to
     the guest. Only the last hook that was added runs, because there is no
@@ -49,8 +53,9 @@ class UserHookImplementation:
 @dataclass(frozen=True)
 class SignatureImplementation:
     """
-    The API has no handler, but it is in the signature database. The declaration
-    gives the arguments to log and the stack to clean up.
+    The API has no handler, but it is in the signature database.
+
+    The declaration gives the arguments to log and the stack to clean up.
     """
 
     sig: sigdb.FuncSig
@@ -86,6 +91,7 @@ def _get_nt_zw_alias(name: str) -> str:
 def get_handler_candidates(dll: str, name: str) -> Iterator[tuple[str, str]]:
     """
     Yield other (dll, name) pairs whose handler can run for dll!name, best first.
+
     For example: the name without the A or W suffix, the name without the CRT
     "_o_" prefix, the Zw name for an Nt name, ntoskrnl and msvcrt for ntdll, the
     modules that have the handlers of an API set or DLL, advapi32 for kernel32

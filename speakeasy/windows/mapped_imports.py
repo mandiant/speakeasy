@@ -1,6 +1,4 @@
-"""
-Read the imports of a PE image that the guest mapped itself, for example by process hollowing.
-"""
+"""Read the imports of a PE image that the guest mapped itself, for example by process hollowing."""
 
 import logging
 import struct

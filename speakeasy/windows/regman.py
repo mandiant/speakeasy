@@ -29,9 +29,7 @@ PRODUCT_NAMES = {
 
 
 def get_current_version_values(os_ver):
-    """
-    Get the values of the Windows NT CurrentVersion key that Windows sets for the OS version
-    """
+    """Get the values of the Windows NT CurrentVersion key that Windows sets for the OS version."""
     product_name = PRODUCT_NAMES.get((os_ver.major, os_ver.minor))
     if not product_name:
         return []
@@ -52,9 +50,7 @@ def get_current_version_values(os_ver):
 
 
 def get_program_files_values(env, is_x64):
-    """
-    Get the values of the Windows CurrentVersion key that give the program files directories
-    """
+    """Get the values of the Windows CurrentVersion key that give the program files directories."""
     program_files = env.get("programfiles", "C:\\Program Files")
     common_files = env.get("commonprogramfiles", f"{program_files}\\Common Files")
     values = [
@@ -76,9 +72,7 @@ def get_program_files_values(env, is_x64):
 
 
 class RegValue:
-    """
-    Represents a registry value
-    """
+    """Represents a registry value."""
 
     def __init__(self, name, val_type, data):
         self.name: str = name
@@ -86,9 +80,7 @@ class RegValue:
         self.data: str | int | bytes | None = self.normalize_value(val_type, data)
 
     def normalize_value(self, val_type, data):
-        """
-        Convert registry values to python types
-        """
+        """Convert registry values to python types."""
         if val_type in (regdefs.REG_EXPAND_SZ, regdefs.REG_MULTI_SZ, regdefs.REG_SZ):
             if not isinstance(data, str):
                 raise RegistryEmuError("Invalid registry value expected string")
@@ -118,8 +110,9 @@ class RegValue:
 
     def get_bytes(self, width):
         """
-        Get the data as the registry APIs return it, with strings encoded in
-        characters of ``width`` bytes.
+        Get the data as the registry APIs return it.
+
+        Strings use characters of ``width`` bytes.
         """
         enc = "utf-16le" if width == 2 else "utf-8"
         if self.type in (regdefs.REG_SZ, regdefs.REG_EXPAND_SZ) and isinstance(self.data, str):
@@ -136,9 +129,7 @@ class RegValue:
 
 
 class RegKey:
-    """
-    Represents a registry key
-    """
+    """Represents a registry key."""
 
     def __init__(self, allocator, path):
         self.allocator: HandleAllocator = allocator
@@ -167,9 +158,7 @@ class RegKey:
 
 
 class RegistryManager:
-    """
-    Manages the emulation of the windows registry. This includes creating keys, subkeys and values
-    """
+    """Manages the emulation of the windows registry. This includes creating keys, subkeys and values."""
 
     def __init__(self, allocator, config=None, os_ver=None):
         super().__init__()
@@ -187,9 +176,7 @@ class RegistryManager:
             self.add_default_values(CURRENT_VERSION_KEY, get_current_version_values(os_ver))
 
     def add_default_values(self, path, values):
-        """
-        Add values to a key, except values that the config sets
-        """
+        """Add values to a key, except values that the config sets."""
         if not values:
             return
         key = self.create_key(path)
@@ -229,9 +216,7 @@ class RegistryManager:
         return None
 
     def get_key_paths(self):
-        """
-        Get the paths of the open keys and of the keys in the config
-        """
+        """Get the paths of the open keys and of the keys in the config."""
         paths = [key.get_path() for key in self.keys]
         if self.config:
             paths += [key.path for key in self.config.keys]
@@ -263,9 +248,7 @@ class RegistryManager:
         return subkeys
 
     def get_key_from_config(self, path):
-        """
-        See if the emulator config file contains a handler for the requested registry path
-        """
+        """See if the emulator config file contains a handler for the requested registry path."""
         if not self.config:
             return None
         for key in self.config.keys:
@@ -278,9 +261,7 @@ class RegistryManager:
         return None
 
     def create_key(self, path):
-        """
-        Create a registry key
-        """
+        """Create a registry key."""
         path = self.normalize_reg_path(path)
         # Does this key already exist?
         key = self.get_key_from_path(path)
@@ -298,9 +279,7 @@ class RegistryManager:
         return key
 
     def open_key(self, path, create=False):
-        """
-        Open or optionally create a registry key
-        """
+        """Open or optionally create a registry key."""
         hnd = None
         path = self.normalize_reg_path(path)
         # Does the key already exist?

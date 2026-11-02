@@ -20,9 +20,7 @@ class CryptKey:
 
 
 class CryptContext:
-    """
-    Represents crypto context used by crypto functions
-    """
+    """Represents crypto context used by crypto functions."""
 
     def __init__(self, allocator, cname, pname, ptype, flags):
         self.allocator: HandleAllocator = allocator
@@ -51,9 +49,7 @@ class CryptContext:
 
 
 class CryptoManager:
-    """
-    Manages the emulation of crypto functions
-    """
+    """Manages the emulation of crypto functions."""
 
     def __init__(self, allocator, config=None):
         super().__init__()

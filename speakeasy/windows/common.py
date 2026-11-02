@@ -103,9 +103,7 @@ class ImageSectionCharacteristics(IntFlag):
 
 
 def get_filetime(when: datetime.datetime) -> int:
-    """
-    Return a time with a time zone as a FILETIME value, in 100 ns units since 1601.
-    """
+    """Return a time with a time zone as a FILETIME value, in 100 ns units since 1601."""
     return (when - FILETIME_EPOCH) // datetime.timedelta(microseconds=1) * 10
 
 
@@ -146,6 +144,7 @@ DLL_HOSTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
 def get_dll_hosts(name: str) -> tuple[str, ...]:
     """
     Get the modules that have handlers for the functions of a DLL or API set.
+
     A DLL that is not in DLL_HOSTS has its own handlers.
     """
     lower = name.lower()
@@ -161,9 +160,7 @@ def normalize_dll_name(name: str) -> str:
 
 
 class _PeParser(pefile.PE):
-    """
-    Represents PE files loaded into the emulator
-    """
+    """Represents PE files loaded into the emulator."""
 
     def __init__(self, path=None, data=None, emu_path="", fast_load=False):
         super().__init__(name=path, data=data, fast_load=fast_load)
@@ -282,9 +279,7 @@ class _PeParser(pefile.PE):
             return True
 
     def is_dotnet(self):
-        """
-        Is the current PE file a .NET assembly?
-        """
+        """Is the current PE file a .NET assembly?"""
         for addr, imp in self.imports.items():
             dll, func = imp
             if dll == "mscoree" and func in ["_CorExeMain", "_CorDllMain"]:

@@ -64,9 +64,7 @@ def normalize_response_path(path):
 
 
 class MapView:
-    """
-    Represents a shared memory view
-    """
+    """Represents a shared memory view."""
 
     def __init__(self, base, offset, size, protect, process=None):
         self.base: int = base
@@ -87,9 +85,7 @@ def get_object_name_key(name):
 
 
 class FileMap:
-    """
-    Represents a memory mapped file
-    """
+    """Represents a memory mapped file."""
 
     def __init__(self, allocator, name, size, prot, backed_file=None):
         self.allocator: HandleAllocator = allocator
@@ -108,9 +104,7 @@ class FileMap:
 
 
 class File:
-    """
-    Base class for an emulated file
-    """
+    """Base class for an emulated file."""
 
     def __init__(self, allocator, path, config=None, data=b""):
         self.allocator: HandleAllocator = allocator
@@ -131,9 +125,7 @@ class File:
         return self.data
 
     def duplicate(self):
-        """
-        Get a new file object for another handle: it shares the contents and has its own position.
-        """
+        """Get a new file object for another handle: it shares the contents and has its own position."""
         new = File(self.allocator, self.path, config=self.config)
         new.data = self.get_buffer()
         new.origin = self.origin or self
@@ -161,9 +153,7 @@ class File:
         return data
 
     def get_contents(self):
-        """
-        Return all the file data and keep the file pointer.
-        """
+        """Return all the file data and keep the file pointer."""
         return self.get_buffer().getvalue()
 
     def seek(self, offset, whence):
@@ -186,8 +176,9 @@ class File:
 
     def write_data(self, data):
         """
-        Write data at the file pointer, or at the end for an append-only handle,
-        and move the file pointer past it.
+        Write data at the file pointer, or at the end for an append-only handle.
+
+        The file pointer moves past the data.
         """
         buf = self.get_buffer()
         if self.append:
@@ -206,10 +197,7 @@ class File:
         self.pos = 0
 
     def handle_file_data(self):
-        """
-        Based on the emulation config, determine what data
-        to return from the read request
-        """
+        """Get the data to return from a read request, based on the emulation config."""
         if not self.config:
             return io.BytesIO(b"")
 
@@ -232,9 +220,7 @@ class File:
 
 
 class NullDevice(File):
-    """
-    The NUL device: reads give no data and writes discard the data
-    """
+    """The NUL device: reads give no data and writes discard the data."""
 
     def duplicate(self):
         return NullDevice(self.allocator, self.path)
@@ -250,9 +236,7 @@ class NullDevice(File):
 
 
 class Pipe(File):
-    """
-    Emulated named pipe objects
-    """
+    """Emulated named pipe objects."""
 
     def __init__(self, allocator, name, mode, num_instances, out_size, in_size, config=None):
         super().__init__(allocator, path=name, config=config)
@@ -267,9 +251,7 @@ class Pipe(File):
 
 
 class FileManager:
-    """
-    Manages file system activity during emulation
-    """
+    """Manages file system activity during emulation."""
 
     def __init__(self, config, emu):
         super().__init__()
@@ -319,10 +301,12 @@ class FileManager:
             yield path
 
     def find_matching_entries(self, search):
-        """
-        Given a search pattern like ``C:\\*`` or ``C:\\Windows\\*.exe``,
-        yield ``(name, is_dir)`` tuples for immediate children that match,
-        synthesizing directory entries from configured file paths.
+        r"""
+        Yield the immediate children that match a search pattern.
+
+        A pattern is for example ``C:\*`` or ``C:\Windows\*.exe``. Each item is a
+        ``(name, is_dir)`` tuple. The method synthesizes directory entries from the
+        configured file paths.
         """
         search_dir = ntpath.dirname(search)
         pattern = ntpath.basename(search)
@@ -350,9 +334,7 @@ class FileManager:
         return [f for f in self.files if f.bytes_written >= f.get_size()]
 
     def open_mapping(self, name):
-        """
-        Open a new handle to the named file mapping, or return None when no mapping has the name.
-        """
+        """Open a new handle to the named file mapping, or return None when no mapping has the name."""
         key = get_object_name_key(name)
         for fm in list(self.file_maps.values()):
             if fm.name and get_object_name_key(fm.name) == key:
@@ -377,9 +359,7 @@ class FileManager:
         return self.pipe_handles.get(handle)
 
     def get_full_path(self, path):
-        """
-        Resolve a relative path against the current directory.
-        """
+        """Resolve a relative path against the current directory."""
         if ntpath.isabs(path):
             return path
         return ntpath.normpath(ntpath.join(self.config.current_dir, path))
@@ -396,6 +376,7 @@ class FileManager:
     def is_image_alias(self, path):
         """
         Test if a full path names the sample by the program name of the command line.
+
         The sample is the first file. The name refers to it only when the sample is the
         image of the current process, so not in a DLL run.
         """
@@ -407,10 +388,7 @@ class FileManager:
         return proc is not None and (proc.path or "").lower() == self.files[0].path.lower()
 
     def add_existing_file(self, path, data):
-        """
-        Register an existing file already included in the emulation space
-        (with data)
-        """
+        """Register an existing file that the emulation space already includes, with its data."""
         f = File(self.emu.handle_allocator, path, data=data)
         self.files.append(f)
         return f
@@ -475,8 +453,10 @@ class FileManager:
 
     def get_directories(self):
         """
-        Get the keys of the directories that exist: the current directory, the directories
-        that the environment names, the parents of the known files, and their ancestors.
+        Get the keys of the directories that exist.
+
+        These are the current directory, the directories that the environment names, the
+        parents of the known files, and their ancestors.
         """
         env = {k.lower(): v for k, v in self.config.env.items()}
         dirs = [self.config.current_dir]
@@ -513,9 +493,10 @@ class FileManager:
 
     def does_file_exist_by_path(self, path):
         """
-        Test if a file exists that the program created or that the configuration names by
-        its full path. The by_ext and default handlers serve content for any matching
-        path, so they do not count.
+        Test if a file exists that the program created or that the configuration names.
+
+        The configuration names the file by its full path. The by_ext and default handlers
+        serve content for any matching path, so they do not count.
         """
         if self.get_file_from_path(path):
             return True

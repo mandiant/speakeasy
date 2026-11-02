@@ -73,9 +73,7 @@ class HandleAllocator:
 
 
 class Console:
-    """
-    Represents a console window object
-    """
+    """Represents a console window object."""
 
     def __init__(self, allocator: HandleAllocator):
         self.allocator: HandleAllocator = allocator
@@ -87,9 +85,7 @@ class Console:
 
 
 class KernelObject:
-    """
-    Base class for Kernel objects managed by the object manager
-    """
+    """Base class for Kernel objects managed by the object manager."""
 
     def __init__(self, emu: WindowsEmulator):
         self.emu: WindowsEmulator = emu
@@ -137,9 +133,7 @@ class KernelObject:
 
 
 class Driver(KernelObject):
-    """
-    Class that represents DRIVER_OBJECTs created by the Windows kernel
-    """
+    """Class that represents DRIVER_OBJECTs created by the Windows kernel."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -156,9 +150,7 @@ class Driver(KernelObject):
         self.object = self.nt_types.DRIVER_OBJECT(emu.get_ptr_size())
 
     def create_reg_path(self, name):
-        """
-        Create the service path in the registry for the created driver
-        """
+        """Create the service path in the registry for the created driver."""
         self.reg_path = "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s\x00" % (name)  # noqa
         buf = self.reg_path.encode("utf-16le")
         self.reg_path = self.reg_path.strip("\x00")
@@ -180,8 +172,9 @@ class Driver(KernelObject):
 
     def init_driver_section(self):
         """
-        Create the driver section for the driver. This is a linked list that
-        links together driver objects
+        Create the driver section for the driver.
+
+        The section is a linked list that links together driver objects.
         """
         tag = f"emu.object.{self.name}.DriverSection"
         mod = self.pe
@@ -239,9 +232,7 @@ class Driver(KernelObject):
         return ldte
 
     def init_driver_object(self, name=None, pe=None):
-        """
-        Initialize the DRIVER_OBJECT
-        """
+        """Initialize the DRIVER_OBJECT."""
         self.pe = pe
         drvobj = self.object
 
@@ -302,9 +293,7 @@ class Driver(KernelObject):
 
 
 class Device(KernelObject):
-    """
-    Represents a DEVICE_OBJECT created by the windows kernel
-    """
+    """Represents a DEVICE_OBJECT created by the windows kernel."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -320,9 +309,7 @@ class Device(KernelObject):
 
 
 class FileObject(KernelObject):
-    """
-    Represents a FILE_OBJECT created by the windows kernel
-    """
+    """Represents a FILE_OBJECT created by the windows kernel."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -335,10 +322,7 @@ class FileObject(KernelObject):
 
 
 class IoStackLocation(KernelObject):
-    """
-    Represents a IO_STACK_LOCATION struct that is part of
-    an IRP.
-    """
+    """Represents an IO_STACK_LOCATION struct that is part of an IRP."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -349,9 +333,7 @@ class IoStackLocation(KernelObject):
 
 
 class Irp(KernelObject):
-    """
-    I/O request packet used when performing device input/output
-    """
+    """I/O request packet used when performing device input/output."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -375,10 +357,7 @@ class Irp(KernelObject):
 
 
 class Thread(KernelObject):
-    """
-    Represents a Windows ETHREAD object that describes a
-    an OS level thread
-    """
+    """Represents a Windows ETHREAD object that describes an OS level thread."""
 
     def __init__(self, emu, stack_base=0, stack_commit=0):
         super().__init__(emu=emu)
@@ -428,6 +407,7 @@ class Thread(KernelObject):
     def init_tls(self, data: bytes, modname: str):
         """
         Give the thread a copy of the static TLS data of the module at TLS index 0.
+
         The thread keeps the copy for later runs of the same module.
         """
         slots = self.static_tls.get(modname)
@@ -445,18 +425,14 @@ class Thread(KernelObject):
 
 
 class Token(KernelObject):
-    """
-    Represents a TOKEN object
-    """
+    """Represents a TOKEN object."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
 
 
 class Process(KernelObject):
-    """
-    An EPROCESS object used by the Windows kernel to represent a process
-    """
+    """An EPROCESS object used by the Windows kernel to represent a process."""
 
     def __init__(self, emu, pe=None, user_modules=None, name="", path="", cmdline="", base=0, session=0):
         super().__init__(emu=emu)
@@ -720,9 +696,10 @@ class RTL_USER_PROCESS_PARAMETERS(KernelObject):
 
 class PEB(KernelObject):
     """
-    Represents the process environment block. This structure contains a large amount of
-    fields that are used internally by Windows. Shellcode may parse this structure in
-    order to resolve exported functions.
+    Represents the process environment block.
+
+    This structure contains a large amount of fields that are used internally by Windows.
+    Shellcode may parse this structure in order to resolve exported functions.
     """
 
     def __init__(self, emu, address=None):
@@ -738,8 +715,9 @@ class PEB(KernelObject):
 
 class TEB(KernelObject):
     """
-    Represents the thread environment block. This structure contains a large amount of
-    fields that are used internally by Windows.
+    Represents the thread environment block.
+
+    This structure contains a large amount of fields that are used internally by Windows.
     """
 
     def __init__(self, emu, address=0):
@@ -775,7 +753,9 @@ class LdrDataTableEntry(KernelObject):
 
 class IDT(KernelObject):
     """
-    Represents the Interrupt descriptor table. This is currently a dummy structure and
+    Represents the Interrupt descriptor table.
+
+    This is currently a dummy structure and
     only exists to detect if samples read or write to it.
     """
 
@@ -810,9 +790,7 @@ class IDT(KernelObject):
 
 
 class Event(KernelObject):
-    """
-    Describes event objects used by Windows for synchronization
-    """
+    """Describes event objects used by Windows for synchronization."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -824,9 +802,7 @@ class Event(KernelObject):
 
 
 class Mutant(KernelObject):
-    """
-    Describes mutant objects used by Windows for synchronization
-    """
+    """Describes mutant objects used by Windows for synchronization."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -835,9 +811,7 @@ class Mutant(KernelObject):
 
 
 class Semaphore(KernelObject):
-    """
-    Describes semaphore objects used by Windows for synchronization
-    """
+    """Describes semaphore objects used by Windows for synchronization."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -846,9 +820,7 @@ class Semaphore(KernelObject):
 
 
 class ObjectManager:
-    """
-    Class that manages kernel objects during emulation
-    """
+    """Class that manages kernel objects during emulation."""
 
     def __init__(self, emu: WindowsEmulator):
         super().__init__()
@@ -872,9 +844,7 @@ class ObjectManager:
         return obj
 
     def remove_object(self, obj):
-        """
-        Remove an object from the object manager
-        """
+        """Remove an object from the object manager."""
         addr = None
         for a, o in self.objects.items():
             if o == obj:
@@ -884,9 +854,7 @@ class ObjectManager:
             self.objects.pop(addr)
 
     def dec_ref(self, obj):
-        """
-        Dereferece an object and remove it from the object manager when its reference count is 0
-        """
+        """Dereferece an object and remove it from the object manager when its reference count is 0."""
         if hasattr(obj, "ref_cnt"):
             obj.ref_cnt -= 1
             if obj.ref_cnt <= 0:
@@ -899,9 +867,7 @@ class ObjectManager:
         return tmp
 
     def new_handle(self) -> int:
-        """
-        Allocate a fresh handle value that is not attached to any object
-        """
+        """Allocate a fresh handle value that is not attached to any object."""
         handle: int = self.emu.handle_allocator.allocate_kernel_object_handle()
         return handle
 

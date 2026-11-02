@@ -1,6 +1,7 @@
 """
-What x64 (seh64.py) and x86 (seh32.py) exception dispatch share: exception
-records, the vectored handlers that run before frame-based handlers, reporting,
+Exception dispatch code that x64 (seh64.py) and x86 (seh32.py) share.
+
+This is exception records, the vectored handlers that run before frame-based handlers, reporting,
 and the entry points for CPU exceptions and RaiseException, which take the
 architecture's dispatcher.
 
@@ -141,8 +142,9 @@ class Dispatch:
 
     def unhandled(self) -> GeneratorHandler:
         """
-        No frame takes the exception: offer it to the top-level filter of
-        SetUnhandledExceptionFilter, which Windows calls from the outermost frame of
+        Offer an exception that no frame takes to the top-level filter.
+
+        The filter is the one that SetUnhandledExceptionFilter sets. It Windows calls from the outermost frame of
         the thread, and continue if it says so. Otherwise the exception is unhandled.
         """
         top_level_filter = self.emu.unhandled_exception_filter
@@ -157,8 +159,9 @@ def dispatch_fault(
     emu, exception: CpuException, dispatch_exception: Dispatcher, error: guest_callbacks.CallbackError | None = None
 ) -> bool:
     """
-    Dispatch a CPU exception like KiUserExceptionDispatcher: on the stack of the
-    faulting thread. Return False when no handler takes it.
+    Dispatch a CPU exception like KiUserExceptionDispatcher, on the stack of the faulting thread.
+
+    Return ``False`` when no handler takes it.
 
     error is how the run ends when no handler takes it, by default an UnhandledException.
     """

@@ -19,10 +19,11 @@ PebModuleSnapshot = list[tuple[Any, dict[int, RuntimeModule]]]
 
 class ModuleLoader:
     """
-    Load images and their dependencies, and keep the data of the loader: the IAT
-    entries that the loader bound, the DLLs that each process has in its PEB by
-    default, and the DLLs whose DllMain and TLS callbacks must run. Record the
-    result of each callback.
+    Load images and their dependencies, and keep the data of the loader.
+
+    The data is the IAT entries that the loader bound, the DLLs that each process has in
+    its PEB by default, and the DLLs whose DllMain and TLS callbacks must run. The class
+    records the result of each callback.
 
     WindowsEmulator._load_image maps one image, and the emulator keeps the module
     list. If a load fails, or a DllMain returns FALSE, this class removes what the
@@ -165,6 +166,7 @@ class ModuleLoader:
     def cancel_initializers(self, routines: Iterable[InitRoutine]) -> None:
         """
         Clear the INITIALIZING state of initializers that will not run.
+
         A later load of the module runs them again.
         """
         for routine in routines:
@@ -173,8 +175,9 @@ class ModuleLoader:
 
     def collect_initializers(self) -> list[InitRoutine]:
         """
-        Get the DllMain and TLS callbacks of the DLLs that the current process has
-        not initialized. Set the state of these DLLs to INITIALIZING.
+        Get the DllMain and TLS callbacks of the DLLs that the current process has not initialized.
+
+        The method sets the state of these DLLs to INITIALIZING.
         """
         process = self.emu.get_current_process()
         if process is None:

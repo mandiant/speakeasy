@@ -45,10 +45,11 @@ class CpuException:
 
 def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: bool) -> CpuException | None:
     """
-    The exception for an interrupt Unicorn reports with the program counter at pc,
-    which is past an `int n` instruction or at a faulting instruction, and code_bytes,
-    the two bytes before it.
-    trap_flag tells a single step from `int 1`.
+    Get the exception for an interrupt that Unicorn reports.
+
+    pc is the program counter, which is past an ``int n`` instruction or at a faulting
+    instruction. code_bytes are the two bytes before it. trap_flag tells a single step
+    from ``int 1``.
 
     Returns None when Windows raises no exception: then execution continues at the
     returned exception-less pc, see skip_debug_service.

@@ -171,8 +171,8 @@ def relocate_image(image: LoadedImage, base: int) -> LoadedImage:
     and write base in the ImageBase field of the PE header, as the Windows loader does.
 
     Raises:
-        ValueError: the image does not fit at base, the image has no relocation data and base
-            is not its preferred base, or a base relocation is not valid.
+        ValueError: if the image does not fit at base, the image has no relocation data and
+            base is not its preferred base, or a base relocation is not valid.
     """
     if type(base) is not int or base < 0 or base + image.image_size > 1 << image.arch:
         raise ValueError(f"Image does not fit in the address space at {base:#x}")

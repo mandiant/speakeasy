@@ -80,7 +80,7 @@ class ExportManifest(BaseModel):
         Load and validate one manifest file.
 
         Raises:
-            pydantic.ValidationError: the file does not follow the manifest format.
+            pydantic.ValidationError: if the file does not follow the manifest format.
         """
         return cls.model_validate_json(path.read_bytes())
 
