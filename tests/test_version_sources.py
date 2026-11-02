@@ -18,7 +18,7 @@ def win10_config(config: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
-@pytest.mark.parametrize("bin_name, dll", [("wdm_test_x86.sys.xz", "ntoskrnl")])
+@pytest.mark.parametrize("bin_name, dll", [("dll_test_x86.dll.xz", "ntdll"), ("wdm_test_x86.sys.xz", "ntoskrnl")])
 @pytest.mark.parametrize("size", [RTL_OSVERSIONINFOW_SIZE, RTL_OSVERSIONINFOEXW_SIZE])
 def test_rtl_get_version_reads_the_config(
     win10_config: dict[str, Any], load_test_bin: Callable[[str], bytes], bin_name: str, dll: str, size: int
