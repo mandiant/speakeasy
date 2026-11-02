@@ -61,6 +61,71 @@ IOS_BINARY = 0x20
 IOS_NOCREATE = 0x40
 IOS_NOREPLACE = 0x80
 
+# x64 layout of the MSVC basic_ios<char>, with its ios_base:
+#
+#   struct basic_ios {
+#       void *vftable;                  // 0x00
+#       size_t _Stdstr;                 // 0x08
+#       int _Mystate;                   // 0x10
+#       int _Except;                    // 0x14
+#       int _Fmtfl;                     // 0x18
+#       int64_t _Prec;                  // 0x20
+#       int64_t _Wide;                  // 0x28
+#       _Iosarray *_Arr;                // 0x30
+#       _Fnarray *_Calls;               // 0x38
+#       locale *_Ploc;                  // 0x40
+#       basic_streambuf *_Mystrbuf;     // 0x48
+#       basic_ostream *_Tiestr;         // 0x50
+#       char _Fillch;                   // 0x58
+#   };                                  // 0x60
+IOS64_OFFSET_MYSTATE = 0x10
+IOS64_OFFSET_FMTFL = 0x18
+IOS64_OFFSET_WIDE = 0x28
+IOS64_OFFSET_MYSTRBUF = 0x48
+IOS64_OFFSET_TIESTR = 0x50
+IOS64_OFFSET_FILLCH = 0x58
+IOS64_SIZE = 0x60
+
+# x64 layout of the MSVC basic_streambuf<char>:
+#
+#   struct basic_streambuf {
+#       void *vftable;                  // 0x00
+#       char *_Gfirst;                  // 0x08
+#       char *_Pfirst;                  // 0x10
+#       char **_IGfirst;                // 0x18
+#       char **_IPfirst;                // 0x20
+#       char *_Gnext;                   // 0x28
+#       char *_Pnext;                   // 0x30
+#       char **_IGnext;                 // 0x38
+#       char **_IPnext;                 // 0x40
+#       int _Gcount;                    // 0x48
+#       int _Pcount;                    // 0x4C
+#       int *_IGcount;                  // 0x50
+#       int *_IPcount;                  // 0x58
+#       locale *_Plocale;               // 0x60
+#   };                                  // 0x68
+STREAMBUF64_OFFSET_IPNEXT = 0x40
+STREAMBUF64_OFFSET_IPCOUNT = 0x58
+STREAMBUF64_OFFSET_PLOCALE = 0x60
+STREAMBUF64_SIZE = 0x68
+
+# A basic_ostream starts with a vbptr. Its vbtable holds the offset of the
+# basic_ios virtual base at +4. In std::cout the basic_ios follows the vbptr.
+VBTABLE_OFFSET_VBASE = 4
+
+# virtual function slots of basic_streambuf: ~basic_streambuf, _Lock, _Unlock,
+# overflow, pbackfail, showmanyc, underflow, uflow, xsgetn, xsputn, seekoff,
+# seekpos, setbuf, sync, imbue
+STREAMBUF_VTABLE_LOCK = 1
+STREAMBUF_VTABLE_UNLOCK = 2
+STREAMBUF_VTABLE_OVERFLOW = 3
+STREAMBUF_VTABLE_XSPUTN = 9
+STREAMBUF_VTABLE_SYNC = 13
+STREAMBUF_VTABLE_SLOTS = 15
+
+# char_traits<char>::eof() as an unsigned 32-bit value
+CHAR_TRAITS_EOF = 0xFFFFFFFF
+
 # The fopen mode that _Fiopen uses for each open mode, without ate and binary
 IOS_FOPEN_MODES = {
     IOS_IN: "r",
@@ -4638,7 +4703,7 @@ class Msvcrt(api.ApiHandler):
     def get_ios_base(self, emu, obj):
         """Return the address of the basic_ios virtual base of an x64 stream object."""
         vbtable = emu.read_ptr(obj)
-        return obj + int.from_bytes(self.mem_read(vbtable + 4, 4), "little", signed=True)
+        return obj + int.from_bytes(self.mem_read(vbtable + VBTABLE_OFFSET_VBASE, 4), "little", signed=True)
 
     def init_basic_ios(self, ios, strbuf):
         """
@@ -4673,10 +4738,10 @@ class Msvcrt(api.ApiHandler):
         exceptions() can request is not raised.
         """
         ios, state, _ = argv
-        state |= int.from_bytes(self.mem_read(ios + 0x10, 4), "little")
-        if not emu.read_ptr(ios + 0x48):
+        state |= int.from_bytes(self.mem_read(ios + IOS64_OFFSET_MYSTATE, 4), "little")
+        if not emu.read_ptr(ios + IOS64_OFFSET_MYSTRBUF):
             state |= IOS_BADBIT
-        self.mem_write(ios + 0x10, (state & IOS_STATMASK).to_bytes(4, "little"))
+        self.mem_write(ios + IOS64_OFFSET_MYSTATE, (state & IOS_STATMASK).to_bytes(4, "little"))
 
     @apihook(
         "??0?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z",
@@ -4709,7 +4774,7 @@ class Msvcrt(api.ApiHandler):
         """basic_streambuf();"""
         (sb,) = argv
         self.init_basic_streambuf(sb)
-        emu.write_ptr(sb + 0x60, 0)
+        emu.write_ptr(sb + STREAMBUF64_OFFSET_PLOCALE, 0)
         return sb
 
     @apihook("??1?$basic_streambuf@DU?$char_traits@D@std@@@std@@UEAA@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -4757,21 +4822,23 @@ class Msvcrt(api.ApiHandler):
         if self.get_ptr_size() != 8:
             return ptr
         virtuals = {
-            1: self.basic_filebuf_Lock_x64,
-            2: self.basic_filebuf_Unlock_x64,
-            3: self.basic_filebuf_overflow_x64,
-            9: self.basic_filebuf_xsputn_x64,
-            13: self.basic_filebuf_sync_x64,
+            STREAMBUF_VTABLE_LOCK: self.basic_filebuf_Lock_x64,
+            STREAMBUF_VTABLE_UNLOCK: self.basic_filebuf_Unlock_x64,
+            STREAMBUF_VTABLE_OVERFLOW: self.basic_filebuf_overflow_x64,
+            STREAMBUF_VTABLE_XSPUTN: self.basic_filebuf_xsputn_x64,
+            STREAMBUF_VTABLE_SYNC: self.basic_filebuf_sync_x64,
         }
-        filebuf = self.mem_alloc(0x68 + 15 * 8, tag="api.msvcrt.cout_filebuf")
-        vtable = filebuf + 0x68
+        filebuf = self.mem_alloc(STREAMBUF64_SIZE + STREAMBUF_VTABLE_SLOTS * 8, tag="api.msvcrt.cout_filebuf")
+        vtable = filebuf + STREAMBUF64_SIZE
         self.init_basic_streambuf(filebuf)
         self.emu.write_ptr(filebuf, vtable)
         for slot, handler in virtuals.items():
             self.emu.write_ptr(vtable + slot * 8, self.emu.get_proc("msvcrt", handler.__apihook__[0]))
-        self.mem_write(ptr + 0x68, struct.pack("<ii", 0, 8))
-        self.emu.write_ptr(ptr, ptr + 0x68)
-        self.init_basic_ios(ptr + 8, filebuf)
+        ios = ptr + 8
+        vbtable = ios + IOS64_SIZE
+        self.mem_write(vbtable, struct.pack("<ii", 0, ios - ptr))
+        self.emu.write_ptr(ptr, vbtable)
+        self.init_basic_ios(ios, filebuf)
         return ptr
 
     @apihook("?_Lock@?$basic_filebuf@DU?$char_traits@D@std@@@std@@UEAAXXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -4792,7 +4859,7 @@ class Msvcrt(api.ApiHandler):
         Only the filebuf of std::cout uses this handler, so the character goes to stdout.
         """
         c = argv[1] & 0xFFFFFFFF
-        if c == 0xFFFFFFFF:
+        if c == CHAR_TRAITS_EOF:
             return 0
         c &= 0xFF
         ctx.args[1].display = chr(c) if c < 0x80 else f"\\x{c:02x}"
@@ -4825,7 +4892,10 @@ class Msvcrt(api.ApiHandler):
         """
         sb, c = argv
         c &= 0xFF
-        pnext_ptr, pcount_ptr = emu.read_ptr(sb + 0x40), emu.read_ptr(sb + 0x58)
+        pnext_ptr, pcount_ptr = (
+            emu.read_ptr(sb + STREAMBUF64_OFFSET_IPNEXT),
+            emu.read_ptr(sb + STREAMBUF64_OFFSET_IPCOUNT),
+        )
         pnext = emu.read_ptr(pnext_ptr)
         pcount = int.from_bytes(self.mem_read(pcount_ptr, 4), "little", signed=True) if pnext else 0
         if pcount > 0:
@@ -4833,7 +4903,7 @@ class Msvcrt(api.ApiHandler):
             emu.write_ptr(pnext_ptr, pnext + 1)
             self.mem_write(pnext, bytes([c]))
             return c
-        return (yield GuestCall(emu.read_ptr(emu.read_ptr(sb) + 3 * 8), (sb, c))) & 0xFFFFFFFF
+        return (yield GuestCall(self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_OVERFLOW), (sb, c))) & 0xFFFFFFFF
 
     @apihook(
         "?sputn@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAA_JPEBD_J@Z", argc=3, conv=e_arch.CALL_CONV_CDECL
@@ -4841,20 +4911,25 @@ class Msvcrt(api.ApiHandler):
     def basic_streambuf_sputn_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """streamsize sputn(const char *s, streamsize count);"""
         sb, s, count = argv
-        return (yield GuestCall(emu.read_ptr(emu.read_ptr(sb) + 9 * 8), (sb, s, count)))
+        return (yield GuestCall(self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_XSPUTN), (sb, s, count)))
 
     @apihook("?good@ios_base@std@@QEBA_NXZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def ios_base_good_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """bool good() const;"""
-        return int(self.mem_read(argv[0] + 0x10, 4) == b"\x00" * 4)
+        return int(self.mem_read(argv[0] + IOS64_OFFSET_MYSTATE, 4) == b"\x00" * 4)
+
+    def get_streambuf_virtual(self, emu, sb, slot):
+        """Return the address of a virtual function of an x64 basic_streambuf."""
+        return emu.read_ptr(emu.read_ptr(sb) + slot * 8)
 
     def sync_ostream(self, emu, ostream):
         """Call the virtual sync of the buffer of a good stream, and set badbit when it fails."""
         ios = self.get_ios_base(emu, ostream)
-        sb = emu.read_ptr(ios + 0x48)
+        sb = emu.read_ptr(ios + IOS64_OFFSET_MYSTRBUF)
         if not sb or not self.ios_base_good_x64(emu, [ios]):
             return
-        if ((yield GuestCall(emu.read_ptr(emu.read_ptr(sb) + 13 * 8), (sb,))) & 0xFFFFFFFF) == 0xFFFFFFFF:
+        sync = self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_SYNC)
+        if ((yield GuestCall(sync, (sb,))) & 0xFFFFFFFF) == CHAR_TRAITS_EOF:
             self.basic_ios_setstate_x64(emu, [ios, IOS_BADBIT, 0])
 
     @apihook("?flush@?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV12@XZ", argc=1, conv=e_arch.CALL_CONV_CDECL)
@@ -4867,7 +4942,7 @@ class Msvcrt(api.ApiHandler):
     def basic_ostream_Osfx_x64(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """void _Osfx();"""
         ios = self.get_ios_base(emu, argv[0])
-        if int.from_bytes(self.mem_read(ios + 0x18, 4), "little") & IOS_UNITBUF:
+        if int.from_bytes(self.mem_read(ios + IOS64_OFFSET_FMTFL, 4), "little") & IOS_UNITBUF:
             yield from self.sync_ostream(emu, argv[0])
 
     @apihook("??6?$basic_ostream@DU?$char_traits@D@std@@@std@@QEAAAEAV01@K@Z", argc=2, conv=e_arch.CALL_CONV_CDECL)
@@ -4881,15 +4956,15 @@ class Msvcrt(api.ApiHandler):
         ostream, value = argv
         value &= 0xFFFFFFFF
         ios = self.get_ios_base(emu, ostream)
-        tie = emu.read_ptr(ios + 0x50)
+        tie = emu.read_ptr(ios + IOS64_OFFSET_TIESTR)
         if self.ios_base_good_x64(emu, [ios]) and tie and tie != ostream:
             yield from self.sync_ostream(emu, tie)
-        sb = emu.read_ptr(ios + 0x48)
+        sb = emu.read_ptr(ios + IOS64_OFFSET_MYSTRBUF)
         if not sb or not self.ios_base_good_x64(emu, [ios]):
             self.basic_ios_setstate_x64(emu, [ios, IOS_GOODBIT, 0])
             return ostream
 
-        flags = int.from_bytes(self.mem_read(ios + 0x18, 4), "little")
+        flags = int.from_bytes(self.mem_read(ios + IOS64_OFFSET_FMTFL, 4), "little")
         prefix = ""
         if flags & IOS_BASEFIELD == IOS_HEX:
             digits = f"{value:X}" if flags & IOS_UPPERCASE else f"{value:x}"
@@ -4901,19 +4976,19 @@ class Msvcrt(api.ApiHandler):
                 prefix = "0"
         else:
             digits = str(value)
-        width = int.from_bytes(self.mem_read(ios + 0x28, 8), "little", signed=True)
-        pad = self.mem_read(ios + 0x58, 1) * max(0, width - len(prefix) - len(digits))
+        width = int.from_bytes(self.mem_read(ios + IOS64_OFFSET_WIDE, 8), "little", signed=True)
+        pad = self.mem_read(ios + IOS64_OFFSET_FILLCH, 1) * max(0, width - len(prefix) - len(digits))
         if flags & IOS_ADJUSTFIELD == IOS_LEFT:
             text = prefix.encode() + digits.encode() + pad
         elif flags & IOS_ADJUSTFIELD == IOS_INTERNAL:
             text = prefix.encode() + pad + digits.encode()
         else:
             text = pad + prefix.encode() + digits.encode()
-        self.mem_write(ios + 0x28, b"\x00" * 8)
+        self.mem_write(ios + IOS64_OFFSET_WIDE, b"\x00" * 8)
 
         if self.ostream_buffer is None:
             self.ostream_buffer = self.mem_alloc(0x100, tag="api.msvcrt.ostream_buffer")
-        xsputn = emu.read_ptr(emu.read_ptr(sb) + 9 * 8)
+        xsputn = self.get_streambuf_virtual(emu, sb, STREAMBUF_VTABLE_XSPUTN)
         for i in range(0, len(text), 0x100):
             chunk = text[i : i + 0x100]
             self.mem_write(self.ostream_buffer, chunk)
