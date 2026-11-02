@@ -11,6 +11,7 @@ import pytest
 from speakeasy import Speakeasy, common
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.codepage import CP_UTF8
 from speakeasy.winenv.defs.enums import CREATE_TOOLHELP_SNAPSHOT_FLAGS, PAGE_PROTECTION_FLAGS, PROCESS_CREATION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
@@ -191,9 +192,6 @@ def test_system_directory_returns_length_without_nul(dll_emu: Speakeasy, api: st
     rv, _ = call(dll_emu, "kernel32", api, [buf, 260])
     assert rv == len(path)
     assert dll_emu.mem_read(buf, (len(path) + 1) * cw) == (path + "\0").encode(encoding)
-
-
-CP_UTF8 = 65001
 
 
 @pytest.mark.parametrize("text", ["abc", "café"])
