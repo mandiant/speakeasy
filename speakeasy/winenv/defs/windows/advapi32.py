@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
+from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 from speakeasy.winenv.defs.enums import ENUM_SERVICE_TYPE, SERVICE_STATUS_CURRENT_STATE
@@ -40,15 +41,11 @@ EMULATED_SERVICES = (
 
 
 class SERVICE_TABLE_ENTRY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.lpServiceName = Ptr
-        self.lpServiceProc = Ptr
+    lpServiceName: Annotated[int, Ptr]
+    lpServiceProc: Annotated[int, Ptr]
 
 
 class HCRYPTKEY(EmuStruct):
-    def __init__(self, ptr_size):
-        super().__init__(ptr_size)
-        self.Algid = ct.c_uint32
-        self.keylen = ct.c_uint32
-        self.keyp = Ptr
+    Algid: Annotated[int, ct.c_uint32]
+    keylen: Annotated[int, ct.c_uint32]
+    keyp: Annotated[int, Ptr]

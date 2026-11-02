@@ -1889,8 +1889,8 @@ class AdvApi32(api.ApiHandler):
         ptrsz = emu.get_ptr_size()
 
         hKey = self.win.HCRYPTKEY(ptrsz)
-        hKey.Algid = Algid  # type: ignore[assignment]
-        hKey.keylen = len(fixed_digest)  # type: ignore[assignment]
+        hKey.Algid = Algid
+        hKey.keylen = len(fixed_digest)
         hKey.keyp = self.mem_alloc(hKey.keylen)
 
         hKeyp = self.mem_alloc(hKey.sizeof())
