@@ -1,11 +1,15 @@
 set quiet
 
+# keep in sync with the ruff version in pyproject.toml and .github/workflows/test.yml
+ruff := "uvx --quiet ruff@0.17.3"
+
+# lint only tracked files, so that local files that are not in the repo stay as they are
 format:
-    uvx --quiet ruff format --quiet
+    git ls-files -z '*.py' | xargs -0 {{ruff}} format --quiet --force-exclude
 
 ruff:
-    uvx --quiet ruff check --quiet --fix
-    uvx --quiet ruff check --quiet --select I --fix
+    git ls-files -z '*.py' | xargs -0 {{ruff}} check --quiet --fix --force-exclude
+    git ls-files -z '*.py' | xargs -0 {{ruff}} check --quiet --select I --fix --force-exclude
 
 mypy:
     ./.venv/bin/mypy speakeasy
