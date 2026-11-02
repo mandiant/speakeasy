@@ -23,6 +23,9 @@ class Advpack(api.ApiHandler):
     @apihook("IsNTAdmin", argc=2)
     def IsNTAdmin(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        bool IsNTAdmin();
+        BOOL IsNTAdmin(
+            DWORD dwReserved,
+            DWORD *lpdwReserved
+        );
         """
         return emu.config.user.is_admin

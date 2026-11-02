@@ -622,8 +622,8 @@ class Ws2_32(api.ApiHandler):
     def __WSAFDIsSet(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __WSAFDIsSet(
-            SOCKET,
-            fd_set *
+            SOCKET fd,
+            fd_set *set
         );
         """
         sock, fd_set = argv

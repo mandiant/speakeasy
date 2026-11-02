@@ -58,6 +58,8 @@ class Winmm(api.ApiHandler):
     @apihook("timeGetTime", argc=0)
     def timeGetTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD timeGetTime(); // return the system time, in milliseconds
+        DWORD timeGetTime();
+
+        Returns the system time in milliseconds.
         """
         return emu.api.load_api_handler("kernel32").get_tick_count() & 0xFFFFFFFF

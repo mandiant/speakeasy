@@ -26,10 +26,12 @@ class ComApi(api.ApiHandler):
     @apihook("IUnknown.QueryInterface", argc=3)
     def IUnknown_QueryInterface(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT QueryInterface(
+        HRESULT IUnknown::QueryInterface(
             REFIID riid,
             void **ppvObject
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, riid, ppvObject = argv
         if not ppvObject:
@@ -48,7 +50,9 @@ class ComApi(api.ApiHandler):
     @apihook("IUnknown.AddRef", argc=1)
     def IUnknown_AddRef(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        ULONG AddRef();
+        ULONG IUnknown::AddRef();
+
+        argv[0] is the interface pointer (this).
         """
         # not implemented
         return 1
@@ -56,7 +60,9 @@ class ComApi(api.ApiHandler):
     @apihook("IUnknown.Release", argc=1)
     def IUnknown_Release(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        ULONG Release();
+        ULONG IUnknown::Release();
+
+        argv[0] is the interface pointer (this).
         """
         # not implemented
         return 0
@@ -64,9 +70,11 @@ class ComApi(api.ApiHandler):
     @apihook("IMalloc.Alloc", argc=2)
     def IMalloc_Alloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void *Alloc(
+        void *IMalloc::Alloc(
             SIZE_T cb
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, cb = argv
         return self.heap_alloc(max(cb, 1), heap="CoTaskMemAlloc")
@@ -74,10 +82,12 @@ class ComApi(api.ApiHandler):
     @apihook("IMalloc.Realloc", argc=3)
     def IMalloc_Realloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void *Realloc(
+        void *IMalloc::Realloc(
             void *pv,
             SIZE_T cb
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, pv, cb = argv
         if pv and not cb:
@@ -96,9 +106,11 @@ class ComApi(api.ApiHandler):
     @apihook("IMalloc.Free", argc=2)
     def IMalloc_Free(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void Free(
+        void IMalloc::Free(
             void *pv
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, pv = argv
         if pv:
@@ -107,9 +119,11 @@ class ComApi(api.ApiHandler):
     @apihook("IMalloc.GetSize", argc=2)
     def IMalloc_GetSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SIZE_T GetSize(
+        SIZE_T IMalloc::GetSize(
             void *pv
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, pv = argv
         size = self.heap_size(pv) if pv else None
@@ -120,9 +134,11 @@ class ComApi(api.ApiHandler):
     @apihook("IMalloc.DidAlloc", argc=2)
     def IMalloc_DidAlloc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int DidAlloc(
+        int IMalloc::DidAlloc(
             void *pv
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, pv = argv
         if not pv:
@@ -132,13 +148,15 @@ class ComApi(api.ApiHandler):
     @apihook("IMalloc.HeapMinimize", argc=1)
     def IMalloc_HeapMinimize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void HeapMinimize();
+        void IMalloc::HeapMinimize();
+
+        argv[0] is the interface pointer (this).
         """
 
     @apihook("IWbemLocator.ConnectServer", argc=9)
     def IWbemLocator_ConnectServer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT ConnectServer(
+        HRESULT IWbemLocator::ConnectServer(
             const BSTR strNetworkResource,
             const BSTR strUser,
             const BSTR strPassword,
@@ -148,6 +166,8 @@ class ComApi(api.ApiHandler):
             IWbemContext *pCtx,
             IWbemServices **ppNamespace
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, strNetworkResource, strUser, strPassword, strLocale, lSecurityFlags, strAuthority, pCtx, ppNamespace = argv
         ctx.args[1].display = self.read_wide_string(strNetworkResource)
@@ -163,13 +183,15 @@ class ComApi(api.ApiHandler):
     @apihook("IWbemServices.GetObject", argc=6)
     def IWbemServices_GetObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT GetObject(
+        HRESULT IWbemServices::GetObject(
             const BSTR strObjectPath,
             long lFlags,
             IWbemContext *pCtx,
             IWbemClassObject **ppObject,
             IWbemCallResult **ppCallResult
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, strObjectPath, lFlags, pCtx, ppObject, ppCallResult = argv
         if strObjectPath:
@@ -184,13 +206,15 @@ class ComApi(api.ApiHandler):
     @apihook("IWbemServices.ExecQuery", argc=6)
     def IWbemServices_ExecQuery(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT ExecQuery(
+        HRESULT IWbemServices::ExecQuery(
             const BSTR strQueryLanguage,
             const BSTR strQuery,
             long lFlags,
             IWbemContext *pCtx,
             IEnumWbemClassObject **ppEnum
         );
+
+        argv[0] is the interface pointer (this).
         """
         ptr, strQueryLanguage, strQuery, lFlags, pCtx, ppEnum = argv
         ctx.args[1].display = self.read_wide_string(strQueryLanguage)
