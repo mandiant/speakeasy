@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, TypeVar
 from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
-from speakeasy.windows.handles import HandleTable, InvalidHandle
+from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.enums import INTERNET_FLAGS
 from speakeasy.winenv.defs.winsock.winsock import WSAENOTSOCK
 
@@ -321,13 +321,6 @@ class NetworkManager:
 
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):
         return WininetInstance(self.wininets, user_agent, access, proxy, bypass, flags)
-
-    def get_wininet_object(self, handle):
-        """Get the WinInet object of an open handle, else None."""
-        try:
-            return self.wininets.get(handle, WininetComponent)
-        except InvalidHandle:
-            return None
 
     def get_wininet(self, handle, cls: type[T]) -> T:
         """
