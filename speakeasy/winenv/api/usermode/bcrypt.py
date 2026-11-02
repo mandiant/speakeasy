@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from Crypto.Cipher._mode_cbc import CbcMode
     from Crypto.Cipher._mode_ecb import EcbMode
 
+    from speakeasy.windows.win32 import Win32Emulator
+
 BCRYPT_USE_SYSTEM_PREFERRED_RNG = 0x2
 BCRYPT_BLOCK_PADDING = 0x1
 BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG = 0x1
@@ -55,7 +57,7 @@ class Bcrypt(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("BCryptOpenAlgorithmProvider", argc=4)
-    def BCryptOpenAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptOpenAlgorithmProvider(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptOpenAlgorithmProvider(
             BCRYPT_ALG_HANDLE *phAlgorithm,
@@ -85,7 +87,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptImportKeyPair", argc=7)
-    def BCryptImportKeyPair(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptImportKeyPair(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptImportKeyPair(
             BCRYPT_ALG_HANDLE hAlgorithm,
@@ -119,7 +121,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptCloseAlgorithmProvider", argc=2)
-    def BCryptCloseAlgorithmProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptCloseAlgorithmProvider(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptCloseAlgorithmProvider(
             BCRYPT_ALG_HANDLE hAlgorithm,
@@ -136,7 +138,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptGetProperty", argc=6)
-    def BCryptGetProperty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptGetProperty(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGetProperty(
             BCRYPT_HANDLE hObject,
@@ -173,7 +175,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptSetProperty", argc=5)
-    def BCryptSetProperty(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptSetProperty(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptSetProperty(
             BCRYPT_HANDLE hObject,
@@ -202,7 +204,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptGenerateSymmetricKey", argc=7)
-    def BCryptGenerateSymmetricKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptGenerateSymmetricKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGenerateSymmetricKey(
             BCRYPT_ALG_HANDLE hAlgorithm,
@@ -232,7 +234,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptEncrypt", argc=10)
-    def BCryptEncrypt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptEncrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptEncrypt(
             BCRYPT_KEY_HANDLE hKey,
@@ -250,7 +252,7 @@ class Bcrypt(api.ApiHandler):
         return self.aes_crypt(emu, argv, ctx, encrypt=True)
 
     @apihook("BCryptDecrypt", argc=10)
-    def BCryptDecrypt(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptDecrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDecrypt(
             BCRYPT_KEY_HANDLE hKey,
@@ -373,7 +375,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_SUCCESS
 
     @apihook("BCryptDestroyKey", argc=1)
-    def BCryptDestroyKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptDestroyKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDestroyKey(
             BCRYPT_KEY_HANDLE hKey
@@ -390,7 +392,7 @@ class Bcrypt(api.ApiHandler):
         return ntdefs.STATUS_INVALID_HANDLE
 
     @apihook("BCryptGenRandom", argc=4)
-    def BCryptGenRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def BCryptGenRandom(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGenRandom(
             BCRYPT_ALG_HANDLE hAlgorithm,
