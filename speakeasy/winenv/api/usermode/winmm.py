@@ -1,4 +1,9 @@
+from typing import TYPE_CHECKING
+
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 DRV_LOAD = 0x0001
 DRV_ENABLE = 0x0002
@@ -22,7 +27,7 @@ class Winmm(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("DefDriverProc", argc=5)
-    def DefDriverProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def DefDriverProc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LRESULT DefDriverProc(
             DWORD_PTR dwDriverIdentifier,
@@ -38,7 +43,7 @@ class Winmm(api.ApiHandler):
         return 0
 
     @apihook("timeBeginPeriod", argc=1)
-    def timeBeginPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def timeBeginPeriod(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         MMRESULT timeBeginPeriod(
             UINT uPeriod
@@ -47,7 +52,7 @@ class Winmm(api.ApiHandler):
         return 0  # TIMERR_NOERROR
 
     @apihook("timeEndPeriod", argc=1)
-    def timeEndPeriod(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def timeEndPeriod(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         MMRESULT timeEndPeriod(
             UINT uPeriod
@@ -56,7 +61,7 @@ class Winmm(api.ApiHandler):
         return 0  # TIMERR_NOERROR
 
     @apihook("timeGetTime", argc=0)
-    def timeGetTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def timeGetTime(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD timeGetTime();
 
