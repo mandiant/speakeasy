@@ -24,6 +24,7 @@ from typing import NamedTuple
 
 from speakeasy.profiler_events import ApiArg
 from speakeasy.winenv.api import sigdb
+from speakeasy.winenv.codepage import decode_ansi
 
 ReadMem = Callable[[int, int], bytes]
 ReadXmm = Callable[[int], int]
@@ -355,7 +356,7 @@ def _decode(raw: bytes, width: int) -> str:
         if len(raw) % 2:
             raw = raw[:-1]
         return raw.decode("utf-16le", errors="replace")
-    return raw.decode("latin-1")
+    return decode_ansi(raw)
 
 
 def _printable(text: str) -> bool:

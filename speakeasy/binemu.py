@@ -19,6 +19,7 @@ from speakeasy.errors import EmuException
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
 from speakeasy.report import ErrorInfo, Report
+from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 logger = logging.getLogger(__name__)
 
@@ -670,11 +671,7 @@ class BinaryEmulator(MemoryManager, ABC):
         string = b""
         i = 0
 
-        if width == 1:
-            decode = "utf-8"
-        elif width == 2:
-            decode = "utf-16le"
-        else:
+        if width not in (1, 2):
             raise ValueError("Invalid string encoding")
 
         while int.from_bytes(char, "little") != 0:
@@ -686,7 +683,8 @@ class BinaryEmulator(MemoryManager, ABC):
             address += width
             i += 1
 
-        return string.decode(decode, "ignore").replace("\x00", "")
+        text = decode_ansi(string) if width == 1 else string.decode("utf-16le", "ignore")
+        return text.replace("\x00", "")
 
     def mem_string_len(self, address, width=1):
         """Get the length of a string from emulated memory."""
@@ -707,13 +705,9 @@ class BinaryEmulator(MemoryManager, ABC):
         hits = res.findall(data)
         offset = 0
         for s in hits:
-            try:
-                offset = data.find(s, offset)
-                s = s.decode("utf-8")
-                astrs.append((offset, s))
-                offset += 1
-            except UnicodeDecodeError:
-                continue
+            offset = data.find(s, offset)
+            astrs.append((offset, decode_ansi(s)))
+            offset += 1
         return astrs
 
     def get_unicode_strings(self, data, min_len=4):
@@ -748,17 +742,13 @@ class BinaryEmulator(MemoryManager, ABC):
         Raises:
             ValueError: if ``width`` is not 1 or 2.
         """
-        if width == 1:
-            encode = "utf-8"
-        elif width == 2:
-            encode = "utf-16le"
-        else:
+        if width not in (1, 2):
             raise ValueError("Invalid string encoding")
 
         if not string.endswith("\0"):
             string += "\0"
 
-        enc_str = string.encode(encode)
+        enc_str = encode_ansi(string) if width == 1 else string.encode("utf-16le")
         self.mem_write(address, enc_str)
 
     def read_ptr(self, address):

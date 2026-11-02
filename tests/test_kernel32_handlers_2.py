@@ -1499,3 +1499,16 @@ def test_find_first_volume_fails_without_a_volume_guid_path(
         hnd, _ = call(se, "kernel32", "FindFirstVolumeA", [buf, 64])
         assert hnd == 0xFFFFFFFF
         assert last_error(se) == windefs.ERROR_NO_MORE_FILES
+
+
+def test_ansi_strings_use_code_page_1252(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    rv, displays = call(se, "kernel32", "lstrlenA", [alloc(se, b"caf\xe9\x91\x00")])
+    assert (rv, displays["lpString"]) == (5, "café‘")
+
+    name = alloc(se, b"c:\\r\xe9sum\xe9.txt\x00")
+    hnd, displays = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    assert hnd != windefs.INVALID_HANDLE_VALUE
+    assert displays["lpFileName"] == "c:\\résumé.txt"
+    assert se.emu.get_file_manager().get_file_from_handle(hnd).path == "c:\\résumé.txt"
+

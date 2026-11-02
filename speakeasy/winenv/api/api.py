@@ -17,6 +17,7 @@ from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
+from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 
 if TYPE_CHECKING:
@@ -527,14 +528,31 @@ class ApiHandler:
     def reg_get_subkeys(self, hkey):
         return self.emu.reg_get_subkeys(hkey)
 
-    def get_encoding(self, char_width):
-        if char_width == 2:
-            enc = "utf-16le"
-        elif char_width == 1:
-            enc = "utf-8"
-        else:
-            raise ApiEmuError(f"No encoding found for char width: {char_width}")
-        return enc
+    def encode_string(self, string: str, width: int) -> bytes:
+        """
+        Encode ``string`` as guest characters of ``width`` bytes: ANSI for 1, UTF-16LE for 2.
+
+        Raises:
+            ApiEmuError: if ``width`` is not 1 or 2.
+        """
+        if width == 1:
+            return encode_ansi(string)
+        if width == 2:
+            return string.encode("utf-16le")
+        raise ApiEmuError(f"No encoding found for char width: {width}")
+
+    def decode_string(self, data: bytes, width: int) -> str:
+        """
+        Decode guest characters of ``width`` bytes: ANSI for 1, UTF-16LE for 2.
+
+        Raises:
+            ApiEmuError: if ``width`` is not 1 or 2.
+        """
+        if width == 1:
+            return decode_ansi(data)
+        if width == 2:
+            return data.decode("utf-16le", "replace")
+        raise ApiEmuError(f"No encoding found for char width: {width}")
 
     def mem_write(self, addr, data):
         # If the data being written to a shared memory mapping, update all mappings
@@ -701,13 +719,14 @@ class ApiHandler:
             elif conv in "cCsSZ":
                 is_wide = length in ("l", "w") or (length != "h" and (conv in "CS") != wide)
                 if conv in "cC":
-                    out.append((fmt + "c") % chr(value & (0xFFFF if is_wide else 0xFF)))
+                    char = chr(value & 0xFFFF) if is_wide else decode_ansi(bytes([value & 0xFF]))
+                    out.append((fmt + "c") % char)
                 elif not value:
                     out.append((fmt + "s") % "(null)")
                 elif conv == "Z":
                     count = int.from_bytes(self.mem_read(value, 2), "little")
                     buf = self.read_ptr(value + ptr_size)
-                    text = self.mem_read(buf, count).decode("utf-16le" if is_wide else "latin-1", "replace")
+                    text = self.decode_string(self.mem_read(buf, count), 2 if is_wide else 1)
                     out.append((fmt + "s") % text)
                 else:
                     text = self.read_wide_string(value) if is_wide else self.read_string(value)
