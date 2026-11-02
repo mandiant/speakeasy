@@ -6,7 +6,7 @@ import ntpath
 import os
 from collections.abc import Mapping
 from types import MappingProxyType, ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
@@ -15,7 +15,10 @@ from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntos
 
 if TYPE_CHECKING:
+    from speakeasy.windows.kernel import WinKernelEmulator
     from speakeasy.windows.loaders import RuntimeModule
+    from speakeasy.windows.sessman import SessionManager
+    from speakeasy.windows.win32 import Win32Emulator
     from speakeasy.windows.winemu import WindowsEmulator
 
 
@@ -178,11 +181,7 @@ class Driver(KernelObject):
         """
         tag = f"emu.object.{self.name}.DriverSection"
         mod = self.pe
-
-        if mod and mod.emu_path:
-            mod_name = mod.emu_path
-        else:
-            mod_name = "None"
+        mod_name = mod.emu_path if mod and mod.emu_path else "None"
 
         ldte = LdrDataTableEntry(self.emu, mod_name, tag=tag)
         first = None
@@ -192,11 +191,12 @@ class Driver(KernelObject):
             last = self.ldr_entries[-1]
         self.ldr_entries.append(ldte)
 
-        ldte.object.DllBase = mod.base
-        ldte.object.EntryPoint = mod.base + mod.ep
-        ldte.object.SizeOfImage = mod.image_size
+        if mod:
+            ldte.object.DllBase = mod.base
+            ldte.object.EntryPoint = mod.base + mod.ep
+            ldte.object.SizeOfImage = mod.image_size
 
-        dllname = mod.emu_path.encode("utf-16le")
+        dllname = mod_name.encode("utf-16le")
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
@@ -206,12 +206,12 @@ class Driver(KernelObject):
         ldte.object.FullDllName.Buffer = name_addr
 
         # Set the dll base name
-        dllname = ntpath.basename(mod.emu_path).encode("utf-16le")
+        dllname = ntpath.basename(mod_name).encode("utf-16le")
         ldte.object.BaseDllName.Length = len(dllname)
         ldte.object.BaseDllName.MaximumLength = len(dllname)
         ldte.object.BaseDllName.Buffer = name_addr + (ldte.object.FullDllName.Length - len(dllname))
 
-        if not last:
+        if first is None or last is None:
             ldte.object.InLoadOrderLinks.Flink = ldte.address
             ldte.object.InLoadOrderLinks.Flink = ldte.address
             ldte.object.InLoadOrderLinks.Blink = ldte.address
@@ -403,14 +403,26 @@ class Thread(KernelObject):
         self.teb.object.ClientId.UniqueThread = self.tid
         self.teb.write_back()
 
-    def get_teb(self):
-        return self.teb.read_back()
+    def get_teb(self) -> TEB:
+        """
+        Get the TEB of the thread, read back from guest memory.
+
+        Raises:
+            ValueError: if init_teb did not run for the thread.
+        """
+        if self.teb is None:
+            raise ValueError(f"thread {self.tid} has no TEB")
+        self.teb.read_back()
+        return self.teb
 
     def init_tls(self, data: bytes, modname: str):
         """
         Give the thread a copy of the static TLS data of the module at TLS index 0.
 
         The thread keeps the copy for later runs of the same module.
+
+        Raises:
+            ValueError: if init_teb did not run for the thread.
         """
         slots = self.static_tls.get(modname)
         if slots is None:
@@ -422,6 +434,8 @@ class Thread(KernelObject):
             self.emu.mem_write(slots, block.to_bytes(ptrsz, "little"))
             self.static_tls[modname] = slots
 
+        if self.teb is None:
+            raise ValueError(f"thread {self.tid} has no TEB")
         self.teb.object.ThreadLocalStoragePointer = slots
         self.teb.write_back()
 
@@ -504,15 +518,19 @@ class Process(KernelObject):
         self.peb.object.ProcessParameters = process_parameters.address
         self.peb.write_back()
 
+    def get_session_manager(self) -> SessionManager:
+        # only the user-mode emulator has sessions, and only it creates console processes and reads desktop names
+        return cast("Win32Emulator", self.emu).get_session_manager()
+
     def alloc_console(self):
         if not self.console:
             self.console = Console(self.emu.handle_allocator)
-        sm = self.emu.get_session_manager()
+        sm = self.get_session_manager()
         desk = sm.get_current_desktop()
         self.console.window = desk.new_window()
 
     def get_desktop_name(self):
-        sm = self.emu.get_session_manager()
+        sm = self.get_session_manager()
         stat = sm.get_current_station()
         stat_name = stat.name
 
@@ -758,6 +776,8 @@ class IDT(KernelObject):
     This is currently a dummy structure and
     only exists to detect if samples read or write to it.
     """
+
+    emu: WinKernelEmulator
 
     def __init__(self, emu):
         super().__init__(emu=emu)
