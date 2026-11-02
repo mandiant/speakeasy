@@ -337,18 +337,21 @@ class NetworkManager:
                 self.close_wininet_object(child.handle)
         self.wininets.close(handle)
 
-    def get_socket(self, fd):
-        """Get the socket of an open socket handle, else None."""
-        try:
-            return self.sockets.get(fd, Socket)
-        except InvalidHandle:
-            return None
+    def get_socket(self, fd) -> Socket:
+        """
+        Get the socket of an open socket handle.
+
+        Raises:
+            InvalidHandle: if the socket handle is not open, with the error WSAENOTSOCK.
+        """
+        return self.sockets.get(fd, Socket)
 
     def close_socket(self, fd):
         """
         Close a socket handle.
 
         Raises:
-            InvalidHandle: if the socket handle is not open.
+            InvalidHandle: if the socket handle is not open, with the error WSAENOTSOCK.
         """
+        self.sockets.get(fd, Socket)
         self.sockets.close(fd)

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
+from speakeasy.windows.handles import InvalidHandle
 from speakeasy.winenv.defs.enums import ADDRESS_FAMILY, SOCKET_OPTION, SOCKET_OPTION_LEVEL, SOCKET_TYPE
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.winsock import winsock
@@ -314,7 +315,7 @@ class Ws2_32(api.ApiHandler):
 
         return ptr_hostent
 
-    @apihook("connect", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=4)
+    @apihook("connect", argc=3, conv=_arch.CALL_CONV_STDCALL, ordinal=4, fail=winsock.SOCKET_ERROR)
     def connect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int connect(
@@ -334,9 +335,6 @@ class Ws2_32(api.ApiHandler):
         rport = ntohs(sa.sin_port)
 
         socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
         if stype == SOCKET_TYPE.SOCK_STREAM:
@@ -354,7 +352,7 @@ class Ws2_32(api.ApiHandler):
 
         return rv
 
-    @apihook("bind", argc=3, ordinal=2)
+    @apihook("bind", argc=3, ordinal=2, fail=winsock.SOCKET_ERROR)
     def bind(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int bind(
@@ -372,9 +370,6 @@ class Ws2_32(api.ApiHandler):
         rport = ntohs(sa.sin_port)
 
         socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
         if stype == SOCKET_TYPE.SOCK_STREAM:
@@ -438,9 +433,11 @@ class Ws2_32(api.ApiHandler):
         """
         s, addr, addrlen = argv
 
-        socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
+        try:
+            socket = self.netman.get_socket(s)
+        except InvalidHandle as e:
+            # INVALID_SOCKET is pointer sized, so a fail value of the apihook does not fit
+            emu.set_last_error(e.error)
             return self.get_max_int()
         stype = socket.type
         proto = "unknown"
@@ -486,7 +483,7 @@ class Ws2_32(api.ApiHandler):
         self.write_dword(namelen, size)
         return 0
 
-    @apihook("getpeername", argc=3, ordinal=5)
+    @apihook("getpeername", argc=3, ordinal=5, fail=winsock.SOCKET_ERROR)
     def getpeername(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getpeername(
@@ -497,15 +494,12 @@ class Ws2_32(api.ApiHandler):
         """
         s, name, namelen = argv
         socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
         if not socket.connected_host:
             emu.set_last_error(winsock.WSAENOTCONN)
             return winsock.SOCKET_ERROR
         return self.write_sockaddr(emu, name, namelen, socket.connected_host, socket.connected_port)
 
-    @apihook("getsockname", argc=3, ordinal=6)
+    @apihook("getsockname", argc=3, ordinal=6, fail=winsock.SOCKET_ERROR)
     def getsockname(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int getsockname(
@@ -516,9 +510,6 @@ class Ws2_32(api.ApiHandler):
         """
         s, name, namelen = argv
         socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
         adapters = emu.config.network.adapters
         host = next((a.ip_address for a in adapters if a.ip_address), "127.0.0.1")
         return self.write_sockaddr(emu, name, namelen, host, 49152 + socket.fd % 16384)
@@ -631,7 +622,7 @@ class Ws2_32(api.ApiHandler):
         """
         return 0
 
-    @apihook("recv", argc=4, ordinal=16)
+    @apihook("recv", argc=4, ordinal=16, fail=winsock.SOCKET_ERROR)
     def recv(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int recv(
@@ -647,9 +638,6 @@ class Ws2_32(api.ApiHandler):
         peek = flags & winsock.MSG_PEEK
 
         sock = self.netman.get_socket(s)
-        if not sock:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
         data = sock.get_recv_data(blen, peek)
         rv = len(data)
 
@@ -669,7 +657,7 @@ class Ws2_32(api.ApiHandler):
 
         return rv
 
-    @apihook("send", argc=4, ordinal=19)
+    @apihook("send", argc=4, ordinal=19, fail=winsock.SOCKET_ERROR)
     def send(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int send(
@@ -683,9 +671,6 @@ class Ws2_32(api.ApiHandler):
         data = b""
 
         socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
         stype = socket.type
         proto = "unknown"
         if stype == SOCKET_TYPE.SOCK_STREAM:
@@ -703,7 +688,7 @@ class Ws2_32(api.ApiHandler):
 
         return len(data)
 
-    @apihook("closesocket", argc=1, ordinal=3)
+    @apihook("closesocket", argc=1, ordinal=3, fail=winsock.SOCKET_ERROR)
     def closesocket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int closesocket(
@@ -712,18 +697,10 @@ class Ws2_32(api.ApiHandler):
         """
         (s,) = argv
 
-        rv = 0
+        self.netman.close_socket(s)
+        return 0
 
-        socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            rv = winsock.SOCKET_ERROR
-        else:
-            self.netman.close_socket(s)
-
-        return rv
-
-    @apihook("ioctlsocket", argc=3, ordinal=10)
+    @apihook("ioctlsocket", argc=3, ordinal=10, fail=winsock.SOCKET_ERROR)
     def ioctlsocket(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int ioctlsocket(
@@ -734,13 +711,8 @@ class Ws2_32(api.ApiHandler):
         """
         s, cmd, argp = argv
 
-        socket = self.netman.get_socket(s)
-        if not socket:
-            emu.set_last_error(winsock.WSAENOTSOCK)
-            return winsock.SOCKET_ERROR
-        rv = 0
-
-        return rv
+        self.netman.get_socket(s)
+        return 0
 
     @apihook("getaddrinfo", argc=4)
     def getaddrinfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
