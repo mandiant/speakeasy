@@ -1,9 +1,14 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+from typing import TYPE_CHECKING
+
 from speakeasy.winenv.defs.ndis import ndis
 from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.kernel import WinKernelEmulator
 
 NDIS_STATUS_FAILURE = 0xC0000001
 NDIS_STATUS_SUCCESS = 0x00000000
@@ -50,7 +55,7 @@ class Ndis(api.ApiHandler):
         return tmp
 
     @apihook("NdisGetVersion", argc=0)
-    def NdisGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisGetVersion(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT NdisGetVersion();
         """
@@ -72,7 +77,7 @@ class Ndis(api.ApiHandler):
         return out_ver
 
     @apihook("NdisGetRoutineAddress", argc=1)
-    def NdisGetRoutineAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisGetRoutineAddress(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID NdisGetRoutineAddress(
             PNDIS_STRING NdisRoutineName
@@ -86,7 +91,9 @@ class Ndis(api.ApiHandler):
         return addr
 
     @apihook("NdisMRegisterMiniportDriver", argc=5)
-    def NdisMRegisterMiniportDriver(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisMRegisterMiniportDriver(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NDIS_STATUS NdisMRegisterMiniportDriver(
             PDRIVER_OBJECT DriverObject,
@@ -106,7 +113,7 @@ class Ndis(api.ApiHandler):
         return rv
 
     @apihook("NdisInitializeWrapper", argc=4)
-    def NdisInitializeWrapper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisInitializeWrapper(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisInitializeWrapper(
             PNDIS_HANDLE NdisWrapperHandle,
@@ -122,7 +129,7 @@ class Ndis(api.ApiHandler):
         self.mem_write(pHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
     @apihook("NdisTerminateWrapper", argc=2)
-    def NdisTerminateWrapper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisTerminateWrapper(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisTerminateWrapper(
             NDIS_HANDLE NdisWrapperHandle,
@@ -132,7 +139,9 @@ class Ndis(api.ApiHandler):
         hnd, ss = argv
 
     @apihook("NdisInitializeReadWriteLock", argc=1)
-    def NdisInitializeReadWriteLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisInitializeReadWriteLock(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         VOID NdisInitializeReadWriteLock(
             PNDIS_RW_LOCK Lock
@@ -141,7 +150,9 @@ class Ndis(api.ApiHandler):
         (lock,) = argv
 
     @apihook("NdisMRegisterUnloadHandler", argc=2)
-    def NdisMRegisterUnloadHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisMRegisterUnloadHandler(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         VOID NdisMRegisterUnloadHandler(
             NDIS_HANDLE NdisWrapperHandle,
@@ -151,7 +162,7 @@ class Ndis(api.ApiHandler):
         hnd, unload = argv
 
     @apihook("NdisRegisterProtocol", argc=4)
-    def NdisRegisterProtocol(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisRegisterProtocol(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisRegisterProtocol(
             PNDIS_STATUS Status,
@@ -174,7 +185,9 @@ class Ndis(api.ApiHandler):
             self.mem_write(pProtoHandle, hnd.to_bytes(self.get_ptr_size(), "little"))
 
     @apihook("NdisIMRegisterLayeredMiniport", argc=4)
-    def NdisIMRegisterLayeredMiniport(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisIMRegisterLayeredMiniport(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NDIS_STATUS NdisIMRegisterLayeredMiniport(
             NDIS_HANDLE NdisWrapperHandle,
@@ -199,7 +212,7 @@ class Ndis(api.ApiHandler):
         return rv
 
     @apihook("NdisIMAssociateMiniport", argc=2)
-    def NdisIMAssociateMiniport(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisIMAssociateMiniport(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisIMAssociateMiniport(
             NDIS_HANDLE DriverHandle,
@@ -209,7 +222,9 @@ class Ndis(api.ApiHandler):
         drv_hnd, phnd = argv
 
     @apihook("NdisAllocateGenericObject", argc=3)
-    def NdisAllocateGenericObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisAllocateGenericObject(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         PNDIS_GENERIC_OBJECT NdisAllocateGenericObject(
             PDRIVER_OBJECT DriverObject,
@@ -225,7 +240,7 @@ class Ndis(api.ApiHandler):
         ctx.args[1].display = stag
 
         go = self.ndis.NDIS_GENERIC_OBJECT(emu.get_ptr_size())
-        go.DriverObject = drv
+        go.DriverObject = drv  # type: ignore[assignment]
 
         total = size + self.sizeof(go)
         ptr = self.mem_alloc(size=total, tag=f"api.struct.NDIS_GENERIC_OBJECT.{stag}")
@@ -234,7 +249,9 @@ class Ndis(api.ApiHandler):
         return ptr
 
     @apihook("NdisAllocateMemoryWithTag", argc=3)
-    def NdisAllocateMemoryWithTag(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisAllocateMemoryWithTag(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NDIS_STATUS NdisAllocateMemoryWithTag(
             PVOID *VirtualAddress,
@@ -255,7 +272,9 @@ class Ndis(api.ApiHandler):
         return rv
 
     @apihook("NdisAllocateNetBufferListPool", argc=2)
-    def NdisAllocateNetBufferListPool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisAllocateNetBufferListPool(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NDIS_HANDLE NdisAllocateNetBufferListPool(
             NDIS_HANDLE NdisHandle,
@@ -281,7 +300,9 @@ class Ndis(api.ApiHandler):
         return nbl_ptr
 
     @apihook("NdisFreeNetBufferListPool", argc=1)
-    def NdisFreeNetBufferListPool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisFreeNetBufferListPool(
+        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         VOID NdisFreeNetBufferListPool(
             NDIS_HANDLE PoolHandle
@@ -290,7 +311,7 @@ class Ndis(api.ApiHandler):
         (handle,) = argv
 
     @apihook("NdisFreeMemory", argc=3)
-    def NdisFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisFreeMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisFreeMemory(
             PVOID VirtualAddress,
@@ -301,7 +322,7 @@ class Ndis(api.ApiHandler):
         va, length, flags = argv
 
     @apihook("NdisFreeGenericObject", argc=1)
-    def NdisFreeGenericObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NdisFreeGenericObject(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID NdisFreeGenericObject(
             PNDIS_GENERIC_OBJECT NdisObject
