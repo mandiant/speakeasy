@@ -656,9 +656,8 @@ def write_output(doc: dict, output: str) -> int:
     os.makedirs(os.path.dirname(output), exist_ok=True)
     raw = json.dumps(doc, separators=(",", ":"), sort_keys=False).encode("utf-8")
     # A fixed mtime and no embedded filename keep the archive byte-for-byte reproducible.
-    with open(output, "wb") as f:
-        with gzip.GzipFile(filename="", fileobj=f, mode="wb", mtime=0) as gz:
-            gz.write(raw)
+    with open(output, "wb") as f, gzip.GzipFile(filename="", fileobj=f, mode="wb", mtime=0) as gz:
+        gz.write(raw)
     return len(raw)
 
 

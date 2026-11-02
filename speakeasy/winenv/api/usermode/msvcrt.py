@@ -734,11 +734,7 @@ class Msvcrt(api.ApiHandler):
             self.mem_write(pReturnValue, (0).to_bytes(ptr_size, "little"))
 
         # Sanity checks
-        if sizeInWords > 0 and not wcstr:
-            rv = EINVAL
-        elif not mbstr:
-            rv = EINVAL
-        elif sizeInWords == 0 and wcstr:
+        if (sizeInWords > 0 and not wcstr) or not mbstr or (sizeInWords == 0 and wcstr):
             rv = EINVAL
         else:
             is_truncated = count == self.get_max_int()

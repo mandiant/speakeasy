@@ -556,7 +556,7 @@ class PeLoader:
             directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[13]
             delay_rva, size = directory.VirtualAddress, directory.Size
             delay_raw = b""
-            if 0 < delay_rva and delay_rva + size <= pe.image_size:
+            if delay_rva > 0 and delay_rva + size <= pe.image_size:
                 try:
                     raw = pe.get_data(delay_rva, size)
                 except pefile.PEFormatError:

@@ -861,9 +861,8 @@ def generate(phnt_root: str) -> tuple[dict, collections.Counter]:
 def write_output(doc: dict, output: str) -> int:
     os.makedirs(os.path.dirname(output), exist_ok=True)
     raw = json.dumps(doc, separators=(",", ":")).encode("utf-8")
-    with open(output, "wb") as f:
-        with gzip.GzipFile(filename="", fileobj=f, mode="wb", mtime=0) as gz:
-            gz.write(raw)
+    with open(output, "wb") as f, gzip.GzipFile(filename="", fileobj=f, mode="wb", mtime=0) as gz:
+        gz.write(raw)
     return len(raw)
 
 

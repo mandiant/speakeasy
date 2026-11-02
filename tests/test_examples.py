@@ -58,9 +58,7 @@ def test_emu_dll_example_exercises_hooks(config, load_test_bin, caplog):
         se.add_mem_write_hook(example.hook_mem_write)
 
         for export in module.get_exports():
-            if export.name == "emu_test_one":
-                se.call(export.address, [0x0, 0x1])
-            elif export.name == "emu_test_two":
+            if export.name in ("emu_test_one", "emu_test_two"):
                 se.call(export.address, [0x0, 0x1])
 
         report = se.get_report()

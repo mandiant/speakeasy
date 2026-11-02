@@ -3283,17 +3283,11 @@ class Ntoskrnl(api.ApiHandler):
                     hfile = self.file_open(npath, create=True)
                 elif create_disp == ddk.FILE_CREATE:
                     nts = ddk.STATUS_UNSUCCESSFUL
-                elif create_disp == ddk.FILE_OPEN:
+                elif create_disp in (ddk.FILE_OPEN, ddk.FILE_OPEN_IF):
                     hfile = self.file_open(npath, create=False)
-                elif create_disp == ddk.FILE_OPEN_IF:
-                    hfile = self.file_open(npath, create=False)
-                elif create_disp == ddk.FILE_OVERWRITE:
+                elif create_disp in (ddk.FILE_OVERWRITE, ddk.FILE_OVERWRITE_IF):
                     hfile = self.file_open(npath, create=True)
-                elif create_disp == ddk.FILE_OVERWRITE_IF:
-                    hfile = self.file_open(npath, create=True)
-            elif create_disp == ddk.FILE_SUPERSEDE:
-                hfile = self.file_open(npath, create=True)
-            elif create_disp == ddk.FILE_CREATE:
+            elif create_disp in (ddk.FILE_SUPERSEDE, ddk.FILE_CREATE):
                 hfile = self.file_open(npath, create=True)
             elif create_disp == ddk.FILE_OPEN:
                 nts = ddk.STATUS_UNSUCCESSFUL

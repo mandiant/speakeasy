@@ -162,7 +162,7 @@ class UsbEmu(speakeasy.Speakeasy):
         csl = ntos.IO_STACK_LOCATION(emu.get_ptr_size())
         csl = self.mem_cast(csl, stack - csl.sizeof())
 
-        if IOCTL_IS_SUPER_SPEED_SUPPORTED == csl.Parameters.DeviceIoControl.IoControlCode:
+        if csl.Parameters.DeviceIoControl.IoControlCode == IOCTL_IS_SUPER_SPEED_SUPPORTED:
             rv = ddk.STATUS_NOT_SUPPORTED
             _irp.IoStatus.Status = rv
             self.mem_write(pIrp, _irp.get_bytes())

@@ -460,7 +460,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess, lpCreationTime, lpExitTime, lpKernelTime, lpUserTime = argv
 
-        if 0xFFFFFFFF == (0xFFFFFFFF & hProcess):
+        if (0xFFFFFFFF & hProcess) == 0xFFFFFFFF:
             proc = emu.get_current_process()
         else:
             proc = self.get_object_from_handle(hProcess)
@@ -1578,7 +1578,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (Process,) = argv
 
-        if 0xFFFFFFFF == (0xFFFFFFFF & Process):
+        if (0xFFFFFFFF & Process) == 0xFFFFFFFF:
             proc = emu.get_current_process()
         else:
             proc = self.get_object_from_handle(Process)
@@ -1679,7 +1679,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess = argv[0]
 
-        if 0xFFFFFFFF == (0xFFFFFFFF & hProcess):
+        if (0xFFFFFFFF & hProcess) == 0xFFFFFFFF:
             proc_obj = emu.get_current_process()
         else:
             proc_obj = self.get_object_from_handle(hProcess)
@@ -1761,7 +1761,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         hProcess, lpAddress, dwSize, flNewProtect, lpflOldProtect = argv
 
         proc_obj = self.get_object_from_handle(hProcess)
-        if 0xFFFFFFFF == (0xFFFFFFFF & hProcess):
+        if (0xFFFFFFFF & hProcess) == 0xFFFFFFFF:
             proc_obj = emu.get_current_process()
 
         if not proc_obj:
@@ -4603,19 +4603,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             # We don't have a handler for this file, create it
             else:
                 op = "create"
-                if disp == windefs.CREATE_ALWAYS:
-                    emu.set_last_error(windefs.ERROR_SUCCESS)
-                    hnd = self.file_open(target, create=True)
-                elif disp == windefs.CREATE_NEW:
+                if disp in (windefs.CREATE_ALWAYS, windefs.CREATE_NEW):
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     hnd = self.file_open(target, create=True)
                 elif disp == windefs.OPEN_ALWAYS:
                     emu.set_last_error(windefs.ERROR_SUCCESS)
                     # Open the file
                     hnd = self.file_open(target, create=True)
-                elif disp == windefs.OPEN_EXISTING:
-                    emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-                elif disp == windefs.TRUNCATE_EXISTING:
+                elif disp in (windefs.OPEN_EXISTING, windefs.TRUNCATE_EXISTING):
                     emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
             f = self.file_get(hnd)
