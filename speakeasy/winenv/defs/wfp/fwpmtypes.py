@@ -2,7 +2,7 @@
 
 import ctypes as ct
 
-from speakeasy.struct import EmuStruct, Ptr
+from speakeasy.struct import EmuStruct, EmuUnion, Ptr
 
 
 class GUID(EmuStruct):
@@ -41,7 +41,7 @@ class FWPM_SUBLAYER0(EmuStruct):
         self.subLayerKey = GUID
         self.displayData = FWPM_DISPLAY_DATA0
         self.flags = ct.c_uint32
-        self.providerKey = GUID
+        self.providerKey = Ptr
         self.providerData = FWP_BYTE_BLOB
         self.weight = ct.c_uint16
 
@@ -62,7 +62,7 @@ class FWPM_CALLOUT0(EmuStruct):
         self.calloutKey = GUID
         self.displayData = FWPM_DISPLAY_DATA0
         self.flags = ct.c_uint32
-        self.providerKey = GUID
+        self.providerKey = Ptr
         self.providerData = FWP_BYTE_BLOB
         self.applicableLayer = GUID
         self.calloutId = ct.c_uint32
@@ -83,13 +83,20 @@ class FWPM_ACTION0(EmuStruct):
         self.filterType = GUID
 
 
+class FWPM_FILTER0_CONTEXT(EmuUnion):
+    def __init__(self, ptr_size):
+        super().__init__(ptr_size)
+        self.rawContext = ct.c_uint64
+        self.providerContextKey = GUID(ptr_size).get_cstruct()
+
+
 class FWPM_FILTER0(EmuStruct):
     def __init__(self, ptr_size):
         super().__init__(ptr_size)
         self.filterKey = GUID
         self.displayData = FWPM_DISPLAY_DATA0
         self.flags = ct.c_uint32
-        self.providerKey = GUID
+        self.providerKey = Ptr
         self.providerData = FWP_BYTE_BLOB
         self.layerKey = GUID
         self.subLayerKey = GUID
@@ -97,7 +104,7 @@ class FWPM_FILTER0(EmuStruct):
         self.numFilterConditions = ct.c_uint32
         self.filterCondition = Ptr
         self.action = FWPM_ACTION0
-        self.providerContextKey = GUID
+        self.Anonymous = FWPM_FILTER0_CONTEXT
         self.reserved = Ptr
         self.filterId = ct.c_uint64
         self.effectiveWeight = FWP_VALUE0
