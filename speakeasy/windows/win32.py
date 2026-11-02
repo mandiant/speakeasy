@@ -614,8 +614,8 @@ class Win32Emulator(WindowsEmulator):
         has is_main_exe set. If the config has no such entry, do nothing.
 
         Raises:
-            WindowsEmuError: the machine is not initialized, or the container is already loaded.
-            OutOfMemoryError: on x86, the container image does not fit below the TEB.
+            WindowsEmuError: if the machine is not initialized, or the container is already loaded.
+            OutOfMemoryError: if, on x86, the container image does not fit below the TEB.
         """
         if not self.is_machine_ready:
             raise WindowsEmuError("the machine is not initialized: call init_machine before load_container")

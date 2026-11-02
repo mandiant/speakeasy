@@ -410,7 +410,7 @@ class WindowsEmulator(BinaryEmulator):
         of a DLL or shellcode input is not part of the machine: Win32Emulator.load_container loads it.
 
         Raises:
-            WindowsEmuError: the machine is already initialized, or arch is not x86 or amd64.
+            WindowsEmuError: if the machine is already initialized, or arch is not x86 or amd64.
         """
         if self.arch:
             raise WindowsEmuError("the machine is already initialized")
@@ -448,7 +448,7 @@ class WindowsEmulator(BinaryEmulator):
         Get the object manager of the machine.
 
         Raises:
-            WindowsEmuError: the machine structures are not initialized yet.
+            WindowsEmuError: if the machine structures are not initialized yet.
         """
         if self.om is None:
             raise WindowsEmuError(f"{reason} requires initialized object services")
@@ -916,7 +916,7 @@ class WindowsEmulator(BinaryEmulator):
         Get False if a fault stops the debugger.
 
         Raises:
-            uc.UcError: Unicorn failed, and no native exit explains the failure.
+            uc.UcError: if Unicorn fails and no native exit explains the failure.
         """
         try:
             native_timeout = limits.get_native_timeout()
@@ -1446,7 +1446,7 @@ class WindowsEmulator(BinaryEmulator):
         Allocate memory in the emulated pool.
 
         Raises:
-            WindowsEmuError: the emulator runs in user mode, which has no pool.
+            WindowsEmuError: if the emulator runs in user mode, which has no pool.
         """
         raise WindowsEmuError("pool allocations need kernel mode")
 
@@ -1455,7 +1455,7 @@ class WindowsEmulator(BinaryEmulator):
         Signal that the current process ends.
 
         Raises:
-            WindowsEmuError: the emulator runs in kernel mode, which has no process to end.
+            WindowsEmuError: if the emulator runs in kernel mode, which has no process to end.
         """
         raise WindowsEmuError("process exit needs user mode")
 
@@ -1744,7 +1744,7 @@ class WindowsEmulator(BinaryEmulator):
         An image with preferred base 0 loads at any free address.
 
         Raises:
-            ValueError: the image must move, but it has no relocation data.
+            ValueError: if the image must move, but it has no relocation data.
         """
         if not self.arch:
             raise WindowsEmuError("the machine is not initialized: call init_machine before loading images")

@@ -312,7 +312,7 @@ def get_call_args(
     and gives each parameter's value.
 
     Raises:
-        ValueError: the slots do not match the slots the signature consumes.
+        ValueError: if the slots do not match the slots the signature consumes.
     """
     if len(slots) != sig.slot_count(ptr_size) or len(rendered) != len(sig.params):
         raise ValueError(f"{sig.name}: argument slots do not match the signature")
