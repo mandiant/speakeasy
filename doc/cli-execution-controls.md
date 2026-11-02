@@ -12,7 +12,7 @@ Primary flags:
 
 Use these together to bound long-running or looping samples.
 
-The CLI emulates in a child process. It stops that process after the larger of `--max-run-time` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop.
+The CLI emulates in a child process. It stops that process after the larger of `--max-run-time` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop. When both are 0, the CLI does not stop the process.
 
 `--max-run-time` and `--max-total-time` measure host time, so the point where they stop a run depends on the speed of the host. Two runs with the same limits can stop at different instructions and give different reports. For a repeatable report, set `--max-run-time 0` and stop the run with `--max-instructions` or `--max-api-calls`:
 
@@ -26,8 +26,8 @@ speakeasy -t sample.exe --max-run-time 0 --max-instructions 3000000 --max-api-ca
 
 Primary flags:
 - `--raw`: emulate target as raw bytes
-- `--arch`: architecture override (`x86`, `amd64`)
-- `--raw-offset`: raw-mode execution start offset (hex)
+- `--arch`: shellcode architecture (`x86`, `x64`, `amd64`), required with `--raw`
+- `--raw-offset`: raw-mode execution start offset (decimal, or hex with `0x`)
 - `--emulate-children`: emulate spawned child processes
 - `--no-mp`: run in current process instead of worker process
 

@@ -271,3 +271,31 @@ from speakeasy.windows.common import _PeParser
 se = speakeasy.Speakeasy(config, argv, debug=True)
 se.run_module(module, all_entrypoints=True, emulate_children=False)
 ```
+
+## Debug output
+
+`Speakeasy(debug=True)` logs each instruction and the registers to the `speakeasy.windows.winemu` logger at the DEBUG level. In 1.x it wrote them to stdout. To see them, set the level of the `speakeasy` logger to `DEBUG` and add a handler.
+
+## Command line
+
+`--raw-offset` now takes a decimal number, like `--entry-point`. Write `0x` before a hex offset. In 1.x, `--raw-offset` was always hex, so `--raw-offset 10` started at offset 0x10.
+
+Before:
+
+```bash
+speakeasy -t shellcode.bin --raw --arch x86 --raw-offset 10 -o report.json
+```
+
+After:
+
+```bash
+speakeasy -t shellcode.bin --raw --arch x86 --raw-offset 0x10 -o report.json
+```
+
+These changes can also break a script:
+
+- `--raw` without `--arch` is an argument error, and the CLI exits 2. `--arch` takes only `x86`, `x64` or `amd64`.
+- Without `-o`, the CLI writes the report JSON to stdout. In 1.x it wrote no report.
+- With `--max-run-time 0`, the CLI stops the emulation process after `--max-total-time`. In 1.x, `--timeout 0` did not stop the process.
+
+[CLI reference](cli-reference.md#output-and-exit-status) gives the exit status of each result.
