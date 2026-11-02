@@ -1961,10 +1961,17 @@ class Ntoskrnl(api.ApiHandler):
             UCHAR SubAuthorityCount
         );
         """
-        # TODO, unimplemented
-        rv = ddk.STATUS_SUCCESS
-
-        return rv
+        Sid, IdentifierAuthority, SubAuthorityCount = argv
+        SubAuthorityCount &= 0xFF
+        if SubAuthorityCount > 15:
+            return ddk.STATUS_INVALID_PARAMETER
+        header = windefs.SID(emu.get_ptr_size(), 0)
+        header.Revision = 1
+        header.SubAuthorityCount = SubAuthorityCount
+        header.IdentifierAuthority = self.mem_read(IdentifierAuthority, 6)
+        # Windows writes the header and does not change SubAuthority.
+        self.mem_write(Sid, self.get_bytes(header))
+        return ddk.STATUS_SUCCESS
 
     @apihook("RtlSubAuthoritySid", argc=2)
     def RtlSubAuthoritySid(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
