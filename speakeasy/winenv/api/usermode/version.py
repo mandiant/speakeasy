@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pefile
 
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.codepage import encode_ansi
 
 from .. import api
 
@@ -227,7 +228,7 @@ class Version(api.ApiHandler):
         if is_text and cw == 1:
             text = self.mem_read(value, value_length * 2).decode("utf-16le", "replace")
             value = pBlock + length + len(VS_VERSION_SIGNATURE) + offset
-            self.mem_write(value, text.encode("latin-1", "replace"))
+            self.mem_write(value, encode_ansi(text))
         if lplpBuffer:
             self.write_ptr(lplpBuffer, value)
         if puLen:
