@@ -50,6 +50,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     """
 
     name = "ntdll"
+    sets_last_error = False
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 

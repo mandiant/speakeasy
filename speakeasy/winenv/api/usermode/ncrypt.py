@@ -19,6 +19,7 @@ class Ncrypt(api.ApiHandler):
     """
 
     name = "ncrypt"
+    sets_last_error = False
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 

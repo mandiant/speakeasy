@@ -173,6 +173,8 @@ class ApiHandler:
     """
 
     name = ""
+    # False for a module whose functions return a status code and do not set the last error
+    sets_last_error = True
 
     @staticmethod
     def apihook(
