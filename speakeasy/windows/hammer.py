@@ -14,11 +14,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# When disassembling, a minimum instruction size needs to be supplied
-# This number is arbitrary and just needs to be large enough to cover
-# the size of the current disasm target
-DISASM_SIZE = 0x20
-
 
 # default list of APIs to always allow despite triggering API hammering detection
 _default_api_hammer_allowlist = [
@@ -82,7 +77,7 @@ class ApiHammer:
         if self.emu.get_arch() == e_arch.ARCH_X86:
             try:
                 eip = self.emu.get_ret_address() - 6
-                mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
+                mnem, op, instr = self.emu.get_disasm(eip, e_arch.DISASM_SIZE)
                 logger.info(f"api hammering at: {imp_api} 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
                 if (mnem == "call") and "dword ptr" in instr:
                     if conv == e_arch.CALL_CONV_CDECL:
@@ -95,7 +90,7 @@ class ApiHammer:
                         logger.info(f"API HAMMERING DETECTED - patching 1 stdcall at {eip:x}")
                 else:
                     eip = self.emu.get_ret_address() - 2
-                    mnem, op, instr = self.emu.get_disasm(eip, DISASM_SIZE)
+                    mnem, op, instr = self.emu.get_disasm(eip, e_arch.DISASM_SIZE)
                     logger.info(f"api hammering at: 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
                     if (mnem == "call") and op in e_arch.REG_LOOKUP.keys():
                         if self.hammer_memregion is None:
