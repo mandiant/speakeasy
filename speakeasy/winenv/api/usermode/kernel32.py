@@ -30,7 +30,7 @@ from speakeasy.profiler_events import (
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
-from speakeasy.windows.handles import CURRENT_THREAD_HANDLE, HandleTable, InvalidHandle
+from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.enums import (
     COMPUTER_NAME_FORMAT,
     CREATE_TOOLHELP_SNAPSHOT_FLAGS,
@@ -300,31 +300,34 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def get_local_atom_name(self, atom):
         return self.local_atom_table.get(atom, (None, None))[0]
 
-    def get_search(self, table, handle):
-        """Get the search of an open find handle in ``table``, else None."""
-        try:
-            return table.get(handle)
-        except InvalidHandle:
-            return None
-
     def get_snapshot(self, emu, handle):
-        """Get the lists of an open snapshot handle, else None."""
-        try:
-            return emu.get_handle_table().get(handle, Snapshot).lists
-        except InvalidHandle:
-            return None
+        """
+        Get the lists of an open snapshot handle.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a snapshot.
+        """
+        return emu.get_handle_table().get(handle, Snapshot).lists
+
+    def is_std_handle(self, emu, handle):
+        """
+        Test if a handle is one of the standard handles of the current process and has no object.
+
+        SetStdHandle can make an open handle a standard handle, and that handle still refers to its
+        object.
+        """
+        proc = emu.get_current_process()
+        return (
+            proc is not None
+            and handle in (proc.stdin, proc.stdout, proc.stderr)
+            and handle not in emu.get_handle_table()
+        )
 
     def create_heap(self, emu):
         heap = self.mem_alloc(20, tag="emu.process_heap")
 
         self.heaps.append(heap)
         return heap
-
-    def get_thread_from_handle(self, emu, handle):
-        """The thread of a handle, including the pseudo handle of the current thread."""
-        if (handle & 0xFFFFFFFF) == CURRENT_THREAD_HANDLE:
-            return emu.get_current_thread()
-        return self.get_object_from_handle(handle)
 
     def _get_process_handle_table(self, emu, hProcess):
         """
@@ -484,13 +487,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess, lpCreationTime, lpExitTime, lpKernelTime, lpUserTime = argv
 
-        if (0xFFFFFFFF & hProcess) == 0xFFFFFFFF:
-            proc = emu.get_current_process()
-        else:
-            proc = self.get_object_from_handle(hProcess)
-        if not isinstance(proc, objman.Process):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
+        proc = emu.get_handle_table().get(hProcess, objman.Process)
 
         if proc is emu.get_current_process():
             creation = self.start_time
@@ -709,7 +706,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.get_snapshot(emu, hSnapshot)
-        if not snap or not lppe or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS not in snap:
+        if not lppe or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS not in snap:
             return rv
 
         # Reset the handle index
@@ -737,7 +734,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.get_snapshot(emu, hSnapshot)
-        if not snap or not lppe or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS not in snap:
+        if not lppe or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS not in snap:
             return rv
 
         index = snap[CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPPROCESS][0]
@@ -765,7 +762,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.get_snapshot(emu, hSnapshot)
-        if not snap or not lpte or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD not in snap:
+        if not lpte or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD not in snap:
             return rv
 
         # Reset the handle index
@@ -799,7 +796,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.get_snapshot(emu, hSnapshot)
-        if not snap or not lpte or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD not in snap:
+        if not lpte or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD not in snap:
             return rv
 
         index = snap[CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD][0]
@@ -847,7 +844,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.get_snapshot(emu, hSnapshot)
-        if not snap or not lpme or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE not in snap:
+        if not lpme or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE not in snap:
             return rv
 
         # Reset the handle index
@@ -875,7 +872,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.get_snapshot(emu, hSnapshot)
-        if not snap or not lpme or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE not in snap:
+        if not lpme or CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE not in snap:
             return rv
 
         index = snap[CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE][0]
@@ -952,24 +949,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hProcess, uExitCode = argv
-        rv = False
 
-        if hProcess == self.get_max_int():
-            self.exit_process()
-            return True
-
-        proc = emu.get_object_from_handle(hProcess)
-        if not proc:
-            return rv
-
+        proc = emu.get_handle_table().get(hProcess, objman.Process)
         if proc is emu.get_current_process():
             self.exit_process()
             return True
 
         emu.kill_process(proc)
-        rv = True
-
-        return rv
+        return True
 
     @apihook("FreeLibraryAndExitThread", argc=2)
     def FreeLibraryAndExitThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1257,14 +1244,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         flProtect &= 0xFFFFFFFF
         buf = 0
 
-        if hProcess == self.get_max_int():
-            obj = emu.get_current_process()
-        else:
-            obj = self.get_object_from_handle(hProcess)
-
-        if not obj:
-            return windefs.NULL
-
+        obj = emu.get_handle_table().get(hProcess, objman.Process)
         proc_path = obj.path
         ctx.args["hProcess"].display = proc_path
         proc_path = ntpath.basename(proc_path)
@@ -1318,15 +1298,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten = argv
         rv = False
 
-        if hProcess == self.get_max_int():
-            obj = emu.get_current_process()
-        else:
-            obj = self.get_object_from_handle(hProcess)
-
-        if not obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return rv
-
+        obj = emu.get_handle_table().get(hProcess, objman.Process)
         proc_path = obj.path
         ctx.args["hProcess"].display = proc_path
 
@@ -1361,15 +1333,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead = argv
         rv = False
 
-        if hProcess == self.get_max_int():
-            obj = emu.get_current_process()
-        else:
-            obj = self.get_object_from_handle(hProcess)
-
-        if not obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return rv
-
+        obj = emu.get_handle_table().get(hProcess, objman.Process)
         proc_path = obj.path
         ctx.args["hProcess"].display = proc_path
 
@@ -1408,16 +1372,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId) = argv
 
-        is_remote = False
-        if hProcess == self.get_max_int():
-            proc_obj = emu.get_current_process()
-        else:
-            is_remote = True
-            proc_obj = self.get_object_from_handle(hProcess)
-
-        if not proc_obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
+        is_remote = hProcess != self.get_max_int()
+        proc_obj = emu.get_handle_table().get(hProcess, objman.Process)
 
         proc_path = proc_obj.path
         ctx.args["hProcess"].display = proc_path
@@ -1479,7 +1435,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return handle
 
-    @apihook("ResumeThread", argc=1)
+    @apihook("ResumeThread", argc=1, fail=0xFFFFFFFF)
     def ResumeThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD ResumeThread(
@@ -1487,10 +1443,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hThread,) = argv
-        rv = -1
-        obj = self.get_thread_from_handle(emu, hThread)
-        if not obj:
-            return rv
+        obj = emu.get_handle_table().get(hThread, objman.Thread)
 
         rv = obj.suspend_count
         if rv > 0:
@@ -1500,7 +1453,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if not emu.resume_thread(obj):
             proc = obj.process
-            if proc not in emu.child_processes or not proc.is_modified:
+            if proc is None or proc not in emu.child_processes or not proc.is_modified:
                 return rv
             context = obj.get_context()
             if emu.get_arch() == e_arch.ARCH_AMD64:
@@ -1521,7 +1474,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.child_processes.remove(proc)
         return rv
 
-    @apihook("SuspendThread", argc=1)
+    @apihook("SuspendThread", argc=1, fail=0xFFFFFFFF)
     def SuspendThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD SuspendThread(
@@ -1529,10 +1482,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hThread,) = argv
-        rv = -1
-        obj = self.get_thread_from_handle(emu, hThread)
-        if not obj:
-            return rv
+        obj = emu.get_handle_table().get(hThread, objman.Thread)
 
         rv = obj.suspend_count
         obj.suspend_count += 1
@@ -1552,15 +1502,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hThread, dwExitCode = argv
-        rv = 0
-        obj = self.get_thread_from_handle(emu, hThread)
-        if not obj:
-            return rv
-
-        rv = 1
+        emu.get_handle_table().get(hThread, objman.Thread)
         # Thread termination not implemented
-
-        return rv
+        return 1
 
     @apihook("GetThreadId", argc=1)
     def GetThreadId(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1570,16 +1514,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (Thread,) = argv
-
-        if not Thread:
-            return 0
-
-        obj = self.get_thread_from_handle(emu, Thread)
-
-        if not obj:
-            return 0
-
-        return obj.id
+        return emu.get_handle_table().get(Thread, objman.Thread).id
 
     @apihook("GetProcessId", argc=1)
     def GetProcessId(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1589,15 +1524,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (Process,) = argv
-
-        if (0xFFFFFFFF & Process) == 0xFFFFFFFF:
-            proc = emu.get_current_process()
-        else:
-            proc = self.get_object_from_handle(Process)
-        if not isinstance(proc, objman.Process):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
-        return proc.id
+        return emu.get_handle_table().get(Process, objman.Process).id
 
     @apihook("GetProcessIdOfThread", argc=1)
     def GetProcessIdOfThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1608,10 +1535,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (Thread,) = argv
 
-        thread = self.get_thread_from_handle(emu, Thread)
-        if not isinstance(thread, objman.Thread):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
+        thread = emu.get_handle_table().get(Thread, objman.Thread)
         return (thread.process or emu.get_current_process()).id
 
     @apihook("VirtualQuery", argc=3)
@@ -1691,15 +1615,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess = argv[0]
 
-        if (0xFFFFFFFF & hProcess) == 0xFFFFFFFF:
-            proc_obj = emu.get_current_process()
-        else:
-            proc_obj = self.get_object_from_handle(hProcess)
-
-        if not proc_obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
-
+        proc_obj = emu.get_handle_table().get(hProcess, objman.Process)
         ctx.args["hProcess"].display = proc_obj.path
         return self.VirtualQuery(emu, argv[1:], ctx)
 
@@ -1772,14 +1688,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess, lpAddress, dwSize, flNewProtect, lpflOldProtect = argv
 
-        proc_obj = self.get_object_from_handle(hProcess)
-        if (0xFFFFFFFF & hProcess) == 0xFFFFFFFF:
-            proc_obj = emu.get_current_process()
-
-        if not proc_obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
-
+        proc_obj = emu.get_handle_table().get(hProcess, objman.Process)
         rv = self.VirtualProtect(emu, argv[1:], ctx)
 
         protect = decode(PAGE_PROTECTION_FLAGS, flNewProtect)
@@ -3406,11 +3315,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        f = self.file_get(hFile)
-        if not f:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
-
+        f = self.get_file(hFile)
         path = self.get_final_path(emu, f.path, dwFlags)
         if path is None:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
@@ -3498,12 +3403,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         (hFile,) = argv
 
-        proc = emu.get_current_process()
-        if hFile in (proc.stdin, proc.stdout, proc.stderr):
+        if self.is_std_handle(emu, hFile):
             return FILE_TYPE_CHAR
-        if isinstance(self.file_get(hFile), fileman.NullDevice):
+        f = emu.get_handle_table().get(hFile, fileman.File)
+        if isinstance(f, fileman.NullDevice):
             return FILE_TYPE_CHAR
-        if emu.pipe_get(hFile):
+        if isinstance(f, fileman.Pipe):
             return FILE_TYPE_PIPE
         return FILE_TYPE_DISK
 
@@ -4092,7 +3997,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             name = self.read_mem_string(lpName, cw)
             ctx.args["lpName"].display = name
 
-        f = emu.get_file_manager().get_file_from_handle(hFile)
+        f = None
+        if hFile and ct.c_int32(hFile).value != windefs.INVALID_HANDLE_VALUE:
+            f = self.get_file(hFile)
         if f and flProtect & PAGE_PROTECTION_FLAGS.SEC_IMAGE:
             try:
                 emu.load_pe(data=f.get_contents())
@@ -4140,7 +4047,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         address when ``base_address`` is 0.
         """
         fman = emu.get_file_manager()
-        mapping = fman.get_mapping_from_handle(hmap)
+        mapping = fman.get_mapping(hmap)
         tag_prefix = "api.MapViewOfFile"
         buf = 0
 
@@ -4153,9 +4060,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             base, size = emu.get_valid_ranges(size, base_address)
             return (base, size) if base == base_address else (0, size)
 
-        if mapping and base_address & 0xFFFF:
+        if base_address & 0xFFFF:
             emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
-        elif mapping:
+        else:
             f = mapping.backed_file
             full_offset = (offset_high << 32) | offset_low
             size = 0
@@ -4219,9 +4126,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 if base != buf and view.size == size and full_offset == view.offset:
                     data = self.mem_read(base, size)
                     self.mem_write(buf, data)
-
-        else:
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
 
         return buf
 
@@ -4347,7 +4251,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return False
 
-        f = self.get_object_from_handle(fHandle)
+        f = self.get_file(fHandle)
         full_size = f.get_size()
         file_data.nFileSizeHigh = 0xFFFFFFFF & (full_size >> 32)
         file_data.nFileSizeLow = 0xFFFFFFFF & full_size
@@ -4462,20 +4366,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return False
 
-        sf = self.file_get(s_handle)
-        if sf is None:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return False
+        sf = self.get_file(s_handle)
 
         d_handle = self.file_open(new_name, create=True)
         if d_handle is None:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
             return False
 
-        df = self.file_get(d_handle)
-        if df is None:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-            return False
+        df = self.get_file(d_handle)
 
         data = sf.get_data() or b""
         df.add_data(data)
@@ -4515,20 +4413,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
 
-        src_file = self.file_get(src_handle)
-        if src_file is None:
-            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
-            return 0
+        src_file = self.get_file(src_handle)
 
         dst_handle = self.file_open(new_name, create=True)
         if dst_handle is None:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
             return 0
 
-        dst_file = self.file_get(dst_handle)
-        if dst_file is None:
-            emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
-            return 0
+        dst_file = self.get_file(dst_handle)
 
         dst_file.remove_data()
         dst_file.add_data(src_file.get_data(reset_pointer=True) or b"")
@@ -4657,12 +4549,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 ):
                     emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
 
-            f = self.file_get(hnd)
+            opened = hnd is not None and hnd != self.get_max_int()
             write_access = (
                 FILE_ACCESS_FLAGS.FILE_WRITE_DATA | FILE_ACCESS_FLAGS.GENERIC_WRITE | FILE_ACCESS_FLAGS.GENERIC_ALL
             )
-            if f and dwDesiredAccess & FILE_ACCESS_FLAGS.FILE_APPEND_DATA and not dwDesiredAccess & write_access:
-                f.append = True
+            if opened and dwDesiredAccess & FILE_ACCESS_FLAGS.FILE_APPEND_DATA and not dwDesiredAccess & write_access:
+                self.get_file(hnd).append = True
 
             self.record_file_access_event(target, op, disposition=[cd], access=ad)
         return hnd
@@ -4715,26 +4607,21 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpNumberOfBytesRead:
             self.write_dword(lpNumberOfBytesRead, 0)
 
-        f = self.file_get(hFile)
-        if f:
-            path = f.path
+        f = emu.get_handle_table().get(hFile, fileman.File)
+        if isinstance(f, fileman.Pipe):
             data = f.get_data(nNumberOfBytesToRead)
-
-            if lpBuffer:
-                _write_output(emu, data, lpBuffer, lpNumberOfBytesRead)
-
-                self.record_file_access_event(path, FILE_READ, buffer=lpBuffer, size=len(data))
-
-                rv = True
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-            return rv
-
-        p = emu.pipe_get(hFile)
-        if p:
-            data = p.get_data(nNumberOfBytesToRead)
             if data and lpBuffer:
                 _write_output(emu, data, lpBuffer, lpNumberOfBytesRead)
-            rv = bool(data)
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return bool(data)
+
+        data = f.get_data(nNumberOfBytesToRead)
+        if lpBuffer:
+            _write_output(emu, data, lpBuffer, lpNumberOfBytesRead)
+
+            self.record_file_access_event(f.path, FILE_READ, buffer=lpBuffer, size=len(data))
+
+            rv = True
             emu.set_last_error(windefs.ERROR_SUCCESS)
         return rv
 
@@ -4750,7 +4637,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped = argv
-        rv = 0
 
         data = b""
         if lpBuffer and nNumberOfBytesToWrite:
@@ -4759,53 +4645,33 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpNumberOfBytesWritten:
             self.write_dword(lpNumberOfBytesWritten, 0)
 
-        f = self.file_get(hFile)
-        if f:
-            path = f.path
-            if data:
-                f.write_data(data)
-                self.record_file_access_event(path, FILE_WRITE, data=data, buffer=lpBuffer, size=nNumberOfBytesToWrite)
-
-                data_hex = data.hex()
-                ctx.args["lpBuffer"].display = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
-
-            if lpNumberOfBytesWritten:
-                self.write_dword(lpNumberOfBytesWritten, len(data))
-
-            rv = 1
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return rv
-
-        pipe = emu.pipe_get(hFile)
-        if pipe:
-            if data:
-                pipe.add_data(data)
-
-            if lpNumberOfBytesWritten:
-                self.write_dword(lpNumberOfBytesWritten, len(data))
-
-            rv = 1
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return rv
-
+        table = emu.get_handle_table()
         proc = emu.get_current_process()
-        if proc:
-            std_output = proc.get_std_handle(0xFFFFFFF5)
-            std_error = proc.get_std_handle(0xFFFFFFF4)
+        # SetStdHandle can make a file handle the standard output, so the table comes first
+        if hFile not in table and proc and hFile in (proc.stdout, proc.stderr):
+            if lpNumberOfBytesWritten:
+                self.write_dword(lpNumberOfBytesWritten, len(data))
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return 1
 
-            if hFile in (std_output, std_error):
-                if lpNumberOfBytesWritten:
-                    self.write_dword(lpNumberOfBytesWritten, len(data))
+        f = table.get(hFile, fileman.File)
+        if isinstance(f, fileman.Pipe):
+            if data:
+                f.add_data(data)
+        elif data:
+            f.write_data(data)
+            self.record_file_access_event(f.path, FILE_WRITE, data=data, buffer=lpBuffer, size=nNumberOfBytesToWrite)
 
-                rv = 1
-                emu.set_last_error(windefs.ERROR_SUCCESS)
-                return rv
+            data_hex = data.hex()
+            ctx.args["lpBuffer"].display = f"{hex(lpBuffer)} ({data_hex[:0x20]})"
 
-        emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+        if lpNumberOfBytesWritten:
+            self.write_dword(lpNumberOfBytesWritten, len(data))
 
-        return rv
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
-    @apihook("SetFilePointer", argc=4)
+    @apihook("SetFilePointer", argc=4, fail=windefs.INVALID_SET_FILE_POINTER)
     def SetFilePointer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD SetFilePointer(
@@ -4817,11 +4683,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hFile, lDistanceToMove, lpDistanceToMoveHigh, dwMoveMethod = argv
 
-        f = self.file_get(hFile)
-        if not f:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return windefs.INVALID_SET_FILE_POINTER
-
+        f = self.get_file(hFile)
         if lpDistanceToMoveHigh:
             high = int.from_bytes(self.mem_read(lpDistanceToMoveHigh, 4), "little", signed=True)
             offset = (high << 32) | (lDistanceToMove & 0xFFFFFFFF)
@@ -4865,24 +4727,22 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             hFile, lDistanceToMove, lpNewFilePointer, dwMoveMethod = argv[:4]
         if lDistanceToMove >= 1 << 63:
             lDistanceToMove -= 1 << 64
-        f = self.file_get(hFile)
-        if f:
-            if dwMoveMethod == windefs.FILE_CURRENT:
-                lDistanceToMove += f.tell()
-            elif dwMoveMethod == windefs.FILE_END:
-                lDistanceToMove += f.get_size()
-            if lDistanceToMove < 0:
-                emu.set_last_error(windefs.ERROR_NEGATIVE_SEEK)
-                return False
-            f.seek(lDistanceToMove, windefs.FILE_BEGIN)
-            rv = f.tell()
-            if lpNewFilePointer:
-                self.write_qword(lpNewFilePointer, rv)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return True
-        return False
+        f = self.get_file(hFile)
+        if dwMoveMethod == windefs.FILE_CURRENT:
+            lDistanceToMove += f.tell()
+        elif dwMoveMethod == windefs.FILE_END:
+            lDistanceToMove += f.get_size()
+        if lDistanceToMove < 0:
+            emu.set_last_error(windefs.ERROR_NEGATIVE_SEEK)
+            return False
+        f.seek(lDistanceToMove, windefs.FILE_BEGIN)
+        rv = f.tell()
+        if lpNewFilePointer:
+            self.write_qword(lpNewFilePointer, rv)
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return True
 
-    @apihook("GetFileSize", argc=2)
+    @apihook("GetFileSize", argc=2, fail=windefs.INVALID_FILE_SIZE)
     def GetFileSize(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileSize(
@@ -4892,23 +4752,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hFile, lpFileSizeHigh = argv
 
-        f = self.file_get(hFile)
-
-        if f:
-            full_size = f.get_size()
-            high = 0xFFFFFFFF & (full_size >> 32)
-            low = 0xFFFFFFFF & full_size
-
-            high = (high).to_bytes(4, "little")
-
-            if lpFileSizeHigh:
-                self.mem_write(lpFileSizeHigh, high)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-        else:
-            low = 0xFFFFFFFF
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-
-        return low
+        full_size = self.get_file(hFile).get_size()
+        if lpFileSizeHigh:
+            self.mem_write(lpFileSizeHigh, (full_size >> 32).to_bytes(4, "little"))
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return full_size & 0xFFFFFFFF
 
     @apihook("GetFileSizeEx", argc=2)
     def GetFileSizeEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4919,17 +4767,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hFile, lpFileSize = argv
-        f = self.file_get(hFile)
-
-        if f:
-            full_size = f.get_size()
-            size_bytes = full_size.to_bytes(8, "little")
-            if lpFileSize:
-                self.mem_write(lpFileSize, size_bytes)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            return 1
-        emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-        return 0
+        full_size = self.get_file(hFile).get_size()
+        if lpFileSize:
+            self.mem_write(lpFileSize, full_size.to_bytes(8, "little"))
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return 1
 
     @apihook("CloseHandle", argc=1)
     def CloseHandle(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4945,8 +4787,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        proc = emu.get_current_process()
-        if proc and hObject in (proc.stdin, proc.stdout, proc.stderr):
+        if self.is_std_handle(emu, hObject):
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return 1
 
@@ -5162,11 +5003,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hTimer, lpDueTime, lPeriod, pfnCompletionRoutine, lpArgToCompletionRoutine, fResume = argv
 
-        obj = self.get_object_from_handle(hTimer)
-        if not obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
-
+        emu.get_handle_table().get(hTimer, objman.Event)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
@@ -5179,11 +5016,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hTimer,) = argv
 
-        obj = self.get_object_from_handle(hTimer)
-        if not obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
-
+        emu.get_handle_table().get(hTimer, objman.Event)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
@@ -5221,15 +5054,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hEvent,) = argv
 
-        obj = self.get_object_from_handle(hEvent)
-
-        rv = False
-        if obj:
-            if isinstance(obj, objman.Event):
-                obj.signaled = True
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-            rv = True
-        return rv
+        emu.get_handle_table().get(hEvent, objman.Event).signaled = True
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return True
 
     @apihook("PulseEvent", argc=1)
     def PulseEvent(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5240,9 +5067,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hEvent,) = argv
 
-        obj = self.get_object_from_handle(hEvent)
-        if isinstance(obj, objman.Event):
-            obj.signaled = False
+        emu.get_handle_table().get(hEvent, objman.Event).signaled = False
         return True
 
     @apihook("SetUnhandledExceptionFilter", argc=1)
@@ -5385,7 +5210,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         return True
 
-    @apihook("WaitForSingleObject", argc=2)
+    @apihook("WaitForSingleObject", argc=2, fail=windefs.WAIT_FAILED)
     def WaitForSingleObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WaitForSingleObject(
@@ -5395,7 +5220,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hHandle, dwMilliseconds = argv
 
-        obj = self.get_object_from_handle(hHandle)
+        obj = None if self.is_std_handle(emu, hHandle) else emu.get_handle_table().get(hHandle)
         if isinstance(obj, objman.Event):
             return self.wait_for_events(emu, [obj], False, dwMilliseconds)
 
@@ -5623,11 +5448,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hNamedPipe, lpBuffer, nBufferSize, lpBytesRead, lpTotalBytesAvail, lpBytesLeftThisMessage) = argv
-        pipe = emu.pipe_get(hNamedPipe)
-        if not pipe:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
-
+        emu.get_file_manager().get_pipe(hNamedPipe)
         if lpBytesRead:
             self.write_dword(lpBytesRead, 0)
         if lpTotalBytesAvail:
@@ -5647,11 +5468,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hNamedPipe, lpOverlapped = argv
-        rv = False
-        pipe = emu.pipe_get(hNamedPipe)
-        if pipe:
-            rv = True
-        return rv
+        emu.get_file_manager().get_pipe(hNamedPipe)
+        return True
 
     @apihook("DisconnectNamedPipe", argc=1)
     def DisconnectNamedPipe(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5661,11 +5479,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hNamedPipe,) = argv
-        rv = False
-        pipe = emu.pipe_get(hNamedPipe)
-        if pipe:
-            rv = True
-        return rv
+        emu.get_file_manager().get_pipe(hNamedPipe)
+        return True
 
     @apihook("GetLocaleInfo", argc=4)
     def GetLocaleInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5971,9 +5786,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        fsearch = self.get_search(self.find_files, hFindFile)
-
-        if not hFindFile or not lpFindFileData or not fsearch:
+        fsearch = self.find_files.get(hFindFile)
+        if not lpFindFileData:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
@@ -6009,12 +5823,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hFindFile,) = argv
-
-        try:
-            self.find_files.close(hFindFile)
-        except InvalidHandle:
-            return False
-
+        self.find_files.close(hFindFile)
         return True
 
     @apihook("GetSystemTimes", argc=3)
@@ -6051,9 +5860,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hThread, lpContext = argv
 
-        obj = self.get_thread_from_handle(emu, hThread)
-        if not obj:
-            return False
+        obj = emu.get_handle_table().get(hThread, objman.Thread)
 
         # Fill only the sections ContextFlags asks for; the current thread's are live
         target = seh.read_context(emu, lpContext)
@@ -6073,9 +5880,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hThread, lpContext = argv
 
-        obj = self.get_thread_from_handle(emu, hThread)
-        if not obj:
-            return False
+        obj = emu.get_handle_table().get(hThread, objman.Thread)
 
         if lpContext:
             # Change only the sections ContextFlags selects
@@ -6100,9 +5905,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hThread, lpContext = argv
 
-        obj = self.get_object_from_handle(hThread)
-        if not obj:
-            return False
+        obj = emu.get_handle_table().get(hThread, objman.Thread)
 
         if lpContext:
             if emu.get_arch() == e_arch.ARCH_X86:
@@ -6967,9 +6770,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         source = self._get_process_handle_table(emu, hSourceProcessHandle)
         target = self._get_process_handle_table(emu, hTargetProcessHandle)
 
-        hnd = target.new_handle(source.get(hSourceHandle))
-        if dwOptions & DUPLICATE_CLOSE_SOURCE:
-            source.close(hSourceHandle)
+        if self.is_std_handle(emu, hSourceHandle):
+            # A standard handle has no object, so its duplicate is the same value
+            hnd = hSourceHandle
+        else:
+            hnd = target.new_handle(source.get(hSourceHandle))
+            if dwOptions & DUPLICATE_CLOSE_SOURCE:
+                source.close(hSourceHandle)
 
         if lpTargetHandle:
             self.write_ptr(lpTargetHandle, hnd)
@@ -7012,10 +6819,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hFile, lpFileInformation = argv
 
-        f = self.file_get(hFile)
-        if not f:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
+        f = self.get_file(hFile)
 
         info = k32defs.BY_HANDLE_FILE_INFORMATION(emu.get_ptr_size())
         if f.is_dir or emu.get_file_manager().is_directory(f.path):
@@ -7249,9 +7053,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        dsearch = self.get_search(self.find_volumes, hFindVolume)
-        if not hFindVolume or not dsearch:
-            return 0
+        dsearch = self.find_volumes.get(hFindVolume)
 
         # Get next drive; each drive contains one volume
         walker = dsearch["walker"]
@@ -7274,12 +7076,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hFindVolume,) = argv
-
-        try:
-            self.find_volumes.close(hFindVolume)
-        except InvalidHandle:
-            return 0
-
+        self.find_volumes.close(hFindVolume)
         return 1
 
     @apihook("CreateIoCompletionPort", argc=4)
@@ -7473,12 +7270,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         (hEvent,) = argv
 
-        obj = self.get_object_from_handle(hEvent)
-        if isinstance(obj, objman.Event):
-            obj.signaled = False
+        emu.get_handle_table().get(hEvent, objman.Event).signaled = False
         return True
 
-    @apihook("WaitForMultipleObjects", argc=4)
+    @apihook("WaitForMultipleObjects", argc=4, fail=windefs.WAIT_FAILED)
     def WaitForMultipleObjects(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD WaitForMultipleObjects(
@@ -7491,11 +7286,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         nCount, lpHandles, bWaitAll, dwMilliseconds = argv
 
         ptr_size = emu.get_ptr_size()
+        table = emu.get_handle_table()
         objs = []
         if lpHandles:
             for i in range(nCount):
                 hnd = self.read_ptr(lpHandles + i * ptr_size)
-                objs.append(self.get_object_from_handle(hnd))
+                objs.append(None if self.is_std_handle(emu, hnd) else table.get(hnd))
 
         if objs and all(isinstance(obj, objman.Event) for obj in objs):
             return self.wait_for_events(emu, objs, bool(bWaitAll), dwMilliseconds)
@@ -7638,11 +7434,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpBytesReturned:
             self.write_dword(lpBytesReturned, 0)
 
-        obj = self.get_object_from_handle(hDevice)
-        if not obj:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
-
+        obj = emu.get_handle_table().get(hDevice)
         in_buf = b""
         if lpInBuffer:
             in_buf = self.mem_read(lpInBuffer, nInBufferSize)
@@ -7748,10 +7540,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hThread, lpExitCode = argv
-        obj = self.get_thread_from_handle(emu, hThread)
-        if not isinstance(obj, objman.Thread):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return False
+        obj = emu.get_handle_table().get(hThread, objman.Thread)
         if lpExitCode:
             # Threads run one after another, so a thread that has not run yet has ended
             # when another run asks, as for a wait on it.
@@ -7903,13 +7692,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         size = 0
         cw = self.get_char_width(ctx)
 
-        proc = self.get_object_from_handle(hProcess)
-
-        if proc is None:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return 0
-
-        filename = proc.path
+        filename = emu.get_handle_table().get(hProcess, objman.Process).path
 
         if filename:
             if cw == 2:
@@ -8063,7 +7846,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return unique
 
-    @apihook("_llseek", argc=3)
+    @apihook("_llseek", argc=3, fail=windefs.HFILE_ERROR)
     def _llseek(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG _llseek(
@@ -8076,11 +7859,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         # code replicates SetFilePointer()
         hFile, lOffset, iOrigin = argv
 
-        f = self.file_get(hFile)
-        if not f:
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
-            return windefs.HFILE_ERROR
-
+        f = self.get_file(hFile)
         offset = ct.c_int32(lOffset).value
         if iOrigin == windefs.FILE_CURRENT:
             offset += f.tell()
@@ -8109,7 +7888,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return windefs.HFILE_ERROR
         return fHandle
 
-    @apihook("_lclose", argc=1)
+    @apihook("_lclose", argc=1, fail=windefs.HFILE_ERROR)
     def _lclose(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HFILE _lclose(
@@ -8117,11 +7896,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (hFile,) = argv
-        table = emu.get_handle_table()
-        if hFile in table:
-            table.close(hFile)
-            return 0
-        return windefs.HFILE_ERROR
+        emu.get_handle_table().close(hFile)
+        return 0
 
     @apihook("GetConsoleTitle", argc=2)
     def GetConsoleTitle(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

@@ -519,6 +519,15 @@ class ApiHandler:
     def file_get(self, handle):
         return self.emu.file_get(handle)
 
+    def get_file(self, handle):
+        """
+        Get the file of an open handle.
+
+        Raises:
+            InvalidHandle: if the handle is not open, or it does not refer to a file.
+        """
+        return self.emu.get_file_manager().get_file(handle)
+
     def does_file_exist(self, path):
         return self.emu.does_file_exist(path)
 
