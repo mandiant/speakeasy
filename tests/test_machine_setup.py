@@ -35,26 +35,41 @@ def machine(config):
         yield emu
 
 
-def read_segment_pointers(arch, out):
-    if arch == "x86":
-        code = b"\x64\xa1\x18\x00\x00\x00" + b"\xa3" + struct.pack("<I", out)
-        code += b"\x64\xa1\x30\x00\x00\x00" + b"\xa3" + struct.pack("<I", out + 8)
-    else:
-        code = b"\x65\x48\x8b\x04\x25\x30\x00\x00\x00" + b"\x48\xa3" + struct.pack("<Q", out)
-        code += b"\x65\x48\x8b\x04\x25\x60\x00\x00\x00" + b"\x48\xa3" + struct.pack("<Q", out + 8)
+def read_teb_fields(arch, offsets, out):
+    """Get code that copies the TEB fields at offsets to 8-byte slots at out."""
+    code = b""
+    for i, offset in enumerate(offsets):
+        if arch == "x86":
+            code += b"\x64\xa1" + struct.pack("<I", offset) + b"\xa3" + struct.pack("<I", out + 8 * i)
+        else:
+            code += b"\x65\x48\x8b\x04\x25" + struct.pack("<I", offset) + b"\x48\xa3" + struct.pack("<Q", out + 8 * i)
     return code + b"\xc3"
+
+
+def run_teb_reads(emulator, arch, offsets):
+    code = emulator.load_shellcode(data=b"\xc3" * 0x100, arch=arch)
+    out = emulator.mem_alloc(0x1000, base=0x20000000)
+    emulator.mem_write(code, read_teb_fields(arch, offsets, out))
+    emulator.run_shellcode(code)
+    return struct.unpack(f"<{len(offsets)}Q", emulator.mem_read(out, 8 * len(offsets)))
 
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
 def test_teb_and_peb_are_at_the_fixed_addresses(emulator, arch):
-    code = emulator.load_shellcode(data=b"\xc3" * 0x100, arch=arch)
-    out = emulator.mem_alloc(0x1000, base=0x20000000)
-    emulator.mem_write(code, read_segment_pointers(arch, out))
-    emulator.run_shellcode(code)
-
-    teb, peb = struct.unpack("<QQ", emulator.mem_read(out, 16))
+    offsets = (0x18, 0x30) if arch == "x86" else (0x30, 0x60)
+    teb, peb = run_teb_reads(emulator, arch, offsets)
     assert teb == winemu.TEB_ADDRESS
     assert peb == winemu.PEB_ADDRESS
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_teb_client_id_has_the_process_and_thread_ids(emulator, arch):
+    # TEB.ClientId.UniqueProcess and UniqueThread, which an inlined GetCurrentThreadId reads
+    offsets = (0x20, 0x24) if arch == "x86" else (0x40, 0x48)
+    pid, tid = run_teb_reads(emulator, arch, offsets)
+    run = emulator.get_report().entry_points[0]
+    assert tid != 0
+    assert (pid, tid) == (run.pid, run.tid)
 
 
 @pytest.mark.parametrize("name", ["dll_test_x86.dll.xz", "argv_test_x86.exe.xz"])

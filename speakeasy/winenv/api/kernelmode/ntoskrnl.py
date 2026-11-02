@@ -932,9 +932,10 @@ class Ntoskrnl(api.ApiHandler):
         self.write_ptr(ThreadHandle, handle)
 
         if ClientId:
-            # CLIENT_ID holds two HANDLEs, wider than the 32-bit fields of the shared struct on x64
-            pid = 4 if not ProcessHandle else 0
-            self.mem_write(ClientId, pid.to_bytes(ptr_size, "little") + obj.tid.to_bytes(ptr_size, "little"))
+            cid = self.win.CLIENT_ID(ptr_size)
+            cid.UniqueProcess = 4 if not ProcessHandle else 0
+            cid.UniqueThread = obj.tid
+            self.mem_write(ClientId, self.get_bytes(cid))
 
         return rv
 
@@ -3033,8 +3034,8 @@ class Ntoskrnl(api.ApiHandler):
                 fsi = self.win.FILE_STANDARD_INFORMATION(emu.get_ptr_size())
                 if Length >= self.sizeof(fsi):
                     nts = ddk.STATUS_SUCCESS
-                    fsi.AllocationSize.LowPart = 512 - (_file.get_size() % 512)
-                    fsi.EndOfFile.LowPart = _file.get_size()
+                    fsi.AllocationSize.QuadPart = 512 - (_file.get_size() % 512)
+                    fsi.EndOfFile.QuadPart = _file.get_size()
                     self.mem_write(FileInformation, self.get_bytes(fsi))
 
                 else:

@@ -399,6 +399,8 @@ class Thread(KernelObject):
         self.teb.object.NtTib.Self = teb_addr
         self.teb.object.NtTib.StackLimit = self.stack_commit
         self.teb.object.ProcessEnvironmentBlock = peb_addr
+        self.teb.object.ClientId.UniqueProcess = self.process.id if self.process else 0
+        self.teb.object.ClientId.UniqueThread = self.tid
         self.teb.write_back()
 
     def get_teb(self):
