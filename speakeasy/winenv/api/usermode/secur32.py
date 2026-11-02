@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.secur32 as sec32defs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.defs.lookup import decode
+from speakeasy.winenv.defs.windows.secur32 import EXTENDED_NAME_FORMAT
 
 from .. import api
 
@@ -34,9 +36,7 @@ class Secur32(api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        name_format = sec32defs.get_define(NameFormat, prefix="Name")
-        if name_format:
-            ctx.args["NameFormat"].display = name_format
+        ctx.args["NameFormat"].display = decode(EXTENDED_NAME_FORMAT, NameFormat)
 
         user_name = emu.config.user.name
         user_name_len = len(user_name)
