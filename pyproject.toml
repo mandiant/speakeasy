@@ -107,29 +107,5 @@ ignore_missing_imports = true
 check_untyped_defs = true
 warn_unreachable = true
 
-# Windows struct definitions using ctypes - extremely dynamic, not worth typing
-[[tool.mypy.overrides]]
-module = "speakeasy.winenv.defs.*"
-disable_error_code = ["assignment"]
-
-# API handler modules - dynamic dispatch, Windows struct access
-[[tool.mypy.overrides]]
-module = [
-    "speakeasy.winenv.api.kernelmode.ntoskrnl",
-    "speakeasy.winenv.api.kernelmode.netio",
-    "speakeasy.winenv.api.usermode.kernel32",
-    "speakeasy.winenv.api.usermode.user32",
-    "speakeasy.winenv.api.usermode.ws2_32",
-    "speakeasy.winenv.api.usermode.rpcrt4",
-    "speakeasy.winenv.api.usermode.msvcrt",
-    "speakeasy.winenv.api.usermode.netapi32",
-    "speakeasy.winenv.api.usermode.wtsapi32",
-    "speakeasy.winenv.api.usermode.shlwapi",
-    "speakeasy.winenv.api.usermode.iphlpapi",
-    "speakeasy.winenv.api.usermode.dnsapi",
-    "speakeasy.windows.kernel_mods.volmgr",
-]
-disable_error_code = ["assignment"]
-
 [tool.ty.environment]
 extra-paths = ["typings"]
