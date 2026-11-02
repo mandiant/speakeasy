@@ -28,43 +28,43 @@ jq '{sha256, arch, file_type, entry_points: (.entry_points | length)}' report.js
 }
 ```
 
-Executable proof for this snippet: [doc/readme-quickstart-showboat.md](doc/readme-quickstart-showboat.md).
+Executable proof for this snippet: [doc/readme-quickstart-showboat.md](https://github.com/mandiant/speakeasy/blob/master/doc/readme-quickstart-showboat.md).
 
 ## Documentation map
 
 ### Start here
 
-- [Installation and Docker usage](doc/install.md)
-- [Python library usage](doc/library.md)
-- [Help and troubleshooting](doc/help.md)
-- [Documentation index](doc/index.md)
+- [Installation and Docker usage](https://github.com/mandiant/speakeasy/blob/master/doc/install.md)
+- [Python library usage](https://github.com/mandiant/speakeasy/blob/master/doc/library.md)
+- [Help and troubleshooting](https://github.com/mandiant/speakeasy/blob/master/doc/help.md)
+- [Documentation index](https://github.com/mandiant/speakeasy/blob/master/doc/index.md)
 
 ### CLI usage
 
-- [CLI reference](doc/cli-reference.md)
-- [CLI analysis recipes](doc/cli-analysis-recipes.md)
-- [CLI environment overrides](doc/cli-environment-overrides.md)
-- [CLI execution controls](doc/cli-execution-controls.md)
-- [CLI help snapshot (showboat)](doc/cli-help-showboat.md)
+- [CLI reference](https://github.com/mandiant/speakeasy/blob/master/doc/cli-reference.md)
+- [CLI analysis recipes](https://github.com/mandiant/speakeasy/blob/master/doc/cli-analysis-recipes.md)
+- [CLI environment overrides](https://github.com/mandiant/speakeasy/blob/master/doc/cli-environment-overrides.md)
+- [CLI execution controls](https://github.com/mandiant/speakeasy/blob/master/doc/cli-execution-controls.md)
+- [CLI help snapshot (showboat)](https://github.com/mandiant/speakeasy/blob/master/doc/cli-help-showboat.md)
 
 ### Reports, configuration, and runtime behavior
 
-- [Configuration walkthrough](doc/configuration.md)
-- [Report walkthrough](doc/reporting.md)
-- [Memory management](doc/memory.md)
-- [Limitations](doc/limitations.md)
+- [Configuration walkthrough](https://github.com/mandiant/speakeasy/blob/master/doc/configuration.md)
+- [Report walkthrough](https://github.com/mandiant/speakeasy/blob/master/doc/reporting.md)
+- [Memory management](https://github.com/mandiant/speakeasy/blob/master/doc/memory.md)
+- [Limitations](https://github.com/mandiant/speakeasy/blob/master/doc/limitations.md)
 
 ### Debugging and extension
 
-- [GDB debugging reference](doc/gdb.md)
-- [GDB sessions (showboat)](doc/gdb-examples.md)
-- [Mounting host files with `--volume`](doc/volumes.md)
-- [Adding API handlers](doc/api-handlers.md)
-- [Examples directory](examples/)
-- [Speakeasy 2 walkthrough outline](doc/speakeasy2-walkthrough.md)
+- [GDB debugging reference](https://github.com/mandiant/speakeasy/blob/master/doc/gdb.md)
+- [GDB sessions (showboat)](https://github.com/mandiant/speakeasy/blob/master/doc/gdb-examples.md)
+- [Mounting host files with `--volume`](https://github.com/mandiant/speakeasy/blob/master/doc/volumes.md)
+- [Adding API handlers](https://github.com/mandiant/speakeasy/blob/master/doc/api-handlers.md)
+- [Examples directory](https://github.com/mandiant/speakeasy/tree/master/examples)
+- [Speakeasy 2 walkthrough outline](https://github.com/mandiant/speakeasy/blob/master/doc/speakeasy2-walkthrough.md)
 
 ## Questions and help
 
-Start with [doc/help.md](doc/help.md).
+Start with [doc/help.md](https://github.com/mandiant/speakeasy/blob/master/doc/help.md).
 
 If you still need help, open an issue at [github.com/mandiant/speakeasy/issues](https://github.com/mandiant/speakeasy/issues).

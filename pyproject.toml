@@ -37,6 +37,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/mandiant/speakeasy"
+Documentation = "https://github.com/mandiant/speakeasy/blob/master/doc/index.md"
 Repository = "https://github.com/mandiant/speakeasy"
 Issues = "https://github.com/mandiant/speakeasy/issues"
 
