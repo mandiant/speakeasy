@@ -16,9 +16,11 @@ from speakeasy.profiler_events import (
     ApiArg,
     ApiEvent,
     DirectoryCreateEvent,
+    DirectoryDeleteEvent,
     EventType,
     ExceptionEvent,
     FileCreateEvent,
+    FileDeleteEvent,
     FileOpenEvent,
     FileReadEvent,
     FileWriteEvent,
@@ -32,6 +34,8 @@ from speakeasy.profiler_events import (
     NetTrafficEvent,
     ProcessCreateEvent,
     RegCreateKeyEvent,
+    RegDeleteKeyEvent,
+    RegDeleteValueEvent,
     RegListSubkeysEvent,
     RegOpenKeyEvent,
     RegReadValueEvent,
@@ -341,8 +345,12 @@ class Profiler:
                 data_ref=data_ref,
                 buffer=buffer_str,
             )
+        elif event_type == EventType.FILE_DELETE:
+            event = FileDeleteEvent(pos=pos, path=path)
         elif event_type == EventType.DIRECTORY_CREATE:
             event = DirectoryCreateEvent(pos=pos, path=path)
+        elif event_type == EventType.DIRECTORY_DELETE:
+            event = DirectoryDeleteEvent(pos=pos, path=path)
         else:
             raise ValueError(f"not a file event type: {event_type}")
 
@@ -424,6 +432,19 @@ class Profiler:
                 pos=pos,
                 path=path,
                 handle=handle_str,
+            )
+        elif event_type == EventType.REG_DELETE_KEY:
+            event = RegDeleteKeyEvent(
+                pos=pos,
+                path=path,
+                handle=handle_str,
+            )
+        elif event_type == EventType.REG_DELETE_VALUE:
+            event = RegDeleteValueEvent(
+                pos=pos,
+                path=path,
+                handle=handle_str,
+                value_name=value_name,
             )
         else:
             raise ValueError(f"not a registry event type: {event_type}")
