@@ -3,6 +3,7 @@
 import binascii
 import ntpath
 import struct
+from typing import TYPE_CHECKING
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as e_arch
@@ -15,6 +16,9 @@ from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 from ..exception_apis import ExceptionApis
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 # The initial values of the RtlRandom shuffle table, as in Wine dlls/ntdll/rtl.c
 # fmt: off
@@ -61,14 +65,14 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("RtlGetLastWin32Error", argc=0)
-    def RtlGetLastWin32Error(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGetLastWin32Error(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG RtlGetLastWin32Error();
         """
         return emu.get_last_error()
 
     @apihook("RtlSetLastWin32Error", argc=1)
-    def RtlSetLastWin32Error(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlSetLastWin32Error(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlSetLastWin32Error(
             LONG Win32Error
@@ -78,7 +82,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         emu.set_last_error(err)
 
     @apihook("RtlEnterCriticalSection", argc=1)
-    def RtlEnterCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlEnterCriticalSection(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlEnterCriticalSection(
             PRTL_CRITICAL_SECTION CriticalSection
@@ -87,7 +91,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlLeaveCriticalSection", argc=1)
-    def RtlLeaveCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlLeaveCriticalSection(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlLeaveCriticalSection(
             PRTL_CRITICAL_SECTION CriticalSection
@@ -96,7 +100,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlDeleteCriticalSection", argc=1)
-    def RtlDeleteCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlDeleteCriticalSection(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlDeleteCriticalSection(
             PRTL_CRITICAL_SECTION CriticalSection
@@ -105,7 +109,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlSizeHeap", argc=3)
-    def RtlSizeHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlSizeHeap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SIZE_T RtlSizeHeap(
             HANDLE HeapHandle,
@@ -120,7 +124,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return size
 
     @apihook("RtlReAllocateHeap", argc=4)
-    def RtlReAllocateHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlReAllocateHeap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlReAllocateHeap(
             HANDLE HeapHandle,
@@ -146,7 +150,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return out + len(text) * cw
 
     @apihook("RtlIpv4AddressToStringA", argc=2)
-    def RtlIpv4AddressToStringA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlIpv4AddressToStringA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PSTR RtlIpv4AddressToStringA(
             const struct in_addr *Addr,
@@ -157,7 +161,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return self.ipv4_address_to_string(addr, out, 1, ctx)
 
     @apihook("RtlIpv4AddressToStringW", argc=2)
-    def RtlIpv4AddressToStringW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlIpv4AddressToStringW(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PWSTR RtlIpv4AddressToStringW(
             const struct in_addr *Addr,
@@ -168,7 +172,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return self.ipv4_address_to_string(addr, out, 2, ctx)
 
     @apihook("RtlNtStatusToDosError", argc=1)
-    def RtlNtStatusToDosError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlNtStatusToDosError(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG RtlNtStatusToDosError(
             NTSTATUS Status
@@ -177,7 +181,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("RtlFlushSecureMemoryCache", argc=2)
-    def RtlFlushSecureMemoryCache(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlFlushSecureMemoryCache(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlFlushSecureMemoryCache(
             PVOID MemoryCache,
@@ -187,7 +191,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return True
 
     @apihook("RtlAddVectoredExceptionHandler", argc=2)
-    def RtlAddVectoredExceptionHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlAddVectoredExceptionHandler(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         PVOID RtlAddVectoredExceptionHandler(
             ULONG First,
@@ -201,7 +207,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return Handler
 
     @apihook("RtlRaiseException", argc=1)
-    def RtlRaiseException(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlRaiseException(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlRaiseException(
             PEXCEPTION_RECORD ExceptionRecord
@@ -211,7 +217,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             return emu.exception_dispatcher().rtl_raise_exception(emu, argv[0])
 
     @apihook("NtContinue", argc=2)
-    def NtContinue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtContinue(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtContinue(
             PCONTEXT ContextRecord,
@@ -221,14 +227,16 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return seh.restore_context(emu, argv[0])
 
     @apihook("NtYieldExecution", argc=0)
-    def NtYieldExecution(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtYieldExecution(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtYieldExecution();
         """
         return 0
 
     @apihook("RtlRemoveVectoredExceptionHandler", argc=1)
-    def RtlRemoveVectoredExceptionHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlRemoveVectoredExceptionHandler(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         ULONG RtlRemoveVectoredExceptionHandler(
             PVOID Handle
@@ -241,7 +249,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return Handler
 
     @apihook("LdrLoadDll", argc=4)
-    def LdrLoadDll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LdrLoadDll(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrLoadDll(
             PCWSTR DllPath,
@@ -296,7 +304,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("LdrGetProcedureAddress", argc=4)
-    def LdrGetProcedureAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LdrGetProcedureAddress(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrGetProcedureAddress(
             PVOID DllHandle,
@@ -332,7 +340,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return rv
 
     @apihook("RtlUniform", argc=1)
-    def RtlUniform(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlUniform(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG RtlUniform(
             PULONG Seed
@@ -344,7 +352,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return value
 
     @apihook("RtlRandom", argc=1)
-    def RtlRandom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlRandom(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG RtlRandom(
             PULONG Seed
@@ -359,7 +367,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return result
 
     @apihook("RtlRandomEx", argc=1)
-    def RtlRandomEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlRandomEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG RtlRandomEx(
             PULONG Seed
@@ -368,7 +376,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return self.RtlRandom(emu, argv, ctx)
 
     @apihook("RtlZeroMemory", argc=2)
-    def RtlZeroMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlZeroMemory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void RtlZeroMemory(
             void *Destination,
@@ -380,7 +388,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         self.mem_write(dest, buf)
 
     @apihook("RtlMoveMemory", argc=3)
-    def RtlMoveMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlMoveMemory(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void RtlMoveMemory(
             void *Destination,
@@ -393,7 +401,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         self.mem_write(dest, buf)
 
     @apihook("NtSetInformationProcess", argc=4)
-    def NtSetInformationProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtSetInformationProcess(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtSetInformationProcess(
             HANDLE ProcessHandle,
@@ -405,7 +413,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("RtlEncodePointer", argc=1)
-    def RtlEncodePointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlEncodePointer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlEncodePointer(
             PVOID Ptr
@@ -418,7 +426,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return rv
 
     @apihook("RtlDecodePointer", argc=1)
-    def RtlDecodePointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlDecodePointer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlDecodePointer(
             PVOID Ptr
@@ -431,7 +439,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return rv
 
     @apihook("NtWaitForSingleObject", argc=3)
-    def NtWaitForSingleObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtWaitForSingleObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtWaitForSingleObject(
             HANDLE Handle,
@@ -452,7 +460,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return rv
 
     @apihook("RtlComputeCrc32", argc=3)
-    def RtlComputeCrc32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlComputeCrc32(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG32 RtlComputeCrc32(
             ULONG32 PartialCrc,
@@ -468,7 +476,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return dwInitial
 
     @apihook("LdrFindResource_U", argc=4)
-    def LdrFindResource_U(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LdrFindResource_U(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrFindResource_U(
             PVOID DllHandle,
@@ -495,7 +503,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         # Reusing some functions from kernel32 module that are used to
         # handle the very similar function FindResourceA
-        k32 = emu.api.mods.get("kernel32")
+        k32 = emu.api.load_api_handler("kernel32")
 
         cw = 1  # Always ASCII for this function
         if DllHandle == 0:
@@ -529,7 +537,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("LdrAccessResource", argc=4)
-    def LdrAccessResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def LdrAccessResource(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrAccessResource(
             PVOID DllHandle,
@@ -554,7 +562,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlGetNtVersionNumbers", argc=3)
-    def RtlGetNtVersionNumbers(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGetNtVersionNumbers(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlGetNtVersionNumbers(
             PULONG NtMajorVersion,
@@ -571,7 +579,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             self.mem_write(pBuild, (0xF0004A61).to_bytes(4, "little"))
 
     @apihook("RtlFormatCurrentUserKeyPath", argc=1)
-    def RtlFormatCurrentUserKeyPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlFormatCurrentUserKeyPath(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlFormatCurrentUserKeyPath(
             PUNICODE_STRING CurrentUserKeyPath
@@ -592,7 +600,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlGetCurrentPeb", argc=0)
-    def RtlGetCurrentPeb(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGetCurrentPeb(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PPEB RtlGetCurrentPeb();
         """
@@ -602,7 +610,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("RtlGetVersion", argc=1)
-    def RtlGetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGetVersion(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlGetVersion(
             PRTL_OSVERSIONINFOW lpVersionInformation
@@ -617,7 +625,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0  # STATUS_SUCCESS
 
     @apihook("EtwRegisterTraceGuidsW", argc=8)
-    def EtwRegisterTraceGuidsW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwRegisterTraceGuidsW(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwRegisterTraceGuidsW(
             WMIDPREQUEST RequestAddress,
@@ -638,7 +646,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("EtwRegisterTraceGuidsA", argc=8)
-    def EtwRegisterTraceGuidsA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwRegisterTraceGuidsA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwRegisterTraceGuidsA(
             WMIDPREQUEST RequestAddress,
@@ -654,7 +662,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return self.EtwRegisterTraceGuidsW(emu, argv, ctx)
 
     @apihook("EtwUnregisterTraceGuids", argc=2)
-    def EtwUnregisterTraceGuids(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwUnregisterTraceGuids(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwUnregisterTraceGuids(
             TRACEGUID_HANDLE RegistrationHandle
@@ -665,7 +673,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("EtwGetTraceLoggerHandle", argc=1)
-    def EtwGetTraceLoggerHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwGetTraceLoggerHandle(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         TRACELOGGER_HANDLE EtwGetTraceLoggerHandle(
             PVOID Buffer
@@ -675,7 +683,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("EtwGetTraceEnableFlags", argc=2)
-    def EtwGetTraceEnableFlags(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwGetTraceEnableFlags(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwGetTraceEnableFlags(
             TRACELOGGER_HANDLE TraceHandle
@@ -686,7 +694,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("EtwGetTraceEnableLevel", argc=2)
-    def EtwGetTraceEnableLevel(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwGetTraceEnableLevel(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UCHAR EtwGetTraceEnableLevel(
             TRACELOGGER_HANDLE TraceHandle
@@ -697,7 +705,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return 0
 
     @apihook("EtwTraceMessage", argc=e_arch.VAR_ARGS, conv=e_arch.CALL_CONV_CDECL)
-    def EtwTraceMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwTraceMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG EtwTraceMessage(
             TRACELOGGER_HANDLE LoggerHandle,
@@ -710,7 +718,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("MicrosoftTelemetryAssertTriggeredUM", argc=1)
-    def MicrosoftTelemetryAssertTriggeredUM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def MicrosoftTelemetryAssertTriggeredUM(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         VOID MicrosoftTelemetryAssertTriggeredUM(
             PVOID AssertRecord
@@ -719,7 +729,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return
 
     @apihook("RtlGetPersistedStateLocation", argc=7)
-    def RtlGetPersistedStateLocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGetPersistedStateLocation(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlGetPersistedStateLocation(
             PCWSTR SourceID,
@@ -745,7 +755,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlDisownModuleHeapAllocation", argc=2)
-    def RtlDisownModuleHeapAllocation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlDisownModuleHeapAllocation(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         NTSTATUS RtlDisownModuleHeapAllocation(
             HANDLE HeapHandle,
@@ -755,14 +767,14 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlDllShutdownInProgress", argc=0)
-    def RtlDllShutdownInProgress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlDllShutdownInProgress(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlDllShutdownInProgress();
         """
         return False
 
     @apihook("NtCreateThreadEx", argc=11)
-    def NtCreateThreadEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtCreateThreadEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtCreateThreadEx(
             PHANDLE ThreadHandle,
@@ -813,7 +825,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("NtTerminateProcess", argc=2)
-    def NtTerminateProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtTerminateProcess(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtTerminateProcess(
             HANDLE ProcessHandle,
