@@ -17,7 +17,7 @@ from rich.logging import RichHandler
 import speakeasy.winenv.arch as e_arch
 from speakeasy import Speakeasy
 from speakeasy.cli_config import add_config_cli_arguments, get_active_config, get_config_cli_field_specs
-from speakeasy.config import get_default_config_dict
+from speakeasy.config import SpeakeasyConfig
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +378,7 @@ def main():
 
     args = parser.parse_args()
     if args.dump_default_config:
-        print(json.dumps(get_default_config_dict(), indent=4))  # noqa: T201
+        print(json.dumps(SpeakeasyConfig().model_dump(mode="json"), indent=4))  # noqa: T201
         return
     error = run_main(parser, args, config_specs)
     if error:

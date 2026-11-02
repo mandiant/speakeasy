@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
 
 _DEFAULT_ENV: dict[str, str] = {
     "comspec": "C:\\Windows\\system32\\cmd.exe",
@@ -154,19 +154,19 @@ _DEFAULT_ADAPTERS: list[dict[str, Any]] = [
 ]
 
 _DEFAULT_PROCESSES: list[dict[str, Any]] = [
-    {"name": "System", "base_addr": "0x80000000", "pid": 4, "path": "[System Process]"},
-    {"name": "smss", "base_addr": "0x05000000", "path": "C:\\Windows\\system32\\smss.exe"},
-    {"name": "csrss", "base_addr": "0x05510000", "path": "C:\\Windows\\system32\\csrss.exe"},
-    {"name": "wininit", "base_addr": "0x05520000", "path": "C:\\Windows\\system32\\wininit.exe"},
-    {"name": "services", "base_addr": "0x05530000", "path": "C:\\Windows\\system32\\services.exe"},
-    {"name": "lsass", "base_addr": "0x05540000", "path": "C:\\Windows\\system32\\lsass.exe"},
-    {"name": "winlogon", "base_addr": "0x05550000", "path": "C:\\Windows\\system32\\winlogon.exe"},
-    {"name": "svchost", "base_addr": "0x05560000", "path": "C:\\Windows\\system32\\svchost.exe"},
-    {"name": "outlook", "base_addr": "0x05590000", "path": "C:\\Windows\\system32\\outlook.exe"},
-    {"name": "explorer", "base_addr": "0x05570000", "path": "C:\\Windows\\explorer.exe"},
+    {"name": "System", "base_addr": 0x80000000, "pid": 4, "path": "[System Process]"},
+    {"name": "smss", "base_addr": 0x05000000, "path": "C:\\Windows\\system32\\smss.exe"},
+    {"name": "csrss", "base_addr": 0x05510000, "path": "C:\\Windows\\system32\\csrss.exe"},
+    {"name": "wininit", "base_addr": 0x05520000, "path": "C:\\Windows\\system32\\wininit.exe"},
+    {"name": "services", "base_addr": 0x05530000, "path": "C:\\Windows\\system32\\services.exe"},
+    {"name": "lsass", "base_addr": 0x05540000, "path": "C:\\Windows\\system32\\lsass.exe"},
+    {"name": "winlogon", "base_addr": 0x05550000, "path": "C:\\Windows\\system32\\winlogon.exe"},
+    {"name": "svchost", "base_addr": 0x05560000, "path": "C:\\Windows\\system32\\svchost.exe"},
+    {"name": "outlook", "base_addr": 0x05590000, "path": "C:\\Windows\\system32\\outlook.exe"},
+    {"name": "explorer", "base_addr": 0x05570000, "path": "C:\\Windows\\explorer.exe"},
     {
         "name": "main",
-        "base_addr": "0x00400000",
+        "base_addr": 0x00400000,
         "path": "C:\\Windows\\system32\\svchost.exe",
         "command_line": "svchost.exe",
         "is_main_exe": True,
@@ -175,82 +175,82 @@ _DEFAULT_PROCESSES: list[dict[str, Any]] = [
 ]
 
 _DEFAULT_SYSTEM_MODULES: list[dict[str, Any]] = [
-    {"name": "ntoskrnl", "base_addr": "0x803d0000", "path": "C:\\Windows\\system32\\ntoskrnl.exe"},
-    {"name": "hal", "base_addr": "0xC1000000", "path": "C:\\Windows\\system32\\hal.dll"},
-    {"name": "ntfs", "base_addr": "0xC2000000", "path": "C:\\Windows\\system32\\drivers\\ntfs.sys"},
-    {"name": "netio", "base_addr": "0xD4000000", "path": "C:\\Windows\\system32\\drivers\\netio.sys"},
+    {"name": "ntoskrnl", "base_addr": 0x803D0000, "path": "C:\\Windows\\system32\\ntoskrnl.exe"},
+    {"name": "hal", "base_addr": 0xC1000000, "path": "C:\\Windows\\system32\\hal.dll"},
+    {"name": "ntfs", "base_addr": 0xC2000000, "path": "C:\\Windows\\system32\\drivers\\ntfs.sys"},
+    {"name": "netio", "base_addr": 0xD4000000, "path": "C:\\Windows\\system32\\drivers\\netio.sys"},
     {
         "name": "volmgr",
-        "base_addr": "0xC6000000",
+        "base_addr": 0xC6000000,
         "path": "C:\\Windows\\system32\\drivers\\volmgr.sys",
         "driver": {"name": "\\Driver\\volmgr", "devices": [{"name": "\\Device\\HarddiskVolume1"}]},
     },
     {
         "name": "disk",
-        "base_addr": "0xC3000000",
+        "base_addr": 0xC3000000,
         "path": "C:\\Windows\\system32\\drivers\\disk.sys",
         "driver": {"name": "\\Driver\\Disk", "devices": [{"name": "\\Device\\Harddisk0\\DR0"}]},
     },
     {
         "name": "tcpip",
-        "base_addr": "0xC4000000",
+        "base_addr": 0xC4000000,
         "path": "C:\\Windows\\system32\\drivers\\tcpip.sys",
         "driver": {"name": "\\Driver\\Tcpip", "devices": [{"name": "\\Device\\Tcp"}]},
     },
     {
         "name": "ndis",
-        "base_addr": "0xC7000000",
+        "base_addr": 0xC7000000,
         "path": "C:\\Windows\\system32\\drivers\\ndis.sys",
         "driver": {"name": "\\Driver\\Ndis", "devices": [{"name": "\\Device\\Ndis"}]},
     },
 ]
 
 _DEFAULT_USER_MODULES: list[dict[str, Any]] = [
-    {"name": "ntdll", "base_addr": "0x7C000000", "path": "C:\\Windows\\system32\\ntdll.dll"},
-    {"name": "kernel32", "base_addr": "0x77000000", "path": "C:\\Windows\\system32\\kernel32.dll"},
-    {"name": "ws2_32", "base_addr": "0x78C00000", "path": "C:\\Windows\\system32\\ws2_32.dll"},
-    {"name": "wininet", "base_addr": "0x7BC00000", "path": "C:\\Windows\\system32\\wininet.dll"},
-    {"name": "winhttp", "base_addr": "0x7BA00000", "path": "C:\\Windows\\system32\\winhttp.dll"},
-    {"name": "advapi32", "base_addr": "0x78000000", "path": "C:\\Windows\\system32\\advapi32.dll"},
-    {"name": "psapi", "base_addr": "0x71000000", "path": "C:\\Windows\\system32\\psapi.dll"},
-    {"name": "user32", "base_addr": "0x77D10000", "path": "C:\\Windows\\system32\\user32.dll"},
-    {"name": "gdi32", "base_addr": "0x77E10000", "path": "C:\\Windows\\system32\\gdi32.dll"},
-    {"name": "msvcrt", "base_addr": "0x77F10000", "path": "C:\\Windows\\system32\\msvcrt.dll"},
-    {"name": "dnsapi", "base_addr": "0x78F10000", "path": "C:\\Windows\\system32\\dnsapi.dll"},
-    {"name": "shlwapi", "base_addr": "0x67000000", "path": "C:\\Windows\\system32\\shlwapi.dll"},
-    {"name": "advpack", "base_addr": "0x68F00000", "path": "C:\\Windows\\system32\\advpack.dll"},
-    {"name": "dbghelp", "base_addr": "0x62000000", "path": "C:\\Windows\\system32\\dbghelp.dll"},
-    {"name": "shell32", "base_addr": "0x69000000", "path": "C:\\Windows\\system32\\shell32.dll"},
-    {"name": "WTSAPI32", "base_addr": "0x63000000", "path": "C:\\Windows\\system32\\WTSAPI32.dll"},
-    {"name": "CRYPT32", "base_addr": "0x58000000", "path": "C:\\Windows\\system32\\CRYPT32.dll"},
-    {"name": "mscoree", "base_addr": "0x53000000", "path": "C:\\Windows\\system32\\mscoree.dll"},
-    {"name": "urlmon", "base_addr": "0x54500000", "path": "C:\\Windows\\system32\\urlmon.dll"},
-    {"name": "riched32", "base_addr": "0x56500000", "path": "C:\\Windows\\system32\\riched32.dll"},
-    {"name": "userenv", "base_addr": "0x76500000", "path": "C:\\Windows\\system32\\userenv.dll"},
-    {"name": "ole32", "base_addr": "0x65500000", "path": "C:\\Windows\\system32\\ole32.dll"},
-    {"name": "gdiplus", "base_addr": "0x75500000", "path": "C:\\Windows\\system32\\gdiplus.dll"},
-    {"name": "setupapi", "base_addr": "0x55500000", "path": "C:\\Windows\\system32\\setupapi.dll"},
-    {"name": "NETAPI32", "base_addr": "0x54400000", "path": "C:\\Windows\\system32\\NETAPI32.dll"},
-    {"name": "rpcrt4", "base_addr": "0x53300000", "path": "C:\\Windows\\system32\\Rpcrt4.dll"},
-    {"name": "linkinfo", "base_addr": "0x63300000", "path": "C:\\Windows\\system32\\linkinfo.dll"},
-    {"name": "EhStorShell", "base_addr": "0x73300000", "path": "C:\\Windows\\system32\\EhStorShell.dll"},
-    {"name": "comctl32", "base_addr": "0x5f500000", "path": "C:\\Windows\\system32\\comctl32.dll"},
-    {"name": "secur32", "base_addr": "0x5f600000", "path": "C:\\Windows\\system32\\secur32.dll"},
-    {"name": "KtmW32", "base_addr": "0x5f700000", "path": "C:\\Windows\\system32\\KtmW32.dll"},
-    {"name": "oleaut32", "base_addr": "0x5f800000", "path": "C:\\Windows\\system32\\oleaut32.dll"},
-    {"name": "bcrypt", "base_addr": "0x5f900000", "path": "C:\\Windows\\system32\\bcrypt.dll"},
-    {"name": "ncrypt", "base_addr": "0x5fa00000", "path": "C:\\Windows\\system32\\ncrypt.dll"},
-    {"name": "netutils", "base_addr": "0x5fb00000", "path": "C:\\Windows\\system32\\netutils.dll"},
-    {"name": "wkscli", "base_addr": "0x5fc00000", "path": "C:\\Windows\\system32\\wkscli.dll"},
-    {"name": "iphlpapi", "base_addr": "0x5fd00000", "path": "C:\\Windows\\system32\\iphlpapi.dll"},
-    {"name": "sfc_os", "base_addr": "0x5fe00000", "path": "C:\\Windows\\system32\\sfc_os.dll"},
-    {"name": "winmm", "base_addr": "0x5ff00000", "path": "C:\\Windows\\system32\\winmm.dll"},
+    {"name": "ntdll", "base_addr": 0x7C000000, "path": "C:\\Windows\\system32\\ntdll.dll"},
+    {"name": "kernel32", "base_addr": 0x77000000, "path": "C:\\Windows\\system32\\kernel32.dll"},
+    {"name": "ws2_32", "base_addr": 0x78C00000, "path": "C:\\Windows\\system32\\ws2_32.dll"},
+    {"name": "wininet", "base_addr": 0x7BC00000, "path": "C:\\Windows\\system32\\wininet.dll"},
+    {"name": "winhttp", "base_addr": 0x7BA00000, "path": "C:\\Windows\\system32\\winhttp.dll"},
+    {"name": "advapi32", "base_addr": 0x78000000, "path": "C:\\Windows\\system32\\advapi32.dll"},
+    {"name": "psapi", "base_addr": 0x71000000, "path": "C:\\Windows\\system32\\psapi.dll"},
+    {"name": "user32", "base_addr": 0x77D10000, "path": "C:\\Windows\\system32\\user32.dll"},
+    {"name": "gdi32", "base_addr": 0x77E10000, "path": "C:\\Windows\\system32\\gdi32.dll"},
+    {"name": "msvcrt", "base_addr": 0x77F10000, "path": "C:\\Windows\\system32\\msvcrt.dll"},
+    {"name": "dnsapi", "base_addr": 0x78F10000, "path": "C:\\Windows\\system32\\dnsapi.dll"},
+    {"name": "shlwapi", "base_addr": 0x67000000, "path": "C:\\Windows\\system32\\shlwapi.dll"},
+    {"name": "advpack", "base_addr": 0x68F00000, "path": "C:\\Windows\\system32\\advpack.dll"},
+    {"name": "dbghelp", "base_addr": 0x62000000, "path": "C:\\Windows\\system32\\dbghelp.dll"},
+    {"name": "shell32", "base_addr": 0x69000000, "path": "C:\\Windows\\system32\\shell32.dll"},
+    {"name": "WTSAPI32", "base_addr": 0x63000000, "path": "C:\\Windows\\system32\\WTSAPI32.dll"},
+    {"name": "CRYPT32", "base_addr": 0x58000000, "path": "C:\\Windows\\system32\\CRYPT32.dll"},
+    {"name": "mscoree", "base_addr": 0x53000000, "path": "C:\\Windows\\system32\\mscoree.dll"},
+    {"name": "urlmon", "base_addr": 0x54500000, "path": "C:\\Windows\\system32\\urlmon.dll"},
+    {"name": "riched32", "base_addr": 0x56500000, "path": "C:\\Windows\\system32\\riched32.dll"},
+    {"name": "userenv", "base_addr": 0x76500000, "path": "C:\\Windows\\system32\\userenv.dll"},
+    {"name": "ole32", "base_addr": 0x65500000, "path": "C:\\Windows\\system32\\ole32.dll"},
+    {"name": "gdiplus", "base_addr": 0x75500000, "path": "C:\\Windows\\system32\\gdiplus.dll"},
+    {"name": "setupapi", "base_addr": 0x55500000, "path": "C:\\Windows\\system32\\setupapi.dll"},
+    {"name": "NETAPI32", "base_addr": 0x54400000, "path": "C:\\Windows\\system32\\NETAPI32.dll"},
+    {"name": "rpcrt4", "base_addr": 0x53300000, "path": "C:\\Windows\\system32\\Rpcrt4.dll"},
+    {"name": "linkinfo", "base_addr": 0x63300000, "path": "C:\\Windows\\system32\\linkinfo.dll"},
+    {"name": "EhStorShell", "base_addr": 0x73300000, "path": "C:\\Windows\\system32\\EhStorShell.dll"},
+    {"name": "comctl32", "base_addr": 0x5F500000, "path": "C:\\Windows\\system32\\comctl32.dll"},
+    {"name": "secur32", "base_addr": 0x5F600000, "path": "C:\\Windows\\system32\\secur32.dll"},
+    {"name": "KtmW32", "base_addr": 0x5F700000, "path": "C:\\Windows\\system32\\KtmW32.dll"},
+    {"name": "oleaut32", "base_addr": 0x5F800000, "path": "C:\\Windows\\system32\\oleaut32.dll"},
+    {"name": "bcrypt", "base_addr": 0x5F900000, "path": "C:\\Windows\\system32\\bcrypt.dll"},
+    {"name": "ncrypt", "base_addr": 0x5FA00000, "path": "C:\\Windows\\system32\\ncrypt.dll"},
+    {"name": "netutils", "base_addr": 0x5FB00000, "path": "C:\\Windows\\system32\\netutils.dll"},
+    {"name": "wkscli", "base_addr": 0x5FC00000, "path": "C:\\Windows\\system32\\wkscli.dll"},
+    {"name": "iphlpapi", "base_addr": 0x5FD00000, "path": "C:\\Windows\\system32\\iphlpapi.dll"},
+    {"name": "sfc_os", "base_addr": 0x5FE00000, "path": "C:\\Windows\\system32\\sfc_os.dll"},
+    {"name": "winmm", "base_addr": 0x5FF00000, "path": "C:\\Windows\\system32\\winmm.dll"},
     {
         "name": "bcryptprimitives",
-        "base_addr": "0x60000000",
+        "base_addr": 0x60000000,
         "path": "C:\\Windows\\system32\\bcryptprimitives.dll",
     },
-    {"name": "version", "base_addr": "0x60100000", "path": "C:\\Windows\\system32\\version.dll"},
+    {"name": "version", "base_addr": 0x60100000, "path": "C:\\Windows\\system32\\version.dll"},
 ]
 
 
@@ -266,6 +266,26 @@ def parse_start_time(text: str) -> datetime.datetime:
     if when.tzinfo is None:
         raise ValueError(f"start time {text!r} has no time zone")
     return when
+
+
+def _parse_config_int(value: Any) -> Any:
+    """
+    Convert a hex string, such as "0x400000", to an int. Other values do not change.
+
+    JSON has no hex numbers, so a config file gives a hex address or size as a string.
+
+    Raises:
+        ValueError: if a string does not start with 0x or is not a hex number.
+    """
+    if not isinstance(value, str):
+        return value
+    if not value.lower().startswith("0x"):
+        raise ValueError(f"{value!r} is not a hex number: use a JSON number, or a string that starts with 0x")
+    return int(value, 16)
+
+
+_Address = Annotated[int, BeforeValidator(_parse_config_int), PlainSerializer(hex, when_used="json")]
+_Size = Annotated[int, BeforeValidator(_parse_config_int)]
 
 
 class AnalysisConfig(BaseModel):
@@ -326,7 +346,7 @@ class ByteFillConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     byte: str = Field(description="Byte value used to synthesize file content.")
-    size: int = Field(description="Number of bytes to synthesize.")
+    size: _Size = Field(description="Number of bytes to synthesize.")
 
 
 class FileEntryFullPath(BaseModel):
@@ -469,7 +489,7 @@ class ProcessConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(description="Process name.")
-    base_addr: str = Field(description="Process image base address.")
+    base_addr: _Address = Field(description="Process image base address.")
     path: str = Field(description="Process executable path.")
     pid: int | None = Field(default=None, description="Optional process identifier.")
     command_line: str | None = Field(default=None, description="Optional process command line.")
@@ -494,7 +514,7 @@ class UserModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(description="User-mode module short name.")
-    base_addr: str = Field(description="Module base address.")
+    base_addr: _Address = Field(description="Module base address.")
     path: str = Field(description="Module path.")
 
 
@@ -502,7 +522,7 @@ class SystemModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(description="System module short name.")
-    base_addr: str = Field(description="Module base address.")
+    base_addr: _Address = Field(description="Module base address.")
     path: str = Field(description="Module path.")
     driver: DriverConfig | None = Field(default=None, description="Optional driver and device object metadata.")
 
@@ -553,7 +573,7 @@ class SpeakeasyConfig(BaseModel):
     )
     max_api_count: int = Field(default=10000, description="Maximum API calls allowed per run.")
     max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
-    stack_size: int = Field(
+    stack_size: _Size = Field(
         default=0,
         description="Override stack size in bytes. 0 uses the PE header value or the built-in default (0x12000).",
     )

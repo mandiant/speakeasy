@@ -3498,8 +3498,6 @@ class WindowsEmulator(BinaryEmulator):
         for modconf in modules_config:
             name = modconf.name or "unknown"
             base = modconf.base_addr or default_base
-            if isinstance(base, str):
-                base = int(base, 16)
             path = modconf.path or name + ".dll"
             rtmods.append(self.load_module_by_name(name, emu_path=path, base=base))
         return rtmods

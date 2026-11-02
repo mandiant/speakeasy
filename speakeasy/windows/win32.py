@@ -146,10 +146,7 @@ class Win32Emulator(WindowsEmulator):
             if proc.pid is not None:
                 p.pid = proc.pid
 
-            base = proc.base_addr
-            if isinstance(base, str):
-                base = int(base, 16)
-            p.base = base
+            p.base = proc.base_addr
             p.path = proc.path
             p.session = proc.session or 0
             p.image = ntpath.basename(p.path)
@@ -627,7 +624,7 @@ class Win32Emulator(WindowsEmulator):
 
         # Load the container image in the machine range, so that the input image can use its preferred base.
         with self.allocations_from(winemu.MACHINE_BASE):
-            entry_at_machine_base = entry.model_copy(update={"base_addr": hex(winemu.MACHINE_BASE)})
+            entry_at_machine_base = entry.model_copy(update={"base_addr": winemu.MACHINE_BASE})
             self.container_image = self.init_user_modules([entry_at_machine_base])[0]
         process = objman.Process(
             self,
