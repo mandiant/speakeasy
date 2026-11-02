@@ -93,12 +93,27 @@ class CryptoManager:
     def crypt_get(self, hnd) -> CryptContext | None:
         return self.get_handle_object(hnd, CryptContext)
 
-    def get_key(self, hnd) -> CryptKey | None:
-        return self.get_handle_object(hnd, CryptKey)
+    def get_context(self, hnd) -> CryptContext:
+        """
+        Get the context of a provider handle.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a provider.
+        """
+        return self.handles.get(hnd, CryptContext)
+
+    def get_key(self, hnd) -> CryptKey:
+        """
+        Get the key of a key handle.
+
+        Raises:
+            InvalidHandle: if the handle does not refer to a key.
+        """
+        return self.handles.get(hnd, CryptKey)
 
     def delete_key(self, hnd) -> bool:
         """Close a key handle. Return False if the handle is not a key."""
-        key = self.get_key(hnd)
+        key = self.get_handle_object(hnd, CryptKey)
         if key is None:
             return False
         key.context.delete_key(hnd)
