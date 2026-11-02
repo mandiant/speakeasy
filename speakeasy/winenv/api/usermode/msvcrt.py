@@ -895,10 +895,10 @@ class Msvcrt(api.ApiHandler):
     def __GetMainArgs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void __GetMainArgs(
-            int *_Argc,
-            char ***_Argv,
-            char ***_Env,
-            int _DoWildCard
+            int *argc,
+            char ***argv,
+            char ***env,
+            int doWildCard
         );
         """
         self.__getmainargs(emu, [*argv, 0], ctx)
@@ -907,11 +907,11 @@ class Msvcrt(api.ApiHandler):
     def __wgetmainargs(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int __wgetmainargs(
-            int *_Argc,
-            wchar_t ***_Argv,
-            wchar_t ***_Env,
-            int _DoWildCard,
-            _startupinfo *_StartInfo
+            int *argc,
+            wchar_t ***argv,
+            wchar_t ***env,
+            int doWildCard,
+            _startupinfo *startInfo
         );
         """
         return self._write_main_args(emu, argv, "utf-16le")
@@ -1176,8 +1176,8 @@ class Msvcrt(api.ApiHandler):
     def _XcptFilter(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _XcptFilter(
-            unsigned long xcptnum,
-            struct _EXCEPTION_POINTERS *pxcptinfoptrs
+            unsigned long exceptionNum,
+            struct _EXCEPTION_POINTERS *exceptionPtr
         );
         """
         _xcptnum, _pxcptinfoptrs = argv
@@ -4697,8 +4697,8 @@ class Msvcrt(api.ApiHandler):
     def __std_exception_copy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void __std_exception_copy(
-            const __std_exception_data *from,
-            __std_exception_data *to
+            const __std_exception_data *src,
+            __std_exception_data *dst
         );
         """
         src, dst = argv
