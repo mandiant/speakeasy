@@ -2689,11 +2689,11 @@ class WindowsEmulator(BinaryEmulator):
         The value is ``fail`` of the apihook if it is set. Else a kernel-mode API returns
         STATUS_INVALID_HANDLE, an API that returns its WIN32_ERROR, such as RegCloseKey, returns the
         error, and any other API returns 0. A user-mode API that does not return its error sets the
-        last error.
+        last error, except in modules such as ntdll that return status codes.
         """
         kernel_mode = type(module).__module__.startswith("speakeasy.winenv.api.kernelmode.")
         returns_error = sig is not None and sig.ret == "u32:WIN32_ERROR" and not sig.set_last_error
-        if not kernel_mode and not returns_error:
+        if module.sets_last_error and not kernel_mode and not returns_error:
             self.set_last_error(error.error)
         if fail is not None:
             return fail
