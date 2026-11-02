@@ -1807,7 +1807,7 @@ class User32(api.ApiHandler):
         if not cchLength:
             return 0
         raw = self.mem_read(lpsz, cchLength * cw)
-        ctx.args["lpsz"].display = raw.decode("utf-8" if cw == 1 else "utf-16le", "ignore").replace("\x00", "")
+        ctx.args["lpsz"].display = self.decode_string(raw, cw).replace("\x00", "")
         self.mem_write(lpsz, map_char_case(raw, cw, upper=False))
         return cchLength
 
@@ -1824,7 +1824,7 @@ class User32(api.ApiHandler):
         if not cchLength:
             return 0
         raw = self.mem_read(lpsz, cchLength * cw)
-        ctx.args["lpsz"].display = raw.decode("utf-8" if cw == 1 else "utf-16le", "ignore").replace("\x00", "")
+        ctx.args["lpsz"].display = self.decode_string(raw, cw).replace("\x00", "")
         self.mem_write(lpsz, map_char_case(raw, cw, upper=True))
         return cchLength
 
@@ -2129,14 +2129,13 @@ class User32(api.ApiHandler):
         if cb < dd.get_cstruct().DeviceID.offset:
             return 0
 
-        encoding = "utf-16le" if cw == 2 else "latin-1"
         name, text, flags, device_id, key = DISPLAY_DEVICES[parent]
         dd.cb = cb
-        dd.DeviceName = name.encode(encoding)
-        dd.DeviceString = text.encode(encoding)
+        dd.DeviceName = self.encode_string(name, cw)
+        dd.DeviceString = self.encode_string(text, cw)
         dd.StateFlags = flags
-        dd.DeviceID = device_id.encode(encoding)
-        dd.DeviceKey = key.encode(encoding)
+        dd.DeviceID = self.encode_string(device_id, cw)
+        dd.DeviceKey = self.encode_string(key, cw)
         self.mem_write(lpDisplayDevice, dd.get_bytes()[:cb])
         return 1
 
