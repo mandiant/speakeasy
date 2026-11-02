@@ -1,11 +1,15 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import base64
+from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.advapi32 as adv32
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class Ncrypt(api.ApiHandler):
@@ -26,7 +30,7 @@ class Ncrypt(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("NCryptOpenStorageProvider", argc=3)
-    def NCryptOpenStorageProvider(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NCryptOpenStorageProvider(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptOpenStorageProvider(
             NCRYPT_PROV_HANDLE *phProvider,
@@ -48,7 +52,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptImportKey", argc=8)
-    def NCryptImportKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NCryptImportKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptImportKey(
             NCRYPT_PROV_HANDLE hProvider,
@@ -88,7 +92,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptDeleteKey", argc=2)
-    def NCryptDeleteKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NCryptDeleteKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptDeleteKey(
             NCRYPT_KEY_HANDLE hKey,
@@ -106,7 +110,7 @@ class Ncrypt(api.ApiHandler):
         return windefs.ERROR_SUCCESS
 
     @apihook("NCryptFreeObject", argc=1)
-    def NCryptFreeObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def NCryptFreeObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptFreeObject(
             NCRYPT_HANDLE hObject
