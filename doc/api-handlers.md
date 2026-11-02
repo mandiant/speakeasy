@@ -15,6 +15,7 @@ Handler rules:
 - write integers to guest memory with `self.write_dword`, `self.write_qword` or `self.write_ptr`, and read them with `self.read_dword` or `self.read_ptr`. The write helpers call `ApiHandler.mem_write`, which also writes to the other views of a shared file mapping
 - return the value expected by the sample path
 - read and write `A` strings with `read_mem_string`, `write_mem_string`, `decode_string` and `encode_string`, which use the ANSI code page (1252) for a character width of 1. Do not select a Python codec for guest text
+- order two strings with `get_string_order` from `speakeasy.winenv.api.compare`, and give the case fold of the function (`Fold`). It returns -1, 0 or 1
 - start the docstring with the C prototype from the SDK, DDK, phnt or CRT headers, as in the example below: one parameter per line, no calling convention, linkage or SAL annotations, and the closing `);` on its own line. The function name is the hook name: a hook without the `A` or `W` suffix uses the generic name and TCHAR types (`LPCTSTR`). Parameter names come from the Microsoft documentation. When the signature database has other names, use those, because the report and `ctx.args` use them. Notes about the emulation go after a blank line. A handler for exported data (`@impdata`) gives the C declaration of the variable
 
 For some APIs, returning a success code is enough to keep execution on a useful path.
