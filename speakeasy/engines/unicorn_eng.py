@@ -40,9 +40,11 @@ hook_id = uc_hook_h()
 @functools.cache
 def get_exception_state_offset(mode):
     """
-    Get the offset, in a saved x86 context, of the vector of the CPU exception in flight,
-    or None when it cannot be found. The processor clears it once it delivers the exception;
-    Unicorn hands the exception to the interrupt hook instead and never clears it.
+    Get the offset, in a saved x86 context, of the vector of the CPU exception in flight.
+
+    Returns ``None`` when the offset cannot be found. The processor clears the vector once it
+    delivers the exception. Unicorn hands the exception to the interrupt hook instead and never
+    clears it.
     """
     probe = uc.Uc(uc.UC_ARCH_X86, mode)
     probe.mem_map(0x1000, 0x1000)
@@ -62,8 +64,10 @@ def get_exception_state_offset(mode):
 @functools.cache
 def get_tsc_offset_location(mode):
     """
-    Get the offset, in a saved x86 context, of the value that rdtsc adds to the time stamp
-    counter, or None when it cannot be found. QEMU keeps it 16 bytes after the exception in flight.
+    Get the offset, in a saved x86 context, of the value that ``rdtsc`` adds to the time stamp counter.
+
+    Returns ``None`` when the offset cannot be found. QEMU keeps the value 16 bytes after the
+    exception in flight.
     """
     exception = get_exception_state_offset(mode)
     if exception is None:
@@ -83,9 +87,7 @@ def get_tsc_offset_location(mode):
 
 
 class ToggleableHook:
-    """
-    Hook than can be toggled on/off at arbitrary times.
-    """
+    """Hook than can be toggled on/off at arbitrary times."""
 
     def __init__(self, cb):
         self.cb: ct._CFunctionType = cb
@@ -101,7 +103,7 @@ class ToggleableHook:
 
 
 class EmuEngine:
-    """Wrapper class for underlying cpu emulation engines"""
+    """Wrapper class for underlying cpu emulation engines."""
 
     def __init__(self):
         self.name: str = "unicorn"
@@ -193,7 +195,7 @@ class EmuEngine:
         }
 
     def init_engine(self, eng_arch, mode):
-        """Initialize cpu engine"""
+        """Initialize cpu engine."""
         if eng_arch == arch.ARCH_X86 or eng_arch == arch.ARCH_AMD64:
             _arch = uc.UC_ARCH_X86
         else:
@@ -213,23 +215,23 @@ class EmuEngine:
         get_tsc_offset_location(_mode)
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
-        """Allocate memory in the cpu engine"""
+        """Allocate memory in the cpu engine."""
         assert self.emu is not None
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
         return self.emu.mem_map(base, size, perm)
 
     def mem_unmap(self, addr, size):
-        """Free memory in the cpu engine"""
+        """Free memory in the cpu engine."""
         assert self.emu is not None
         return self.emu.mem_unmap(addr, size)
 
     def mem_regions(self):
-        """Get current memory allocations from the engine"""
+        """Get current memory allocations from the engine."""
         assert self.emu is not None
         return self.emu.mem_regions()
 
     def mem_write(self, addr, data):
-        """Write data into the address space of the engine"""
+        """Write data into the address space of the engine."""
         assert self.emu is not None
         result = self.emu.mem_write(addr, data)
         if data:
@@ -238,12 +240,12 @@ class EmuEngine:
         return result
 
     def mem_read(self, addr, size):
-        """Read data from the address space of the engine"""
+        """Read data from the address space of the engine."""
         assert self.emu is not None
         return self.emu.mem_read(addr, size)
 
     def mem_protect(self, addr, size, perms):
-        """Change the memory protections for pages in the emu engine"""
+        """Change the memory protections for pages in the emu engine."""
         assert self.emu is not None
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
         result = self.emu.mem_protect(addr, size, perm)
@@ -255,9 +257,10 @@ class EmuEngine:
 
     def clear_exception_state(self):
         """
-        Mark the CPU exception in flight as delivered. Otherwise the next divide error or
-        general protection fault becomes a double fault, and the one after a triple fault
-        that stops emulation without an error.
+        Mark the CPU exception in flight as delivered.
+
+        Otherwise the next divide error or general protection fault becomes a double fault,
+        and the one after that becomes a triple fault that stops emulation without an error.
         """
         assert self.emu is not None
         offset = get_exception_state_offset(self.mode)
@@ -278,17 +281,22 @@ class EmuEngine:
         self.emu.context_restore(context)
 
     def invalidate_translations(self, begin, end):
-        """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it"""
+        """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it."""
         assert self.emu is not None
         self.emu.ctl_remove_cache(begin, end)
 
     def flush_translations(self):
-        """Drop all translated code, e.g. so that a code hook added since applies to it"""
+        """Drop all translated code, e.g. so that a code hook added since applies to it."""
         assert self.emu is not None
         self.emu.ctl(uc.UC_CTL_TB_FLUSH, uc.UC_CTL_IO_WRITE)
 
     def reg_write(self, reg, val):
-        """Modify register values"""
+        """
+        Modify register values.
+
+        Raises:
+            EmuEngineError: if ``reg`` is not a known register.
+        """
         assert self.emu is not None
         ereg = self.regs.get(reg)
         if not ereg:
@@ -296,7 +304,12 @@ class EmuEngine:
         return self.emu.reg_write(ereg, val)
 
     def reg_read(self, reg):
-        """Read register values"""
+        """
+        Read register values.
+
+        Raises:
+            EmuEngineError: if ``reg`` is not a known register.
+        """
         assert self.emu is not None
         ereg = self.regs.get(reg)
         if not ereg:
@@ -304,7 +317,7 @@ class EmuEngine:
         return self.emu.reg_read(ereg)
 
     def stop(self):
-        """Stop the emulation engine"""
+        """Stop the emulation engine."""
         assert self.emu is not None
         return self.emu.emu_stop()
 
@@ -323,7 +336,11 @@ class EmuEngine:
 
     def hook_add(self, addr=None, cb=None, htype=None, begin=1, end=0, arg1=0):
         """
-        Add a callback function for a specific event type or address
+        Add a callback function for a specific event type or address.
+
+        Raises:
+            EmuEngineError: if ``htype`` is not a known hook type.
+            unicorn.UcError: if Unicorn rejects the hook.
         """
         assert self.emu is not None
         hook_type = self.hook_types.get(htype)
@@ -366,17 +383,13 @@ class EmuEngine:
         return hook_id.value
 
     def hook_enable(self, hook_handle):
-        """
-        Enable a previously disabled hook
-        """
+        """Enable a previously disabled hook."""
         hook = self._callbacks.get(hook_handle)
         if hook:
             return hook.enable()
 
     def hook_disable(self, hook_handle):
-        """
-        Disable a previously enabled hook
-        """
+        """Disable a previously enabled hook."""
         hook = self._callbacks.get(hook_handle)
         if hook:
             return hook.disable()

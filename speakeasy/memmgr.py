@@ -15,9 +15,7 @@ if TYPE_CHECKING:
 
 
 class MemMap:
-    """
-    Class that defines a memory mapping (e.g. heap/pool alloc, binary image, etc.)
-    """
+    """Class that defines a memory mapping (e.g. heap/pool alloc, binary image, etc.)."""
 
     def __init__(self, base, size, tag, prot, flags, block_base, block_size, shared=False, process=None):
         self.base: int = base
@@ -59,11 +57,11 @@ ALLOCATION_GRANULARITY = 0x10000
 
 class MemoryManager:
     """
-    Primitive memory manager used to block OS sized allocation units into something more practical
+    Primitive memory manager that blocks OS sized allocation units into smaller ones.
 
     Subclasses must define the following attributes:
-        hooks: Dictionary of hooks
-        config: Emulation configuration
+        hooks: Dictionary of hooks.
+        config: Emulation configuration.
     """
 
     hooks: dict[int, Any]
@@ -74,9 +72,7 @@ class MemoryManager:
         return None
 
     def get_address_limit(self) -> int | None:
-        """
-        Return the end of the address space that allocations which start below it must fit in
-        """
+        """Return the end of the address space that allocations which start below it must fit in."""
         return None
 
     def __init__(self, *args, **kwargs):
@@ -91,10 +87,7 @@ class MemoryManager:
 
     @contextmanager
     def allocations_from(self, base: int) -> Iterator[None]:
-        """
-        Start the search for free memory at base, for the allocations in this block
-        that do not give an address
-        """
+        """Start the search for free memory at ``base`` for allocations in this block that give no address."""
         previous = self.alloc_base
         self.alloc_base = base
         # Start a new shared block for small allocations, here and after the block,
@@ -125,9 +118,7 @@ class MemoryManager:
         shared: bool = False,
         process: Any = None,
     ) -> int:
-        """
-        Map a block of memory with specified permissions and a tag
-        """
+        """Map a block of memory with specified permissions and a tag."""
         if not process and tag and not tag.startswith("emu"):
             process = self.get_current_process()
 
@@ -166,9 +157,7 @@ class MemoryManager:
         return base
 
     def mem_free(self, base) -> None:
-        """
-        Free a block of memory, if all blocks in a block are set to free, unmap the entire block
-        """
+        """Free a block of memory, if all blocks in a block are set to free, unmap the entire block."""
         mm = self.get_address_map(base)
         if mm:
             mm.free = True
@@ -186,55 +175,39 @@ class MemoryManager:
                     self.maps.remove(m)
 
     def mem_unmap(self, base, size):
-        """
-        Free a block of emulated memory
-        """
+        """Free a block of emulated memory."""
         self.emu_eng.mem_unmap(base, size)
 
     def mem_write(self, addr, data) -> None:
-        """
-        Write bytes into the emulated address space
-        """
+        """Write bytes into the emulated address space."""
         self.emu_eng.mem_write(addr, data)
 
     def mem_read(self, addr, size) -> bytes:
-        """
-        Read bytes from the emulated address space
-        """
+        """Read bytes from the emulated address space."""
         return bytes(self.emu_eng.mem_read(addr, size))
 
     def mem_protect(self, addr, size, perms):
-        """
-        Change memory protections
-        """
+        """Change memory protections."""
         self.emu_eng.mem_protect(addr, size, perms)
 
     def _mem_unmap_region(self, base, size):
-        """
-        Remove an entire memory region that may not have blocks allocated within it
-        """
+        """Remove an entire memory region that may not have blocks allocated within it."""
         self.emu_eng.mem_unmap(base, size)
 
     def get_address_map(self, address):
-        """
-        Get the "MemMap" object associated with a specific address
-        """
+        """Get the "MemMap" object associated with a specific address."""
         for m in self.maps:
             if m.base <= address <= (m.base + m.size) - 1:
                 return m
 
     def get_reserve_map(self, address):
-        """
-        Get the "MemMap" object that was only reserved for a specific address
-        """
+        """Get the "MemMap" object that was only reserved for a specific address."""
         for m in self.mem_reserves:
             if m.base <= address <= (m.base + m.size) - 1:
                 return m
 
     def is_address_valid(self, address) -> bool:
-        """
-        Was this address previously reserved or mapped?
-        """
+        """Was this address previously reserved or mapped?"""
         if self.get_address_map(address):
             return True
         if self.get_reserve_map(address):
@@ -242,17 +215,13 @@ class MemoryManager:
         return False
 
     def get_address_tag(self, address):
-        """
-        Get the tag for a supplied memory address
-        """
+        """Get the tag for a supplied memory address."""
         for m in self.maps:
             if address >= m.base and address <= (m.base + m.size) - 1:
                 return m.tag
 
     def mem_reserve(self, size, base=None, perms=None, tag=None, flags=0, shared=False):
-        """
-        Reserve (but do not map) a block of memory
-        """
+        """Reserve (but do not map) a block of memory."""
         if base is None:
             block = self.get_valid_ranges(size)
             base, size = block
@@ -263,21 +232,15 @@ class MemoryManager:
         return base
 
     def mem_unreserve(self, base):
-        """
-        Release a reserved block of memory without mapping it
-        """
+        """Release a reserved block of memory without mapping it."""
         self.mem_reserves = [r for r in self.mem_reserves if r.base != base]
 
     def get_mem_maps(self) -> list[MemMap]:
-        """
-        Get the listing of current memory maps
-        """
+        """Get the listing of current memory maps."""
         return self.maps
 
     def mem_map_reserve(self, mapped_base):
-        """
-        Map a previously reserved block of memory
-        """
+        """Map a previously reserved block of memory."""
         for r in self.mem_reserves:
             if mapped_base == r.base:
                 self.mem_reserves.remove(r)
@@ -286,15 +249,22 @@ class MemoryManager:
         return None
 
     def get_mem_regions(self):
-        """
-        Get the current regions of mapped memory
-        """
+        """Get the current regions of mapped memory."""
         return self.emu_eng.mem_regions()
 
     def get_valid_ranges(self, size: int, addr: int | None = None) -> tuple[int, int]:
         """
-        Retrieve a valid address range that can satisfy the requested size.
-        Optionally, a base address can be specified to test if it can be used
+        Get a valid address range that can satisfy the requested size.
+
+        Args:
+            size: Number of bytes to allocate.
+            addr: Address at which to start the search. Defaults to the allocation base.
+
+        Returns:
+            The base address and the page-aligned size of the range.
+
+        Raises:
+            OutOfMemoryError: if the range would cross the address limit.
         """
         page_size = self.page_size
 

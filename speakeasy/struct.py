@@ -8,17 +8,16 @@ from typing import Any
 
 
 class EmuStructException(Exception):
-    """
-    Container class for struct exceptions
-    """
+    """Container class for struct exceptions."""
 
     pass
 
 
 class Enum:
     """
-    For now, a basic python object will serve as a C style enum.
-    Supports arbitrary attribute access for dynamic enum-style constants.
+    Basic Python object that serves as a C style enum.
+
+    It supports arbitrary attribute access for dynamic enum-style constants.
     """
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -29,28 +28,20 @@ class Enum:
 
 
 class PtrMeta(type):
-    """
-    Metaclass for pointer types
-    """
+    """Metaclass for pointer types."""
 
     def __mul__(self, mult):
         return tuple((self, mult))
 
 
 class Ptr(metaclass=PtrMeta):
-    """
-    Generic object to identify pointer variables that will be expanded
-    according to the "ptr_size" parameter passed to our init
-    """
+    """Generic object that identifies pointer variables, which expand to the ``ptr_size`` passed to ``__init__``."""
 
     _points_to_ = None
 
 
 class CMeta(type):
-    """
-    meta class to hook __call__ and make __dict__ ordered on all versions
-    of python
-    """
+    """Metaclass that hooks ``__call__`` and keeps ``__dict__`` ordered on all Python versions."""
 
     @classmethod
     def __prepare__(metacls, name: str, bases: tuple[type, ...], /, **kwds: Any) -> MutableMapping[str, object]:
@@ -70,9 +61,7 @@ class CMeta(type):
 
 
 class EmuStruct(metaclass=CMeta):
-    """
-    Advanced Python class for interacting with C structures
-    """
+    """Advanced Python class for interacting with C structures."""
 
     # Save the unique types we create here
     # This is necessary since the ctypes metaclass won't allow us
@@ -94,17 +83,18 @@ class EmuStruct(metaclass=CMeta):
         self.__dict__["__filtermap__"] = {}
 
     def _is_ctype(self, obj):
-        """
-        Test whether the object has a ctype base
-        """
+        """Test whether the object has a ctype base."""
         tests = (ct._SimpleCData, ct.Structure, ct.Union, ct.Array)
         return any([issubclass(obj, t) for t in tests])
 
     def create_struct(self, types={}):
         """
-        Walk each attribute and handle accordingly. Since ctypes.Structure
-        is a metaclass, we have to build the "_fields_" dynamically via a
-        factory
+        Walk each attribute and build the ctypes structure.
+
+        ``ctypes.Structure`` uses a metaclass, so this method builds ``_fields_`` dynamically through a factory.
+
+        Raises:
+            EmuStructException: if a nested structure cannot be built.
         """
         if self.__struct__:
             return
@@ -166,9 +156,7 @@ class EmuStruct(metaclass=CMeta):
         self.__init_struct()
 
     def get_ptr_field(self):
-        """
-        Get ctypes value for the required pointer size
-        """
+        """Get ctypes value for the required pointer size."""
         if self.__ptrsize__ == 4:
             return ct.c_uint32
         elif self.__ptrsize__ == 8:
@@ -177,9 +165,7 @@ class EmuStruct(metaclass=CMeta):
             return ct.c_void_p
 
     def get_pack(self):
-        """
-        Get the required structure pack (defaults to pointer size)
-        """
+        """Get the required structure pack (defaults to pointer size)."""
         if self.__pack__:
             return self.__pack__
         else:
@@ -189,10 +175,7 @@ class EmuStruct(metaclass=CMeta):
                 return 1
 
     def _link_cstructs(self, obj):
-        """
-        Link the ctypes structures together in the case of nesting.
-        This will allow the buffer API to convert it to bytes easily
-        """
+        """Link nested ctypes structures together so that the buffer API can convert them to bytes."""
         for fname, subobj in obj.__filtermap__.items():
             if isinstance(subobj, list):
                 x = getattr(obj.__struct__, fname)
@@ -206,9 +189,7 @@ class EmuStruct(metaclass=CMeta):
                 setattr(obj.__struct__, fname, subobj.__struct__)
 
     def get_bytes(self):
-        """
-        Convert the structure to bytes and respecting endianness
-        """
+        """Convert the structure to bytes and respecting endianness."""
         self._link_cstructs(self)
 
         struct = self.__struct__
@@ -217,9 +198,7 @@ class EmuStruct(metaclass=CMeta):
         return bytes(buf[:])
 
     def sizeof(self):
-        """
-        Get the size of the C structure
-        """
+        """Get the size of the C structure."""
         return ct.sizeof(self.__struct__)
 
     def _deep_cast(self, obj, bytez, offset):
@@ -237,9 +216,7 @@ class EmuStruct(metaclass=CMeta):
                 self._deep_cast(subobj, bytez, field_offset)
 
     def cast(self, bytez):
-        """
-        Convert a bytes object to the C structure by "casting" them
-        """
+        """Convert a bytes object to the C structure by "casting" them."""
         self._deep_cast(self, bytez, 0)
         return self
 
@@ -247,9 +224,7 @@ class EmuStruct(metaclass=CMeta):
         return self.__struct__.__class__
 
     def __struct_factory(self, name):
-        """
-        Factory used to generate ctypes structures using the ctypes metaclass
-        """
+        """Factory used to generate ctypes structures using the ctypes metaclass."""
         _type_name = f"ct{name}{self.__ptrsize__}"
         key = (_type_name, self.get_pack(), tuple(self.__fields__))
         _type = EmuStruct.__types__.get(key)
@@ -267,10 +242,7 @@ class EmuStruct(metaclass=CMeta):
         return self.__struct__
 
     def __setattr__(self, name, value):
-        """
-        Hook setattr so that accessing the underlying ctypes structure can be
-        handled correctly
-        """
+        """Hook ``setattr`` to handle access to the underlying ctypes structure."""
         struct = self.__struct__
         if struct:
             fields = struct._fields_
@@ -285,10 +257,7 @@ class EmuStruct(metaclass=CMeta):
         super().__setattr__(name, value)
 
     def __getattribute__(self, name):
-        """
-        Hook getattribute so that accessing the underlying ctypes structure
-        can be handled correctly
-        """
+        """Hook ``getattribute`` to handle access to the underlying ctypes structure."""
         try:
             struct = super().__getattribute__("__struct__")
             if struct:
