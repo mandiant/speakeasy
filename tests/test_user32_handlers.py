@@ -1,6 +1,7 @@
 """User32 handlers return what Windows returns and write only what the caller owns."""
 
 import struct
+from collections.abc import Callable
 from typing import Any
 
 import pefile
@@ -487,6 +488,19 @@ def test_get_window_thread_process_id(dll_emu: Speakeasy) -> None:
     assert tid == call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0]
     assert dll_emu.mem_read(pid, 4) == struct.pack("<I", call(dll_emu, "kernel32", "GetCurrentProcessId", [])[0])
     assert call(dll_emu, "user32", "GetWindowThreadProcessId", [hwnd, 0])[0] == tid
+
+
+def test_get_window_thread_process_id_of_the_console_window(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    for se in load_emu(config, load_test_bin("argv_test_x86.exe.xz")):
+        start_process(se)
+        hwnd, _ = call(se, "kernel32", "GetConsoleWindow", [])
+        assert hwnd
+        pid = alloc(se, b"\xcc" * 4)
+        tid, _ = call(se, "user32", "GetWindowThreadProcessId", [hwnd, pid])
+        assert tid == call(se, "kernel32", "GetCurrentThreadId", [])[0]
+        assert se.mem_read(pid, 4) == struct.pack("<I", call(se, "kernel32", "GetCurrentProcessId", [])[0])
 
 
 def test_get_foreground_window_is_a_stable_explorer_window(dll_emu: Speakeasy) -> None:
