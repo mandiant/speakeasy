@@ -2,6 +2,7 @@
 
 import struct
 from collections.abc import Generator, Iterator
+from functools import partial
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.profiler import GuestCallbackFrame, Run
 from speakeasy.windows import guest_callbacks, objman
+from speakeasy.windows.handles import InvalidHandle
 from speakeasy.windows.kernel import WinKernelEmulator
 from speakeasy.windows.win32 import Win32Emulator
 from speakeasy.winenv import arch as e_arch
@@ -70,11 +72,11 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
 
     A variadic handler reads ``argv`` from the stack. Return the handler result and the displays, by
     parameter name, or by slot index for a call without a signature. A handler that calls guest code
-    starts its first guest call, and its result is None.
+    starts its first guest call, and its result is None. A bad handle fails the call as in dispatch.
     """
     emu = se.emu
     mod, func_attrs = emu.get_api_handler(dll, name)
-    _, func, argc, conv, _ = func_attrs
+    _, func, argc, conv, _, fail = func_attrs
     if argc == e_arch.VAR_ARGS:
         emu.set_func_args(emu.stack_base, 0, *argv, conv=conv)
         argv = []
@@ -85,13 +87,16 @@ def call(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tuple[int, dict
     else:
         args = HandlerArgs.from_signature(sig, emu.get_ptr_size(), emu._render_signature_args(sig, argv), argv)
     ctx = ApiContext(func_name=f"{dll}.{name}", args=args)
+    fail_invalid_handle = partial(emu.fail_invalid_handle, mod, fail, sig)
     previous = emu._active_api_frame
     frame = GuestCallbackFrame(emu.get_stack_ptr(), return_address=0)
     emu._active_api_frame = frame
     try:
         rv = func(mod, emu, list(argv), ctx)
         if isinstance(rv, Generator):
-            rv = guest_callbacks.start_api_handler(emu, frame, rv)
+            rv = guest_callbacks.start_api_handler(emu, frame, rv, fail_invalid_handle)
+    except InvalidHandle as e:
+        rv = fail_invalid_handle(e)
     finally:
         emu._active_api_frame = previous
     return rv, {i if a.name is None else a.name: a.display for i, a in enumerate(args.get_report_args())}

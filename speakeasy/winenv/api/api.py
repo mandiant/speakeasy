@@ -176,14 +176,25 @@ class ApiHandler:
 
     @staticmethod
     def apihook(
-        impname: str | None = None, argc: int = 0, conv: int = _arch.CALL_CONV_STDCALL, ordinal: int | None = None
+        impname: str | None = None,
+        argc: int = 0,
+        conv: int = _arch.CALL_CONV_STDCALL,
+        ordinal: int | None = None,
+        fail: int | None = None,
     ) -> Callable[[F], F]:
+        """
+        Mark a method as the handler of an API.
+
+        ``fail`` is the return value of the call when the handler raises InvalidHandle. Without it,
+        dispatch picks the value from the signature of the API.
+        """
+
         def apitemp(f: F) -> F:
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
             if hasattr(f, "__apihook__"):
                 raise ApiEmuError(f"{f.__name__} has more than one apihook decorator")
-            f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)  # type: ignore[attr-defined]
+            f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal, fail)  # type: ignore[attr-defined]
             return f
 
         return apitemp
@@ -200,7 +211,7 @@ class ApiHandler:
 
     def __init__(self, emu):
         super().__init__()
-        self.funcs: dict[str | int, tuple[str, Callable[..., Any], int, int, int | None]] = {}
+        self.funcs: dict[str | int, tuple[str, Callable[..., Any], int, int, int | None, int | None]] = {}
         self.data: dict[str, Callable[..., Any]] = {}
         self.emu: WindowsEmulator = emu
         arch = self.emu.get_arch()
@@ -220,10 +231,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                name, func, argc, conv, ordinal = func_attrs
-                self.funcs[name] = (name, func, argc, conv, ordinal)
+                name, func, argc, conv, ordinal, fail = func_attrs
+                self.funcs[name] = (name, func, argc, conv, ordinal, fail)
                 if ordinal:
-                    self.funcs[ordinal] = (name, func, argc, conv, ordinal)
+                    self.funcs[ordinal] = (name, func, argc, conv, ordinal, fail)
 
             elif data_attrs:
                 name, func = data_attrs
@@ -238,10 +249,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                name, func, argc, conv, ordinal = func_attrs
-                obj.funcs[name] = (name, func, argc, conv, ordinal)
+                name, func, argc, conv, ordinal, fail = func_attrs
+                obj.funcs[name] = (name, func, argc, conv, ordinal, fail)
                 if ordinal:
-                    obj.funcs[ordinal] = (name, func, argc, conv, ordinal)
+                    obj.funcs[ordinal] = (name, func, argc, conv, ordinal, fail)
 
             elif data_attrs:
                 name, func = data_attrs
