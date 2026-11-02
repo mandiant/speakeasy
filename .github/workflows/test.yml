@@ -43,6 +43,35 @@ jobs:
       - name: Type check with mypy
         run: mypy speakeasy tests/check_public_types.py
 
+  sdist:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Check out the signature submodules
+        run: git submodule update --init --depth 1 deps/win32json deps/phnt
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Build the sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist
+      - name: Check the sdist contents
+        run: |
+          tar tzf dist/*.tar.gz > sdist.txt
+          if grep -q '^[^/]*/tests/' sdist.txt; then
+            echo "::error::the sdist has tests/"
+            exit 1
+          fi
+          for name in win32json phnt; do
+            if ! grep -q "^[^/]*/speakeasy/resources/win32/${name}_signatures.json.gz$" sdist.txt; then
+              echo "::error::the sdist does not have ${name}_signatures.json.gz"
+              exit 1
+            fi
+          done
+
   test:
     runs-on: ubuntu-latest
     permissions:
