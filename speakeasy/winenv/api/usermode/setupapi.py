@@ -1,6 +1,11 @@
+from typing import TYPE_CHECKING
+
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 class SetupApi(api.ApiHandler):
@@ -17,7 +22,7 @@ class SetupApi(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("SetupDiEnumDeviceInfo", argc=3)
-    def SetupDiEnumDeviceInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetupDiEnumDeviceInfo(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetupDiEnumDeviceInfo(
             HDEVINFO DeviceInfoSet,
@@ -29,7 +34,7 @@ class SetupApi(api.ApiHandler):
         return False
 
     @apihook("SetupDiEnumDeviceInterfaces", argc=5)
-    def SetupDiEnumDeviceInterfaces(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def SetupDiEnumDeviceInterfaces(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetupDiEnumDeviceInterfaces(
             HDEVINFO DeviceInfoSet,
