@@ -17,6 +17,7 @@ from rich.logging import RichHandler
 from speakeasy import Speakeasy
 from speakeasy.cli_config import add_config_cli_arguments, get_active_config, get_config_cli_field_specs
 from speakeasy.config import SpeakeasyConfig
+from speakeasy.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -383,6 +384,7 @@ def main():
         default=[],
         help="Mount a host path into the emulated filesystem (host_path:guest_path). May be repeated.",
     )
+    parser.add_argument("--version", action="version", version=f"speakeasy {__version__}")
 
     config_specs = get_config_cli_field_specs()
     add_config_cli_arguments(parser, config_specs)

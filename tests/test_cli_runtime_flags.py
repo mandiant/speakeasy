@@ -9,6 +9,7 @@ import pytest
 
 from speakeasy.cli import get_wall_limit, wait_for_child
 from speakeasy.config import SpeakeasyConfig
+from speakeasy.version import __version__
 from tests.pe_builder import build_pe
 
 
@@ -54,6 +55,13 @@ def test_cli_rejects_bad_arguments(tmp_path, args, message):
     assert result.returncode == 2
     assert message in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_cli_prints_its_version():
+    result = run_cli("--version")
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == f"speakeasy {__version__}"
 
 
 # ud2 at offset 10, so that only a decimal start offset of 10 runs it.

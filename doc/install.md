@@ -26,11 +26,7 @@ python3 scripts/gen_phnt_signatures.py
 
 The last two steps build the API signature databases from the `deps/win32json` and `deps/phnt` submodules (see [Adding API handlers](api-handlers.md)). Wheels built with `python -m build` include them automatically; an editable install needs them generated once, and again after updating the submodules.
 
-Optional GDB support from source:
-
-```console
-python3 -m pip install -e ".[dev,gdb]"
-```
+GDB support ([GDB debugging](gdb.md)) needs no extra packages.
 
 ## Run in Docker
 

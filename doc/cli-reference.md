@@ -10,7 +10,7 @@ speakeasy --target <path-to-sample> [flags]
 
 Rules:
 - `--target` is required for emulation runs.
-- `--dump-default-config` is the only mode that does not require `--target`.
+- `--dump-default-config` and `--version` are the only modes that do not require `--target`.
 
 Default config dump:
 
@@ -39,6 +39,7 @@ These flags are not generated from the config schema.
 - `--gdb-host`: GDB stub bind host (default `127.0.0.1`)
 - `--gdb-port`: GDB stub port (default `1234`)
 - `-V, --volume`: host_path:guest_path mapping (repeatable)
+- `--version`: print the speakeasy version and exit
 
 Notes:
 - `--gdb` implies `--no-mp`; Speakeasy enables this automatically.
