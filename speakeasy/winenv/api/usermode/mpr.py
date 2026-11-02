@@ -3,7 +3,9 @@
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
+from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.windows import mpr
+from speakeasy.winenv.defs.windows.mpr import NET_RESOURCE_SCOPE, NET_RESOURCE_TYPE, WNET_OPEN_ENUM_USAGE
 
 from .. import api
 
@@ -33,17 +35,9 @@ class Mpr(api.ApiHandler):
         """
         dwScope, dwType, dwUsage, lpNetResource, lphEnum = argv
 
-        scope = mpr.get_define_int(dwScope, "RESOURCE_")
-        if scope:
-            ctx.args["dwScope"].display = scope
-
-        type = mpr.get_define_int(dwType, "RESOURCETYPE_")
-        if type:
-            ctx.args["dwType"].display = type
-
-        usage = mpr.get_define_int(dwUsage, "RESOURCEUSAGE_")
-        if usage:
-            ctx.args["dwUsage"].display = usage
+        ctx.args["dwScope"].display = decode(NET_RESOURCE_SCOPE, dwScope)
+        ctx.args["dwType"].display = decode(NET_RESOURCE_TYPE, dwType)
+        ctx.args["dwUsage"].display = decode(WNET_OPEN_ENUM_USAGE, dwUsage)
 
         return mpr.ERROR_NO_NETWORK
 
