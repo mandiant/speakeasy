@@ -433,20 +433,6 @@ class ApiHandler:
             pos = self.emu.get_trace_position()
             profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
-    def record_registry_access_event(
-        self,
-        path,
-        event_type: EventType,
-        value_name=None,
-        data=None,
-        handle=0,
-        disposition=None,
-        access=None,
-        buffer=0,
-        size=None,
-    ):
-        self.emu.record_registry_event(path, event_type, value_name, data, handle, disposition, access, buffer, size)
-
     def record_dns_event(self, domain, ip=""):
         self.emu.record_dns_event(domain, ip)
 
