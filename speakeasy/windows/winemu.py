@@ -572,10 +572,6 @@ class WindowsEmulator(BinaryEmulator):
         """Delete a file."""
         return self.fileman.delete_file(path)
 
-    def pipe_get(self, handle):
-        """Get a pipe object from a handle."""
-        return self.fileman.get_pipe_from_handle(handle)
-
     def get_file_manager(self):
         """Get the file emulation manager."""
         return self.fileman

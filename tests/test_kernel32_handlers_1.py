@@ -48,7 +48,7 @@ def test_map_view_of_unknown_mapping_fails(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     rv, _ = call(dll_emu, "kernel32", "MapViewOfFile", [0x9999, FILE_MAP_READ, 0, 0, 0])
     assert rv == 0
-    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
 
 
 def test_map_view_of_pagefile_section_maps_the_whole_section(dll_emu: Speakeasy) -> None:

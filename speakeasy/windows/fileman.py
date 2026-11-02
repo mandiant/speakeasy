@@ -285,9 +285,15 @@ class FileManager:
             return None
 
     def file_create_mapping(self, hfile, name, size, prot):
+        """
+        Create a mapping of the file of ``hfile``, or of no file for NULL or INVALID_HANDLE_VALUE.
+
+        Raises:
+            InvalidHandle: if ``hfile`` is not an open file handle.
+        """
         f = None
         if hfile and ct.c_int32(hfile).value != windefs.INVALID_HANDLE_VALUE:
-            f = self.get_file_from_handle(hfile)
+            f = self.get_file(hfile)
         fm = FileMap(name, size, prot, f)
         self.mappings.append(fm)
         return self.new_handle(fm)
@@ -353,8 +359,38 @@ class FileManager:
         f = self.get_handle_object(handle, File)
         return None if isinstance(f, Pipe) else f
 
-    def get_pipe_from_handle(self, handle):
-        return self.get_handle_object(handle, Pipe)
+    def get_file(self, handle) -> File:
+        """
+        Get the file of an open handle.
+
+        Raises:
+            InvalidHandle: if the handle is not open, or it refers to a pipe or an object that is not a file.
+        """
+        table: HandleTable = self.emu.get_handle_table()
+        f = table.get(handle, File)
+        if isinstance(f, Pipe):
+            raise InvalidHandle(handle)
+        return f
+
+    def get_pipe(self, handle) -> Pipe:
+        """
+        Get the pipe of an open handle.
+
+        Raises:
+            InvalidHandle: if the handle is not open, or it does not refer to a pipe.
+        """
+        table: HandleTable = self.emu.get_handle_table()
+        return table.get(handle, Pipe)
+
+    def get_mapping(self, handle) -> FileMap:
+        """
+        Get the file mapping of an open handle.
+
+        Raises:
+            InvalidHandle: if the handle is not open, or it does not refer to a file mapping.
+        """
+        table: HandleTable = self.emu.get_handle_table()
+        return table.get(handle, FileMap)
 
     def get_full_path(self, path):
         """Resolve a relative path against the current directory."""

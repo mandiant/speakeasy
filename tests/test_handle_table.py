@@ -16,6 +16,7 @@ DUPLICATE_CLOSE_SOURCE = 0x1
 DUPLICATE_SAME_ACCESS = 0x2
 RET_ADDR = 0x41414141
 BAD_HANDLE = 0x1234
+STD_OUTPUT_HANDLE = 0xFFFFFFF5
 
 
 def dispatch_x86(se: Speakeasy, dll: str, name: str, args: list[int]) -> int:
@@ -162,6 +163,26 @@ def test_close_of_a_file_closes_the_file_handle(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "kernel32", "CloseHandle", [hnd])[0] == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_HANDLE
     assert call(dll_emu, "kernel32", "GetFileSize", [hnd, 0])[0] == 0xFFFFFFFF
+
+
+def test_close_of_a_file_that_is_the_standard_output_closes_the_file(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    name = alloc(dll_emu, b"c:\\out.txt\x00")
+    hnd, _ = call(
+        dll_emu, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, FILE_CREATION_DISPOSITION.CREATE_ALWAYS, 0, 0]
+    )
+    call(dll_emu, "kernel32", "SetStdHandle", [STD_OUTPUT_HANDLE, hnd])
+
+    assert call(dll_emu, "kernel32", "CloseHandle", [hnd])[0] == 1
+    assert call(dll_emu, "kernel32", "GetFileSize", [hnd, 0])[0] == windefs.INVALID_FILE_SIZE
+
+
+def test_a_duplicate_of_the_standard_output_writes_to_it(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    stdout, _ = call(dll_emu, "kernel32", "GetStdHandle", [STD_OUTPUT_HANDLE])
+    written = alloc(dll_emu, b"\x00" * 4)
+    dup = duplicate(dll_emu, stdout)
+    assert call(dll_emu, "kernel32", "WriteFile", [dup, alloc(dll_emu, b"data"), 4, written, 0])[0] == 1
 
 
 def test_kernel_close_of_a_registry_key_closes_the_key(driver_emu: Speakeasy) -> None:
