@@ -27,7 +27,7 @@ Entry-point highlights:
 - `coverage`: populated only if `analysis.coverage=true`.
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
-- `error`: present when the run ended abnormally. `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
+- `error`: present when the run ended abnormally. `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
 
 An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value`,
 and `display`. When the signature database declares the function and its prototype consumes
@@ -104,9 +104,8 @@ thread, even for a local create.
   // Session-level errors, not tied to one entry point.
   "errors": [
     {
-      "type": "top_level_error",
-      "pc": "0x401000",
-      "instr": "mov eax, [ecx]"
+      "type": "invalid_image",
+      "context_summary": "entry point RVA 0x5000 is outside the image (size 0x4000)"
     }
   ],
 
@@ -153,7 +152,10 @@ thread, even for a local create.
       "error": {
         "type": "unsupported_api",
         "pc": "0x401234",
-        "instr": "call dword ptr [eax]"
+        "instr": "call dword ptr [eax]",
+        "registers": {"eax": "0x403000", "esp": "0x12ff70"},
+        "tid": 2000,
+        "pid": 1337
       },
 
       // Unified chronological event stream.
@@ -379,7 +381,8 @@ thread, even for a local create.
           "instr": "int 3",
           "exception_code": "0x80000003",
           "handler_address": "0x401500",
-          "registers": {"eax": "0x0", "ebx": "0x0"}
+          "registers": {"eax": "0x0", "ebx": "0x0"},
+          "stack": ["sp+0x00: 0x00401010", "sp+0x04: 0x00000000"]
         }
       ],
 

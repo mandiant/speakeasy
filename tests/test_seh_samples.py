@@ -12,10 +12,10 @@ import pytest
 
 from speakeasy import Speakeasy
 
-STATUS_GUARD_PAGE_VIOLATION = "0x80000001"
-STATUS_BREAKPOINT = "0x80000003"
-STATUS_SINGLE_STEP = "0x80000004"
-STATUS_PRIVILEGED_INSTRUCTION = "0xc0000096"
+STATUS_GUARD_PAGE_VIOLATION = 0x80000001
+STATUS_BREAKPOINT = 0x80000003
+STATUS_SINGLE_STEP = 0x80000004
+STATUS_PRIVILEGED_INSTRUCTION = 0xC0000096
 
 TROJAN_DISCO = "6957854f43a95f86dee1d3464d65e5f0e1ad5aea41cf9128b63d3b3f72c289f7.exe.xz"
 AMSI_BYPASS = "87173c223a4d16a770de86b9599707b681d4b2752b8aac7990bad53c4249af9f.exe.xz"
@@ -94,7 +94,7 @@ def test_al_khaser_unhandled_exception_filter(config, load_test_bin):
         detected = read_u32(se, flag)
 
     assert run.error is None
-    assert exceptions(run) == ["0xc000008e"]  # EXCEPTION_FLT_DIVIDE_BY_ZERO
+    assert exceptions(run) == [0xC000008E]  # EXCEPTION_FLT_DIVIDE_BY_ZERO
     assert detected == 0
 
 
@@ -111,7 +111,7 @@ def test_raise_exception_anti_emulation(config, load_test_bin):
 
     assert run.error is None
     assert run.ret_val == 0x40010006
-    assert exceptions(run) == ["0x40010006"]
+    assert exceptions(run) == [0x40010006]
 
 
 def test_vmware_backdoor_under_vectored_handler(config, load_test_bin):

@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.profiler import GuestCallbackFrame
+from speakeasy.report import ErrorType
 from speakeasy.windows import guest_callbacks, thread_context
 from speakeasy.windows.cpu_exceptions import ACCESS_CODES, STATUS_GUARD_PAGE_VIOLATION, CpuException
 from speakeasy.windows.guest_callbacks import GeneratorHandler, GuestCall, Resume
@@ -50,12 +51,12 @@ Dispatcher = Callable[..., GeneratorHandler]
 
 class UnhandledException(guest_callbacks.CallbackError):
     def __init__(self, code: int, address: int, information=()):
-        if code == ddk.STATUS_ACCESS_VIOLATION and len(information) >= 2:
+        if code == ddk.STATUS_ACCESS_VIOLATION and len(information) >= 2 and information[0] in ACCESS_TYPES:
             # The error of the fault, as when no handler sees it
-            access_type = ACCESS_TYPES.get(information[0])
-            super().__init__(f"invalid_{access_type}", information[1], access_type, pc=address)
+            access_type = ACCESS_TYPES[information[0]]
+            super().__init__(ErrorType(f"invalid_{access_type}"), information[1], access_type, pc=address)
         else:
-            super().__init__("unhandled_exception", address, pc=address)
+            super().__init__(ErrorType.UNHANDLED_EXCEPTION, address, pc=address)
         self.code: int = code
 
 

@@ -53,17 +53,17 @@ def test_invalid_read_error_fields(_read_error):
     assert e.instr is not None
     assert "mov" in e.instr.lower()
     assert e.pc_module is not None
-    assert e.thread_id is not None
-    assert e.process_id is not None
+    assert e.tid is not None
+    assert e.pid is not None
 
 
 def test_invalid_read_has_register_state(_read_error):
     e = _read_error
-    assert e.regs is not None
-    assert "eax" in e.regs
-    assert e.regs["eax"] == "0xdeadbeef"
+    assert e.registers is not None
+    assert "eax" in e.registers
+    assert e.registers["eax"] == 0xDEADBEEF
     for reg in ("esp", "ebp", "eip"):
-        assert reg in e.regs
+        assert reg in e.registers
 
 
 def test_invalid_read_has_stack_trace(_read_error):
@@ -120,7 +120,7 @@ def test_error_info_round_trips_through_json(_read_error):
     assert restored.address == e.address
     assert restored.access_type == e.access_type
     assert restored.context_summary == e.context_summary
-    assert restored.regs == e.regs
+    assert restored.registers == e.registers
 
 
 def test_python_exception_in_speakeasy_is_internal_error(base_config):

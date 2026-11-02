@@ -160,7 +160,7 @@ def test_debug_service_without_exception_skips_a_byte(config):
     "insn, error, interrupt_num",
     [
         (b"\xcc", "unhandled_interrupt", 3),
-        (b"\x0f\x0b", "Invalid instruction (UC_ERR_INSN_INVALID)", None),
+        (b"\x0f\x0b", "invalid_instruction", None),
         (b"\xf4", "privileged_instruction", None),
         (b"\xc6\x00\x00", "invalid_protect_write", None),  # mov byte [rax], 0
     ],
@@ -252,7 +252,7 @@ def test_guard_page_raises_once_on_execute(config):
     assert run.error is None
     assert run.ret_val == 42
     assert record == (STATUS_GUARD_PAGE_VIOLATION, page, 8, page)
-    assert [e.exception_code for e in run.events or [] if e.event == "exception"] == ["0x80000001"]
+    assert [e.exception_code for e in run.events or [] if e.event == "exception"] == [0x80000001]
 
 
 def test_guard_page_raises_on_execute_of_code_that_ran(config):
@@ -382,7 +382,7 @@ def test_contributory_exception_can_repeat(config, load_test_bin):
         run = module_entry(se)
 
     faults = [(e.exception_code, e.pos.pc) for e in run.events or [] if e.event == "exception"][:3]
-    assert [code for code, _ in faults] == [hex(STATUS_ACCESS_VIOLATION)] * 3
+    assert [code for code, _ in faults] == [STATUS_ACCESS_VIOLATION] * 3
     assert [pc for _, pc in faults] == [0x40F231, 0x4115A7, 0x4115A7]
 
 
@@ -408,7 +408,7 @@ def test_invalid_instruction_without_handler_dispatch_ends_the_run(config):
 
         run = se.get_report().entry_points[0]
         assert run.error is not None
-        assert (run.error.type, run.error.pc) == ("Invalid instruction (UC_ERR_INSN_INVALID)", code + 1)
+        assert (run.error.type, run.error.pc) == ("invalid_instruction", code + 1)
 
 
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):

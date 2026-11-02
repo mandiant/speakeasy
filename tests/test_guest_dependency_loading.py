@@ -224,7 +224,7 @@ def test_failed_dllmain_fails_runtime_load_and_unmaps_dll(config, tmp_path, arch
 
 @pytest.mark.parametrize(
     "fault_body, error",
-    [(None, "invalid_read"), (b"\x0f\x0b", "Invalid instruction (UC_ERR_INSN_INVALID)")],
+    [(None, "invalid_read"), (b"\x0f\x0b", "invalid_instruction")],
     ids=["read", "ud2"],
 )
 @pytest.mark.parametrize("arch", ["x86", "amd64"])

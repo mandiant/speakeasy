@@ -18,7 +18,7 @@ from speakeasy.engines import unicorn_eng
 from speakeasy.errors import EmuException
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
-from speakeasy.report import ErrorInfo, Report
+from speakeasy.report import ErrorInfo, ErrorType, Report
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 logger = logging.getLogger(__name__)
@@ -182,7 +182,7 @@ class BinaryEmulator(MemoryManager, ABC):
         except Exception as e:
             if self.profiler:
                 error = ErrorInfo(
-                    type="internal_error", traceback=traceback.format_exc(), message=str(e) or type(e).__name__
+                    type=ErrorType.INTERNAL_ERROR, traceback=traceback.format_exc(), message=str(e) or type(e).__name__
                 )
                 self.profiler.record_error_event(error)
             self.on_emu_complete()
@@ -254,7 +254,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         return self._cs_disasm(mem, addr, fast=fast)
 
-    def get_register_state(self) -> dict[str, str]:
+    def get_register_state(self) -> dict[str, int]:
         """Get the current state of registers from the emulator."""
         regs = {}
         if self.get_arch() == e_arch.ARCH_X86:
@@ -269,8 +269,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 ("ecx", e_arch.X86_REG_ECX),
                 ("edx", e_arch.X86_REG_EDX),
             ):
-                val = self.reg_read(reg)
-                regs[name] = "{0:#0{1}x}".format(val, 2 + (self.get_ptr_size() * 2))
+                regs[name] = self.reg_read(reg)
         elif self.get_arch() == e_arch.ARCH_AMD64:
             for name, reg in (
                 ("rsp", e_arch.AMD64_REG_RSP),
@@ -291,8 +290,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 ("r14", e_arch.AMD64_REG_R14),
                 ("r15", e_arch.AMD64_REG_R15),
             ):
-                val = self.reg_read(reg)
-                regs[name] = "{0:#0{1}x}".format(val, 2 + (self.get_ptr_size() * 2))
+                regs[name] = self.reg_read(reg)
         return regs
 
     def get_disasm(self, addr, size, fast=True):

@@ -17,6 +17,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import EventType
+from speakeasy.report import ErrorType
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
@@ -3506,7 +3507,7 @@ class Ntoskrnl(api.ApiHandler):
         reason = f"bug check 0x{BugCheckCode & 0xFFFFFFFF:x} ({', '.join(hex(p) for p in params)})"
         logger.error("%s: %s", ctx.func_name, reason)
 
-        error = emu.get_error_info("bug_check", emu.get_ret_address(), api_name=ctx.func_name)
+        error = emu.get_error_info(ErrorType.BUG_CHECK, emu.get_ret_address(), api_name=ctx.func_name)
         error.api_name = ctx.func_name
         error.context_summary = f"{error.context_summary}: {reason}"
         emu.get_current_run().error = error

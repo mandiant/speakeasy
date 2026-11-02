@@ -588,9 +588,8 @@
       "description": "Captures failure context for top-level or per-entry-point errors.\n\nError records can represent unsupported API termination, instruction faults,\nexplicit runtime limits, or unhandled exceptions.\n\nInspect this structure first when a run exits unexpectedly.",
       "properties": {
         "type": {
-          "description": "Error category identifier describing the failure mode.\n\nExamples include unsupported API paths, max API limits, and fault conditions raised by emulator hooks. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``.",
-          "title": "Type",
-          "type": "string"
+          "$ref": "#/$defs/ErrorType",
+          "description": "Error category identifier describing the failure mode.\n\nExamples include unsupported API paths, max API limits, and fault conditions raised by emulator hooks. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
         },
         "pc": {
           "anyOf": [
@@ -644,7 +643,7 @@
           "description": "Memory access type that faulted: read, write, or fetch.",
           "title": "Access Type"
         },
-        "regs": {
+        "registers": {
           "anyOf": [
             {
               "additionalProperties": {
@@ -658,7 +657,7 @@
           ],
           "default": null,
           "description": "Register state snapshot at the time of the error.",
-          "title": "Regs"
+          "title": "Registers"
         },
         "stack": {
           "anyOf": [
@@ -673,7 +672,7 @@
             }
           ],
           "default": null,
-          "description": "Stack trace entries captured at the time of the error.",
+          "description": "Stack entries captured at the time of the error.",
           "title": "Stack"
         },
         "pc_module": {
@@ -717,7 +716,7 @@
           "description": "Up to 2 nearest memory regions when the faulting address is unmapped.",
           "title": "Nearby Regions"
         },
-        "thread_id": {
+        "tid": {
           "anyOf": [
             {
               "type": "integer"
@@ -728,9 +727,9 @@
           ],
           "default": null,
           "description": "Thread ID at the time of the error.",
-          "title": "Thread Id"
+          "title": "Tid"
         },
-        "process_id": {
+        "pid": {
           "anyOf": [
             {
               "type": "integer"
@@ -741,7 +740,7 @@
           ],
           "default": null,
           "description": "Process ID at the time of the error.",
-          "title": "Process Id"
+          "title": "Pid"
         },
         "context_summary": {
           "anyOf": [
@@ -841,6 +840,36 @@
       "title": "ErrorInfo",
       "type": "object"
     },
+    "ErrorType": {
+      "description": "Reason why a run or the emulation ended with an error.",
+      "enum": [
+        "timeout",
+        "max_total_time",
+        "max_instructions",
+        "max_api_count",
+        "unsupported_api",
+        "internal_error",
+        "engine_stopped",
+        "invalid_image",
+        "dll_initialization_failed",
+        "api_handler_did_not_return",
+        "invalid_read",
+        "invalid_write",
+        "invalid_fetch",
+        "invalid_protect_read",
+        "invalid_protect_write",
+        "invalid_protect_fetch",
+        "guard_page_violation",
+        "privileged_instruction",
+        "invalid_instruction",
+        "unhandled_interrupt",
+        "unhandled_exception",
+        "hardware_breakpoint",
+        "bug_check"
+      ],
+      "title": "ErrorType",
+      "type": "string"
+    },
     "ExceptionEvent": {
       "additionalProperties": false,
       "description": "Records handled exception dispatch activity.\n\nEmitted when exception handling telemetry is captured during execution.\n\nUse this to understand exception-driven control flow and anti-analysis logic.",
@@ -862,7 +891,7 @@
           "type": "string"
         },
         "exception_code": {
-          "description": "Exception code in hexadecimal string form.",
+          "description": "Exception code, such as ``0xc0000005``.",
           "title": "Exception Code",
           "type": "string"
         },
@@ -879,7 +908,7 @@
           "title": "Registers",
           "type": "object"
         },
-        "faulting_address": {
+        "address": {
           "anyOf": [
             {
               "type": "string"
@@ -889,8 +918,8 @@
             }
           ],
           "default": null,
-          "description": "Address that caused the fault, if applicable.",
-          "title": "Faulting Address"
+          "description": "Memory address that caused an access violation or a guard page violation.",
+          "title": "Address"
         },
         "pc_module": {
           "anyOf": [
@@ -905,7 +934,7 @@
           "description": "Module name + offset containing the faulting PC.",
           "title": "Pc Module"
         },
-        "stack_trace": {
+        "stack": {
           "anyOf": [
             {
               "items": {
@@ -918,8 +947,8 @@
             }
           ],
           "default": null,
-          "description": "Stack trace at exception time.",
-          "title": "Stack Trace"
+          "description": "Stack entries at exception time.",
+          "title": "Stack"
         }
       },
       "required": [

@@ -87,19 +87,19 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
     failed = [case for bit, case in cases.items() if not ep.ret_val & bit]
     assert not failed
 
-    exceptions = [(e.exception_code, e.faulting_address) for e in ep.events or [] if e.event == "exception"]
+    exceptions = [(e.exception_code, e.address) for e in ep.events or [] if e.event == "exception"]
     assert exceptions == [
-        ("0xe0000001", None),
-        ("0xe0000002", None),
-        ("0xc0000005", "0x0"),
-        ("0xe0000003", None),
-        ("0x80000003", None),
-        ("0xe0000005", None),
-        ("0xc0000005", "0x10"),
-        ("0x80000004", None),
-        ("0x80000004", None),
-        ("0xe0000009", None),
-        ("0xc0000005", "0x0"),
-        ("0xc0000005", "0x1300000"),
-        ("0xc0000005", "0x0"),
-    ] + ([("0xc0000005", "0x0")] if arch == "x86" else [])
+        (0xE0000001, None),
+        (0xE0000002, None),
+        (0xC0000005, 0x0),
+        (0xE0000003, None),
+        (0x80000003, None),
+        (0xE0000005, None),
+        (0xC0000005, 0x10),
+        (0x80000004, None),
+        (0x80000004, None),
+        (0xE0000009, None),
+        (0xC0000005, 0x0),
+        (0xC0000005, 0x1300000),
+        (0xC0000005, 0x0),
+    ] + ([(0xC0000005, 0x0)] if arch == "x86" else [])

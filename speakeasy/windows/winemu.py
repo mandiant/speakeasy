@@ -31,7 +31,7 @@ from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuErr
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
-from speakeasy.report import ErrorInfo, RegionInfo
+from speakeasy.report import ErrorInfo, ErrorType, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
@@ -151,7 +151,7 @@ class RaisedCpuException:
     """A CPU exception that goes to the exception handlers of the guest."""
 
     exception: cpu_exceptions.CpuException
-    error_type: str  # the run's error if no handler takes it
+    error_type: ErrorType  # the run's error if no handler takes it
     interrupt_num: int | None = None
     access_type: str | None = None
     rax: int | None = None  # restored before dispatch, since IN overwrites it
@@ -809,9 +809,9 @@ class WindowsEmulator(BinaryEmulator):
             routine, self.get_return_val(), faulted=run.error is not None
         ):
             return
-        run.error = run.error or ErrorInfo(type="dll_initialization_failed", pc=self.get_pc())
+        run.error = run.error or ErrorInfo(type=ErrorType.DLL_INITIALIZATION_FAILED, pc=self.get_pc())
         logger.warning(
-            "guest initializer failed for %s in process %s: %s", routine.module.name, routine.pid, run.error.type
+            "guest initializer failed for %s in process %s: %s", routine.module.name, routine.pid, run.error.type.value
         )
         # Keep the module mapped, because bound import slots can point into it.
         routine.module.load_states[routine.pid] = LoadState.INIT_ERROR
@@ -1064,7 +1064,9 @@ class WindowsEmulator(BinaryEmulator):
         if self.curr_run is origin_run and self._stopped_at_hlt(
             limits.deadline, limits.last_executed, native_count, debugger
         ):
-            self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc() - 1), "privileged_instruction")
+            self.raise_cpu_exception(
+                cpu_exceptions.privileged_instruction(self.get_pc() - 1), ErrorType.PRIVILEGED_INSTRUCTION
+            )
         return True
 
     def _exit_explains_error(self, exc: uc.UcError) -> bool:
@@ -1131,7 +1133,7 @@ class WindowsEmulator(BinaryEmulator):
         stopped = self.exit_event is not None and self.exit_event.is_set()
         if stopped and debugger is None and self.curr_run is origin_run and not self.is_run_complete:
             if origin_run.error is None:
-                origin_run.error = ErrorInfo(type="timeout", pc=self.get_pc())
+                origin_run.error = ErrorInfo(type=ErrorType.TIMEOUT, pc=self.get_pc())
             self._cancel_execution_runs()
         total_budget = limits.total_budget
         if total_budget is not None:
@@ -1144,7 +1146,7 @@ class WindowsEmulator(BinaryEmulator):
                 prepared = self.curr_run
                 if prepared is origin_run:
                     if not self.is_run_complete and origin_run.error is None:
-                        origin_run.error = ErrorInfo(type="max_total_time", pc=self.get_pc())
+                        origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
                 elif prepared is not None:
                     # Completing the run already prepared the next one. It
                     # did not execute and must not appear as a started run.
@@ -1235,7 +1237,7 @@ class WindowsEmulator(BinaryEmulator):
             self._stop_at_limit(reached, limits, origin_run, debugger)
         elif debugger is None and not self.is_run_complete:
             logger.error("0x%x: Emulation engine stopped", self.get_pc())
-            origin_run.error = self.get_error_info("engine_stopped", self.get_pc())
+            origin_run.error = self.get_error_info(ErrorType.ENGINE_STOPPED, self.get_pc())
             self.on_run_complete()
 
     def _stop_at_limit(self, kind: str, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
@@ -1259,7 +1261,7 @@ class WindowsEmulator(BinaryEmulator):
             # A limit that expires while a fault is completing keeps the fault as
             # the run's error.
             if self.curr_run is origin_run and origin_run.error is None:
-                origin_run.error = ErrorInfo(type=kind, pc=self.get_pc())
+                origin_run.error = ErrorInfo(type=ErrorType(kind), pc=self.get_pc())
         else:
             logger.error("* Instruction limit of %d reached.", limits.budget)
         if debugger is not None:
@@ -1267,7 +1269,7 @@ class WindowsEmulator(BinaryEmulator):
         elif self.curr_run is origin_run:
             if origin_run.error is None:
                 origin_run.error = ErrorInfo(
-                    type=kind, pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
+                    type=ErrorType(kind), pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
                 )
             self.on_run_complete()
 
@@ -1451,10 +1453,13 @@ class WindowsEmulator(BinaryEmulator):
                     logger.error(str(dis_err))
 
                 if isinstance(e, uc.UcError) and e.errno == uc.UC_ERR_INSN_INVALID:
-                    error = self.get_error_info(str(e), self.get_pc(), traceback=stack_trace)
+                    error = self.get_error_info(ErrorType.INVALID_INSTRUCTION, self.get_pc(), traceback=stack_trace)
                 else:
                     error = self.get_error_info(
-                        "internal_error", self.get_pc(), traceback=stack_trace, message=str(e) or type(e).__name__
+                        ErrorType.INTERNAL_ERROR,
+                        self.get_pc(),
+                        traceback=stack_trace,
+                        message=str(e) or type(e).__name__,
                     )
                 self._set_run_error(error)
                 terminal_signal = GDB_SIGSEGV
@@ -1899,7 +1904,7 @@ class WindowsEmulator(BinaryEmulator):
         if is_input:
             self.modules.insert(0, mod)
             for problem in image.problems:
-                self.profiler.record_error_event(ErrorInfo(type="invalid_image", context_summary=problem))
+                self.profiler.record_error_event(ErrorInfo(type=ErrorType.INVALID_IMAGE, context_summary=problem))
         else:
             self.modules.append(mod)
         self.api_registry.register_module(mod)
@@ -2329,10 +2334,10 @@ class WindowsEmulator(BinaryEmulator):
         """From a Unicorn hook: raise the access violation of an access to unmapped memory."""
         pc = address if access_type == "fetch" else self.get_pc()
         exception = cpu_exceptions.memory_fault(pc, address, access_type)
-        self.raise_cpu_exception(exception, f"invalid_{access_type}", access_type=access_type)
+        self.raise_cpu_exception(exception, ErrorType(f"invalid_{access_type}"), access_type=access_type)
         return False
 
-    def raise_cpu_exception(self, exception, error_type, **details):
+    def raise_cpu_exception(self, exception, error_type: ErrorType, **details):
         """From a Unicorn hook: stop Unicorn. The run loop then sends the exception to the guest."""
         self._record_exit(RaisedCpuException(exception, error_type, **details))
 
@@ -2403,11 +2408,11 @@ class WindowsEmulator(BinaryEmulator):
                 pc, address, access_type, code=cpu_exceptions.STATUS_GUARD_PAGE_VIOLATION
             )
             self.raise_cpu_exception(
-                exception, "guard_page_violation", access_type=access_type, guard_page=(page, perms)
+                exception, ErrorType.GUARD_PAGE_VIOLATION, access_type=access_type, guard_page=(page, perms)
             )
         else:
             exception = cpu_exceptions.memory_fault(pc, address, access_type)
-            self.raise_cpu_exception(exception, f"invalid_protect_{access_type}", access_type=access_type)
+            self.raise_cpu_exception(exception, ErrorType(f"invalid_protect_{access_type}"), access_type=access_type)
         return False
 
     def _step_had_no_effect(self, registers, debugger):
@@ -2451,18 +2456,18 @@ class WindowsEmulator(BinaryEmulator):
             return False
         pc = self.get_pc()
         exception = cpu_exceptions.from_invalid_instruction(pc, self.mem_read(pc, 1))
-        self.raise_cpu_exception(exception, "Invalid instruction (UC_ERR_INSN_INVALID)")
+        self.raise_cpu_exception(exception, ErrorType.INVALID_INSTRUCTION)
         return False
 
     def _hook_in_instruction(self, uc_engine, port, size, user_data):
         rax = self.get_return_val()
         self.raise_cpu_exception(
-            cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction", rax=rax
+            cpu_exceptions.privileged_instruction(self.get_pc()), ErrorType.PRIVILEGED_INSTRUCTION, rax=rax
         )
         return rax & 0xFFFFFFFF
 
     def _hook_out_instruction(self, uc_engine, port, size, value, user_data):
-        self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), "privileged_instruction")
+        self.raise_cpu_exception(cpu_exceptions.privileged_instruction(self.get_pc()), ErrorType.PRIVILEGED_INSTRUCTION)
 
     def _get_suspended_api_call(self, entry: ApiEntry) -> SuspendedApiCall:
         sp = self.get_stack_ptr()
@@ -2563,7 +2568,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_error_info(
         self,
-        desc: str,
+        desc: ErrorType,
         address: int,
         traceback: str | None = None,
         access_type: str | None = None,
@@ -2589,7 +2594,7 @@ class WindowsEmulator(BinaryEmulator):
                 logger.error(str(e))
                 instr = "disasm_failed"
 
-        regs = self.get_register_state()
+        registers = self.get_register_state()
         stack = self.get_stack_trace()
         pc_module = self._resolve_module_offset(pc)
         address_region = self._resolve_region_info(address)
@@ -2597,7 +2602,7 @@ class WindowsEmulator(BinaryEmulator):
         tid = self.curr_thread.tid if self.curr_thread else None
         pid = self.curr_process.id if self.curr_process else None
 
-        label = f"{desc}: {message}" if message else desc
+        label = f"{desc.value}: {message}" if message else desc.value
         if api_name:
             summary = f"{label} {api_name} called from {self._resolve_module_offset(address) or hex(address)}"
         else:
@@ -2612,7 +2617,7 @@ class WindowsEmulator(BinaryEmulator):
             label,
             summary,
             instr,
-            "  ".join(f"{k}={v}" for k, v in regs.items()),
+            "  ".join(f"{k}={v:#x}" for k, v in registers.items()),
         )
 
         return ErrorInfo(
@@ -2621,13 +2626,13 @@ class WindowsEmulator(BinaryEmulator):
             address=address,
             access_type=access_type,
             instr=instr,
-            regs=regs,
+            registers=registers,
             stack=stack,
             pc_module=pc_module,
             address_region=address_region,
             nearby_regions=nearby_regions,
-            thread_id=tid,
-            process_id=pid,
+            tid=tid,
+            pid=pid,
             context_summary=summary,
             traceback=traceback,
             message=message,
@@ -2918,7 +2923,7 @@ class WindowsEmulator(BinaryEmulator):
                 and self._native_exit is None
                 and not origin_run.guest_callbacks
             ):
-                origin_run.error = self.get_error_info("api_handler_did_not_return", entry_pc)
+                origin_run.error = self.get_error_info(ErrorType.API_HANDLER_DID_NOT_RETURN, entry_pc)
                 origin_run.error.api_name = f"{dll}.{name}"
                 logger.error("API handler %s.%s changed SP without returning", dll, name)
                 self.end_run_on_fault()
@@ -2927,7 +2932,7 @@ class WindowsEmulator(BinaryEmulator):
             kind, address, access_type, _ = guest_callbacks.get_handler_fault(self, e, entry_pc)
             if access_type is None or self._should_stop_on_faults:
                 raise
-            logger.error("0x%x: %s in the call of %s.%s", entry_pc, kind, dll, name)
+            logger.error("0x%x: %s in the call of %s.%s", entry_pc, kind.value, dll, name)
             guest_callbacks.fail(self, guest_callbacks.CallbackError(kind, address, access_type))
         finally:
             self._active_api_frame = previous
@@ -3103,7 +3108,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def _handle_unsupported_api(self, call: _ApiCallState) -> None:
         """End the run with an unsupported_api error."""
-        error = self.get_error_info("unsupported_api", call.return_address, api_name=call.api_name)
+        error = self.get_error_info(ErrorType.UNSUPPORTED_API, call.return_address, api_name=call.api_name)
         logger.error("Unsupported API: %s (ret: 0x%x)", call.api_name, call.return_address)
         self.log_api(call.call_pc, call.api_name, None, [], run=call.run)
         error.api_name = call.api_name
@@ -3115,7 +3120,7 @@ class WindowsEmulator(BinaryEmulator):
         if run is origin_run and run and run.get_api_count() > self.config.max_api_calls:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             run.error = ErrorInfo(
-                type="max_api_count",
+                type=ErrorType.MAX_API_COUNT,
                 pc=self.get_pc(),
                 count=self.config.max_api_calls,
                 last_api=imp_api,
@@ -3218,7 +3223,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self.is_kernel_mode and (guarded or self.config.exceptions.dispatch_handlers):
             return self._raise_protection_fault(address, "write")
 
-        error = self.get_error_info("invalid_protect_write", address, access_type="write")
+        error = self.get_error_info(ErrorType.INVALID_PROTECT_WRITE, address, access_type="write")
         self._set_run_error(error)
         self.end_run_on_fault()
         return True
@@ -3286,7 +3291,7 @@ class WindowsEmulator(BinaryEmulator):
         """Log the current exception, save it as the run error, and stop emulation."""
         logger.exception(description)
         error = self.get_error_info(
-            "internal_error",
+            ErrorType.INTERNAL_ERROR,
             self.get_pc(),
             traceback=traceback.format_exc(),
             message=str(exception) or type(exception).__name__,
@@ -3409,7 +3414,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._record_exit(ExecRecovery(page, perms | common.PERM_MEM_EXEC))
                 return False
             return True
-        error = self.get_error_info("invalid_protect_fetch", address, access_type="fetch")
+        error = self.get_error_info(ErrorType.INVALID_PROTECT_FETCH, address, access_type="fetch")
         self._set_run_error(error)
         self.end_run_on_fault()
         return False
@@ -3692,7 +3697,7 @@ class WindowsEmulator(BinaryEmulator):
             handler_desc,
             instr,
             pc_module or f"0x{address:x}",
-            "  ".join(f"{k}={v}" for k, v in registers.items()),
+            "  ".join(f"{k}={v:#x}" for k, v in registers.items()),
         )
         if self.profiler:
             run = self.get_current_run()
@@ -3706,9 +3711,9 @@ class WindowsEmulator(BinaryEmulator):
                 code,
                 handler,
                 registers,
-                faulting_address=hex(faulting_address) if faulting_address is not None else None,
+                address=faulting_address,
                 pc_module=pc_module,
-                stack_trace=self.get_stack_trace(),
+                stack=self.get_stack_trace(),
             )
 
     _SEH_MAX_REPEAT = 4
@@ -3803,7 +3808,7 @@ class WindowsEmulator(BinaryEmulator):
             if exception is None:
                 self.set_pc(cpu_exceptions.skip_debug_service(pc))
             else:
-                self.raise_cpu_exception(exception, "unhandled_interrupt", interrupt_num=intnum)
+                self.raise_cpu_exception(exception, ErrorType.UNHANDLED_INTERRUPT, interrupt_num=intnum)
             return True
 
         # Handle __fastfail interrupt introduced in Windows 8
@@ -3823,7 +3828,7 @@ class WindowsEmulator(BinaryEmulator):
         pc = self.get_pc()
         logger.debug("interrupt: intnum=0x%x", intnum)
         logger.error("0x%x: Unhandled interrupt: intnum=0x%x", pc, intnum)
-        error = self.get_error_info("unhandled_interrupt", pc)
+        error = self.get_error_info(ErrorType.UNHANDLED_INTERRUPT, pc)
         error.interrupt_num = intnum
         self._set_run_error(error)
 
