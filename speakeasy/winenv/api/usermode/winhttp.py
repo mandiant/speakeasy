@@ -1,6 +1,7 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 from socket import inet_aton
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.arch as _arch
@@ -8,6 +9,9 @@ import speakeasy.winenv.defs.wininet as windefs
 from speakeasy.windows import netman
 
 from .. import api
+
+if TYPE_CHECKING:
+    from speakeasy.windows.win32 import Win32Emulator
 
 
 def is_ip_address(ip):
@@ -36,7 +40,7 @@ class WinHttp(api.ApiHandler):
         super().__get_hook_attrs__(self)
 
     @apihook("WinHttpOpen", argc=5, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpOpen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpOpen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET WinHttpOpen(
             LPCWSTR pszAgentW,
@@ -46,6 +50,9 @@ class WinHttp(api.ApiHandler):
             DWORD dwFlags
         );
         """
+        ua: int | str
+        proxy: int | str
+        bypass: int | str
         ua, access, proxy, bypass, flags = argv
 
         if ua:
@@ -63,7 +70,7 @@ class WinHttp(api.ApiHandler):
         return hnd
 
     @apihook("WinHttpConnect", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpConnect(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpConnect(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET WinHttpConnect(
             HINTERNET hSession,
@@ -72,6 +79,7 @@ class WinHttp(api.ApiHandler):
             DWORD dwReserved
         );
         """
+        server: int | str
         hnd, server, port, reserve = argv
         port &= 0xFFFF
 
@@ -89,7 +97,7 @@ class WinHttp(api.ApiHandler):
         return hdl
 
     @apihook("WinHttpOpenRequest", argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpOpenRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpOpenRequest(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HINTERNET WinHttpOpenRequest(
             HINTERNET hConnect,
@@ -101,6 +109,11 @@ class WinHttp(api.ApiHandler):
             DWORD dwFlags
         );
         """
+        verb: int | str
+        objname: int | str
+        ver: int | str
+        ref: int | str
+        accepts: int | str
         hnd, verb, objname, ver, ref, accepts, flags = argv
 
         if verb:
@@ -129,7 +142,9 @@ class WinHttp(api.ApiHandler):
         return hdl
 
     @apihook("WinHttpGetIEProxyConfigForCurrentUser", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpGetIEProxyConfigForCurrentUser(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpGetIEProxyConfigForCurrentUser(
+        self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+    ):
         """
         BOOL WinHttpGetIEProxyConfigForCurrentUser(
             WINHTTP_CURRENT_USER_IE_PROXY_CONFIG *pProxyConfig
@@ -144,7 +159,7 @@ class WinHttp(api.ApiHandler):
         return True
 
     @apihook("WinHttpGetProxyForUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpGetProxyForUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpGetProxyForUrl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpGetProxyForUrl(
             HINTERNET hSession,
@@ -156,8 +171,7 @@ class WinHttp(api.ApiHandler):
         hnd, url, proxopts, proxinfo = argv
 
         if url:
-            url = self.read_mem_string(url, 2)
-            ctx.args["lpcwszUrl"].display = url
+            ctx.args["lpcwszUrl"].display = self.read_mem_string(url, 2)
 
         if proxinfo:
             ps = self.get_ptr_size()
@@ -166,7 +180,7 @@ class WinHttp(api.ApiHandler):
         return True
 
     @apihook("WinHttpSetOption", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpSetOption(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpSetOption(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpSetOption(
             HINTERNET hInternet,
@@ -180,7 +194,7 @@ class WinHttp(api.ApiHandler):
         return True
 
     @apihook("WinHttpSendRequest", argc=7, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpSendRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpSendRequest(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpSendRequest(
             HINTERNET hRequest,
@@ -192,6 +206,7 @@ class WinHttp(api.ApiHandler):
             DWORD_PTR dwContext
         );
         """
+        headers: int | str
         hnd, headers, hdrlen, lpOptional, dwOptionalLength, totlen, context = argv
 
         body = b""
@@ -217,7 +232,7 @@ class WinHttp(api.ApiHandler):
         return rv
 
     @apihook("WinHttpReceiveResponse", argc=2, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpReceiveResponse(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpReceiveResponse(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpReceiveResponse(
             HINTERNET hRequest,
@@ -229,7 +244,7 @@ class WinHttp(api.ApiHandler):
         return True
 
     @apihook("WinHttpReadData", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpReadData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpReadData(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpReadData(
             HINTERNET hRequest,
@@ -255,7 +270,7 @@ class WinHttp(api.ApiHandler):
         return rv
 
     @apihook("WinHttpQueryDataAvailable", argc=2, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpQueryDataAvailable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpQueryDataAvailable(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpQueryDataAvailable(
             HINTERNET hRequest,
@@ -273,7 +288,7 @@ class WinHttp(api.ApiHandler):
         return True
 
     @apihook("WinHttpCrackUrl", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpCrackUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpCrackUrl(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpCrackUrl(
             LPCWSTR pwszUrl,
@@ -323,7 +338,7 @@ class WinHttp(api.ApiHandler):
         return rv
 
     @apihook("WinHttpAddRequestHeaders", argc=4, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpAddRequestHeaders(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpAddRequestHeaders(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpAddRequestHeaders(
             HINTERNET hRequest,
@@ -343,7 +358,7 @@ class WinHttp(api.ApiHandler):
         return rv
 
     @apihook("WinHttpQueryHeaders", argc=6, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpQueryHeaders(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpQueryHeaders(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpQueryHeaders(
             HINTERNET hRequest,
@@ -394,7 +409,7 @@ class WinHttp(api.ApiHandler):
         return 1
 
     @apihook("WinHttpCloseHandle", argc=1, conv=_arch.CALL_CONV_STDCALL)
-    def WinHttpCloseHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def WinHttpCloseHandle(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL WinHttpCloseHandle(
             HINTERNET hInternet
