@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
+from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import ADDRESS_FAMILY, SOCKET_OPTION, SOCKET_OPTION_LEVEL, SOCKET_TYPE
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.winsock import winsock
@@ -265,7 +266,7 @@ class Ws2_32(api.ApiHandler):
         if name and host:
             host += "\x00"
             if namelen >= len(host):
-                out = host.encode("utf-8")
+                out = encode_ansi(host)
                 self.mem_write(name, out)
                 rv = 0
         return rv
