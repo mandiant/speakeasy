@@ -3,7 +3,7 @@
 import base64
 from typing import TYPE_CHECKING
 
-import speakeasy.winenv.defs.windows.advapi32 as adv32
+import speakeasy.winenv.defs.windows.advapi32 as adv32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 
 from .. import api
@@ -77,7 +77,7 @@ class Ncrypt(api.ApiHandler):
         if hProvider and phKey:
             prov_ctx = cm.crypt_get(hProvider)
             if not prov_ctx:
-                return adv32.NTE_INVALID_HANDLE
+                return adv32defs.NTE_INVALID_HANDLE
             hnd = prov_ctx.import_key(
                 blob_type=blob_type,
                 blob=blob,

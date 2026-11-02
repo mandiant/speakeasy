@@ -6,7 +6,7 @@ import speakeasy.winenv.defs.windows.shell32 as shell32_defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE
-from speakeasy.winenv.defs.windows import com
+from speakeasy.winenv.defs.windows import com as comdefs
 
 from .. import api
 
@@ -122,7 +122,7 @@ class Shell32(api.ApiHandler):
         return path.format(user=emu.config.user.name)
 
     def get_known_folder(self, emu, rfid):
-        guid = com.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
+        guid = comdefs.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
         folder = shell32_defs.KNOWN_FOLDERS.get(guid)
         if emu.get_ptr_size() == 8:
             folder = shell32_defs.KNOWN_FOLDERS_X64.get(guid, folder)

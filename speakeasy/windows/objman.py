@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, Any
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 from speakeasy.windows import thread_context
-from speakeasy.winenv.defs.nt import ddk, ntoskrnl
+from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.nt import ntoskrnl as ntos
 
 if TYPE_CHECKING:
     from speakeasy.windows.loaders import RuntimeModule
@@ -96,7 +97,7 @@ class KernelObject:
         self.arch: int = emu.get_arch()
         self.id: int = emu.handle_allocator.allocate_kernel_object_id()
 
-        self.nt_types: ModuleType = ntoskrnl
+        self.nt_types: ModuleType = ntos
 
     def sizeof(self, obj=None):
         if obj:

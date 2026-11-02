@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import speakeasy.winenv.arch as _arch
-import speakeasy.winenv.defs.wininet as windefs
+import speakeasy.winenv.defs.wininet as inetdefs
 from speakeasy.windows import netman
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.wininet import INTERNET_FLAGS
@@ -169,15 +169,15 @@ class Wininet(api.ApiHandler):
             ctx.args["lpszUrl"].display = url
             rv = True
 
-            uc = windefs.URL_COMPONENTS(emu.get_ptr_size())
+            uc = inetdefs.URL_COMPONENTS(emu.get_ptr_size())
             url_comp = self.mem_cast(uc, lpUrlComponents)
 
             crack = urlparse(url)
             if crack.scheme == "https":
-                url_comp.nScheme = windefs.INTERNET_SCHEME_HTTPS
+                url_comp.nScheme = inetdefs.INTERNET_SCHEME_HTTPS
             elif crack.scheme == "http":
-                url_comp.nScheme = windefs.INTERNET_SCHEME_HTTP
-            port, parts = windefs.crack_url(url)
+                url_comp.nScheme = inetdefs.INTERNET_SCHEME_HTTP
+            port, parts = inetdefs.crack_url(url)
             if not url_comp.dwExtraInfoLength:
                 path_start = parts["UrlPath"][1]
                 parts["UrlPath"] = (url[path_start:], path_start)
@@ -191,7 +191,7 @@ class Wininet(api.ApiHandler):
                     if length <= len(text):
                         setattr(url_comp, f"dw{part}Length", len(text) + 1)
                         self.mem_write(lpUrlComponents, url_comp.get_bytes())
-                        emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+                        emu.set_last_error(inetdefs.ERROR_INSUFFICIENT_BUFFER)
                         return False
                     self.write_mem_string(text, buf, cw)
                 else:
@@ -229,7 +229,7 @@ class Wininet(api.ApiHandler):
         lpdwFlags, dwReserved = argv
 
         rv = True
-        flags = windefs.INTERNET_CONNECTION_LAN
+        flags = inetdefs.INTERNET_CONNECTION_LAN
 
         if lpdwFlags:
             self.write_dword(lpdwFlags, flags)
@@ -299,13 +299,13 @@ class Wininet(api.ApiHandler):
         """
         hInternet, dwOption, lpBuffer, lpdwBufferLength = argv
         rv = False
-        opt = windefs.get_option_define(dwOption)
+        opt = inetdefs.get_option_define(dwOption)
         if opt:
             ctx.args["dwOption"].display = opt
 
-        if dwOption == windefs.INTERNET_OPTION_SECURITY_FLAGS:
+        if dwOption == inetdefs.INTERNET_OPTION_SECURITY_FLAGS:
             if lpBuffer:
-                sec_flags = windefs.SECURITY_FLAG_SECURE
+                sec_flags = inetdefs.SECURITY_FLAG_SECURE
                 self.write_dword(lpBuffer, sec_flags)
                 rv = True
 
@@ -327,7 +327,7 @@ class Wininet(api.ApiHandler):
 
         req = self.netman.get_wininet_object(hFile)
         if not isinstance(req, netman.WininetRequest):
-            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            emu.set_last_error(inetdefs.ERROR_INVALID_HANDLE)
             return False
         resp = req.get_response()
         data = resp.read(dwNumberOfBytesToRead)
@@ -354,29 +354,29 @@ class Wininet(api.ApiHandler):
         hRequest, dwInfoLevel, lpBuffer, lpdwBufferLength, lpdwIndex = argv
         cw = self.get_char_width(ctx)
 
-        header_id = dwInfoLevel & windefs.HTTP_QUERY_HEADER_MASK
-        as_number = bool(dwInfoLevel & windefs.WINHTTP_QUERY_FLAG_NUMBER)
-        info_str = windefs.get_header_query(header_id)
+        header_id = dwInfoLevel & inetdefs.HTTP_QUERY_HEADER_MASK
+        as_number = bool(dwInfoLevel & inetdefs.WINHTTP_QUERY_FLAG_NUMBER)
+        info_str = inetdefs.get_header_query(header_id)
         if info_str:
             if as_number:
                 info_str += " | WINHTTP_QUERY_FLAG_NUMBER"
             ctx.args["dwInfoLevel"].display = info_str
 
-        if header_id == windefs.WINHTTP_QUERY_STATUS_CODE:
-            text = windefs.HTTP_STATUS_OK
+        if header_id == inetdefs.WINHTTP_QUERY_STATUS_CODE:
+            text = inetdefs.HTTP_STATUS_OK
         else:
             req = self.netman.get_wininet_object(hRequest)
             if not isinstance(req, netman.WininetRequest):
-                emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+                emu.set_last_error(inetdefs.ERROR_INVALID_HANDLE)
                 return False
-            text = windefs.get_header_text(header_id, req.get_response_headers())
+            text = inetdefs.get_header_text(header_id, req.get_response_headers())
             if text is None:
-                emu.set_last_error(windefs.ERROR_HTTP_HEADER_NOT_FOUND)
+                emu.set_last_error(inetdefs.ERROR_HTTP_HEADER_NOT_FOUND)
                 return False
 
         if as_number:
             if not text.isdigit():
-                emu.set_last_error(windefs.ERROR_HTTP_INVALID_QUERY_REQUEST)
+                emu.set_last_error(inetdefs.ERROR_HTTP_INVALID_QUERY_REQUEST)
                 return False
             out = int(text).to_bytes(4, "little")
             out_len = len(out)
@@ -385,7 +385,7 @@ class Wininet(api.ApiHandler):
             out_len = len(out) - cw
         if not lpBuffer or self.read_dword(lpdwBufferLength) < len(out):
             self.write_dword(lpdwBufferLength, len(out))
-            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
+            emu.set_last_error(inetdefs.ERROR_INSUFFICIENT_BUFFER)
             return False
         self.mem_write(lpBuffer, out)
         self.write_dword(lpdwBufferLength, out_len)

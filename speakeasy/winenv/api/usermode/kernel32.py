@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as e_arch
-import speakeasy.winenv.defs.windows.kernel32 as k32types
+import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
@@ -185,7 +185,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.command_lines: list[int | None] = [None] * 3
         self.startup_info: dict[tuple[objman.Process, int], list[int]] = {}
 
-        self.k32types = k32types
+        self.k32types = k32defs
 
         super().__get_hook_attrs__(self)
 
@@ -592,23 +592,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             th32ProcessID,
         ) = argv
         processes, threads, modules, pid = [], [], [], 0
-        if dwFlags & (k32types.TH32CS_SNAPTHREAD | k32types.TH32CS_SNAPMODULE):
+        if dwFlags & (k32defs.TH32CS_SNAPTHREAD | k32defs.TH32CS_SNAPMODULE):
             if th32ProcessID in [0, emu.curr_process.pid]:
                 proc = emu.curr_process
             else:
                 proc = next((p for p in emu.get_processes() if p.pid == th32ProcessID), None)
             if proc is None:
                 # Windows ignores the PID of a snapshot without a module list
-                if dwFlags & k32types.TH32CS_SNAPMODULE:
+                if dwFlags & k32defs.TH32CS_SNAPMODULE:
                     emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
                     return self.get_max_int()
                 proc = emu.curr_process
             pid = proc.pid
-            if dwFlags & k32types.TH32CS_SNAPTHREAD:
+            if dwFlags & k32defs.TH32CS_SNAPTHREAD:
                 threads = proc.threads
-            if dwFlags & k32types.TH32CS_SNAPMODULE:
+            if dwFlags & k32defs.TH32CS_SNAPMODULE:
                 modules = emu.get_peb_modules()
-        if dwFlags & k32types.TH32CS_SNAPPROCESS:
+        if dwFlags & k32defs.TH32CS_SNAPPROCESS:
             processes = emu.get_processes()
 
         # TH32CS_SNAPHEAPLIST is not emulated, so a snapshot never has a heap list
@@ -616,14 +616,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.snapshots.update(
             {
                 hnd: {
-                    k32types.TH32CS_SNAPPROCESS: [0, processes],
-                    k32types.TH32CS_SNAPTHREAD: [0, threads, pid],
-                    k32types.TH32CS_SNAPMODULE: [0, modules, pid],
+                    k32defs.TH32CS_SNAPPROCESS: [0, processes],
+                    k32defs.TH32CS_SNAPTHREAD: [0, threads, pid],
+                    k32defs.TH32CS_SNAPMODULE: [0, modules, pid],
                 }
             }
         )
 
-        cap_def = k32types.get_flag_defines(dwFlags, "TH32CS")
+        cap_def = k32defs.get_flag_defines(dwFlags, "TH32CS")
         if cap_def:
             cap_def = "|".join(cap_def)
             ctx.args["dwFlags"].display = cap_def
@@ -656,7 +656,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         pe.cntThreads = max(len(proc.threads), 1)
         pe.th32ParentProcessID = self._get_parent_pid(emu, proc)
         pe.pcPriClassBase = 8
-        pe.szExeFile = proc.image[: k32types.MAX_PATH - 1].encode(enc) + b"\x00" * cw
+        pe.szExeFile = proc.image[: k32defs.MAX_PATH - 1].encode(enc) + b"\x00" * cw
         self.mem_write(pe32, self.get_bytes(pe))
 
     @apihook("Process32First", argc=2)
@@ -674,15 +674,15 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not lppe or k32types.TH32CS_SNAPPROCESS not in snap:
+        if not snap or not lppe or k32defs.TH32CS_SNAPPROCESS not in snap:
             return rv
 
         # Reset the handle index
-        snap[k32types.TH32CS_SNAPPROCESS][0] = 1
-        if not snap[k32types.TH32CS_SNAPPROCESS][1]:
+        snap[k32defs.TH32CS_SNAPPROCESS][0] = 1
+        if not snap[k32defs.TH32CS_SNAPPROCESS][1]:
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
-        proc = snap[k32types.TH32CS_SNAPPROCESS][1][0]
+        proc = snap[k32defs.TH32CS_SNAPPROCESS][1][0]
 
         self._write_process_entry(emu, ctx, lppe, proc)
         return True
@@ -702,15 +702,15 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not lppe or k32types.TH32CS_SNAPPROCESS not in snap:
+        if not snap or not lppe or k32defs.TH32CS_SNAPPROCESS not in snap:
             return rv
 
-        index = snap[k32types.TH32CS_SNAPPROCESS][0]
-        snap[k32types.TH32CS_SNAPPROCESS][0] += 1
-        if index >= len(snap[k32types.TH32CS_SNAPPROCESS][1]):
+        index = snap[k32defs.TH32CS_SNAPPROCESS][0]
+        snap[k32defs.TH32CS_SNAPPROCESS][0] += 1
+        if index >= len(snap[k32defs.TH32CS_SNAPPROCESS][1]):
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
-        proc = snap[k32types.TH32CS_SNAPPROCESS][1][index]
+        proc = snap[k32defs.TH32CS_SNAPPROCESS][1][index]
 
         self._write_process_entry(emu, ctx, lppe, proc)
         return True
@@ -730,20 +730,20 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not lpte or k32types.TH32CS_SNAPTHREAD not in snap:
+        if not snap or not lpte or k32defs.TH32CS_SNAPTHREAD not in snap:
             return rv
 
         # Reset the handle index
-        snap[k32types.TH32CS_SNAPTHREAD][0] = 1
-        if not snap[k32types.TH32CS_SNAPTHREAD][1]:
+        snap[k32defs.TH32CS_SNAPTHREAD][0] = 1
+        if not snap[k32defs.TH32CS_SNAPTHREAD][1]:
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
-        thread = snap[k32types.TH32CS_SNAPTHREAD][1][0]
+        thread = snap[k32defs.TH32CS_SNAPTHREAD][1][0]
 
         te = self.k32types.THREADENTRY32(emu.get_ptr_size())
         data = self.mem_cast(te, lpte)
         te.th32ThreadID = thread.tid
-        te.th32OwnerProcessID = snap[k32types.TH32CS_SNAPTHREAD][2]
+        te.th32OwnerProcessID = snap[k32defs.TH32CS_SNAPTHREAD][2]
 
         self.mem_write(lpte, self.get_bytes(data))
         rv = True
@@ -764,20 +764,20 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not lpte or k32types.TH32CS_SNAPTHREAD not in snap:
+        if not snap or not lpte or k32defs.TH32CS_SNAPTHREAD not in snap:
             return rv
 
-        index = snap[k32types.TH32CS_SNAPTHREAD][0]
-        snap[k32types.TH32CS_SNAPTHREAD][0] += 1
-        if index >= len(snap[k32types.TH32CS_SNAPTHREAD][1]):
+        index = snap[k32defs.TH32CS_SNAPTHREAD][0]
+        snap[k32defs.TH32CS_SNAPTHREAD][0] += 1
+        if index >= len(snap[k32defs.TH32CS_SNAPTHREAD][1]):
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
-        thread = snap[k32types.TH32CS_SNAPTHREAD][1][index]
+        thread = snap[k32defs.TH32CS_SNAPTHREAD][1][index]
 
         te = self.k32types.THREADENTRY32(emu.get_ptr_size())
         data = self.mem_cast(te, lpte)
         te.th32ThreadID = thread.tid
-        te.th32OwnerProcessID = snap[k32types.TH32CS_SNAPTHREAD][2]
+        te.th32OwnerProcessID = snap[k32defs.TH32CS_SNAPTHREAD][2]
 
         self.mem_write(lpte, self.get_bytes(data))
         rv = True
@@ -793,8 +793,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         mod.modBaseAddr = module.base
         mod.modBaseSize = module.image_size
         mod.hModule = module.base
-        mod.szModule = module.name[: k32types.MAX_MODULE_NAME32].encode(enc) + b"\x00" * cw
-        mod.szExePath = module.emu_path[: k32types.MAX_PATH - 1].encode(enc) + b"\x00" * cw
+        mod.szModule = module.name[: k32defs.MAX_MODULE_NAME32].encode(enc) + b"\x00" * cw
+        mod.szExePath = module.emu_path[: k32defs.MAX_PATH - 1].encode(enc) + b"\x00" * cw
         self.mem_write(mod32, self.get_bytes(data))
 
     @apihook("Module32First", argc=2)
@@ -812,17 +812,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not lpme or k32types.TH32CS_SNAPMODULE not in snap:
+        if not snap or not lpme or k32defs.TH32CS_SNAPMODULE not in snap:
             return rv
 
         # Reset the handle index
-        snap[k32types.TH32CS_SNAPMODULE][0] = 1
-        if not snap[k32types.TH32CS_SNAPMODULE][1]:
+        snap[k32defs.TH32CS_SNAPMODULE][0] = 1
+        if not snap[k32defs.TH32CS_SNAPMODULE][1]:
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
-        module = snap[k32types.TH32CS_SNAPMODULE][1][0]
+        module = snap[k32defs.TH32CS_SNAPMODULE][1][0]
 
-        self._write_module_entry(emu, ctx, lpme, module, snap[k32types.TH32CS_SNAPMODULE][2])
+        self._write_module_entry(emu, ctx, lpme, module, snap[k32defs.TH32CS_SNAPMODULE][2])
         return True
 
     @apihook("Module32Next", argc=2)
@@ -840,16 +840,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = False
 
         snap = self.snapshots.get(hSnapshot)
-        if not snap or not lpme or k32types.TH32CS_SNAPMODULE not in snap:
+        if not snap or not lpme or k32defs.TH32CS_SNAPMODULE not in snap:
             return rv
 
-        index = snap[k32types.TH32CS_SNAPMODULE][0]
-        snap[k32types.TH32CS_SNAPMODULE][0] += 1
-        if index >= len(snap[k32types.TH32CS_SNAPMODULE][1]):
+        index = snap[k32defs.TH32CS_SNAPMODULE][0]
+        snap[k32defs.TH32CS_SNAPMODULE][0] += 1
+        if index >= len(snap[k32defs.TH32CS_SNAPMODULE][1]):
             emu.set_last_error(windefs.ERROR_NO_MORE_FILES)
             return rv
-        module = snap[k32types.TH32CS_SNAPMODULE][1][index]
-        self._write_module_entry(emu, ctx, lpme, module, snap[k32types.TH32CS_SNAPMODULE][2])
+        module = snap[k32defs.TH32CS_SNAPMODULE][1][index]
+        self._write_module_entry(emu, ctx, lpme, module, snap[k32defs.TH32CS_SNAPMODULE][2])
         return True
 
     @apihook("OpenProcess", argc=3)
@@ -1841,10 +1841,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         definition that ends with a lone % or has inserts but no arguments.
         """
         ptr_size = self.get_ptr_size()
-        ignore = flags & k32types.FORMAT_MESSAGE_IGNORE_INSERTS
-        wrap = flags & k32types.FORMAT_MESSAGE_MAX_WIDTH_MASK
+        ignore = flags & k32defs.FORMAT_MESSAGE_IGNORE_INSERTS
+        wrap = flags & k32defs.FORMAT_MESSAGE_MAX_WIDTH_MASK
         slots = arguments
-        if arguments and not flags & k32types.FORMAT_MESSAGE_ARGUMENT_ARRAY:
+        if arguments and not flags & k32defs.FORMAT_MESSAGE_ARGUMENT_ARRAY:
             slots = self.read_ptr(arguments)
 
         out = []
@@ -1908,10 +1908,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         dwFlags, lpSource, dwMessageId, dwLanguageId, lpBuffer, nSize, Arguments = argv
         cw = self.get_char_width(ctx)
 
-        if dwFlags & k32types.FORMAT_MESSAGE_FROM_STRING:
+        if dwFlags & k32defs.FORMAT_MESSAGE_FROM_STRING:
             text = self.read_mem_string(lpSource, cw)
-        elif dwFlags & k32types.FORMAT_MESSAGE_FROM_SYSTEM and dwMessageId in k32types.SYSTEM_MESSAGES:
-            text = k32types.SYSTEM_MESSAGES[dwMessageId]
+        elif dwFlags & k32defs.FORMAT_MESSAGE_FROM_SYSTEM and dwMessageId in k32defs.SYSTEM_MESSAGES:
+            text = k32defs.SYSTEM_MESSAGES[dwMessageId]
         else:
             emu.set_last_error(windefs.ERROR_MR_MID_NOT_FOUND)
             return 0
@@ -1923,7 +1923,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         data = msg.encode("utf-16le" if cw == 2 else "utf-8") + b"\x00" * cw
         count = len(data) // cw - 1
-        if dwFlags & k32types.FORMAT_MESSAGE_ALLOCATE_BUFFER:
+        if dwFlags & k32defs.FORMAT_MESSAGE_ALLOCATE_BUFFER:
             buf = self.heap_alloc(max(len(data), nSize * cw), heap="LocalAlloc")
             self.mem_write(buf, data)
             self.write_ptr(lpBuffer, buf)
@@ -2492,7 +2492,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         dwFlags, lpModuleName, phModule = argv
 
-        if dwFlags & k32types.GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS:
+        if dwFlags & k32defs.GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS:
             ctx.args["lpModuleName"].display = hex(lpModuleName)
             mod = emu.get_mod_from_addr(lpModuleName)
             hmod = mod.base if mod else 0
@@ -4243,11 +4243,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         si.wProcessorLevel = 6
 
         if ptr_size == 4:
-            si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_INTEL
-            si.dwProcessorType = k32types.PROCESSOR_INTEL_PENTIUM
+            si.wProcessorArchitecture = k32defs.PROCESSOR_ARCHITECTURE_INTEL
+            si.dwProcessorType = k32defs.PROCESSOR_INTEL_PENTIUM
         else:
-            si.wProcessorArchitecture = k32types.PROCESSOR_ARCHITECTURE_AMD64
-            si.dwProcessorType = k32types.PROCESSOR_AMD_X8664
+            si.wProcessorArchitecture = k32defs.PROCESSOR_ARCHITECTURE_AMD64
+            si.dwProcessorType = k32defs.PROCESSOR_AMD_X8664
 
         self.mem_write(lpSystemInfo, si.get_bytes())
 
@@ -4299,16 +4299,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
             return False
 
-        level_id = k32types.get_define(fInfoLevelId, "GetFileExInfo")
+        level_id = k32defs.get_define(fInfoLevelId, "GetFileExInfo")
         if not level_id:
             return False
 
         ctx.args["fInfoLevelId"].display = level_id
 
-        file_data = k32types.WIN32_FILE_ATTRIBUTE_DATA(emu.get_ptr_size())
+        file_data = k32defs.WIN32_FILE_ATTRIBUTE_DATA(emu.get_ptr_size())
 
         # Set WIN32_FILE_ATTRIBUTE_DATA.dwFileAttributes to Normal
-        file_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
+        file_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_NORMAL
 
         timestamp = self.get_system_time()
         for ft in (file_data.ftCreationTime, file_data.ftLastAccessTime, file_data.ftLastWriteTime):
@@ -5669,11 +5669,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = 0
         cw = self.get_char_width(ctx)
 
-        lcid = k32types.get_define(Locale, "LOCALE_")
+        lcid = k32defs.get_define(Locale, "LOCALE_")
         if lcid:
             ctx.args["Locale"].display = lcid
 
-        lctype = k32types.get_define(LCType, "LOCALE_")
+        lctype = k32defs.get_define(LCType, "LOCALE_")
         if lctype:
             ctx.args["LCType"].display = lctype
             locale_data = ""
@@ -5938,11 +5938,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             cfn = name.encode("utf-8")
 
-        find_data = k32types.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
+        find_data = k32defs.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
         if is_dir:
-            find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_DIRECTORY
+            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_DIRECTORY
         else:
-            find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
+            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_NORMAL
         find_data.cFileName = cfn
         self.mem_write(lpFindFileData, find_data.get_bytes())
 
@@ -5980,11 +5980,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             cfn = name.encode("utf-8")
 
-        find_data = k32types.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
+        find_data = k32defs.WIN32_FIND_DATA(emu.get_ptr_size(), cw)
         if is_dir:
-            find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_DIRECTORY
+            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_DIRECTORY
         else:
-            find_data.dwFileAttributes = k32types.FILE_ATTRIBUTE_NORMAL
+            find_data.dwFileAttributes = k32defs.FILE_ATTRIBUTE_NORMAL
         find_data.cFileName = cfn
         self.mem_write(lpFindFileData, find_data.get_bytes())
 
@@ -6999,11 +6999,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        info = k32types.BY_HANDLE_FILE_INFORMATION(emu.get_ptr_size())
+        info = k32defs.BY_HANDLE_FILE_INFORMATION(emu.get_ptr_size())
         if f.is_dir or emu.get_file_manager().is_directory(f.path):
-            info.dwFileAttributes = k32types.FILE_ATTRIBUTE_DIRECTORY
+            info.dwFileAttributes = k32defs.FILE_ATTRIBUTE_DIRECTORY
         else:
-            info.dwFileAttributes = k32types.FILE_ATTRIBUTE_ARCHIVE
+            info.dwFileAttributes = k32defs.FILE_ATTRIBUTE_ARCHIVE
             size = f.get_size()
             info.nFileSizeHigh = 0xFFFFFFFF & (size >> 32)
             info.nFileSizeLow = 0xFFFFFFFF & size
@@ -7521,7 +7521,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        name_type = k32types.get_define(NameType, prefix="ComputerName")
+        name_type = k32defs.get_define(NameType, prefix="ComputerName")
         if name_type:
             ctx.args["NameType"].display = name_type
 
@@ -7553,7 +7553,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        locale = k32types.get_define(Locale, prefix="LOCALE_")
+        locale = k32defs.get_define(Locale, prefix="LOCALE_")
         if locale:
             ctx.args["Locale"].display = locale
 
@@ -7674,7 +7674,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        locale = k32types.get_define(Locale, prefix="LOCALE_")
+        locale = k32defs.get_define(Locale, prefix="LOCALE_")
         if locale:
             ctx.args["Locale"].display = locale
 
@@ -7924,7 +7924,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hThread
         );
         """
-        return k32types.THREAD_PRIORITY_NORMAL
+        return k32defs.THREAD_PRIORITY_NORMAL
 
     @apihook("UnhandledExceptionFilter", argc=1)
     def UnhandledExceptionFilter(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7933,7 +7933,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             struct _EXCEPTION_POINTERS *ExceptionInfo
         );
         """
-        return k32types.EXCEPTION_EXECUTE_HANDLER
+        return k32defs.EXCEPTION_EXECUTE_HANDLER
 
     @apihook("GetSystemTimePreciseAsFileTime", argc=1)
     def GetSystemTimePreciseAsFileTime(
@@ -8403,12 +8403,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         lpInitOnce, dwFlags, fPending, lpContext = argv
         state = self.read_ptr(lpInitOnce)
-        is_async = bool(dwFlags & k32types.INIT_ONCE_ASYNC)
+        is_async = bool(dwFlags & k32defs.INIT_ONCE_ASYNC)
         if state & 3 == 2:
             if lpContext:
                 self.write_ptr(lpContext, state & ~3)
             pending = 0
-        elif dwFlags & k32types.INIT_ONCE_CHECK_ONLY:
+        elif dwFlags & k32defs.INIT_ONCE_CHECK_ONLY:
             emu.set_last_error(windefs.ERROR_GEN_FAILURE)
             return 0
         elif (state & 3 == 1 and is_async) or (state & 3 == 3 and not is_async):
@@ -8438,7 +8438,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not state & 1:
             emu.set_last_error(windefs.ERROR_GEN_FAILURE)
             return 0
-        if dwFlags & k32types.INIT_ONCE_INIT_FAILED:
+        if dwFlags & k32defs.INIT_ONCE_INIT_FAILED:
             state = 0
         else:
             state = lpContext | 2

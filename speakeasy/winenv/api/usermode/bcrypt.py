@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
-import speakeasy.winenv.defs.nt.ddk as ntdefs
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 
@@ -84,7 +84,7 @@ class Bcrypt(api.ApiHandler):
             self.write_ptr(phAlgorithm, hnd)
             ctx.args["phAlgorithm"].display = hex(hnd)
 
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptImportKeyPair", argc=7)
     def BCryptImportKeyPair(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -112,13 +112,13 @@ class Bcrypt(api.ApiHandler):
         if hAlgorithm and phKey:
             alg_ctx = cm.crypt_get(hAlgorithm)
             if not alg_ctx:
-                return ntdefs.STATUS_INVALID_HANDLE
+                return ddk.STATUS_INVALID_HANDLE
             hnd = alg_ctx.import_key(blob_type=blob_type, blob=blob, blob_len=cbInput, flags=dwFlags)
             if hnd:
                 self.write_ptr(phKey, hnd)
                 ctx.args["phKey"].display = hex(hnd)
 
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptCloseAlgorithmProvider", argc=2)
     def BCryptCloseAlgorithmProvider(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -132,10 +132,10 @@ class Bcrypt(api.ApiHandler):
 
         cm = emu.get_crypt_manager()
         if not cm.crypt_get(hAlgorithm):
-            return ntdefs.STATUS_INVALID_HANDLE
+            return ddk.STATUS_INVALID_HANDLE
         cm.crypt_close(hAlgorithm)
 
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptGetProperty", argc=6)
     def BCryptGetProperty(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -161,18 +161,18 @@ class Bcrypt(api.ApiHandler):
             alg_ctx, key = self.get_key(emu, hObject)
         # Properties of other algorithms are not emulated
         if not alg_ctx or not is_aes(alg_ctx):
-            return ntdefs.STATUS_SUCCESS
+            return ddk.STATUS_SUCCESS
 
         value = get_aes_property(property, key or alg_ctx, key)
         if value is None:
-            return ntdefs.STATUS_NOT_SUPPORTED
+            return ddk.STATUS_NOT_SUPPORTED
         self.write_result_size(pcbResult, len(value))
         if not pbOutput:
-            return ntdefs.STATUS_SUCCESS
+            return ddk.STATUS_SUCCESS
         if cbOutput & 0xFFFFFFFF < len(value):
-            return ntdefs.STATUS_BUFFER_TOO_SMALL
+            return ddk.STATUS_BUFFER_TOO_SMALL
         self.mem_write(pbOutput, value)
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptSetProperty", argc=5)
     def BCryptSetProperty(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -192,16 +192,16 @@ class Bcrypt(api.ApiHandler):
 
         obj = emu.get_crypt_manager().crypt_get(hObject) or self.get_key(emu, hObject)[1]
         if not obj:
-            return ntdefs.STATUS_INVALID_HANDLE
+            return ddk.STATUS_INVALID_HANDLE
 
         if property == "ChainingMode":
             mode = self.read_wide_string(pbInput, max_chars=(cbInput & 0xFFFFFFFF) // 2)
             ctx.args["pbInput"].display = mode
             if mode not in CHAINING_MODES:
-                return ntdefs.STATUS_NOT_SUPPORTED
+                return ddk.STATUS_NOT_SUPPORTED
             obj.chaining_mode = mode
 
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptGenerateSymmetricKey", argc=7)
     def BCryptGenerateSymmetricKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -220,10 +220,10 @@ class Bcrypt(api.ApiHandler):
 
         alg_ctx = emu.get_crypt_manager().crypt_get(hAlgorithm)
         if not alg_ctx:
-            return ntdefs.STATUS_INVALID_HANDLE
+            return ddk.STATUS_INVALID_HANDLE
         cbSecret &= 0xFFFFFFFF
         if not phKey or (is_aes(alg_ctx) and cbSecret not in AES_KEY_LENGTHS):
-            return ntdefs.STATUS_INVALID_PARAMETER
+            return ddk.STATUS_INVALID_PARAMETER
 
         secret = self.mem_read(pbSecret, cbSecret) if cbSecret else b""
         ctx.args["pbSecret"].display = secret.hex()
@@ -231,7 +231,7 @@ class Bcrypt(api.ApiHandler):
         alg_ctx.get_key(hnd).chaining_mode = alg_ctx.chaining_mode
         self.write_ptr(phKey, hnd)
         ctx.args["phKey"].display = hex(hnd)
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptEncrypt", argc=10)
     def BCryptEncrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -303,9 +303,9 @@ class Bcrypt(api.ApiHandler):
 
         alg_ctx, key = self.get_key(emu, hKey)
         if not key:
-            return ntdefs.STATUS_INVALID_HANDLE
+            return ddk.STATUS_INVALID_HANDLE
         if not is_aes(alg_ctx) or key.chaining_mode not in ("ChainingModeCBC", "ChainingModeECB", "ChainingModeGCM"):
-            return ntdefs.STATUS_NOT_SUPPORTED
+            return ddk.STATUS_NOT_SUPPORTED
 
         data = self.mem_read(pbInput, cbInput) if cbInput else b""
         if encrypt:
@@ -313,17 +313,17 @@ class Bcrypt(api.ApiHandler):
 
         if key.chaining_mode == "ChainingModeGCM":
             if not pPaddingInfo:
-                return ntdefs.STATUS_INVALID_PARAMETER
+                return ddk.STATUS_INVALID_PARAMETER
             nonce, aad, tag, tag_len, flags = self.read_auth_info(pPaddingInfo)
             if flags & BCRYPT_AUTH_MODE_CHAIN_CALLS_FLAG:
-                return ntdefs.STATUS_NOT_SUPPORTED
+                return ddk.STATUS_NOT_SUPPORTED
             if len(nonce) != GCM_NONCE_LENGTH or not GCM_TAG_LENGTHS[0] <= tag_len <= GCM_TAG_LENGTHS[1]:
-                return ntdefs.STATUS_INVALID_PARAMETER
+                return ddk.STATUS_INVALID_PARAMETER
             if not pbOutput:
                 self.write_result_size(pcbResult, len(data))
-                return ntdefs.STATUS_SUCCESS
+                return ddk.STATUS_SUCCESS
             if cbOutput < len(data):
-                return ntdefs.STATUS_BUFFER_TOO_SMALL
+                return ddk.STATUS_BUFFER_TOO_SMALL
             gcm = AES.new(key.blob, AES.MODE_GCM, nonce=nonce, mac_len=tag_len)
             gcm.update(aad)
             if encrypt:
@@ -342,12 +342,12 @@ class Bcrypt(api.ApiHandler):
                 return STATUS_INVALID_BUFFER_SIZE
             if not pbOutput:
                 self.write_result_size(pcbResult, len(data))
-                return ntdefs.STATUS_SUCCESS
+                return ddk.STATUS_SUCCESS
 
             iv = b"\x00" * AES_BLOCK_LENGTH
             if key.chaining_mode == "ChainingModeCBC" and pbIV:
                 if cbIV != AES_BLOCK_LENGTH:
-                    return ntdefs.STATUS_INVALID_PARAMETER
+                    return ddk.STATUS_INVALID_PARAMETER
                 iv = self.mem_read(pbIV, cbIV)
             cipher: CbcMode | EcbMode
             if key.chaining_mode == "ChainingModeCBC":
@@ -363,7 +363,7 @@ class Bcrypt(api.ApiHandler):
                     return STATUS_DATA_ERROR
             if cbOutput < len(out):
                 self.write_result_size(pcbResult, len(out))
-                return ntdefs.STATUS_BUFFER_TOO_SMALL
+                return ddk.STATUS_BUFFER_TOO_SMALL
             if key.chaining_mode == "ChainingModeCBC" and pbIV and next_iv:
                 self.mem_write(pbIV, next_iv)
 
@@ -372,7 +372,7 @@ class Bcrypt(api.ApiHandler):
         if not encrypt:
             ctx.args["pbOutput"].display = base64.b64encode(out).decode("utf-8")
         self.write_result_size(pcbResult, len(out))
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
     @apihook("BCryptDestroyKey", argc=1)
     def BCryptDestroyKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -387,9 +387,9 @@ class Bcrypt(api.ApiHandler):
             hnd_key = crypt_ctx.get_key(hKey)
             if hnd_key:
                 crypt_ctx.delete_key(hKey)
-                return ntdefs.STATUS_SUCCESS
+                return ddk.STATUS_SUCCESS
 
-        return ntdefs.STATUS_INVALID_HANDLE
+        return ddk.STATUS_INVALID_HANDLE
 
     @apihook("BCryptGenRandom", argc=4)
     def BCryptGenRandom(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -405,16 +405,16 @@ class Bcrypt(api.ApiHandler):
 
         if dwFlags & BCRYPT_USE_SYSTEM_PREFERRED_RNG:
             if hAlgorithm:
-                return ntdefs.STATUS_INVALID_PARAMETER
+                return ddk.STATUS_INVALID_PARAMETER
         elif not emu.get_crypt_manager().crypt_get(hAlgorithm):
-            return ntdefs.STATUS_INVALID_HANDLE
+            return ddk.STATUS_INVALID_HANDLE
         cbBuffer &= 0xFFFFFFFF
         if not cbBuffer:
-            return ntdefs.STATUS_SUCCESS
+            return ddk.STATUS_SUCCESS
         if not pbBuffer:
-            return ntdefs.STATUS_INVALID_PARAMETER
+            return ddk.STATUS_INVALID_PARAMETER
         self.mem_write(pbBuffer, emu.rng.randbytes(cbBuffer))
-        return ntdefs.STATUS_SUCCESS
+        return ddk.STATUS_SUCCESS
 
 
 def is_aes(alg_ctx):
