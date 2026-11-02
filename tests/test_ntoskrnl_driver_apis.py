@@ -15,6 +15,7 @@ from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 from tests.handler_harness import alloc, call
 from tests.test_ntoskrnl_handlers import CDECL, STDCALL, call_x86
 
@@ -135,9 +136,9 @@ def test_zw_create_key_records_a_create_event(driver_emu: Speakeasy) -> None:
 @pytest.mark.parametrize(
     ("val_type", "data", "expected"),
     [
-        (regdefs.REG_SZ, "C:\\evil.sys\x00".encode("utf-16le"), "C:\\evil.sys\x00".encode("utf-16le")),
-        (regdefs.REG_DWORD, struct.pack("<I", 4), struct.pack("<I", 4)),
-        (regdefs.REG_BINARY, b"\x01\x02\x03", b"\x01\x02\x03"),
+        (REG_VALUE_TYPE.REG_SZ, "C:\\evil.sys\x00".encode("utf-16le"), "C:\\evil.sys\x00".encode("utf-16le")),
+        (REG_VALUE_TYPE.REG_DWORD, struct.pack("<I", 4), struct.pack("<I", 4)),
+        (REG_VALUE_TYPE.REG_BINARY, b"\x01\x02\x03", b"\x01\x02\x03"),
     ],
     ids=["sz", "dword", "binary"],
 )
@@ -161,8 +162,8 @@ def test_zw_set_value_key_replaces_a_value(driver_emu: Speakeasy) -> None:
     for start in (2, 4):
         data = alloc(driver_emu, struct.pack("<I", start))
         name = _unicode_string(driver_emu, "Start")
-        call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, regdefs.REG_DWORD, data, 4])
-    assert _query_value(driver_emu, hnd, "Start") == (regdefs.REG_DWORD, struct.pack("<I", 4))
+        call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, REG_VALUE_TYPE.REG_DWORD, data, 4])
+    assert _query_value(driver_emu, hnd, "Start") == (REG_VALUE_TYPE.REG_DWORD, struct.pack("<I", 4))
     assert len(driver_emu.emu.reg_get_key(hnd).get_values()) == 1
 
 
@@ -171,14 +172,14 @@ def test_zw_set_value_key_records_a_write_event(driver_emu: Speakeasy) -> None:
     _, hnd, _ = _create_key(driver_emu, SOFTWARE_KEY)
     name = _unicode_string(driver_emu, "Start")
     data = alloc(driver_emu, struct.pack("<I", 2))
-    call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, regdefs.REG_DWORD, data, 4])
+    call(driver_emu, "ntoskrnl", "ZwSetValueKey", [hnd, name, 0, REG_VALUE_TYPE.REG_DWORD, data, 4])
     events = [e for e in run.events if isinstance(e, RegWriteValueEvent)]
     assert [(e.path, e.value_name) for e in events] == [("HKEY_LOCAL_MACHINE\\Software\\Contoso", "Start")]
 
 
 def test_zw_set_value_key_rejects_an_unknown_handle(driver_emu: Speakeasy) -> None:
     name = _unicode_string(driver_emu, "Start")
-    rv, _ = call(driver_emu, "ntoskrnl", "ZwSetValueKey", [0x1234, name, 0, regdefs.REG_DWORD, 0, 0])
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwSetValueKey", [0x1234, name, 0, REG_VALUE_TYPE.REG_DWORD, 0, 0])
     assert rv == ddk.STATUS_INVALID_HANDLE
 
 

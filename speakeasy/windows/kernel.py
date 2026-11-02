@@ -6,7 +6,6 @@ import os
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
-import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy import common
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
@@ -15,6 +14,7 @@ from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import PeLoader
 from speakeasy.windows.winemu import WindowsEmulator
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 
 EP_DRIVER_ENTRY = ddk.IRP_MJ_MAXIMUM_FUNCTION
 EP_DRIVER_UNLOAD = ddk.IRP_MJ_MAXIMUM_FUNCTION + 1
@@ -203,10 +203,10 @@ class WinKernelEmulator(WindowsEmulator, IoManager):
         drv = self.create_driver_object(pe=module)
         svc_key = self.regman.create_key(drv.reg_path)
         # Create the values for the service key
-        svc_key.create_value("ImagePath", regdefs.REG_EXPAND_SZ, module.emu_path)
-        svc_key.create_value("Type", regdefs.REG_DWORD, 0x1)  # SERVICE_KERNEL_DRIVER
-        svc_key.create_value("Start", regdefs.REG_DWORD, 0x3)  # SERVICE_DEMAND_START
-        svc_key.create_value("ErrorControl", regdefs.REG_DWORD, 0x1)  # SERVICE_ERROR_NORMAL
+        svc_key.create_value("ImagePath", REG_VALUE_TYPE.REG_EXPAND_SZ, module.emu_path)
+        svc_key.create_value("Type", REG_VALUE_TYPE.REG_DWORD, 0x1)  # SERVICE_KERNEL_DRIVER
+        svc_key.create_value("Start", REG_VALUE_TYPE.REG_DWORD, 0x3)  # SERVICE_DEMAND_START
+        svc_key.create_value("ErrorControl", REG_VALUE_TYPE.REG_DWORD, 0x1)  # SERVICE_ERROR_NORMAL
 
         # Create the parameters subkey
         self.regman.create_key(drv.reg_path + "\\Parameters")
