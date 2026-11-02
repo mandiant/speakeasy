@@ -137,10 +137,10 @@ class Psapi(api.ApiHandler):
     @apihook("GetModuleBaseName", argc=4)
     def GetModuleBaseName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetModuleBaseNameW(
+        DWORD GetModuleBaseName(
             HANDLE hProcess,
             HMODULE hModule,
-            LPWSTR lpBaseName,
+            LPTSTR lpBaseName,
             DWORD nSize
         );
 
@@ -172,10 +172,10 @@ class Psapi(api.ApiHandler):
     @apihook("GetModuleFileNameEx", argc=4)
     def GetModuleFileNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetModuleFileNameExW(
+        DWORD GetModuleFileNameEx(
             HANDLE hProcess,
             HMODULE hModule,
-            LPWSTR lpFilename,
+            LPTSTR lpFilename,
             DWORD nSize
         );
 

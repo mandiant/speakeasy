@@ -120,7 +120,7 @@ class Ws2_32(api.ApiHandler):
         """
         int WSAConnect(
             SOCKET s,
-            const sockaddr *name,
+            const struct sockaddr *name,
             int namelen,
             LPWSABUF lpCallerData,
             LPWSABUF lpCalleeData,
@@ -329,7 +329,7 @@ class Ws2_32(api.ApiHandler):
         """
         int connect(
             SOCKET s,
-            const sockaddr *name,
+            const struct sockaddr *name,
             int namelen
         );
         """
@@ -369,7 +369,7 @@ class Ws2_32(api.ApiHandler):
         """
         int bind(
             SOCKET s,
-            const sockaddr *addr,
+            const struct sockaddr *name,
             int namelen
         );
         """
@@ -422,7 +422,7 @@ class Ws2_32(api.ApiHandler):
             fd_set *readfds,
             fd_set *writefds,
             fd_set *exceptfds,
-            const timeval *timeout
+            const struct timeval *timeout
         );
         """
         nfds, readfds, writefds, exceptfds, timeout = argv
@@ -442,7 +442,7 @@ class Ws2_32(api.ApiHandler):
         """
         SOCKET accept(
             SOCKET s,
-            sockaddr *addr,
+            struct sockaddr *addr,
             int *addrlen
         );
         """
@@ -502,7 +502,7 @@ class Ws2_32(api.ApiHandler):
         """
         int getpeername(
             SOCKET s,
-            sockaddr *name,
+            struct sockaddr *name,
             int *namelen
         );
         """
@@ -521,7 +521,7 @@ class Ws2_32(api.ApiHandler):
         """
         int getsockname(
             SOCKET s,
-            sockaddr *name,
+            struct sockaddr *name,
             int *namelen
         );
         """
@@ -611,8 +611,8 @@ class Ws2_32(api.ApiHandler):
     @apihook("htonl", argc=1, ordinal=8)
     def htonl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        uint32_t htonl(
-            uint32_t hostlong
+        u_long htonl(
+            u_long hostlong
         );
         """
         (hostlong,) = argv
@@ -623,7 +623,7 @@ class Ws2_32(api.ApiHandler):
         """
         int __WSAFDIsSet(
             SOCKET fd,
-            fd_set *set
+            fd_set *unnamedParam2
         );
         """
         sock, fd_set = argv

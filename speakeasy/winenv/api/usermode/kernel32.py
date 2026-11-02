@@ -387,7 +387,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("SetThreadLocale", argc=1)
     def SetThreadLocale(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LCID SetThreadLocale(
+        BOOL SetThreadLocale(
             LCID Locale
         );
         """
@@ -408,8 +408,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("OutputDebugString", argc=1)
     def OutputDebugString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void OutputDebugStringA(
-            LPCSTR lpOutputString
+        VOID OutputDebugString(
+            LPCTSTR lpOutputString
         );
         """
         (_str,) = argv
@@ -508,7 +508,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         HANDLE CreateMutex(
             LPSECURITY_ATTRIBUTES lpMutexAttributes,
             BOOL bInitialOwner,
-            LPCSTR lpName
+            LPCTSTR lpName
         );
         """
         attrs, owner, name = argv
@@ -534,9 +534,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("CreateMutexEx", argc=4)
     def CreateMutexEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE CreateMutexExA(
+        HANDLE CreateMutexEx(
             LPSECURITY_ATTRIBUTES lpMutexAttributes,
-            LPCSTR lpName,
+            LPCTSTR lpName,
             DWORD dwFlags,
             DWORD dwDesiredAccess
         );
@@ -565,7 +565,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def LoadLibrary(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HMODULE LoadLibrary(
-            LPTSTR lpLibFileName
+            LPCTSTR lpLibFileName
         );
         """
         (lib_name,) = argv
@@ -886,7 +886,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         HANDLE OpenMutex(
             DWORD dwDesiredAccess,
             BOOL bInheritHandle,
-            LPCWSTR lpName
+            LPCTSTR lpName
         );
         """
         access, inherit, name = argv
@@ -940,7 +940,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FreeLibraryAndExitThread", argc=2)
     def FreeLibraryAndExitThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void FreeLibraryAndExitThread(
+        VOID FreeLibraryAndExitThread(
             HMODULE hLibModule,
             DWORD dwExitCode
         );
@@ -953,7 +953,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("ExitThread", argc=1)
     def ExitThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ExitThread(
+        VOID ExitThread(
             DWORD dwExitCode
         );
         """
@@ -990,8 +990,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("LoadLibraryEx", argc=3)
     def LoadLibraryEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HMODULE LoadLibraryExA(
-            LPCSTR lpLibFileName,
+        HMODULE LoadLibraryEx(
+            LPCTSTR lpLibFileName,
             HANDLE hFile,
             DWORD dwFlags
         );
@@ -1066,14 +1066,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def CreateProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CreateProcess(
-            LPTSTR lpApplicationName,
+            LPCTSTR lpApplicationName,
             LPTSTR lpCommandLine,
             LPSECURITY_ATTRIBUTES lpProcessAttributes,
             LPSECURITY_ATTRIBUTES lpThreadAttributes,
             BOOL bInheritHandles,
             DWORD dwCreationFlags,
             LPVOID lpEnvironment,
-            LPTSTR lpCurrentDirectory,
+            LPCTSTR lpCurrentDirectory,
             LPSTARTUPINFO lpStartupInfo,
             LPPROCESS_INFORMATION lpProcessInformation
         );
@@ -1807,7 +1807,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetVersion", argc=0)
     def GetVersion(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NOT_BUILD_WINDOWS_DEPRECATE DWORD GetVersion();
+        DWORD GetVersion();
         """
         ver = self.emu.config.os_ver
         build = ver.build or 0
@@ -1833,7 +1833,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("SetLastError", argc=1)
     def SetLastError(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void SetLastError(
+        VOID SetLastError(
             DWORD dwErrCode
         );
         """
@@ -1972,7 +1972,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("ExitProcess", argc=1)
     def ExitProcess(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ExitProcess(
+        VOID ExitProcess(
             UINT uExitCode
         );
         """
@@ -2054,7 +2054,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetSystemTimeAsFileTime", argc=1)
     def GetSystemTimeAsFileTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetSystemTimeAsFileTime(
+        VOID GetSystemTimeAsFileTime(
             LPFILETIME lpSystemTimeAsFileTime
         );
         """
@@ -2146,7 +2146,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetLocalTime", argc=1)
     def GetLocalTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetLocalTime(
+        VOID GetLocalTime(
             LPSYSTEMTIME lpSystemTime
         );
         """
@@ -2156,7 +2156,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetSystemTime", argc=1)
     def GetSystemTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetSystemTime(
+        VOID GetSystemTime(
             LPSYSTEMTIME lpSystemTime
         );
         """
@@ -2277,9 +2277,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("lstrcmpi", argc=2)
     def lstrcmpi(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int lstrcmpiA(
-            LPCSTR lpString1,
-            LPCSTR lpString2
+        int lstrcmpi(
+            LPCTSTR lpString1,
+            LPCTSTR lpString2
         );
         """
         cw = self.get_char_width(ctx)
@@ -2301,9 +2301,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("lstrcmp", argc=2)
     def lstrcmp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int lstrcmpA(
-            LPCSTR lpString1,
-            LPCSTR lpString2
+        int lstrcmp(
+            LPCTSTR lpString1,
+            LPCTSTR lpString2
         );
         """
         cw = self.get_char_width(ctx)
@@ -2373,12 +2373,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("CompareString", argc=6)
     def CompareString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int CompareStringW(
+        int CompareString(
             LCID Locale,
             DWORD dwCmpFlags,
-            PCNZWCH lpString1,
+            LPCTSTR lpString1,
             int cchCount1,
-            PCNZWCH lpString2,
+            LPCTSTR lpString2,
             int cchCount2
         );
         """
@@ -2470,7 +2470,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def lstrlen(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int lstrlen(
-            LPCSTR lpString
+            LPCTSTR lpString
         );
         """
         (src,) = argv
@@ -2486,9 +2486,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetModuleHandleEx", argc=3)
     def GetModuleHandleEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetModuleHandleExA(
+        BOOL GetModuleHandleEx(
             DWORD dwFlags,
-            LPCSTR lpModuleName,
+            LPCTSTR lpModuleName,
             HMODULE *phModule
         );
         """
@@ -2509,7 +2509,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetModuleHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HMODULE GetModuleHandle(
-            LPCSTR lpModuleName
+            LPCTSTR lpModuleName
         );
         """
         (mod_name,) = argv
@@ -2636,7 +2636,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("ApiSetQueryApiSetPresence", argc=2)
     def ApiSetQueryApiSetPresence(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS ApiSetQueryApiSetPresence(
+        BOOL ApiSetQueryApiSetPresence(
             PCUNICODE_STRING Namespace,
             PBOOLEAN Present
         );
@@ -2675,7 +2675,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("Sleep", argc=1)
     def Sleep(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void Sleep(
+        VOID Sleep(
             DWORD dwMilliseconds
         );
         """
@@ -2828,9 +2828,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("lstrcat", argc=2)
     def lstrcat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR lstrcat(
-            LPSTR lpString1,
-            LPCSTR lpString2
+        LPTSTR lstrcat(
+            LPTSTR lpString1,
+            LPCTSTR lpString2
         );
         """
         lpString1, lpString2 = argv
@@ -2856,9 +2856,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("lstrcpyn", argc=3)
     def lstrcpyn(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR lstrcpynA(
-            LPSTR lpString1,
-            LPCSTR lpString2,
+        LPTSTR lstrcpyn(
+            LPTSTR lpString1,
+            LPCTSTR lpString2,
             int iMaxLength
         );
         """
@@ -2879,9 +2879,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("lstrcpy", argc=2)
     def lstrcpy(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR lstrcpyA(
-            LPSTR lpString1,
-            LPCSTR lpString2
+        LPTSTR lstrcpy(
+            LPTSTR lpString1,
+            LPCTSTR lpString2
         );
         """
         dest, src = argv
@@ -3154,7 +3154,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnterCriticalSection", argc=1)
     def EnterCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void EnterCriticalSection(
+        VOID EnterCriticalSection(
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
@@ -3163,7 +3163,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("LeaveCriticalSection", argc=1)
     def LeaveCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void LeaveCriticalSection(
+        VOID LeaveCriticalSection(
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
@@ -3245,9 +3245,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("ExpandEnvironmentStrings", argc=3)
     def ExpandEnvironmentStrings(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD ExpandEnvironmentStringsA(
-            LPCSTR lpSrc,
-            LPSTR lpDst,
+        DWORD ExpandEnvironmentStrings(
+            LPCTSTR lpSrc,
+            LPTSTR lpDst,
             DWORD nSize
         );
         """
@@ -3314,11 +3314,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetFullPathName", argc=4)
     def GetFullPathName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetFullPathNameA(
-            LPCSTR lpFileName,
+        DWORD GetFullPathName(
+            LPCTSTR lpFileName,
             DWORD nBufferLength,
-            LPSTR lpBuffer,
-            LPSTR *lpFilePart
+            LPTSTR lpBuffer,
+            LPTSTR *lpFilePart
         );
         """
         lpFileName, nBufferLength, lpBuffer, lpFilePart = argv
@@ -3366,9 +3366,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetFinalPathNameByHandle", argc=4)
     def GetFinalPathNameByHandle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetFinalPathNameByHandleA(
+        DWORD GetFinalPathNameByHandle(
             HANDLE hFile,
-            LPSTR lpszFilePath,
+            LPTSTR lpszFilePath,
             DWORD cchFilePath,
             DWORD dwFlags
         );
@@ -3405,7 +3405,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetStartupInfo", argc=1)
     def GetStartupInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetStartupInfo(
+        VOID GetStartupInfo(
             LPSTARTUPINFO lpStartupInfo
         );
         """
@@ -3757,7 +3757,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         int LCMapString(
             LCID Locale,
             DWORD dwMapFlags,
-            LPTSTR lpSrcStr,
+            LPCTSTR lpSrcStr,
             int cchSrc,
             LPTSTR lpDestStr,
             int cchDest
@@ -3826,7 +3826,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetModuleFileName(
             HMODULE hModule,
-            LPSTR lpFilename,
+            LPTSTR lpFilename,
             DWORD nSize
         );
         """
@@ -3940,7 +3940,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetSystemDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetSystemDirectory(
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             UINT uSize
         );
         """
@@ -4012,7 +4012,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def SetDllDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL SetDllDirectory(
-            LPCSTR lpPathName
+            LPCTSTR lpPathName
         );
         """
         (path,) = argv
@@ -4027,7 +4027,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetWindowsDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetWindowsDirectory(
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             UINT uSize
         );
         """
@@ -4037,7 +4037,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetSystemWindowsDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetSystemWindowsDirectory(
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             UINT uSize
         );
         """
@@ -4052,7 +4052,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD flProtect,
             DWORD dwMaximumSizeHigh,
             DWORD dwMaximumSizeLow,
-            LPTSTR lpName
+            LPCTSTR lpName
         );
         """
         hfile, map_attrs, prot, max_size_high, max_size_low, map_name = argv
@@ -4221,7 +4221,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetSystemInfo", argc=1)
     def GetSystemInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetSystemInfo(
+        VOID GetSystemInfo(
             LPSYSTEM_INFO lpSystemInfo
         );
         """
@@ -4250,7 +4250,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetFileAttributes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileAttributes(
-            LPCSTR lpFileName
+            LPCTSTR lpFileName
         );
         """
         (fn,) = argv
@@ -4275,7 +4275,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetFileAttributesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetFileAttributesEx(
-            LPCSTR lpFileName,
+            LPCTSTR lpFileName,
             GET_FILEEX_INFO_LEVELS fInfoLevelId,
             LPVOID lpFileInformation
         );
@@ -4376,7 +4376,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def CreateDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL CreateDirectory(
-            LPCSTR lpPathName,
+            LPCTSTR lpPathName,
             LPSECURITY_ATTRIBUTES lpSecurityAttributes
         );
         """
@@ -4391,8 +4391,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("RemoveDirectory", argc=1)
     def RemoveDirectory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL RemoveDirectoryA(
-            LPCSTR lpPathName
+        BOOL RemoveDirectory(
+            LPCTSTR lpPathName
         );
         """
         (pn,) = argv
@@ -4547,7 +4547,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def CreateFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE CreateFile(
-            LPTSTR lpFileName,
+            LPCTSTR lpFileName,
             DWORD dwDesiredAccess,
             DWORD dwShareMode,
             LPSECURITY_ATTRIBUTES lpSecurityAttributes,
@@ -4634,8 +4634,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("DeleteFile", argc=1)
     def DeleteFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL DeleteFileW(
-            LPCWSTR lpFileName
+        BOOL DeleteFile(
+            LPCTSTR lpFileName
         );
         """
         lpFileName = argv[0]
@@ -4948,13 +4948,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetVolumeInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetVolumeInformation(
-            LPCSTR lpRootPathName,
-            LPSTR lpVolumeNameBuffer,
+            LPCTSTR lpRootPathName,
+            LPTSTR lpVolumeNameBuffer,
             DWORD nVolumeNameSize,
             LPDWORD lpVolumeSerialNumber,
             LPDWORD lpMaximumComponentLength,
             LPDWORD lpFileSystemFlags,
-            LPSTR lpFileSystemNameBuffer,
+            LPTSTR lpFileSystemNameBuffer,
             DWORD nFileSystemNameSize
         );
         """
@@ -4985,7 +4985,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             LPSECURITY_ATTRIBUTES lpEventAttributes,
             BOOL bManualReset,
             BOOL bInitialState,
-            LPCSTR lpName
+            LPCTSTR lpName
         );
         """
         attrs, reset, state, name = argv
@@ -4997,7 +4997,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HANDLE CreateEventEx(
             LPSECURITY_ATTRIBUTES lpEventAttributes,
-            LPCSTR lpName,
+            LPCTSTR lpName,
             DWORD dwFlags,
             DWORD dwDesiredAccess
         );
@@ -5034,7 +5034,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         HANDLE CreateWaitableTimer(
             LPSECURITY_ATTRIBUTES lpTimerAttributes,
             BOOL bManualReset,
-            LPCSTR lpTimerName
+            LPCTSTR lpTimerName
         );
         """
         _attrs, _manual_reset, name = argv
@@ -5061,7 +5061,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HANDLE CreateWaitableTimerEx(
             LPSECURITY_ATTRIBUTES lpTimerAttributes,
-            LPCSTR lpTimerName,
+            LPCTSTR lpTimerName,
             DWORD dwFlags,
             DWORD dwDesiredAccess
         );
@@ -5091,7 +5091,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         HANDLE OpenWaitableTimer(
             DWORD dwDesiredAccess,
             BOOL bInheritHandle,
-            LPCSTR lpTimerName
+            LPCTSTR lpTimerName
         );
         """
         _access, _inherit, name = argv
@@ -5158,7 +5158,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         HANDLE OpenEvent(
             DWORD dwDesiredAccess,
             BOOL bInheritHandle,
-            LPCSTR lpName
+            LPCTSTR lpName
         );
         """
         access, inherit, name = argv
@@ -5226,7 +5226,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("DeleteCriticalSection", argc=1)
     def DeleteCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void DeleteCriticalSection(
+        VOID DeleteCriticalSection(
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
@@ -5284,7 +5284,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("InitializeCriticalSection", argc=1)
     def InitializeCriticalSection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InitializeCriticalSection(
+        VOID InitializeCriticalSection(
             LPCRITICAL_SECTION lpCriticalSection
         );
         """
@@ -5314,7 +5314,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def LocalLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LPVOID LocalLock(
-            HGLOBAL hMem
+            HLOCAL hMem
         );
         """
         (hMem,) = argv
@@ -5334,7 +5334,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("InitializeSListHead", argc=1)
     def InitializeSListHead(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InitializeSListHead(
+        VOID InitializeSListHead(
             PSLIST_HEADER ListHead
         );
         """
@@ -5461,7 +5461,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         HRESULT WerGetFlags(
             HANDLE hProcess,
-            DWORD *pdwFlags
+            PDWORD pdwFlags
         );
         """
         hProcess, pdwFlags = argv
@@ -5519,7 +5519,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def CreateNamedPipe(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE CreateNamedPipe(
-            LPCSTR lpName,
+            LPCTSTR lpName,
             DWORD dwOpenMode,
             DWORD dwPipeMode,
             DWORD nMaxInstances,
@@ -5641,7 +5641,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         int GetLocaleInfo(
             LCID Locale,
             LCTYPE LCType,
-            LPSTR lpLCData,
+            LPTSTR lpLCData,
             int cchData
         );
         """
@@ -5726,7 +5726,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetComputerName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetComputerName(
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             LPDWORD nSize
         );
         """
@@ -5748,7 +5748,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetVersionEx", argc=1)
     def GetVersionEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NOT_BUILD_WINDOWS_DEPRECATE BOOL GetVersionEx(
+        BOOL GetVersionEx(
             LPOSVERSIONINFO lpVersionInformation
         );
         """
@@ -5859,8 +5859,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindFirstFileEx", argc=6)
     def FindFirstFileEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE FindFirstFileExA(
-            LPCSTR lpFileName,
+        HANDLE FindFirstFileEx(
+            LPCTSTR lpFileName,
             FINDEX_INFO_LEVELS fInfoLevelId,
             LPVOID lpFindFileData,
             FINDEX_SEARCH_OPS fSearchOp,
@@ -5885,9 +5885,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindFirstFile", argc=2)
     def FindFirstFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE FindFirstFileA(
-            LPCSTR lpFileName,
-            LPWIN32_FIND_DATAA lpFindFileData
+        HANDLE FindFirstFile(
+            LPCTSTR lpFileName,
+            LPWIN32_FIND_DATA lpFindFileData
         );
         """
         lpFileName, lpFindFileData = argv
@@ -5934,7 +5934,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         BOOL FindNextFile(
             HANDLE hFindFile,
-            LPWIN32_FIND_DATAA lpFindFileData
+            LPWIN32_FIND_DATA lpFindFileData
         );
         """
         hFindFile, lpFindFileData = argv
@@ -6113,10 +6113,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindResource", argc=3)
     def FindResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRSRC FindResourceA(
+        HRSRC FindResource(
             HMODULE hModule,
-            LPCSTR lpName,
-            LPCSTR lpType
+            LPCTSTR lpName,
+            LPCTSTR lpType
         );
         """
         cw = self.get_char_width(ctx)
@@ -6144,10 +6144,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindResourceEx", argc=4)
     def FindResourceEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRSRC FindResourceExW(
+        HRSRC FindResourceEx(
             HMODULE hModule,
-            LPCWSTR lpType,
-            LPCWSTR lpName,
+            LPCTSTR lpType,
+            LPCTSTR lpName,
             WORD wLanguage
         );
         """
@@ -6290,9 +6290,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnumResourceTypes", argc=3)
     def EnumResourceTypes(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumResourceTypesW(
+        BOOL EnumResourceTypes(
             HMODULE hModule,
-            ENUMRESTYPEPROCW lpEnumFunc,
+            ENUMRESTYPEPROC lpEnumFunc,
             LONG_PTR lParam
         );
         """
@@ -6310,9 +6310,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnumResourceTypesEx", argc=5)
     def EnumResourceTypesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumResourceTypesExW(
+        BOOL EnumResourceTypesEx(
             HMODULE hModule,
-            ENUMRESTYPEPROCW lpEnumFunc,
+            ENUMRESTYPEPROC lpEnumFunc,
             LONG_PTR lParam,
             DWORD dwFlags,
             LANGID LangId
@@ -6323,10 +6323,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnumResourceNames", argc=4)
     def EnumResourceNames(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumResourceNamesW(
+        BOOL EnumResourceNames(
             HMODULE hModule,
-            LPCWSTR lpType,
-            ENUMRESNAMEPROCW lpEnumFunc,
+            LPCTSTR lpType,
+            ENUMRESNAMEPROC lpEnumFunc,
             LONG_PTR lParam
         );
         """
@@ -6345,10 +6345,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnumResourceNamesEx", argc=6)
     def EnumResourceNamesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumResourceNamesExW(
+        BOOL EnumResourceNamesEx(
             HMODULE hModule,
-            LPCWSTR lpType,
-            ENUMRESNAMEPROCW lpEnumFunc,
+            LPCTSTR lpType,
+            ENUMRESNAMEPROC lpEnumFunc,
             LONG_PTR lParam,
             DWORD dwFlags,
             LANGID LangId
@@ -6359,11 +6359,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnumResourceLanguages", argc=5)
     def EnumResourceLanguages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumResourceLanguagesW(
+        BOOL EnumResourceLanguages(
             HMODULE hModule,
-            LPCWSTR lpType,
-            LPCWSTR lpName,
-            ENUMRESLANGPROCW lpEnumFunc,
+            LPCTSTR lpType,
+            LPCTSTR lpName,
+            ENUMRESLANGPROC lpEnumFunc,
             LONG_PTR lParam
         );
         """
@@ -6382,11 +6382,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("EnumResourceLanguagesEx", argc=7)
     def EnumResourceLanguagesEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumResourceLanguagesExW(
+        BOOL EnumResourceLanguagesEx(
             HMODULE hModule,
-            LPCWSTR lpType,
-            LPCWSTR lpName,
-            ENUMRESLANGPROCW lpEnumFunc,
+            LPCTSTR lpType,
+            LPCTSTR lpName,
+            ENUMRESLANGPROC lpEnumFunc,
             LONG_PTR lParam,
             DWORD dwFlags,
             LANGID LangId
@@ -6442,7 +6442,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetNativeSystemInfo", argc=1)
     def GetNativeSystemInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetNativeSystemInfo(
+        VOID GetNativeSystemInfo(
             LPSYSTEM_INFO lpSystemInfo
         );
         """
@@ -6627,8 +6627,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("IsBadStringPtr", argc=2)
     def IsBadStringPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL IsBadStringPtrW(
-            LPCWSTR lpsz,
+        BOOL IsBadStringPtr(
+            LPCTSTR lpsz,
             UINT_PTR ucchMax
         );
         """
@@ -6681,9 +6681,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetTempPath", argc=2)
     def GetTempPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetTempPathA(
+        DWORD GetTempPath(
             DWORD nBufferLength,
-            LPSTR lpBuffer
+            LPTSTR lpBuffer
         );
         """
         nBufferLength, lpBuffer = argv
@@ -6706,9 +6706,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetTempPath2", argc=2)
     def GetTempPath2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetTempPath2A(
+        DWORD GetTempPath2(
             DWORD BufferLength,
-            LPSTR Buffer
+            LPTSTR Buffer
         );
         """
         return self.GetTempPath(emu, argv, ctx)
@@ -6769,7 +6769,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetDriveType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetDriveType(
-            LPCSTR lpRootPathName
+            LPCTSTR lpRootPathName
         );
         """
         (lpRootPathName,) = argv
@@ -6823,9 +6823,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetShortPathName", argc=3)
     def GetShortPathName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetShortPathNameW(
-            LPCWSTR lpszLongPath,
-            LPWSTR lpszShortPath,
+        DWORD GetShortPathName(
+            LPCTSTR lpszLongPath,
+            LPTSTR lpszShortPath,
             DWORD cchBuffer
         );
 
@@ -6874,9 +6874,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetLongPathName", argc=3)
     def GetLongPathName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetLongPathNameA(
-            LPCSTR lpszShortPath,
-            LPSTR lpszLongPath,
+        DWORD GetLongPathName(
+            LPCTSTR lpszShortPath,
+            LPTSTR lpszLongPath,
             DWORD cchBuffer
         );
         """
@@ -6931,8 +6931,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetBinaryType", argc=2)
     def GetBinaryType(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetBinaryTypeA(
-            LPCSTR lpApplicationName,
+        BOOL GetBinaryType(
+            LPCTSTR lpApplicationName,
             LPDWORD lpBinaryType
         );
         """
@@ -7011,8 +7011,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("AddAtom", argc=1)
     def AddAtom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        ATOM AddAtomW(
-            LPCWSTR lpString
+        ATOM AddAtom(
+            LPCTSTR lpString
         );
         """
         ATOM_RESERVED = 0xC000
@@ -7032,8 +7032,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindAtom", argc=1)
     def FindAtom(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        ATOM FindAtomA(
-            LPCSTR lpString
+        ATOM FindAtom(
+            LPCTSTR lpString
         );
         """
         ATOM_RESERVED = 0xC000
@@ -7058,9 +7058,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetAtomName", argc=3)
     def GetAtomName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        UINT GetAtomNameA(
+        UINT GetAtomName(
             ATOM nAtom,
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             int nSize
         );
         """
@@ -7164,8 +7164,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindFirstVolume", argc=2)
     def FindFirstVolume(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE FindFirstVolumeW(
-            LPWSTR lpszVolumeName,
+        HANDLE FindFirstVolume(
+            LPTSTR lpszVolumeName,
             DWORD cchBufferLength
         );
         """
@@ -7192,9 +7192,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("FindNextVolume", argc=3)
     def FindNextVolume(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL FindNextVolumeW(
+        BOOL FindNextVolume(
             HANDLE hFindVolume,
-            LPWSTR lpszVolumeName,
+            LPTSTR lpszVolumeName,
             DWORD cchBufferLength
         );
         """
@@ -7304,9 +7304,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetLogicalDriveStrings", argc=2)
     def GetLogicalDriveStrings(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD GetLogicalDriveStringsA(
+        DWORD GetLogicalDriveStrings(
             DWORD nBufferLength,
-            LPSTR lpBuffer
+            LPTSTR lpBuffer
         );
         """
         nBufferLength, lpBuffer = argv
@@ -7321,7 +7321,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GlobalMemoryStatus", argc=1)
     def GlobalMemoryStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GlobalMemoryStatus(
+        VOID GlobalMemoryStatus(
             LPMEMORYSTATUS lpBuffer
         );
         """
@@ -7392,7 +7392,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetDiskFreeSpaceEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetDiskFreeSpaceEx(
-            LPCSTR lpDirectoryName,
+            LPCTSTR lpDirectoryName,
             PULARGE_INTEGER lpFreeBytesAvailableToCaller,
             PULARGE_INTEGER lpTotalNumberOfBytes,
             PULARGE_INTEGER lpTotalNumberOfFreeBytes
@@ -7476,9 +7476,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetComputerNameEx", argc=3)
     def GetComputerNameEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetComputerNameExA(
+        BOOL GetComputerNameEx(
             COMPUTER_NAME_FORMAT NameType,
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             LPDWORD nSize
         );
         """
@@ -7505,12 +7505,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetDateFormat", argc=6)
     def GetDateFormat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int GetDateFormatA(
+        int GetDateFormat(
             LCID Locale,
             DWORD dwFlags,
             const SYSTEMTIME *lpDate,
-            LPCSTR lpFormat,
-            LPSTR lpDateStr,
+            LPCTSTR lpFormat,
+            LPTSTR lpDateStr,
             int cchDate
         );
         """
@@ -7617,12 +7617,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetTimeFormat", argc=6)
     def GetTimeFormat(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int GetTimeFormatA(
+        int GetTimeFormat(
             LCID Locale,
             DWORD dwFlags,
             const SYSTEMTIME *lpTime,
-            LPCSTR lpFormat,
-            LPSTR lpTimeStr,
+            LPCTSTR lpFormat,
+            LPTSTR lpTimeStr,
             int cchTime
         );
         """
@@ -7710,7 +7710,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("InitializeConditionVariable", argc=1)
     def InitializeConditionVariable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InitializeConditionVariable(
+        VOID InitializeConditionVariable(
             PCONDITION_VARIABLE ConditionVariable
         );
         """
@@ -7722,7 +7722,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("WakeAllConditionVariable", argc=1)
     def WakeAllConditionVariable(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WakeAllConditionVariable(
+        VOID WakeAllConditionVariable(
             PCONDITION_VARIABLE ConditionVariable
         );
         """
@@ -7761,7 +7761,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("WakeByAddressSingle", argc=1)
     def WakeByAddressSingle(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WakeByAddressSingle(
+        VOID WakeByAddressSingle(
             PVOID Address
         );
         """
@@ -7770,7 +7770,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("WakeByAddressAll", argc=1)
     def WakeByAddressAll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WakeByAddressAll(
+        VOID WakeByAddressAll(
             PVOID Address
         );
         """
@@ -7890,7 +7890,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetSystemTimePreciseAsFileTime", argc=1)
     def GetSystemTimePreciseAsFileTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GetSystemTimePreciseAsFileTime(
+        VOID GetSystemTimePreciseAsFileTime(
             LPFILETIME lpSystemTimeAsFileTime
         );
         """
@@ -7960,7 +7960,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("GetUserDefaultLCID", argc=0)
     def GetUserDefaultLCID(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LCID GetSystemDefaultLCID();
+        LCID GetUserDefaultLCID();
         """
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LOCALE_USER_DEFAULT
@@ -7977,10 +7977,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def GetTempFileName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         UINT GetTempFileName(
-            LPCSTR lpPathName,
-            LPCSTR lpPrefixString,
+            LPCTSTR lpPathName,
+            LPCTSTR lpPrefixString,
             UINT uUnique,
-            LPSTR lpTempFileName
+            LPTSTR lpTempFileName
         );
         """
         lpPathName, lpPrefixString, uUnique, lpTempFileName = argv
@@ -8086,7 +8086,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("InitializeSRWLock", argc=1)
     def InitializeSRWLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void InitializeSRWLock(
+        VOID InitializeSRWLock(
             PSRWLOCK SRWLock
         );
         """
@@ -8095,7 +8095,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("AcquireSRWLockShared", argc=1)
     def AcquireSRWLockShared(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void AcquireSRWLockShared(
+        VOID AcquireSRWLockShared(
             PSRWLOCK SRWLock
         );
         """
@@ -8104,7 +8104,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("ReleaseSRWLockShared", argc=1)
     def ReleaseSRWLockShared(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ReleaseSRWLockShared(
+        VOID ReleaseSRWLockShared(
             PSRWLOCK SRWLock
         );
         """
@@ -8113,7 +8113,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("AcquireSRWLockExclusive", argc=1)
     def AcquireSRWLockExclusive(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void AcquireSRWLockExclusive(
+        VOID AcquireSRWLockExclusive(
             PSRWLOCK SRWLock
         );
         """
@@ -8122,7 +8122,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     @apihook("ReleaseSRWLockExclusive", argc=1)
     def ReleaseSRWLockExclusive(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ReleaseSRWLockExclusive(
+        VOID ReleaseSRWLockExclusive(
             PSRWLOCK SRWLock
         );
         """
@@ -8419,7 +8419,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def FlsGetValue2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID FlsGetValue2(
-            DWORD dwFlsIndex
+            DWORD dwTlsIndex
         );
         """
         (dwFlsIndex,) = argv

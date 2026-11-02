@@ -59,9 +59,9 @@ class AdvApi32(api.ApiHandler):
     @apihook("RegOpenKey", argc=3, conv=_arch.CALL_CONV_STDCALL)
     def RegOpenKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LSTATUS RegOpenKeyA(
+        LSTATUS RegOpenKey(
             HKEY hKey,
-            LPCSTR lpSubKey,
+            LPCTSTR lpSubKey,
             PHKEY phkResult
         );
         """
@@ -74,7 +74,7 @@ class AdvApi32(api.ApiHandler):
         """
         LSTATUS RegOpenKeyEx(
             HKEY hKey,
-            LPTSTR lpSubKey,
+            LPCTSTR lpSubKey,
             DWORD ulOptions,
             REGSAM samDesired,
             PHKEY phkResult
@@ -138,7 +138,7 @@ class AdvApi32(api.ApiHandler):
         """
         LSTATUS RegQueryValueEx(
             HKEY hKey,
-            LPTSTR lpValueName,
+            LPCTSTR lpValueName,
             LPDWORD lpReserved,
             LPDWORD lpType,
             LPBYTE lpData,
@@ -206,7 +206,7 @@ class AdvApi32(api.ApiHandler):
         """
         LSTATUS RegSetValueEx(
             HKEY hKey,
-            LPCSTR lpValueName,
+            LPCTSTR lpValueName,
             DWORD Reserved,
             DWORD dwType,
             const BYTE *lpData,
@@ -298,10 +298,10 @@ class AdvApi32(api.ApiHandler):
         LSTATUS RegEnumKeyEx(
             HKEY hKey,
             DWORD dwIndex,
-            LPSTR lpName,
+            LPTSTR lpName,
             LPDWORD lpcchName,
             LPDWORD lpReserved,
-            LPSTR lpClass,
+            LPTSTR lpClass,
             LPDWORD lpcchClass,
             PFILETIME lpftLastWriteTime
         );
@@ -348,7 +348,7 @@ class AdvApi32(api.ApiHandler):
         """
         LSTATUS RegCreateKey(
             HKEY hKey,
-            LPCWSTR lpSubKey,
+            LPCTSTR lpSubKey,
             PHKEY phkResult
         );
         """
@@ -378,11 +378,11 @@ class AdvApi32(api.ApiHandler):
     @apihook("RegCreateKeyEx", argc=9, conv=_arch.CALL_CONV_STDCALL)
     def RegCreateKeyEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LSTATUS RegCreateKeyExA(
+        LSTATUS RegCreateKeyEx(
             HKEY hKey,
-            LPCSTR lpSubKey,
+            LPCTSTR lpSubKey,
             DWORD Reserved,
-            LPSTR lpClass,
+            LPTSTR lpClass,
             DWORD dwOptions,
             REGSAM samDesired,
             const LPSECURITY_ATTRIBUTES lpSecurityAttributes,
@@ -430,9 +430,9 @@ class AdvApi32(api.ApiHandler):
     @apihook("RegDeleteValue", argc=2, conv=_arch.CALL_CONV_STDCALL)
     def RegDeleteValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LSTATUS RegDeleteValueA(
+        LSTATUS RegDeleteValue(
             HKEY hKey,
-            LPCSTR lpValueName
+            LPCTSTR lpValueName
         );
         """
         hKey, lpValueName = argv
@@ -458,9 +458,9 @@ class AdvApi32(api.ApiHandler):
     def RegQueryInfoKey(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         # TODO: stub
         """
-        LSTATUS RegQueryInfoKeyA(
+        LSTATUS RegQueryInfoKey(
             HKEY hKey,
-            LPSTR lpClass,
+            LPTSTR lpClass,
             LPDWORD lpcchClass,
             LPDWORD lpReserved,
             LPDWORD lpcSubKeys,
@@ -526,7 +526,7 @@ class AdvApi32(api.ApiHandler):
         BOOL OpenProcessToken(
             HANDLE ProcessHandle,
             DWORD DesiredAccess,
-            PHANDLE pTokenHandle
+            PHANDLE TokenHandle
         );
         """
         hProcess, DesiredAccess, pTokenHandle = argv
@@ -674,8 +674,8 @@ class AdvApi32(api.ApiHandler):
     @apihook("RegisterServiceCtrlHandler", argc=2)
     def RegisterServiceCtrlHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerA(
-            LPCSTR lpServiceName,
+        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandler(
+            LPCTSTR lpServiceName,
             LPHANDLER_FUNCTION lpHandlerProc
         );
         """
@@ -691,8 +691,8 @@ class AdvApi32(api.ApiHandler):
     @apihook("RegisterServiceCtrlHandlerEx", argc=3)
     def RegisterServiceCtrlHandlerEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerExA(
-            LPCSTR lpServiceName,
+        SERVICE_STATUS_HANDLE RegisterServiceCtrlHandlerEx(
+            LPCTSTR lpServiceName,
             LPHANDLER_FUNCTION_EX lpHandlerProc,
             LPVOID lpContext
         );
@@ -735,8 +735,8 @@ class AdvApi32(api.ApiHandler):
     def OpenSCManager(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SC_HANDLE OpenSCManager(
-            LPCSTR lpMachineName,
-            LPCSTR lpDatabaseName,
+            LPCTSTR lpMachineName,
+            LPCTSTR lpDatabaseName,
             DWORD dwDesiredAccess
         );
         """
@@ -750,20 +750,20 @@ class AdvApi32(api.ApiHandler):
     @apihook("CreateService", argc=13)
     def CreateService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SC_HANDLE CreateServiceA(
+        SC_HANDLE CreateService(
             SC_HANDLE hSCManager,
-            LPCSTR lpServiceName,
-            LPCSTR lpDisplayName,
+            LPCTSTR lpServiceName,
+            LPCTSTR lpDisplayName,
             DWORD dwDesiredAccess,
             DWORD dwServiceType,
             DWORD dwStartType,
             DWORD dwErrorControl,
-            LPCSTR lpBinaryPathName,
-            LPCSTR lpLoadOrderGroup,
+            LPCTSTR lpBinaryPathName,
+            LPCTSTR lpLoadOrderGroup,
             LPDWORD lpdwTagId,
-            LPCSTR lpDependencies,
-            LPCSTR lpServiceStartName,
-            LPCSTR lpPassword
+            LPCTSTR lpDependencies,
+            LPCTSTR lpServiceStartName,
+            LPCTSTR lpPassword
         );
         """
         (
@@ -815,7 +815,7 @@ class AdvApi32(api.ApiHandler):
         BOOL StartService(
             SC_HANDLE hService,
             DWORD dwNumServiceArgs,
-            LPCSTR *lpServiceArgVectors
+            LPCTSTR *lpServiceArgVectors
         );
         """
         hService, dwNumServiceArgs, lpServiceArgVectors = argv
@@ -886,9 +886,9 @@ class AdvApi32(api.ApiHandler):
     @apihook("QueryServiceConfig", argc=4)
     def QueryServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL QueryServiceConfigA(
+        BOOL QueryServiceConfig(
             SC_HANDLE hService,
-            LPQUERY_SERVICE_CONFIGA lpServiceConfig,
+            LPQUERY_SERVICE_CONFIG lpServiceConfig,
             DWORD cbBufSize,
             LPDWORD pcbBytesNeeded
         );
@@ -944,18 +944,18 @@ class AdvApi32(api.ApiHandler):
     @apihook("ChangeServiceConfig", argc=11)
     def ChangeServiceConfig(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL ChangeServiceConfigA(
+        BOOL ChangeServiceConfig(
             SC_HANDLE hService,
             DWORD dwServiceType,
             DWORD dwStartType,
             DWORD dwErrorControl,
-            LPCSTR lpBinaryPathName,
-            LPCSTR lpLoadOrderGroup,
+            LPCTSTR lpBinaryPathName,
+            LPCTSTR lpLoadOrderGroup,
             LPDWORD lpdwTagId,
-            LPCSTR lpDependencies,
-            LPCSTR lpServiceStartName,
-            LPCSTR lpPassword,
-            LPCSTR lpDisplayName
+            LPCTSTR lpDependencies,
+            LPCTSTR lpServiceStartName,
+            LPCTSTR lpPassword,
+            LPCTSTR lpDisplayName
         );
         """
         (
@@ -1031,8 +1031,8 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CryptAcquireContext(
             HCRYPTPROV *phProv,
-            LPCSTR szContainer,
-            LPCSTR szProvider,
+            LPCTSTR szContainer,
+            LPCTSTR szProvider,
             DWORD dwProvType,
             DWORD dwFlags
         );
@@ -1277,8 +1277,8 @@ class AdvApi32(api.ApiHandler):
     @apihook("GetCurrentHwProfile", argc=1)
     def GetCurrentHwProfile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetCurrentHwProfileA(
-            LPHW_PROFILE_INFOA lpHwProfileInfo
+        BOOL GetCurrentHwProfile(
+            LPHW_PROFILE_INFO lpHwProfileInfo
         );
         """
         (lpHwProfileInfo,) = argv
@@ -1311,7 +1311,7 @@ class AdvApi32(api.ApiHandler):
     def GetUserName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetUserName(
-            LPSTR lpBuffer,
+            LPTSTR lpBuffer,
             LPDWORD pcbBuffer
         );
         """
@@ -1339,8 +1339,8 @@ class AdvApi32(api.ApiHandler):
     def LookupPrivilegeValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupPrivilegeValue(
-            LPCSTR lpSystemName,
-            LPCSTR lpName,
+            LPCTSTR lpSystemName,
+            LPCTSTR lpName,
             PLUID lpLuid
         );
         """
@@ -1421,9 +1421,9 @@ class AdvApi32(api.ApiHandler):
     @apihook("ConvertSidToStringSid", argc=2)
     def ConvertSidToStringSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL ConvertSidToStringSidA(
+        BOOL ConvertSidToStringSid(
             PSID Sid,
-            LPSTR *StringSid
+            LPTSTR *StringSid
         );
         """
         sid, string_sid = argv
@@ -1499,12 +1499,12 @@ class AdvApi32(api.ApiHandler):
     @apihook("LookupAccountName", argc=7)
     def LookupAccountName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL LookupAccountNameA(
-            LPCSTR lpSystemName,
-            LPCSTR lpAccountName,
+        BOOL LookupAccountName(
+            LPCTSTR lpSystemName,
+            LPCTSTR lpAccountName,
             PSID Sid,
             LPDWORD cbSid,
-            LPSTR ReferencedDomainName,
+            LPTSTR ReferencedDomainName,
             LPDWORD cchReferencedDomainName,
             PSID_NAME_USE peUse
         );
@@ -1570,11 +1570,11 @@ class AdvApi32(api.ApiHandler):
     def LookupAccountSid(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL LookupAccountSid(
-            LPCSTR lpSystemName,
+            LPCTSTR lpSystemName,
             PSID Sid,
-            LPSTR Name,
+            LPTSTR Name,
             LPDWORD cchName,
-            LPSTR ReferencedDomainName,
+            LPTSTR ReferencedDomainName,
             LPDWORD cchReferencedDomainName,
             PSID_NAME_USE peUse
         );
@@ -1619,15 +1619,15 @@ class AdvApi32(api.ApiHandler):
         """
         BOOL CreateProcessAsUser(
             HANDLE hToken,
-            LPCSTR lpApplicationName,
-            LPSTR lpCommandLine,
+            LPCTSTR lpApplicationName,
+            LPTSTR lpCommandLine,
             LPSECURITY_ATTRIBUTES lpProcessAttributes,
             LPSECURITY_ATTRIBUTES lpThreadAttributes,
             BOOL bInheritHandles,
             DWORD dwCreationFlags,
             LPVOID lpEnvironment,
-            LPCSTR lpCurrentDirectory,
-            LPSTARTUPINFOA lpStartupInfo,
+            LPCTSTR lpCurrentDirectory,
+            LPSTARTUPINFO lpStartupInfo,
             LPPROCESS_INFORMATION lpProcessInformation
         );
         """
@@ -1932,10 +1932,10 @@ class AdvApi32(api.ApiHandler):
     @apihook("RegGetValue", argc=7, conv=_arch.CALL_CONV_STDCALL)
     def RegGetValue(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LSTATUS RegGetValueW(
+        LSTATUS RegGetValue(
             HKEY hkey,
-            LPCWSTR lpSubKey,
-            LPCWSTR lpValue,
+            LPCTSTR lpSubKey,
+            LPCTSTR lpValue,
             DWORD dwFlags,
             LPDWORD pdwType,
             PVOID pvData,
@@ -2005,11 +2005,11 @@ class AdvApi32(api.ApiHandler):
     @apihook("EnumServicesStatus", argc=8, conv=_arch.CALL_CONV_STDCALL)
     def EnumServicesStatus(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL EnumServicesStatusA(
+        BOOL EnumServicesStatus(
             SC_HANDLE hSCManager,
             DWORD dwServiceType,
             DWORD dwServiceState,
-            LPENUM_SERVICE_STATUSA lpServices,
+            LPENUM_SERVICE_STATUS lpServices,
             DWORD cbBufSize,
             LPDWORD pcbBytesNeeded,
             LPDWORD lpServicesReturned,
@@ -2084,9 +2084,9 @@ class AdvApi32(api.ApiHandler):
     @apihook("OpenService", argc=3, conv=_arch.CALL_CONV_STDCALL)
     def OpenService(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        SC_HANDLE OpenServiceA(
+        SC_HANDLE OpenService(
             SC_HANDLE hSCManager,
-            LPCSTR lpServiceName,
+            LPCTSTR lpServiceName,
             DWORD dwDesiredAccess
         );
         """

@@ -96,8 +96,8 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathIsRelative", argc=1)
     def PathIsRelative(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL PathIsRelativeA(
-            LPCSTR pszPath
+        BOOL PathIsRelative(
+            LPCTSTR pszPath
         );
         """
         (pszPath,) = argv
@@ -117,8 +117,8 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathFileExists", argc=1)
     def PathFileExists(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL PathFileExistsA(
-            LPCSTR pszPath
+        BOOL PathFileExists(
+            LPCTSTR pszPath
         );
         """
         (pszPath,) = argv
@@ -135,9 +135,9 @@ class Shlwapi(api.ApiHandler):
     @apihook("StrStr", argc=2)
     def StrStr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR StrStr(
-            PCSTR pszFirst,
-            PCSTR pszSrch
+        PCTSTR StrStr(
+            PCTSTR pszFirst,
+            PCTSTR pszSrch
         );
         """
         hay, needle = argv
@@ -166,9 +166,9 @@ class Shlwapi(api.ApiHandler):
     @apihook("StrStrI", argc=2)
     def StrStrI(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PCSTR StrStrI(
-            PCSTR pszFirst,
-            PCSTR pszSrch
+        PCTSTR StrStrI(
+            PCTSTR pszFirst,
+            PCTSTR pszSrch
         );
         """
         hay, needle = argv
@@ -266,8 +266,8 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathFindExtension", argc=1)
     def PathFindExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPCSTR PathFindExtensionA(
-            LPCSTR pszPath
+        LPCTSTR PathFindExtension(
+            LPCTSTR pszPath
         );
         """
         (pszPath,) = argv
@@ -297,8 +297,8 @@ class Shlwapi(api.ApiHandler):
     def StrCmpIC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StrCmpIC(
-            PCWSTR pszStr1,
-            PCWSTR pszStr2
+            LPCTSTR pszStr1,
+            LPCTSTR pszStr2
         );
         """
         return self.compare_strings(argv, ctx, ignore_case=True)
@@ -307,8 +307,8 @@ class Shlwapi(api.ApiHandler):
     def StrCmpC(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int StrCmpC(
-            PCWSTR pszStr1,
-            PCWSTR pszStr2
+            LPCTSTR pszStr1,
+            LPCTSTR pszStr2
         );
         """
         return self.compare_strings(argv, ctx, ignore_case=False)
@@ -330,8 +330,8 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathFindFileName", argc=1)
     def PathFindFileName(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPCSTR PathFindFileNameA(
-            LPCSTR pszPath
+        LPCTSTR PathFindFileName(
+            LPCTSTR pszPath
         );
         """
         (pszPath,) = argv
@@ -348,8 +348,8 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathRemoveExtension", argc=1)
     def PathRemoveExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void PathRemoveExtensionA(
-            LPSTR pszPath
+        void PathRemoveExtension(
+            LPTSTR pszPath
         );
         """
         (pszPath,) = argv
@@ -371,7 +371,7 @@ class Shlwapi(api.ApiHandler):
     def PathStripPath(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void PathStripPath(
-            LPSTR pszPath
+            LPTSTR pszPath
         );
         """
         (pszPath,) = argv
@@ -441,9 +441,9 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathAppend", argc=2)
     def PathAppend(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL PathAppendA(
-            LPSTR pszPath,
-            LPCSTR pszMore
+        BOOL PathAppend(
+            LPTSTR pszPath,
+            LPCTSTR pszMore
         );
         """
         pszPath, pszMore = argv
@@ -462,10 +462,10 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathCombine", argc=3)
     def PathCombine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR PathCombineA(
-            LPSTR pszDest,
-            LPCSTR pszDir,
-            LPCSTR pszFile
+        LPTSTR PathCombine(
+            LPTSTR pszDest,
+            LPCTSTR pszDir,
+            LPCTSTR pszFile
         );
         """
         pszDest, pszDir, pszFile = argv
@@ -496,9 +496,9 @@ class Shlwapi(api.ApiHandler):
     @apihook("PathCanonicalize", argc=2)
     def PathCanonicalize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL PathCanonicalizeW(
-            LPWSTR pszBuf,
-            LPCWSTR pszPath
+        BOOL PathCanonicalize(
+            LPTSTR pszBuf,
+            LPCTSTR pszPath
         );
         """
         pszBuf, pszPath = argv
@@ -526,10 +526,10 @@ class Shlwapi(api.ApiHandler):
     @apihook("UrlCombine", argc=5)
     def UrlCombine(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HRESULT UrlCombineA(
-            PCSTR pszBase,
-            PCSTR pszRelative,
-            PSTR pszCombined,
+        HRESULT UrlCombine(
+            PCTSTR pszBase,
+            PCTSTR pszRelative,
+            PTSTR pszCombined,
             DWORD *pcchCombined,
             DWORD dwFlags
         );
@@ -573,8 +573,8 @@ class Shlwapi(api.ApiHandler):
     def PathRenameExtension(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL PathRenameExtension(
-            LPSTR pszPath,
-            LPCSTR pszExt
+            LPTSTR pszPath,
+            LPCTSTR pszExt
         );
         """
         pszPath, pszExt = argv

@@ -21,7 +21,7 @@ class Wkscli(api.ApiHandler):
     @apihook("NetGetJoinInformation", argc=3)
     def NetGetJoinInformation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
+        NET_API_STATUS NetGetJoinInformation(
             LPCWSTR lpServer,
             LPWSTR *lpNameBuffer,
             PNETSETUP_JOIN_STATUS BufferType

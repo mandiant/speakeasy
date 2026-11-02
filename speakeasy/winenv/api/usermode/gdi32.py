@@ -318,9 +318,9 @@ class GDI32(api.ApiHandler):
     def GetObjectA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int GetObjectA(
-            HANDLE h,
-            int c,
-            LPVOID pv
+            HANDLE hgdiobj,
+            int cbBuffer,
+            LPVOID lpvObject
         );
         """
         h, c, pv = argv
@@ -345,7 +345,7 @@ class GDI32(api.ApiHandler):
     def D3DKMTEnumAdapters2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS D3DKMTEnumAdapters2(
-            D3DKMT_ENUMADAPTERS2 *unnamedParam1
+            const D3DKMT_ENUMADAPTERS2 *unnamedParam1
         );
         """
         (pData,) = argv
@@ -358,7 +358,7 @@ class GDI32(api.ApiHandler):
     def D3DKMTEnumAdapters(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS D3DKMTEnumAdapters(
-            D3DKMT_ENUMADAPTERS *unnamedParam1
+            const D3DKMT_ENUMADAPTERS *unnamedParam1
         );
         """
         (pData,) = argv

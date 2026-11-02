@@ -39,7 +39,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdiplusShutdown", argc=1)
     def GdiplusShutdown(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void GdiplusShutdown(
+        VOID GdiplusShutdown(
             ULONG_PTR token
         );
         """
@@ -75,7 +75,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipCreateBitmapFromStream", argc=2)
     def GdipCreateBitmapFromStream(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipCreateBitmapFromStream(
+        GpStatus GdipCreateBitmapFromStream(
             IStream *stream,
             GpBitmap **bitmap
         );
@@ -85,7 +85,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipCreateBitmapFromFile", argc=2)
     def GdipCreateBitmapFromFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipCreateBitmapFromFile(
+        GpStatus GdipCreateBitmapFromFile(
             const WCHAR *filename,
             GpBitmap **bitmap
         );
@@ -95,7 +95,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipLoadImageFromStream", argc=2)
     def GdipLoadImageFromStream(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipLoadImageFromStream(
+        GpStatus GdipLoadImageFromStream(
             IStream *stream,
             GpImage **image
         );
@@ -105,7 +105,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipLoadImageFromFile", argc=2)
     def GdipLoadImageFromFile(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipLoadImageFromFile(
+        GpStatus GdipLoadImageFromFile(
             const WCHAR *filename,
             GpImage **image
         );
@@ -115,7 +115,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipCreateBitmapFromStreamICM", argc=2)
     def GdipCreateBitmapFromStreamICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipCreateBitmapFromStreamICM(
+        GpStatus GdipCreateBitmapFromStreamICM(
             IStream *stream,
             GpBitmap **bitmap
         );
@@ -125,7 +125,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipCreateBitmapFromFileICM", argc=2)
     def GdipCreateBitmapFromFileICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipCreateBitmapFromFileICM(
+        GpStatus GdipCreateBitmapFromFileICM(
             const WCHAR *filename,
             GpBitmap **bitmap
         );
@@ -135,7 +135,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipLoadImageFromStreamICM", argc=2)
     def GdipLoadImageFromStreamICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipLoadImageFromStreamICM(
+        GpStatus GdipLoadImageFromStreamICM(
             IStream *stream,
             GpImage **image
         );
@@ -145,7 +145,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipLoadImageFromFileICM", argc=2)
     def GdipLoadImageFromFileICM(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipLoadImageFromFileICM(
+        GpStatus GdipLoadImageFromFileICM(
             const WCHAR *filename,
             GpImage **image
         );
@@ -155,7 +155,7 @@ class Gdiplus(api.ApiHandler):
     @apihook("GdipDisposeImage", argc=1)
     def GdipDisposeImage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        Status GdipDisposeImage(
+        GpStatus GdipDisposeImage(
             GpImage *image
         );
         """

@@ -134,7 +134,7 @@ class Ndis(api.ApiHandler):
     @apihook("NdisInitializeReadWriteLock", argc=1)
     def NdisInitializeReadWriteLock(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void NdisInitializeReadWriteLock(
+        VOID NdisInitializeReadWriteLock(
             PNDIS_RW_LOCK Lock
         );
         """
@@ -201,7 +201,7 @@ class Ndis(api.ApiHandler):
     @apihook("NdisIMAssociateMiniport", argc=2)
     def NdisIMAssociateMiniport(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void NdisIMAssociateMiniport(
+        VOID NdisIMAssociateMiniport(
             NDIS_HANDLE DriverHandle,
             NDIS_HANDLE ProtocolHandle
         );
@@ -259,7 +259,7 @@ class Ndis(api.ApiHandler):
         """
         NDIS_HANDLE NdisAllocateNetBufferListPool(
             NDIS_HANDLE NdisHandle,
-            PNET_BUFFER_LIST_POOL_PARAMETERS Parameters
+            const NET_BUFFER_LIST_POOL_PARAMETERS *Parameters
         );
         """
         NdisHandle, Parameters = argv
@@ -283,7 +283,7 @@ class Ndis(api.ApiHandler):
     @apihook("NdisFreeNetBufferListPool", argc=1)
     def NdisFreeNetBufferListPool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void NdisFreeNetBufferListPool(
+        VOID NdisFreeNetBufferListPool(
             NDIS_HANDLE PoolHandle
         );
         """
@@ -294,7 +294,7 @@ class Ndis(api.ApiHandler):
     @apihook("NdisFreeMemory", argc=3)
     def NdisFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void NdisFreeMemory(
+        VOID NdisFreeMemory(
             PVOID VirtualAddress,
             UINT Length,
             UINT MemoryFlags
@@ -307,7 +307,7 @@ class Ndis(api.ApiHandler):
     @apihook("NdisFreeGenericObject", argc=1)
     def NdisFreeGenericObject(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void NdisFreeGenericObject(
+        VOID NdisFreeGenericObject(
             PNDIS_GENERIC_OBJECT NdisObject
         );
         """

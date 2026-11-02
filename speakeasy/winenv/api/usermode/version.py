@@ -151,7 +151,7 @@ class Version(api.ApiHandler):
     def GetFileVersionInfoSize(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         DWORD GetFileVersionInfoSize(
-            LPCSTR lptstrFilename,
+            LPCTSTR lptstrFilename,
             LPDWORD lpdwHandle
         );
         """
@@ -163,7 +163,7 @@ class Version(api.ApiHandler):
         """
         DWORD GetFileVersionInfoSizeEx(
             DWORD dwFlags,
-            LPCSTR lpwstrFilename,
+            LPCTSTR lpwstrFilename,
             LPDWORD lpdwHandle
         );
         """
@@ -174,7 +174,7 @@ class Version(api.ApiHandler):
     def GetFileVersionInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetFileVersionInfo(
-            LPCSTR lptstrFilename,
+            LPCTSTR lptstrFilename,
             DWORD dwHandle,
             DWORD dwLen,
             LPVOID lpData
@@ -188,7 +188,7 @@ class Version(api.ApiHandler):
         """
         BOOL GetFileVersionInfoEx(
             DWORD dwFlags,
-            LPCSTR lpwstrFilename,
+            LPCTSTR lpwstrFilename,
             DWORD dwHandle,
             DWORD dwLen,
             LPVOID lpData
@@ -202,7 +202,7 @@ class Version(api.ApiHandler):
         """
         BOOL VerQueryValue(
             LPCVOID pBlock,
-            LPCSTR lpSubBlock,
+            LPCTSTR lpSubBlock,
             LPVOID *lplpBuffer,
             PUINT puLen
         );

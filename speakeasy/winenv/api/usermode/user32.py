@@ -304,7 +304,7 @@ class User32(api.ApiHandler):
     def CreateWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWINSTA CreateWindowStation(
-            LPCSTR lpwinsta,
+            LPCTSTR lpwinsta,
             DWORD dwFlags,
             ACCESS_MASK dwDesiredAccess,
             LPSECURITY_ATTRIBUTES lpsa
@@ -353,7 +353,7 @@ class User32(api.ApiHandler):
     def RegisterClassEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ATOM RegisterClassEx(
-            const WNDCLASSEXA *Arg1
+            const WNDCLASSEX *unnamedParam1
         );
         """
         (Arg1,) = argv
@@ -363,7 +363,7 @@ class User32(api.ApiHandler):
     def RegisterClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ATOM RegisterClass(
-            const WNDCLASSA *lpWndClass
+            const WNDCLASS *lpWndClass
         );
         """
         (lpWndClass,) = argv
@@ -383,7 +383,7 @@ class User32(api.ApiHandler):
     def UnregisterClass(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL UnregisterClass(
-            LPCSTR lpClassName,
+            LPCTSTR lpClassName,
             HINSTANCE hInstance
         );
         """
@@ -430,7 +430,7 @@ class User32(api.ApiHandler):
     def OpenWindowStation(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWINSTA OpenWindowStation(
-            LPCSTR lpszWinSta,
+            LPCTSTR lpszWinSta,
             BOOL fInherit,
             ACCESS_MASK dwDesiredAccess
         );
@@ -471,7 +471,7 @@ class User32(api.ApiHandler):
     @apihook("PostQuitMessage", argc=1)
     def PostQuitMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void PostQuitMessage(
+        VOID PostQuitMessage(
             int nExitCode
         );
         """
@@ -502,7 +502,7 @@ class User32(api.ApiHandler):
     @apihook("CallWindowProc", argc=5)
     def CallWindowProc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LRESULT CallWindowProcA(
+        LRESULT CallWindowProc(
             WNDPROC lpPrevWndFunc,
             HWND hWnd,
             UINT Msg,
@@ -518,10 +518,10 @@ class User32(api.ApiHandler):
     @apihook("CreateWindowEx", argc=12)
     def CreateWindowEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HWND CreateWindowExA(
+        HWND CreateWindowEx(
             DWORD dwExStyle,
-            LPCSTR lpClassName,
-            LPCSTR lpWindowName,
+            LPCTSTR lpClassName,
+            LPCTSTR lpWindowName,
             DWORD dwStyle,
             int X,
             int Y,
@@ -607,10 +607,10 @@ class User32(api.ApiHandler):
     @apihook("MessageBoxEx", argc=5)
     def MessageBoxEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int MessageBoxExA(
+        int MessageBoxEx(
             HWND hWnd,
-            LPCSTR lpText,
-            LPCSTR lpCaption,
+            LPCTSTR lpText,
+            LPCTSTR lpCaption,
             UINT uType,
             WORD wLanguageId
         );
@@ -622,10 +622,10 @@ class User32(api.ApiHandler):
     @apihook("LoadString", argc=4)
     def LoadString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int LoadStringW(
+        int LoadString(
             HINSTANCE hInstance,
             UINT uID,
-            LPWSTR lpBuffer,
+            LPTSTR lpBuffer,
             int cchBufferMax
         );
 
@@ -733,7 +733,7 @@ class User32(api.ApiHandler):
         """
         HBITMAP LoadBitmap(
             HINSTANCE hInstance,
-            LPCSTR lpBitmapName
+            LPCTSTR lpBitmapName
         );
         """
         hInstance, lpBitmapName = argv
@@ -754,8 +754,8 @@ class User32(api.ApiHandler):
     @apihook("RegisterWindowMessage", argc=1)
     def RegisterWindowMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        UINT RegisterWindowMessageA(
-            LPCSTR lpString
+        UINT RegisterWindowMessage(
+            LPCTSTR lpString
         );
         """
         (lpString,) = argv
@@ -772,9 +772,9 @@ class User32(api.ApiHandler):
     @apihook("wsprintf", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
     def wsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        int wsprintfA(
-            LPSTR lpOut,
-            LPCSTR lpFmt,
+        int wsprintf(
+            LPTSTR unnamedParam1,
+            LPCTSTR unnamedParam2,
             ...
         );
         """
@@ -797,7 +797,7 @@ class User32(api.ApiHandler):
     @apihook("PeekMessage", argc=5)
     def PeekMessage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL PeekMessageA(
+        BOOL PeekMessage(
             LPMSG lpMsg,
             HWND hWnd,
             UINT wMsgFilterMin,
@@ -1047,7 +1047,7 @@ class User32(api.ApiHandler):
         """
         HCURSOR LoadCursor(
             HINSTANCE hInstance,
-            LPCSTR lpCursorName
+            LPCTSTR lpCursorName
         );
         """
         _, lpCursorName = argv
@@ -1058,8 +1058,8 @@ class User32(api.ApiHandler):
     def FindWindow(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HWND FindWindow(
-            LPCSTR lpClassName,
-            LPCSTR lpWindowName
+            LPCTSTR lpClassName,
+            LPCTSTR lpWindowName
         );
         """
         lpClassName, lpWindowName = argv
@@ -1078,8 +1078,8 @@ class User32(api.ApiHandler):
         HWND FindWindowEx(
             HWND hWndParent,
             HWND hWndChildAfter,
-            LPCSTR lpszClass,
-            LPCSTR lpszWindow
+            LPCTSTR lpszClass,
+            LPCTSTR lpszWindow
         );
         """
         _, _, lpszClass, lpszWindow = argv
@@ -1095,7 +1095,7 @@ class User32(api.ApiHandler):
         """
         int GetWindowText(
             HWND hWnd,
-            LPSTR lpString,
+            LPTSTR lpString,
             int nMaxCount
         );
         """
@@ -1123,8 +1123,8 @@ class User32(api.ApiHandler):
     def wvsprintf(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int wvsprintf(
-            LPSTR lpOutput,
-            LPCSTR lpFmt,
+            LPTSTR unnamedParam1,
+            LPCTSTR unnamedParam2,
             va_list arglist
         );
         """
@@ -1155,8 +1155,8 @@ class User32(api.ApiHandler):
     @apihook("CharNext", argc=1)
     def CharNext(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR CharNext(
-            LPCSTR lpsz
+        LPTSTR CharNext(
+            LPCTSTR lpsz
         );
         """
         (s,) = argv
@@ -1169,9 +1169,9 @@ class User32(api.ApiHandler):
     @apihook("CharPrev", argc=2)
     def CharPrev(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR CharPrev(
-            LPCSTR lpszStart,
-            LPCSTR lpszCurrent
+        LPTSTR CharPrev(
+            LPCTSTR lpszStart,
+            LPCTSTR lpszCurrent
         );
         """
         """
@@ -1247,9 +1247,9 @@ class User32(api.ApiHandler):
     @apihook("SetProp", argc=3)
     def SetProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL SetPropA(
+        BOOL SetProp(
             HWND hWnd,
-            LPCSTR lpString,
+            LPCTSTR lpString,
             HANDLE hData
         );
         """
@@ -1264,9 +1264,9 @@ class User32(api.ApiHandler):
     @apihook("GetProp", argc=2)
     def GetProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE GetPropA(
+        HANDLE GetProp(
             HWND hWnd,
-            LPCSTR lpString
+            LPCTSTR lpString
         );
         """
         hnd, lpString = argv
@@ -1279,9 +1279,9 @@ class User32(api.ApiHandler):
     @apihook("RemoveProp", argc=2)
     def RemoveProp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HANDLE RemovePropA(
+        HANDLE RemoveProp(
             HWND hWnd,
-            LPCSTR lpString
+            LPCTSTR lpString
         );
         """
         hnd, lpString = argv
@@ -1353,7 +1353,7 @@ class User32(api.ApiHandler):
     @apihook("GetWindowLong", argc=2)
     def GetWindowLong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LONG GetWindowLongA(
+        LONG GetWindowLong(
             HWND hWnd,
             int nIndex
         );
@@ -1367,7 +1367,7 @@ class User32(api.ApiHandler):
     @apihook("GetWindowLongPtr", argc=2)
     def GetWindowLongPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LONG_PTR GetWindowLongPtrA(
+        LONG_PTR GetWindowLongPtr(
             HWND hWnd,
             int nIndex
         );
@@ -1377,7 +1377,7 @@ class User32(api.ApiHandler):
     @apihook("SetWindowLong", argc=3)
     def SetWindowLong(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LONG SetWindowLongA(
+        LONG SetWindowLong(
             HWND hWnd,
             int nIndex,
             LONG dwNewLong
@@ -1401,7 +1401,7 @@ class User32(api.ApiHandler):
     @apihook("SetWindowLongPtr", argc=3)
     def SetWindowLongPtr(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LONG_PTR SetWindowLongPtrA(
+        LONG_PTR SetWindowLongPtr(
             HWND hWnd,
             int nIndex,
             LONG_PTR dwNewLong
@@ -1414,7 +1414,7 @@ class User32(api.ApiHandler):
         """
         INT_PTR DialogBoxParam(
             HINSTANCE hInstance,
-            LPCSTR lpTemplateName,
+            LPCTSTR lpTemplateName,
             HWND hWndParent,
             DLGPROC lpDialogFunc,
             LPARAM dwInitParam
@@ -1449,7 +1449,7 @@ class User32(api.ApiHandler):
         """
         HWND CreateDialogIndirectParam(
             HINSTANCE hInstance,
-            LPCDLGTEMPLATEA lpTemplate,
+            LPCDLGTEMPLATE lpTemplate,
             HWND hWndParent,
             DLGPROC lpDialogFunc,
             LPARAM dwInitParam
@@ -1472,8 +1472,8 @@ class User32(api.ApiHandler):
     def GetMenuInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL GetMenuInfo(
-            HMENU,
-            LPMENUINFO
+            HMENU unnamedParam1,
+            LPMENUINFO unnamedParam2
         );
         """
         return 1
@@ -1491,7 +1491,7 @@ class User32(api.ApiHandler):
         """
         HACCEL LoadAccelerators(
             HINSTANCE hInstance,
-            LPCSTR lpTableName
+            LPCTSTR lpTableName
         );
         """
         _, lpTableName = argv
@@ -1572,7 +1572,7 @@ class User32(api.ApiHandler):
         """
         HICON LoadIcon(
             HINSTANCE hInstance,
-            LPCSTR lpIconName
+            LPCTSTR lpIconName
         );
         """
         (
@@ -1696,11 +1696,11 @@ class User32(api.ApiHandler):
     @apihook("GetAltTabInfo", argc=5)
     def GetAltTabInfo(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        BOOL GetAltTabInfoA(
+        BOOL GetAltTabInfo(
             HWND hwnd,
             int iItem,
             PALTTABINFO pati,
-            LPSTR pszItemText,
+            LPTSTR pszItemText,
             UINT cchItemText
         );
         """
@@ -1771,8 +1771,8 @@ class User32(api.ApiHandler):
     @apihook("CharLowerBuff", argc=2)
     def CharLowerBuff(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD CharLowerBuffA(
-            LPSTR lpsz,
+        DWORD CharLowerBuff(
+            LPTSTR lpsz,
             DWORD cchLength
         );
         """
@@ -1788,8 +1788,8 @@ class User32(api.ApiHandler):
     @apihook("CharUpperBuff", argc=2)
     def CharUpperBuff(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD CharUpperBuffA(
-            LPSTR lpsz,
+        DWORD CharUpperBuff(
+            LPTSTR lpsz,
             DWORD cchLength
         );
         """
@@ -1805,8 +1805,8 @@ class User32(api.ApiHandler):
     @apihook("CharLower", argc=1)
     def CharLower(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR CharLowerA(
-            LPSTR lpsz
+        LPTSTR CharLower(
+            LPTSTR lpsz
         );
         """
         (_str,) = argv
@@ -1825,8 +1825,8 @@ class User32(api.ApiHandler):
     @apihook("CharUpper", argc=1)
     def CharUpper(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        LPSTR CharUpperA(
-            LPSTR lpsz
+        LPTSTR CharUpper(
+            LPTSTR lpsz
         );
         """
         (_str,) = argv
@@ -1876,8 +1876,8 @@ class User32(api.ApiHandler):
     @apihook("OpenDesktop", argc=4)
     def OpenDesktop(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        HDESK OpenDesktopA(
-            LPCSTR lpszDesktop,
+        HDESK OpenDesktop(
+            LPCTSTR lpszDesktop,
             DWORD dwFlags,
             BOOL fInherit,
             ACCESS_MASK dwDesiredAccess
@@ -1918,7 +1918,7 @@ class User32(api.ApiHandler):
     @apihook("GetKBCodePage", argc=0)
     def GetKBCodePage(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        INT GetKBCodePage();
+        UINT GetKBCodePage();
         """
         # >>> ctypes.windll.user32.GetKBCodePage()
         # 437
@@ -2084,8 +2084,8 @@ class User32(api.ApiHandler):
     def OemToCharA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL OemToCharA(
-            LPCSTR lpszSrc,
-            LPSTR lpszDst
+            LPCSTR pSrc,
+            LPSTR pDst
         );
         """
         src, dst = argv

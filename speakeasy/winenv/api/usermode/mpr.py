@@ -22,7 +22,7 @@ class Mpr(api.ApiHandler):
             DWORD dwScope,
             DWORD dwType,
             DWORD dwUsage,
-            LPNETRESOURCEW lpNetResource,
+            LPNETRESOURCE lpNetResource,
             LPHANDLE lphEnum
         );
         """
@@ -45,7 +45,7 @@ class Mpr(api.ApiHandler):
     @apihook("WNetEnumResource", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WNetEnumResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD WNetEnumResourceA(
+        DWORD WNetEnumResource(
             HANDLE hEnum,
             LPDWORD lpcCount,
             LPVOID lpBuffer,
@@ -57,10 +57,10 @@ class Mpr(api.ApiHandler):
     @apihook("WNetAddConnection2", argc=4, conv=_arch.CALL_CONV_STDCALL)
     def WNetAddConnection2(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD WNetAddConnection2W(
-            LPNETRESOURCEW lpNetResource,
-            LPCWSTR lpPassword,
-            LPCWSTR lpUserName,
+        DWORD WNetAddConnection2(
+            LPNETRESOURCE lpNetResource,
+            LPCTSTR lpPassword,
+            LPCTSTR lpUserName,
             DWORD dwFlags
         );
         """
@@ -69,9 +69,9 @@ class Mpr(api.ApiHandler):
     @apihook("WNetGetConnection", argc=3, conv=_arch.CALL_CONV_STDCALL)
     def WNetGetConnection(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD WNetGetConnectionA(
-            LPCSTR lpLocalName,
-            LPSTR lpRemoteName,
+        DWORD WNetGetConnection(
+            LPCTSTR lpLocalName,
+            LPTSTR lpRemoteName,
             LPDWORD lpnLength
         );
         """

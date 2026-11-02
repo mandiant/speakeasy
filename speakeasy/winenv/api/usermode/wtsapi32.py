@@ -78,7 +78,7 @@ class WtsApi32(api.ApiHandler):
     @apihook("WTSFreeMemory", argc=1, conv=_arch.CALL_CONV_STDCALL)
     def WTSFreeMemory(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void WTSFreeMemory(
+        VOID WTSFreeMemory(
             PVOID pMemory
         );
         """

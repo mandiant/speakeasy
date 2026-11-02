@@ -50,8 +50,8 @@ class DnsApi(api.ApiHandler):
     @apihook("DnsQuery_", argc=6)
     def DnsQuery_(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DNS_STATUS DnsQuery_A(
-            PCSTR pszName,
+        DNS_STATUS DnsQuery_(
+            PCTSTR pszName,
             WORD wType,
             DWORD Options,
             PVOID pExtra,

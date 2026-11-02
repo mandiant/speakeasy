@@ -63,15 +63,15 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("RtlGetLastWin32Error", argc=0)
     def RtlGetLastWin32Error(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD RtlGetLastWin32Error();
+        LONG RtlGetLastWin32Error();
         """
         return emu.get_last_error()
 
     @apihook("RtlSetLastWin32Error", argc=1)
     def RtlSetLastWin32Error(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void RtlSetLastWin32Error(
-            DWORD Win32Error
+        VOID RtlSetLastWin32Error(
+            LONG Win32Error
         );
         """
         (err,) = argv
@@ -108,9 +108,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlSizeHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SIZE_T RtlSizeHeap(
-            PVOID HeapHandle,
+            HANDLE HeapHandle,
             ULONG Flags,
-            PVOID BaseAddress
+            PCVOID BaseAddress
         );
         """
         heap, flags, addr = argv
@@ -123,7 +123,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlReAllocateHeap(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlReAllocateHeap(
-            PVOID HeapHandle,
+            HANDLE HeapHandle,
             ULONG Flags,
             PVOID BaseAddress,
             SIZE_T Size
@@ -149,7 +149,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlIpv4AddressToStringA(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PSTR RtlIpv4AddressToStringA(
-            const IN_ADDR *Addr,
+            const struct in_addr *Addr,
             PSTR S
         );
         """
@@ -160,7 +160,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlIpv4AddressToStringW(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PWSTR RtlIpv4AddressToStringW(
-            const IN_ADDR *Addr,
+            const struct in_addr *Addr,
             PWSTR S
         );
         """
@@ -179,9 +179,9 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("RtlFlushSecureMemoryCache", argc=2)
     def RtlFlushSecureMemoryCache(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD RtlFlushSecureMemoryCache(
-            PVOID arg0,
-            PVOID arg1
+        BOOLEAN RtlFlushSecureMemoryCache(
+            PVOID MemoryCache,
+            SIZE_T MemoryLength
         );
         """
         return True
@@ -189,7 +189,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("RtlAddVectoredExceptionHandler", argc=2)
     def RtlAddVectoredExceptionHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PVOID AddVectoredExceptionHandler(
+        PVOID RtlAddVectoredExceptionHandler(
             ULONG First,
             PVECTORED_EXCEPTION_HANDLER Handler
         );
@@ -230,7 +230,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("RtlRemoveVectoredExceptionHandler", argc=1)
     def RtlRemoveVectoredExceptionHandler(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        ULONG RemoveVectoredExceptionHandler(
+        ULONG RtlRemoveVectoredExceptionHandler(
             PVOID Handle
         );
         """
@@ -244,10 +244,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def LdrLoadDll(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrLoadDll(
-            PWSTR SearchPath,
-            PULONG LoadFlags,
-            PUNICODE_STRING Name,
-            PVOID *BaseAddress
+            PCWSTR DllPath,
+            PULONG DllCharacteristics,
+            PCUNICODE_STRING DllName,
+            PVOID *DllHandle
         );
         """
         SearchPath, LoadFlags, Name, BaseAddress = argv
@@ -299,10 +299,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def LdrGetProcedureAddress(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrGetProcedureAddress(
-            HMODULE ModuleHandle,
-            PANSI_STRING FunctionName,
-            WORD Oridinal,
-            PVOID *FunctionAddress
+            PVOID DllHandle,
+            PCANSI_STRING ProcedureName,
+            ULONG ProcedureNumber,
+            PVOID *ProcedureAddress
         );
         """
         hmod, proc_name, ordinal, func_addr = argv
@@ -408,7 +408,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlEncodePointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlEncodePointer(
-            PVOID Pointer
+            PVOID Ptr
         );
         """
         (Ptr,) = argv
@@ -421,7 +421,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def RtlDecodePointer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlDecodePointer(
-            PVOID Pointer
+            PVOID Ptr
         );
         """
         (Ptr,) = argv
@@ -454,10 +454,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("RtlComputeCrc32", argc=3)
     def RtlComputeCrc32(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        DWORD RtlComputeCrc32(
-            DWORD dwInitial,
-            const BYTE *pData,
-            INT iLen
+        ULONG32 RtlComputeCrc32(
+            ULONG32 PartialCrc,
+            PVOID Buffer,
+            ULONG Length
         );
         """
         dwInitial, pData, iLen = argv
@@ -472,8 +472,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         NTSTATUS LdrFindResource_U(
             PVOID DllHandle,
-            PLDR_RESOURCE_INFO ResourceInfo,
-            ULONG Level,
+            PULONG_PTR ResourcePath,
+            ULONG Count,
             PIMAGE_RESOURCE_DATA_ENTRY *ResourceDataEntry
         );
 
@@ -532,10 +532,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     def LdrAccessResource(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS LdrAccessResource(
-            PVOID BaseAddress,
+            PVOID DllHandle,
             PIMAGE_RESOURCE_DATA_ENTRY ResourceDataEntry,
-            PVOID *Resource,
-            PULONG Size
+            PVOID *ResourceBuffer,
+            ULONG *ResourceLength
         );
         """
         BaseAddress, ResourceDataEntry, Resource, Size = argv
@@ -556,10 +556,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     @apihook("RtlGetNtVersionNumbers", argc=3)
     def RtlGetNtVersionNumbers(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void RtlGetNtVersionNumbers(
-            DWORD *pNtMajorVersion,
-            DWORD *pNtMinorVersion,
-            DWORD *pNtBuildNumber
+        VOID RtlGetNtVersionNumbers(
+            PULONG NtMajorVersion,
+            PULONG NtMinorVersion,
+            PULONG NtBuildNumber
         );
         """
         pMajor, pMinor, pBuild = argv
@@ -767,7 +767,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         NTSTATUS NtCreateThreadEx(
             PHANDLE ThreadHandle,
             ACCESS_MASK DesiredAccess,
-            POBJECT_ATTRIBUTES ObjectAttributes,
+            PCOBJECT_ATTRIBUTES ObjectAttributes,
             HANDLE ProcessHandle,
             PUSER_THREAD_START_ROUTINE StartRoutine,
             PVOID Argument,

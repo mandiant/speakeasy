@@ -144,10 +144,10 @@ class Wininet(api.ApiHandler):
     def InternetCrackUrl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOL InternetCrackUrl(
-            LPCSTR lpszUrl,
+            LPCTSTR lpszUrl,
             DWORD dwUrlLength,
             DWORD dwFlags,
-            LPURL_COMPONENTSA lpUrlComponents
+            LPURL_COMPONENTS lpUrlComponents
         );
         """
         lpszUrl, dwUrlLength, dwFlags, lpUrlComponents = argv
@@ -233,7 +233,7 @@ class Wininet(api.ApiHandler):
         """
         BOOL HttpSendRequest(
             HINTERNET hRequest,
-            LPTSTR lpszHeaders,
+            LPCTSTR lpszHeaders,
             DWORD dwHeadersLength,
             LPVOID lpOptional,
             DWORD dwOptionalLength

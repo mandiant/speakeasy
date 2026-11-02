@@ -255,7 +255,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("vDbgPrintEx", argc=4, conv=_arch.CALL_CONV_CDECL)
     def vDbgPrintEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS vDbgPrintEx(
+        ULONG vDbgPrintEx(
             ULONG ComponentId,
             ULONG Level,
             PCCH Format,
@@ -271,7 +271,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("vDbgPrintExWithPrefix", argc=5, conv=_arch.CALL_CONV_CDECL)
     def vDbgPrintExWithPrefix(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        NTSTATUS vDbgPrintExWithPrefix(
+        ULONG vDbgPrintExWithPrefix(
             PCCH Prefix,
             ULONG ComponentId,
             ULONG Level,
@@ -632,7 +632,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("ExFreePool", argc=1)
     def ExFreePool(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ExFreePool(
+        VOID ExFreePool(
             PVOID P
         );
         """
@@ -747,7 +747,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IofCompleteRequest", argc=2, conv=_arch.CALL_CONV_FASTCALL)
     def IofCompleteRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IofCompleteRequest(
+        VOID IofCompleteRequest(
             PIRP Irp,
             CCHAR PriorityBoost
         );
@@ -774,7 +774,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KeInitializeMutex", argc=2)
     def KeInitializeMutex(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void KeInitializeMutex(
+        VOID KeInitializeMutex(
             PRKMUTEX Mutex,
             ULONG Level
         );
@@ -784,7 +784,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoDeleteDevice", argc=1)
     def IoDeleteDevice(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IoDeleteDevice(
+        VOID IoDeleteDevice(
             PDEVICE_OBJECT DeviceObject
         );
         """
@@ -1397,7 +1397,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoFreeIrp", argc=1)
     def IoFreeIrp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IoFreeIrp(
+        VOID IoFreeIrp(
             PIRP Irp
         );
         """
@@ -1408,7 +1408,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoReuseIrp", argc=2)
     def IoReuseIrp(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IoReuseIrp(
+        VOID IoReuseIrp(
             PIRP Irp,
             NTSTATUS Iostatus
         );
@@ -1433,7 +1433,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("MmProbeAndLockPages", argc=3)
     def MmProbeAndLockPages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void MmProbeAndLockPages(
+        VOID MmProbeAndLockPages(
             PMDL MemoryDescriptorList,
             KPROCESSOR_MODE AccessMode,
             LOCK_OPERATION Operation
@@ -1637,9 +1637,9 @@ class Ntoskrnl(api.ApiHandler):
         NTSTATUS ZwProtectVirtualMemory(
             HANDLE ProcessHandle,
             PVOID *BaseAddress,
-            SIZE_T *NumberOfBytesToProtect,
-            ULONG NewAccessProtection,
-            PULONG OldAccessProtection
+            PSIZE_T RegionSize,
+            ULONG NewProtection,
+            PULONG OldProtection
         );
         """
         hnd, base, byte_len, new_prot, old_prot = argv
@@ -1783,7 +1783,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         NTSTATUS KeWaitForSingleObject(
             PVOID Object,
-            _Strict_type_match_ KWAIT_REASON WaitReason,
+            KWAIT_REASON WaitReason,
             KPROCESSOR_MODE WaitMode,
             BOOLEAN Alertable,
             PLARGE_INTEGER Timeout
@@ -1859,7 +1859,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KeInitializeDpc", argc=3)
     def KeInitializeDpc(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void KeInitializeDpc(
+        VOID KeInitializeDpc(
             PRKDPC Dpc,
             PKDEFERRED_ROUTINE DeferredRoutine,
             PVOID DeferredContext
@@ -1943,7 +1943,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoRegisterBootDriverReinitialization", argc=3)
     def IoRegisterBootDriverReinitialization(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IoRegisterBootDriverReinitialization(
+        VOID IoRegisterBootDriverReinitialization(
             PDRIVER_OBJECT DriverObject,
             PDRIVER_REINITIALIZE DriverReinitializationRoutine,
             PVOID Context
@@ -2001,7 +2001,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KeQuerySystemTime", argc=1)
     def KeQuerySystemTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void KeQuerySystemTime(
+        VOID KeQuerySystemTime(
             PLARGE_INTEGER CurrentTime
         );
         """
@@ -2013,7 +2013,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KeQuerySystemTimePrecise", argc=1)
     def KeQuerySystemTimePrecise(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void KeQuerySystemTimePrecise(
+        VOID KeQuerySystemTimePrecise(
             PLARGE_INTEGER CurrentTime
         );
         """
@@ -2035,7 +2035,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("ExSystemTimeToLocalTime", argc=2)
     def ExSystemTimeToLocalTime(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ExSystemTimeToLocalTime(
+        VOID ExSystemTimeToLocalTime(
             PLARGE_INTEGER SystemTime,
             PLARGE_INTEGER LocalTime
         );
@@ -2116,8 +2116,8 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("RtlImageDirectoryEntryToData", argc=4)
     def RtlImageDirectoryEntryToData(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        PVOID ImageDirectoryEntryToData(
-            PVOID Base,
+        PVOID RtlImageDirectoryEntryToData(
+            PVOID BaseOfImage,
             BOOLEAN MappedAsImage,
             USHORT DirectoryEntry,
             PULONG Size
@@ -2398,7 +2398,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("PoDeletePowerRequest", argc=1)
     def PoDeletePowerRequest(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void PoDeletePowerRequest(
+        VOID PoDeletePowerRequest(
             PVOID PowerRequest
         );
         """
@@ -2539,7 +2539,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("ExQueueWorkItem", argc=2)
     def ExQueueWorkItem(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ExQueueWorkItem(
+        VOID ExQueueWorkItem(
             PWORK_QUEUE_ITEM WorkItem,
             WORK_QUEUE_TYPE QueueType
         );
@@ -2812,7 +2812,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoUnregisterShutdownNotification", argc=1)
     def IoUnregisterShutdownNotification(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IoUnregisterShutdownNotification(
+        VOID IoUnregisterShutdownNotification(
             PDEVICE_OBJECT DeviceObject
         );
         """
@@ -2883,7 +2883,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("MmUnlockPages", argc=1)
     def MmUnlockPages(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void MmUnlockPages(
+        VOID MmUnlockPages(
             PMDL MemoryDescriptorList
         );
         """
@@ -2893,7 +2893,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("IoFreeMdl", argc=1)
     def IoFreeMdl(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void IoFreeMdl(
+        VOID IoFreeMdl(
             PMDL Mdl
         );
         """
@@ -2904,7 +2904,7 @@ class Ntoskrnl(api.ApiHandler):
     def KeCancelTimer(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN KeCancelTimer(
-            PKTIMER Arg1
+            PKTIMER unnamedParam1
         );
         """
         rv = 1
@@ -3509,7 +3509,7 @@ class Ntoskrnl(api.ApiHandler):
     def MmIsDriverVerifying(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LOGICAL MmIsDriverVerifying(
-            _DRIVER_OBJECT *DriverObject
+            struct _DRIVER_OBJECT *DriverObject
         );
         """
         (DriverObject,) = argv
@@ -3729,8 +3729,8 @@ class Ntoskrnl(api.ApiHandler):
     def ZwGetContextThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwGetContextThread(
-            HANDLE hThread,
-            LPCONTEXT lpContext
+            HANDLE ThreadHandle,
+            PCONTEXT ThreadContext
         );
         """
         hThread, lpContext = argv
@@ -3752,8 +3752,8 @@ class Ntoskrnl(api.ApiHandler):
     def ZwSetContextThread(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwSetContextThread(
-            HANDLE hThread,
-            LPCONTEXT lpContext
+            HANDLE ThreadHandle,
+            PCONTEXT ThreadContext
         );
         """
         hThread, lpContext = argv
@@ -3795,7 +3795,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("KeBugCheckEx", argc=5)
     def KeBugCheckEx(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void KeBugCheckEx(
+        VOID KeBugCheckEx(
             ULONG BugCheckCode,
             ULONG_PTR BugCheckParameter1,
             ULONG_PTR BugCheckParameter2,
@@ -3869,7 +3869,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("ProbeForRead", argc=3)
     def ProbeForRead(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ProbeForRead(
+        VOID ProbeForRead(
             const volatile VOID *Address,
             SIZE_T Length,
             ULONG Alignment
@@ -3880,7 +3880,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("ProbeForWrite", argc=3)
     def ProbeForWrite(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void ProbeForWrite(
+        VOID ProbeForWrite(
             volatile VOID *Address,
             SIZE_T Length,
             ULONG Alignment
@@ -3916,7 +3916,7 @@ class Ntoskrnl(api.ApiHandler):
     @apihook("MmUnmapIoSpace", argc=2)
     def MmUnmapIoSpace(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
         """
-        void MmUnmapIoSpace(
+        VOID MmUnmapIoSpace(
             PVOID BaseAddress,
             SIZE_T NumberOfBytes
         );
