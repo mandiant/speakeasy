@@ -806,7 +806,7 @@ class Mutant(KernelObject):
 
     def __init__(self, emu):
         super().__init__(emu=emu)
-        self.object = self.nt_types.MUTANT(emu.get_ptr_size())
+        self.object = self.nt_types.KMUTANT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
 
 
