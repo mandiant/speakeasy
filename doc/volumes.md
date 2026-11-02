@@ -1,46 +1,19 @@
 # Mounting host files with --volume
 
-The `-V` / `--volume` flag maps host files or directories into the emulated Windows filesystem.
+The `-V` / `--volume` flag maps host files or directories into the emulated Windows filesystem. The interface is this flag and the `volumes` parameter of `Speakeasy`. The functions in `speakeasy.volumes` are internal, and a minor release can change them (see [Public interface](library.md#public-interface)).
 
 Format:
 
 - `host_path:guest_path`
 - repeat `-V` to provide multiple mappings
 
-## Mount a single file
-
-```python
-from speakeasy.volumes import parse_volume_spec
-
-host, guest = parse_volume_spec("/data/payload.dll:c:\\windows\\system32\\payload.dll")
-print(f"Host:  {host}")
-print(f"Guest: {guest}")
-
-host, guest = parse_volume_spec("C:\\samples\\mal.exe:D:\\staging\\mal.exe")
-print(f"Host:  {host}")
-print(f"Guest: {guest}")
-```
-
-```output
-Host:  /data/payload.dll
-Guest: c:\windows\system32\payload.dll
-Host:  C:\samples\mal.exe
-Guest: D:\staging\mal.exe
-```
+Both paths can start with a drive letter, for example `C:\samples\mal.exe:D:\staging\mal.exe`. The separator is the first `:` that is not part of a drive letter.
 
 ## Mount a directory recursively
 
-```python
-from pathlib import Path, PureWindowsPath
+A directory mount maps each file below the host directory, at any depth, to the same relative path below the guest path. With `-V /tmp/vol_demo:c:\appdata`, the emulated filesystem has these files:
 
-from speakeasy.volumes import expand_volume_to_entries
-
-entries = expand_volume_to_entries(Path("/tmp/vol_demo"), PureWindowsPath("c:\\appdata"))
-for entry in entries:
-    print(f"{entry['emu_path']}  <-  {entry['path']}")
-```
-
-```output
+```text
 c:\appdata\configs\settings.ini  <-  /tmp/vol_demo/configs/settings.ini
 c:\appdata\sample.bin  <-  /tmp/vol_demo/sample.bin
 ```
