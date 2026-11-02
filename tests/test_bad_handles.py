@@ -14,6 +14,8 @@ from tests.handler_harness import alloc, call, start_process, unicode_string
 
 BAD = 0x9998
 UNSET = 0x1234
+ERROR_INVALID_HANDLE = windefs.ERROR_INVALID_HANDLE
+FAIL_DWORD = 0xFFFFFFFF
 
 Arg = int | Callable[[Speakeasy], int]
 
@@ -38,12 +40,12 @@ def bad_root_attributes(se: Speakeasy) -> int:
     return alloc(se, struct.pack("<IIIIII", 24, BAD, unicode_string(se, "Parameters"), 0, 0, 0))
 
 
-ERROR_INVALID_HANDLE = windefs.ERROR_INVALID_HANDLE
-FAIL_DWORD = 0xFFFFFFFF
-
-
 def row(module: str, api: str, args: list[Arg], rv: int, error: int):
     return pytest.param(module, api, args, rv, error, id=f"{module}.{api}")
+
+
+def kernel_row(module: str, api: str, args: list[Arg]):
+    return pytest.param(module, api, args, id=f"{module}.{api}")
 
 
 USER_ROWS = [
@@ -198,28 +200,28 @@ USER_ROWS = [
 ]
 
 KERNEL_ROWS = [
-    row("ntoskrnl", "PsCreateSystemThread", [buf, 0, 0, BAD, 0, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwWriteVirtualMemory", [BAD, 0, 0, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwAllocateVirtualMemory", [BAD, buf, 0, buf, 0x3000, 4], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwDeviceIoControlFile", [BAD] + [0] * 9, ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ObReferenceObjectByHandle", [BAD, 0, 0, 0, buf, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwQueryInformationProcess", [BAD, 0, buf, 0x18, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "NtSetInformationThread", [BAD, 0x11, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwQueryValueKey", [BAD, 0, 2, buf, 0x100, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwCreateKey", [buf, 0, bad_root_attributes, 0, 0, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwSetValueKey", [BAD, 0, 0, 4, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwQueryInformationFile", [BAD, buf, buf, 0x18, 5], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwWriteFile", [BAD, 0, 0, 0, buf, buf, 0x10, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwReadFile", [BAD, 0, 0, 0, buf, buf, 0x10, 0, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwCreateSection", [buf, 0, 0, 0, 4, 0x8000000, BAD], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwUnmapViewOfSection", [BAD, 0], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwMapViewOfSection", [BAD, 0xFFFFFFFF, buf] + [0] * 7, ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwGetContextThread", [BAD, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("ntoskrnl", "ZwSetContextThread", [BAD, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("wdfldr", "WdfRegistryQueryULong", [0, BAD, unicode_name, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("wdfldr", "WdfUsbTargetDeviceSelectConfig", [0, BAD, 0, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("wdfldr", "WdfUsbInterfaceSelectSetting", [0, BAD, 0, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
-    row("wdfldr", "WdfUsbTargetDeviceRetrieveInformation", [0, BAD, buf], ddk.STATUS_INVALID_HANDLE, UNSET),
+    kernel_row("ntoskrnl", "PsCreateSystemThread", [buf, 0, 0, BAD, 0, 0, 0]),
+    kernel_row("ntoskrnl", "ZwWriteVirtualMemory", [BAD, 0, 0, 0, 0]),
+    kernel_row("ntoskrnl", "ZwAllocateVirtualMemory", [BAD, buf, 0, buf, 0x3000, 4]),
+    kernel_row("ntoskrnl", "ZwDeviceIoControlFile", [BAD] + [0] * 9),
+    kernel_row("ntoskrnl", "ObReferenceObjectByHandle", [BAD, 0, 0, 0, buf, 0]),
+    kernel_row("ntoskrnl", "ZwQueryInformationProcess", [BAD, 0, buf, 0x18, 0]),
+    kernel_row("ntoskrnl", "NtSetInformationThread", [BAD, 0x11, 0, 0]),
+    kernel_row("ntoskrnl", "ZwQueryValueKey", [BAD, 0, 2, buf, 0x100, buf]),
+    kernel_row("ntoskrnl", "ZwCreateKey", [buf, 0, bad_root_attributes, 0, 0, 0, 0]),
+    kernel_row("ntoskrnl", "ZwSetValueKey", [BAD, 0, 0, 4, 0, 0]),
+    kernel_row("ntoskrnl", "ZwQueryInformationFile", [BAD, buf, buf, 0x18, 5]),
+    kernel_row("ntoskrnl", "ZwWriteFile", [BAD, 0, 0, 0, buf, buf, 0x10, 0, 0]),
+    kernel_row("ntoskrnl", "ZwReadFile", [BAD, 0, 0, 0, buf, buf, 0x10, 0, 0]),
+    kernel_row("ntoskrnl", "ZwCreateSection", [buf, 0, 0, 0, 4, 0x8000000, BAD]),
+    kernel_row("ntoskrnl", "ZwUnmapViewOfSection", [BAD, 0]),
+    kernel_row("ntoskrnl", "ZwMapViewOfSection", [BAD, 0xFFFFFFFF, buf] + [0] * 7),
+    kernel_row("ntoskrnl", "ZwGetContextThread", [BAD, buf]),
+    kernel_row("ntoskrnl", "ZwSetContextThread", [BAD, buf]),
+    kernel_row("wdfldr", "WdfRegistryQueryULong", [0, BAD, unicode_name, buf]),
+    kernel_row("wdfldr", "WdfUsbTargetDeviceSelectConfig", [0, BAD, 0, buf]),
+    kernel_row("wdfldr", "WdfUsbInterfaceSelectSetting", [0, BAD, 0, buf]),
+    kernel_row("wdfldr", "WdfUsbTargetDeviceRetrieveInformation", [0, BAD, buf]),
 ]
 
 
@@ -238,8 +240,8 @@ def test_a_user_mode_handler_fails_a_bad_handle(
     assert call_with_bad_handle(dll_emu, module, api, args) == (rv, error)
 
 
-@pytest.mark.parametrize(("module", "api", "args", "rv", "error"), KERNEL_ROWS)
+@pytest.mark.parametrize(("module", "api", "args"), KERNEL_ROWS)
 def test_a_kernel_mode_handler_fails_a_bad_handle(
-    driver_emu: Speakeasy, module: str, api: str, args: list[Arg], rv: int, error: int
+    driver_emu: Speakeasy, module: str, api: str, args: list[Arg]
 ) -> None:
-    assert call_with_bad_handle(driver_emu, module, api, args)[0] == rv
+    assert call_with_bad_handle(driver_emu, module, api, args)[0] == ddk.STATUS_INVALID_HANDLE
