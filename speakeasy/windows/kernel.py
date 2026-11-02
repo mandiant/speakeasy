@@ -84,13 +84,20 @@ class WinKernelEmulator(WindowsEmulator):
             mod_name = hashlib.sha256(data).hexdigest()
             file_name = f"{mod_name}.sys"
 
+        self._set_input_metadata(path, data)
+
         emu_path = f"{self.get_system_root()}drivers\\{file_name}"
 
         image = PeLoader(path=path, data=data).make_image()
         image.name = mod_name
         image.emu_path = emu_path
 
-        return self.load_image(image, is_input=True)
+        rtmod = self.load_image(image, is_input=True)
+
+        if self.input is not None:
+            self.input["image_base"] = rtmod.base
+
+        return rtmod
 
     def pool_alloc(self, pooltype, size, tag="None"):
         """Allocate memory in the emulated "pool"."""

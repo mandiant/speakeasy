@@ -3,9 +3,11 @@
 Source of truth:
 - `speakeasy/report.py`
 - `speakeasy/profiler_events.py`
-- population logic in `speakeasy/profiler.py` and `speakeasy/windows/win32.py`
+- population logic in `speakeasy/profiler.py`, `speakeasy/windows/winemu.py`, `speakeasy/windows/win32.py` and `speakeasy/windows/kernel.py`
 
-`speakeasy/resources/report.schema.json` is the JSON schema of the report. It ships in the package. Run `just gen-report-schema` after a change to the report models.
+`speakeasy/resources/report.schema.json` is the JSON schema of the report. It ships in the package. Run `just gen-report-schema` after a change to the report models. The models reject unknown keys.
+
+For the changes from the 1.x report, see [Migrating to 2.0](migrating-to-2.0.md#report-schema-600).
 
 The examples use JSONC for explanation. Remove comments for machine parsing.
 
@@ -14,9 +16,10 @@ The examples use JSONC for explanation. Remove comments for machine parsing.
 - `report_version`: from `speakeasy.report.REPORT_VERSION`.
 - `emulation_total_runtime`: profiler start/stop wall-clock duration.
 - `timestamp`: profiler start time epoch seconds.
-- `arch`, `filepath`, `sha256`, `size`, `filetype`: loader/input metadata.
+- `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`), `image_base`: input metadata that the loader records. `path` is the host path of the input file. It is absent when the input came from bytes in memory.
 - `errors`: top-level session errors recorded by profiler. The loader adds an `invalid_image` error, with the defect in `context_summary`, when the entry point or the import directory of the input PE is outside the image, or when the raw data of a section is past the end of the file. Emulation then continues.
 - `strings`: only present if string extraction is enabled and non-empty.
+- `data`: payloads that the report stores once, keyed by SHA-256. The `data_ref` fields refer to its keys.
 - `entry_points`: one per run (`Run` object) in execution order.
 
 Entry-point highlights:
@@ -113,10 +116,11 @@ thread, even for a local create.
 
   // Input metadata (may be null if unavailable in a custom flow).
   "arch": "x86",
-  "filepath": "/samples/payload.bin",
+  "path": "/samples/payload.bin",
   "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
   "size": 4096,
-  "filetype": "exe",
+  "file_type": "exe",
+  "image_base": "0x400000",
 
   // Session-level errors, not tied to one entry point.
   "errors": [
@@ -483,10 +487,11 @@ thread, even for a local create.
   "emulation_total_runtime": 0.012,
   "timestamp": 1760000000,
   "arch": "x86",
-  "filepath": "/samples/minimal.bin",
+  "path": "/samples/minimal.bin",
   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "size": 1234,
-  "filetype": "exe",
+  "file_type": "exe",
+  "image_base": "0x400000",
   "entry_points": [
     {
       "type": "module_entry",
@@ -513,10 +518,11 @@ thread, even for a local create.
 
   // Input metadata captured at load time.
   "arch": "x86",
-  "filepath": "/samples/minimal.bin",
+  "path": "/samples/minimal.bin",
   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "size": 1234,
-  "filetype": "exe",
+  "file_type": "exe",
+  "image_base": "0x400000",
 
   "entry_points": [
     {
