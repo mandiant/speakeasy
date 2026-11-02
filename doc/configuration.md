@@ -84,8 +84,10 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     // OS family marker. Keep as "windows".
     "name": "windows",
 
-    // Version fields exposed through PEB/API version behavior and the values of
-    // HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion (6.1, 6.2, 6.3 and 10.0).
+    // The version that the PEB, KUSER_SHARED_DATA and the version functions
+    // (GetVersionEx, RtlGetVersion, RtlGetNtVersionNumbers and others) give, and
+    // the values of HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion (6.1, 6.2,
+    // 6.3 and 10.0).
     // registry.keys values for that key take precedence.
     // Align these with the environment your sample expects.
     "major": 6,
