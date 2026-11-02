@@ -284,6 +284,9 @@ def _copy_default_value(key: str) -> Any:
 def parse_start_time(text: str) -> datetime.datetime:
     """
     Parse an ISO 8601 time with a time zone, such as 2026-10-31T15:15:00Z.
+
+    Raises:
+        ValueError: if the text has no time zone or is not an ISO 8601 time.
     """
     # Python 3.10 fromisoformat does not accept the Z suffix.
     when = datetime.datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)

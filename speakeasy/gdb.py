@@ -387,8 +387,9 @@ class GdbServer:
 
     def _breakpoint_ranges(self) -> set[tuple[int, int]]:
         """
-        Get the inclusive address ranges of the exec breakpoints. Overlapping and adjacent
-        breakpoints merge, so that no instruction calls two hooks.
+        Get the inclusive address ranges of the exec breakpoints.
+
+        Overlapping and adjacent breakpoints merge, so that no instruction calls two hooks.
         """
         ranges: list[tuple[int, int]] = []
         for begin, size, _ in sorted(self._exec_breakpoints):
@@ -459,8 +460,9 @@ class GdbServer:
     @staticmethod
     def _find_watchpoint(watchpoints: dict[tuple[int, int], int], address: int, size: int) -> int | None:
         """
-        Get the first address of the access in a watchpoint that the access overlaps. Clients
-        find the watchpoint of a stop by this address, so it must be in the watched range.
+        Get the first address of the access in a watchpoint that the access overlaps.
+
+        Clients find the watchpoint of a stop by this address, so it must be in the watched range.
         """
         end = address + size
         return next(
