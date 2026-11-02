@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
 from speakeasy.windows.handles import HandleTable
+from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
@@ -111,11 +112,13 @@ class RegValue:
 
         Strings use characters of ``width`` bytes.
         """
-        enc = "utf-16le" if width == 2 else "utf-8"
-        if self.type in (REG_VALUE_TYPE.REG_SZ, REG_VALUE_TYPE.REG_EXPAND_SZ) and isinstance(self.data, str):
-            return (self.data + "\x00").encode(enc)
-        if self.type == REG_VALUE_TYPE.REG_MULTI_SZ and isinstance(self.data, str):
-            return (self.data + "\x00\x00").encode(enc)
+        if self.type in (
+            REG_VALUE_TYPE.REG_SZ,
+            REG_VALUE_TYPE.REG_EXPAND_SZ,
+            REG_VALUE_TYPE.REG_MULTI_SZ,
+        ) and isinstance(self.data, str):
+            text = self.data + ("\x00\x00" if self.type == REG_VALUE_TYPE.REG_MULTI_SZ else "\x00")
+            return text.encode("utf-16le") if width == 2 else encode_ansi(text)
         if self.type == REG_VALUE_TYPE.REG_DWORD and isinstance(self.data, int):
             return (self.data & 0xFFFFFFFF).to_bytes(4, "little")
         if self.type == REG_VALUE_TYPE.REG_QWORD and isinstance(self.data, int):
