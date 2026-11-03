@@ -3564,7 +3564,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
 
-        text = wcs.decode("utf-16le", "ignore")
+        text = wcs.decode("utf-16le", "replace")
         try:
             cs = codepage.encode_code_page(text, CodePage)
         except ValueError:

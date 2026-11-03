@@ -695,7 +695,7 @@ class BinaryEmulator(MemoryManager, ABC):
             address += width
             i += 1
 
-        text = decode_ansi(string) if width == 1 else string.decode("utf-16le", "ignore")
+        text = decode_ansi(string) if width == 1 else string.decode("utf-16le", "replace")
         return text.replace("\x00", "")
 
     def mem_string_len(self, address, width=1):
