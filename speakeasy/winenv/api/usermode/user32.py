@@ -561,17 +561,16 @@ class User32(api.ApiHandler):
         dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam = (
             argv
         )
-        cn, wn = lpClassName, lpWindowName
-        if cn > 0xFFFF:
-            cn = self.read_mem_string(cn, cw)
+        cn: int | str | None = lpClassName
+        if lpClassName > 0xFFFF:
+            cn = self.read_mem_string(lpClassName, cw)
             ctx.args["lpClassName"].display = cn
-        elif not cn:
+        elif not lpClassName:
             cn = None
-        if wn:
-            wn = self.read_mem_string(wn, cw)
+        wn = None
+        if lpWindowName:
+            wn = self.read_mem_string(lpWindowName, cw)
             ctx.args["lpWindowName"].display = wn
-        else:
-            wn = None
         thread = emu.get_current_thread()
         proc = emu.get_current_process()
         hnd = self.sessman.create_window(

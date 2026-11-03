@@ -521,10 +521,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        if lpName:
-            lpName = self.read_mem_string(lpName, cw)
+        name = self.read_mem_string(lpName, cw) if lpName else 0
 
-        obj = self.get_object_from_name(lpName)
+        obj = self.get_object_from_name(name)
 
         hnd = 0
         if obj:
@@ -532,9 +531,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             emu.set_last_error(windefs.ERROR_SUCCESS)
-            hnd, evt = emu.create_mutant(lpName)
+            hnd, evt = emu.create_mutant(name)
 
-        ctx.args["lpName"].display = lpName
+        ctx.args["lpName"].display = name
         return hnd
 
     @apihook("CreateMutexEx", argc=4)
@@ -551,10 +550,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
 
-        if lpName:
-            lpName = self.read_mem_string(lpName, cw)
+        name = self.read_mem_string(lpName, cw) if lpName else 0
 
-        obj = self.get_object_from_name(lpName)
+        obj = self.get_object_from_name(name)
 
         hnd = 0
         if obj:
@@ -562,9 +560,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
             emu.set_last_error(windefs.ERROR_SUCCESS)
-            hnd, evt = emu.create_mutant(lpName)
+            hnd, evt = emu.create_mutant(name)
 
-        ctx.args["lpName"].display = lpName
+        ctx.args["lpName"].display = name
         return hnd
 
     @apihook("LoadLibrary", argc=1)
@@ -602,8 +600,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if dwFlags & (
             CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD | CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE
         ):
-            if th32ProcessID in [0, emu.curr_process.pid]:
-                proc = emu.curr_process
+            if th32ProcessID in [0, emu.get_current_process().pid]:
+                proc = emu.get_current_process()
             else:
                 proc = next((p for p in emu.get_processes() if p.pid == th32ProcessID), None)
             if proc is None:
@@ -611,7 +609,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 if dwFlags & CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPMODULE:
                     emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
                     return self.get_max_int()
-                proc = emu.curr_process
+                proc = emu.get_current_process()
             pid = proc.pid
             if dwFlags & CREATE_TOOLHELP_SNAPSHOT_FLAGS.TH32CS_SNAPTHREAD:
                 threads = proc.threads
@@ -4018,8 +4016,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         cw = self.get_char_width(ctx)
         if lpPathName:
-            lpPathName = self.read_mem_string(lpPathName, cw)
-            ctx.args["lpPathName"].display = lpPathName
+            ctx.args["lpPathName"].display = self.read_mem_string(lpPathName, cw)
         return True
 
     @apihook("GetWindowsDirectory", argc=2)
@@ -4415,22 +4412,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         lpExistingFileName, lpNewFileName, bFailIfExists = argv
         cw = self.get_char_width(ctx)
 
+        existing_name = new_name = ""
         if lpExistingFileName:
-            lpExistingFileName = self.read_mem_string(lpExistingFileName, cw)
-            ctx.args["lpExistingFileName"].display = lpExistingFileName
+            existing_name = self.read_mem_string(lpExistingFileName, cw)
+            ctx.args["lpExistingFileName"].display = existing_name
         if lpNewFileName:
-            lpNewFileName = self.read_mem_string(lpNewFileName, cw)
-            ctx.args["lpNewFileName"].display = lpNewFileName
+            new_name = self.read_mem_string(lpNewFileName, cw)
+            ctx.args["lpNewFileName"].display = new_name
 
-        if not lpExistingFileName or not lpNewFileName:
+        if not existing_name or not new_name:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return False
 
-        if bFailIfExists and emu.get_file_manager().does_file_exist_by_path(lpNewFileName):
+        if bFailIfExists and emu.get_file_manager().does_file_exist_by_path(new_name):
             emu.set_last_error(windefs.ERROR_FILE_EXISTS)
             return False
 
-        s_handle = self.file_open(lpExistingFileName)
+        s_handle = self.file_open(existing_name)
         if s_handle is None:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return False
@@ -4440,7 +4438,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return False
 
-        d_handle = self.file_open(lpNewFileName, create=True)
+        d_handle = self.file_open(new_name, create=True)
         if d_handle is None:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
             return False
@@ -4452,8 +4450,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         data = sf.get_data() or b""
         df.add_data(data)
-        self.record_file_access_event(lpNewFileName, FILE_CREATE)
-        self.record_file_access_event(lpNewFileName, FILE_WRITE)
+        self.record_file_access_event(new_name, FILE_CREATE)
+        self.record_file_access_event(new_name, FILE_WRITE)
         return True
 
     @apihook("MoveFile", argc=2)
@@ -4467,22 +4465,23 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         lpExistingFileName, lpNewFileName = argv
         cw = self.get_char_width(ctx)
 
+        existing_name = new_name = ""
         if lpExistingFileName:
-            lpExistingFileName = self.read_mem_string(lpExistingFileName, cw)
-            ctx.args["lpExistingFileName"].display = lpExistingFileName
+            existing_name = self.read_mem_string(lpExistingFileName, cw)
+            ctx.args["lpExistingFileName"].display = existing_name
         if lpNewFileName:
-            lpNewFileName = self.read_mem_string(lpNewFileName, cw)
-            ctx.args["lpNewFileName"].display = lpNewFileName
+            new_name = self.read_mem_string(lpNewFileName, cw)
+            ctx.args["lpNewFileName"].display = new_name
 
-        if not lpExistingFileName or not lpNewFileName:
+        if not existing_name or not new_name:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        if not self.does_file_exist(lpExistingFileName):
+        if not self.does_file_exist(existing_name):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
 
-        src_handle = self.file_open(lpExistingFileName)
+        src_handle = self.file_open(existing_name)
         if src_handle is None:
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
@@ -4492,7 +4491,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
 
-        dst_handle = self.file_open(lpNewFileName, create=True)
+        dst_handle = self.file_open(new_name, create=True)
         if dst_handle is None:
             emu.set_last_error(windefs.ERROR_PATH_NOT_FOUND)
             return 0
@@ -4504,10 +4503,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         dst_file.remove_data()
         dst_file.add_data(src_file.get_data(reset_pointer=True) or b"")
-        emu.file_delete(lpExistingFileName)
+        emu.file_delete(existing_name)
 
-        self.record_file_access_event(lpNewFileName, FILE_CREATE)
-        self.record_file_access_event(lpNewFileName, FILE_WRITE)
+        self.record_file_access_event(new_name, FILE_CREATE)
+        self.record_file_access_event(new_name, FILE_WRITE)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
@@ -5770,9 +5769,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         osver = self.mem_cast(osver, lpVersionInformation)
 
         ver = emu.config.os_ver
-        osver.dwMajorVersion = ver.major
-        osver.dwMinorVersion = ver.minor
-        osver.dwBuildNumber = ver.build
+        osver.dwMajorVersion = ver.major or 0
+        osver.dwMinorVersion = ver.minor or 0
+        osver.dwBuildNumber = ver.build or 0
         osver.dwPlatformId = VER_PLATFORM_WIN32_NT
         if is_ex:
             osver.wServicePackMajor = SERVICE_PACK_BUILDS.get(ver.build or 0, 0)
@@ -8322,16 +8321,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
+        name = ""
         if lpName:
-            lpName = self.read_mem_string(lpName, self.get_char_width(ctx))
-            ctx.args["lpName"].display = lpName
-            obj = self.get_object_from_name(lpName)
+            name = self.read_mem_string(lpName, self.get_char_width(ctx))
+            ctx.args["lpName"].display = name
+            obj = self.get_object_from_name(name)
             if obj:
                 emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
                 return emu.get_object_handle(obj)
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
-        hnd, _ = emu.create_semaphore(lpName or "")
+        hnd, _ = emu.create_semaphore(name)
         return hnd
 
     @apihook("OpenSemaphore", argc=3)
