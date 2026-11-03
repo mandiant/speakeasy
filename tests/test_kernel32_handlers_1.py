@@ -11,7 +11,7 @@ import pytest
 from speakeasy import Speakeasy, common
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
-from speakeasy.winenv.codepage import CP_UTF8
+from speakeasy.winenv.codepage import CP_ACP, CP_UTF8
 from speakeasy.winenv.defs.enums import CREATE_TOOLHELP_SNAPSHOT_FLAGS, PAGE_PROTECTION_FLAGS, PROCESS_CREATION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
@@ -194,6 +194,9 @@ def test_system_directory_returns_length_without_nul(dll_emu: Speakeasy, api: st
     assert dll_emu.mem_read(buf, (len(path) + 1) * cw) == (path + "\0").encode(encoding)
 
 
+CP_UTF7 = 65000
+
+
 @pytest.mark.parametrize("text", ["abc", "café"])
 def test_wide_char_to_multi_byte_returns_bytes_written(dll_emu: Speakeasy, text: str) -> None:
     start_process(dll_emu)
@@ -216,6 +219,27 @@ def test_wide_char_to_multi_byte_fills_a_small_buffer_and_fails(dll_emu: Speakea
     assert rv == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INSUFFICIENT_BUFFER
     assert dll_emu.mem_read(dst, 8) == b"abc"[:size] + b"\xcc" * (8 - size)
+
+
+@pytest.mark.parametrize("text, used_default", [("abc", 0), ("a\u4e00c", 1)])
+def test_wide_char_to_multi_byte_writes_lp_used_default_char(dll_emu: Speakeasy, text: str, used_default: int) -> None:
+    start_process(dll_emu)
+    src = alloc(dll_emu, (text + "\0").encode("utf-16le"))
+    used = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [CP_ACP, 0, src, 0xFFFFFFFF, 0, 0, 0, used])
+    assert rv == 4
+    assert dll_emu.mem_read(used, 4) == used_default.to_bytes(4, "little")
+
+
+@pytest.mark.parametrize("code_page", [CP_UTF7, CP_UTF8])
+def test_wide_char_to_multi_byte_fails_with_lp_used_default_char_for_utf(dll_emu: Speakeasy, code_page: int) -> None:
+    start_process(dll_emu)
+    src = alloc(dll_emu, "abc\0".encode("utf-16le"))
+    used = alloc(dll_emu, b"\xcc" * 4)
+    rv, _ = call(dll_emu, "kernel32", "WideCharToMultiByte", [code_page, 0, src, 0xFFFFFFFF, 0, 0, 0, used])
+    assert rv == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    assert dll_emu.mem_read(used, 4) == b"\xcc" * 4
 
 
 @pytest.mark.parametrize("count, text", [(5, "hello"), (5, "café")])

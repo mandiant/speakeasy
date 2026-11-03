@@ -3548,6 +3548,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not lpWideCharStr or not cchWideChar:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
+        # Windows takes no default character for UTF-8
+        if CodePage == codepage.CP_UTF8 and (lpDefaultChar or lpUsedDefaultChar):
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
 
         if cchWideChar == 0xFFFFFFFF:
             wcs = b""
@@ -3560,19 +3564,24 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             wcs = self.mem_read(lpWideCharStr, cchWideChar * 2)
 
+        text = wcs.decode("utf-16le", "ignore")
         try:
-            cs = codepage.encode_code_page(wcs.decode("utf-16le", "ignore"), CodePage)
+            cs = codepage.encode_code_page(text, CodePage)
         except ValueError:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
-        if not lpMultiByteStr or cbMultiByte == 0:
-            return len(cs)
-        if len(cs) > cbMultiByte:
+        if lpMultiByteStr and cbMultiByte and len(cs) > cbMultiByte:
             self.mem_write(lpMultiByteStr, cs[:cbMultiByte])
             emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
             return 0
+        if lpUsedDefaultChar:
+            # The encoder puts the default character in place of each character that the code page does not have
+            used_default = codepage.decode_code_page(cs, CodePage) != text
+            self.mem_write(lpUsedDefaultChar, int(used_default).to_bytes(4, "little"))
+        if not lpMultiByteStr or cbMultiByte == 0:
+            return len(cs)
         self.mem_write(lpMultiByteStr, cs)
         return len(cs)
 
