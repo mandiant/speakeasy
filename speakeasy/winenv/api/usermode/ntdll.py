@@ -50,7 +50,6 @@ class Ntdll(ExceptionApis, api.ApiHandler):
     """
 
     name = "ntdll"
-    sets_last_error = False
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -771,7 +770,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         """
         return False
 
-    @apihook("NtCreateThreadEx", argc=11, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("NtCreateThreadEx", argc=11)
     def NtCreateThreadEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtCreateThreadEx(
@@ -803,6 +802,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         ) = argv
 
         proc_obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc_obj:
+            return ddk.STATUS_INVALID_HANDLE
         proc_path = proc_obj.path
         ctx.args["ProcessHandle"].display = proc_path
 
@@ -828,7 +829,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("NtTerminateProcess", argc=2, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("NtTerminateProcess", argc=2)
     def NtTerminateProcess(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtTerminateProcess(
@@ -845,6 +846,8 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             return ddk.STATUS_SUCCESS
 
         proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc:
+            return ddk.STATUS_INVALID_HANDLE
         if proc is emu.get_current_process():
             self.exit_process()
         else:

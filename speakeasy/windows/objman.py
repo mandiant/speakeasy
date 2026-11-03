@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 from speakeasy.windows import thread_context
-from speakeasy.windows.handles import HandleTable, InvalidHandle
+from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntos
 
@@ -893,7 +893,4 @@ class ObjectManager:
             return self.get_object_from_name(name, False)
 
     def get_object_from_handle(self, handle):
-        try:
-            return self.emu.get_handle_table().get(handle)
-        except InvalidHandle:
-            return None
+        return self.emu.get_handle_table().get(handle)

@@ -36,7 +36,7 @@ def _get_accesses() -> Iterator[ArgAccess]:
             hook = getattr(func, "__apihook__", None)
             if not hook or not isinstance(hook[0], str):
                 continue
-            name, handler, argc, _, _, _ = hook
+            name, handler, argc, _, _ = hook
             tree = ast.parse(textwrap.dedent(inspect.getsource(handler)))
             for node in ast.walk(tree):
                 if (

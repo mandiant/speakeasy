@@ -19,7 +19,6 @@ class Ncrypt(api.ApiHandler):
     """
 
     name = "ncrypt"
-    sets_last_error = False
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -53,7 +52,7 @@ class Ncrypt(api.ApiHandler):
 
         return windefs.ERROR_SUCCESS
 
-    @apihook("NCryptImportKey", argc=8, fail=adv32defs.NTE_INVALID_HANDLE)
+    @apihook("NCryptImportKey", argc=8)
     def NCryptImportKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptImportKey(
@@ -78,6 +77,8 @@ class Ncrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         if hProvider and phKey:
             prov_ctx = cm.get_context(hProvider)
+            if not prov_ctx:
+                return adv32defs.NTE_INVALID_HANDLE
             hnd = prov_ctx.import_key(
                 blob_type=blob_type,
                 blob=blob,
@@ -91,7 +92,7 @@ class Ncrypt(api.ApiHandler):
 
         return windefs.ERROR_SUCCESS
 
-    @apihook("NCryptDeleteKey", argc=2, fail=adv32defs.NTE_INVALID_HANDLE)
+    @apihook("NCryptDeleteKey", argc=2)
     def NCryptDeleteKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptDeleteKey(
@@ -100,11 +101,12 @@ class Ncrypt(api.ApiHandler):
         );
         """
         hKey, dwFlags = argv
-        emu.get_crypt_manager().delete_key(hKey)
+        if not emu.get_crypt_manager().delete_key(hKey):
+            return adv32defs.NTE_INVALID_HANDLE
 
         return windefs.ERROR_SUCCESS
 
-    @apihook("NCryptFreeObject", argc=1, fail=adv32defs.NTE_INVALID_HANDLE)
+    @apihook("NCryptFreeObject", argc=1)
     def NCryptFreeObject(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SECURITY_STATUS NCryptFreeObject(
@@ -116,8 +118,10 @@ class Ncrypt(api.ApiHandler):
 
         # hObject can be a handle to a provider or key
         if isinstance(cm.handles.get(hObject, CryptContext, CryptKey), CryptContext):
-            cm.crypt_close(hObject)
+            closed = cm.crypt_close(hObject)
         else:
-            cm.delete_key(hObject)
+            closed = cm.delete_key(hObject)
+        if not closed:
+            return adv32defs.NTE_INVALID_HANDLE
 
         return windefs.ERROR_SUCCESS

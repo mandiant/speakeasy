@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from speakeasy.windows.handles import HandleTable
-from speakeasy.winenv.defs.windows.windows import ERROR_INVALID_WINDOW_HANDLE
 
 if TYPE_CHECKING:
     from speakeasy.windows.objman import HandleAllocator
@@ -76,8 +75,6 @@ class ListViewColumn:
 
 class Window(GuiObject):
     """Represents a GUI window."""
-
-    invalid_handle_error = ERROR_INVALID_WINDOW_HANDLE
 
     def __init__(self, handles: HandleTable, name=None, class_name=None, style=0, parent=0, thread_id=0, process_id=0):
         super().__init__(handles)
@@ -154,13 +151,8 @@ class SessionManager:
     def get_window_class(self, atom):
         return self.window_classes.get(atom)
 
-    def get_window(self, handle) -> Window:
-        """
-        Get the window of a window handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to a window, with ERROR_INVALID_WINDOW_HANDLE.
-        """
+    def get_window(self, handle) -> Window | None:
+        """Get the window of a window handle, else None."""
         return self.handles.get(handle, Window)
 
     def get_device_context(self):

@@ -13,7 +13,7 @@ from abc import abstractmethod
 from collections import deque
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
-from functools import partial, wraps
+from functools import wraps
 from types import MethodType
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
@@ -57,7 +57,6 @@ from speakeasy.windows.handles import (
     CURRENT_THREAD_HANDLE,
     HANDLE_MASK,
     HandleTable,
-    InvalidHandle,
 )
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string, relocate_image
@@ -66,7 +65,7 @@ from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, get_program_files_values
 from speakeasy.winenv.api import sigdb, sigfmt
-from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, ApiHandler, HandlerArgs
+from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 from speakeasy.winenv.api.winapi import WindowsApi
 from speakeasy.winenv.defs.nt import ddk
 
@@ -2680,29 +2679,6 @@ class WindowsEmulator(BinaryEmulator):
                     "%s: could not zero %d bytes at %s for Out param %s", sig.name, size, hex(value), param.name
                 )
 
-    def fail_invalid_handle(
-        self, module: ApiHandler, fail: int | None, sig: sigdb.FuncSig | None, error: InvalidHandle
-    ) -> int:
-        """
-        Get the return value of a call whose handler raised InvalidHandle, and set the last error.
-
-        The value is ``fail`` of the apihook if it is set. Else a kernel-mode API returns
-        STATUS_INVALID_HANDLE, an API that returns its WIN32_ERROR, such as RegCloseKey, returns the
-        error, and any other API returns 0. A user-mode API that does not return its error sets the
-        last error, except in modules such as ntdll that return status codes.
-        """
-        kernel_mode = type(module).__module__.startswith("speakeasy.winenv.api.kernelmode.")
-        returns_error = sig is not None and sig.ret == "u32:WIN32_ERROR" and not sig.set_last_error
-        if module.sets_last_error and not kernel_mode and not returns_error:
-            self.set_last_error(error.error)
-        if fail is not None:
-            return fail
-        if kernel_mode:
-            return ddk.STATUS_INVALID_HANDLE
-        if returns_error:
-            return error.error
-        return 0
-
     def _default_return_for_signature(self, sig: sigdb.FuncSig) -> int | None:
         """Pick a plausible "success" return value for a call we only know the signature of."""
         kind = sig.ret_kind
@@ -2777,10 +2753,10 @@ class WindowsEmulator(BinaryEmulator):
         """
         mod, func_attrs = self.get_api_handler(dll, name)
         if func_attrs:
-            handler_name, func, argc, conv, _, fail = func_attrs
+            handler_name, func, argc, conv, _ = func_attrs
             if name.startswith("ordinal_"):
                 name = handler_name
-            return api_resolution.HandlerImplementation(mod, name, func, argc, conv, fail)
+            return api_resolution.HandlerImplementation(mod, name, func, argc, conv)
         hooks = self.get_api_hooks(dll, name)
         if hooks:
             return api_resolution.UserHookImplementation(hooks)
@@ -2883,16 +2859,9 @@ class WindowsEmulator(BinaryEmulator):
 
         self.hammer.handle_import_func(imp_api, impl.conv, impl.argc)
         hooks = self.get_api_hooks(dll, name)
-        fail_invalid_handle = partial(self.fail_invalid_handle, impl.module, impl.fail, sig)
         if hooks:
             hooked_func = MethodType(impl.func, impl.module)
-
-            def orig(args):
-                try:
-                    return hooked_func(self, args, ctx)
-                except InvalidHandle as e:
-                    return fail_invalid_handle(e)
-
+            orig = lambda args: hooked_func(self, args, ctx)  # noqa
             # Hooks execute in FIFO order (first registered, first called).
             # All hooks run; the last hook's return value is used.
             prev_ctx, self.api_ctx = self.api_ctx, ctx
@@ -2904,8 +2873,6 @@ class WindowsEmulator(BinaryEmulator):
         else:
             try:
                 rv = self.api.call_api_func(impl.module, impl.func, argv, ctx=ctx)
-            except InvalidHandle as e:
-                rv = fail_invalid_handle(e)
             except Exception as e:
                 if self._should_stop_on_faults:
                     # Let the outer GDB fault path expose the failed frame
@@ -2925,7 +2892,7 @@ class WindowsEmulator(BinaryEmulator):
                 return False
 
         if isinstance(rv, Generator):
-            rv = guest_callbacks.start_api_handler(self, frame, rv, fail_invalid_handle)
+            rv = guest_callbacks.start_api_handler(self, frame, rv)
         elif isinstance(rv, guest_callbacks.Resume):
             guest_callbacks.transfer(self, rv.context)
             rv = None

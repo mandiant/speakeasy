@@ -175,7 +175,8 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (Handle,) = argv
-        emu.get_handle_table().close(Handle)
+        if not emu.get_handle_table().close(Handle):
+            return ddk.STATUS_INVALID_HANDLE
         return ddk.STATUS_SUCCESS
 
     @apihook("DbgPrint", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
@@ -929,6 +930,8 @@ class Ntoskrnl(api.ApiHandler):
 
         ptr_size = emu.get_ptr_size()
         proc_obj = emu.get_handle_table().get(ProcessHandle, objman.Process) if ProcessHandle else None
+        if ProcessHandle and not proc_obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         handle, obj = self.create_thread(StartRoutine, StartContext, proc_obj, thread_type="system_thread")
 
@@ -1293,6 +1296,8 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         ctx.args["ProcessHandle"].display = obj.path
 
@@ -1327,6 +1332,8 @@ class Ntoskrnl(api.ApiHandler):
         rv = ddk.STATUS_SUCCESS
 
         obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         size = self.read_ptr(RegionSize)
 
@@ -2269,6 +2276,8 @@ class Ntoskrnl(api.ApiHandler):
         nts = ddk.STATUS_SUCCESS
 
         obj = emu.get_handle_table().get(FileHandle)
+        if obj is None:
+            return ddk.STATUS_INVALID_HANDLE
 
         in_buf = b""
         if InputBuffer:
@@ -2303,8 +2312,11 @@ class Ntoskrnl(api.ApiHandler):
         nts = ddk.STATUS_SUCCESS
 
         obj = emu.get_handle_table().get(Handle, objman.KernelObject)
-        if Object:
-            self.write_ptr(Object, obj.address or 0)
+        if obj:
+            if Object:
+                self.write_ptr(Object, obj.address or 0)
+        else:
+            nts = ddk.STATUS_INVALID_HANDLE
 
         return nts
 
@@ -2361,38 +2373,41 @@ class Ntoskrnl(api.ApiHandler):
 
         ptr_size = self.get_ptr_size()
 
-        if ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessWow64Information:
-            if ProcessInformationLength < self.get_ptr_size():
-                nts = ddk.STATUS_INFO_LENGTH_MISMATCH
-                if ReturnLength:
-                    self.write_dword(ReturnLength, ptr_size)
-            else:
-                if ReturnLength:
-                    self.write_dword(ReturnLength, ptr_size)
-                # Send back that we are not in WOW64
-                self.write_ptr(ProcessInformation, 0)
-                nts = ddk.STATUS_SUCCESS
-        elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessBasicInformation:
-            size = 6 * ptr_size
-            if ProcessInformationLength < size:
-                nts = ddk.STATUS_INFO_LENGTH_MISMATCH
-            else:
-                peb = getattr(getattr(obj, "peb", None), "address", 0)
-                parent = next((p.pid for p in emu.get_processes() if p.name.lower() == "explorer"), 0)
-                fields = (ddk.STATUS_PENDING, peb, 1, 8, obj.pid, parent)
-                self.mem_write(ProcessInformation, b"".join(f.to_bytes(ptr_size, "little") for f in fields))
-                if ReturnLength:
-                    self.write_dword(ReturnLength, size)
-                nts = ddk.STATUS_SUCCESS
-        elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugPort:
-            # No debugger is attached
-            nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 0, ptr_size)
-        elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugFlags:
-            nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 1, 4)
-        elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugObjectHandle:
-            nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 0, ptr_size)
-            if nts == ddk.STATUS_SUCCESS:
-                nts = ddk.STATUS_PORT_NOT_SET
+        if obj:
+            if ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessWow64Information:
+                if ProcessInformationLength < self.get_ptr_size():
+                    nts = ddk.STATUS_INFO_LENGTH_MISMATCH
+                    if ReturnLength:
+                        self.write_dword(ReturnLength, ptr_size)
+                else:
+                    if ReturnLength:
+                        self.write_dword(ReturnLength, ptr_size)
+                    # Send back that we are not in WOW64
+                    self.write_ptr(ProcessInformation, 0)
+                    nts = ddk.STATUS_SUCCESS
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessBasicInformation:
+                size = 6 * ptr_size
+                if ProcessInformationLength < size:
+                    nts = ddk.STATUS_INFO_LENGTH_MISMATCH
+                else:
+                    peb = getattr(getattr(obj, "peb", None), "address", 0)
+                    parent = next((p.pid for p in emu.get_processes() if p.name.lower() == "explorer"), 0)
+                    fields = (ddk.STATUS_PENDING, peb, 1, 8, obj.pid, parent)
+                    self.mem_write(ProcessInformation, b"".join(f.to_bytes(ptr_size, "little") for f in fields))
+                    if ReturnLength:
+                        self.write_dword(ReturnLength, size)
+                    nts = ddk.STATUS_SUCCESS
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugPort:
+                # No debugger is attached
+                nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 0, ptr_size)
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugFlags:
+                nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 1, 4)
+            elif ProcessInformationClass == ddk.PROCESSINFOCLASS.ProcessDebugObjectHandle:
+                nts = self.write_process_info(ProcessInformation, ProcessInformationLength, ReturnLength, 0, ptr_size)
+                if nts == ddk.STATUS_SUCCESS:
+                    nts = ddk.STATUS_PORT_NOT_SET
+        else:
+            nts = ddk.STATUS_INVALID_HANDLE
 
         return nts
 
@@ -2451,7 +2466,8 @@ class Ntoskrnl(api.ApiHandler):
         if ThreadInformationClass == ddk.THREADINFOCLASS.ThreadHideFromDebugger:
             if ThreadInformationLength:
                 return ddk.STATUS_INFO_LENGTH_MISMATCH
-            emu.get_handle_table().get(ThreadHandle, objman.Thread)
+            if not emu.get_handle_table().get(ThreadHandle, objman.Thread):
+                return ddk.STATUS_INVALID_HANDLE
 
         return ddk.STATUS_SUCCESS
 
@@ -2724,47 +2740,48 @@ class Ntoskrnl(api.ApiHandler):
             ctx.args["ValueName"].display = name
 
         key = self.get_reg_key(KeyHandle)
-        ValueName = key.get_value(name)
-        if ValueName:
-            data = ValueName.get_bytes(2)
-            output = b""
-            if KeyValueInformationClass == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation:
-                partial = regdefs.KEY_VALUE_PARTIAL_INFORMATION(emu.get_ptr_size())
-                partial.Type = ValueName.get_type()
-                partial.DataLength = len(data)
-                output = self.get_bytes(partial) + data
-            elif KeyValueInformationClass in (
-                regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformation,
-                regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64,
-            ):
-                vi = regdefs.KEY_VALUE_FULL_INFORMATION(emu.get_ptr_size())
-                vi.Type = ValueName.get_type()
-                val_name = ValueName.get_name().encode("utf-16le")
-                vi.NameLength = len(val_name)
-                vi.DataLength = len(data)
-                padding = b""
-                if data:
-                    align = 4
-                    if (
-                        emu.get_ptr_size() == 8
-                        or KeyValueInformationClass
-                        == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64
-                    ):
-                        align = 8
-                    name_end = self.sizeof(vi) + len(val_name)
-                    vi.DataOffset = (name_end + align - 1) & ~(align - 1)
-                    padding = b"\x00" * (vi.DataOffset - name_end)
+        if key:
+            ValueName = key.get_value(name)
+            if ValueName:
+                data = ValueName.get_bytes(2)
+                output = b""
+                if KeyValueInformationClass == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValuePartialInformation:
+                    partial = regdefs.KEY_VALUE_PARTIAL_INFORMATION(emu.get_ptr_size())
+                    partial.Type = ValueName.get_type()
+                    partial.DataLength = len(data)
+                    output = self.get_bytes(partial) + data
+                elif KeyValueInformationClass in (
+                    regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformation,
+                    regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64,
+                ):
+                    vi = regdefs.KEY_VALUE_FULL_INFORMATION(emu.get_ptr_size())
+                    vi.Type = ValueName.get_type()
+                    val_name = ValueName.get_name().encode("utf-16le")
+                    vi.NameLength = len(val_name)
+                    vi.DataLength = len(data)
+                    padding = b""
+                    if data:
+                        align = 4
+                        if (
+                            emu.get_ptr_size() == 8
+                            or KeyValueInformationClass
+                            == regdefs.KEY_VALUE_INFORMATION_CLASS.KeyValueFullInformationAlign64
+                        ):
+                            align = 8
+                        name_end = self.sizeof(vi) + len(val_name)
+                        vi.DataOffset = (name_end + align - 1) & ~(align - 1)
+                        padding = b"\x00" * (vi.DataOffset - name_end)
+                    else:
+                        vi.DataOffset = 0xFFFFFFFF
+                    output = self.get_bytes(vi) + val_name + padding + data
                 else:
-                    vi.DataOffset = 0xFFFFFFFF
-                output = self.get_bytes(vi) + val_name + padding + data
-            else:
-                raise ApiEmuError(f"Unsupported information class: 0x{KeyValueInformationClass:x}")
-            self.write_dword(ResultLength, len(output))
-            if len(output) > Length:
-                rv = ddk.STATUS_BUFFER_TOO_SMALL
-            else:
-                self.mem_write(KeyValueInformation, output)
-                rv = ddk.STATUS_SUCCESS
+                    raise ApiEmuError(f"Unsupported information class: 0x{KeyValueInformationClass:x}")
+                self.write_dword(ResultLength, len(output))
+                if len(output) > Length:
+                    rv = ddk.STATUS_BUFFER_TOO_SMALL
+                else:
+                    self.mem_write(KeyValueInformation, output)
+                    rv = ddk.STATUS_SUCCESS
 
         return rv
 
@@ -2787,12 +2804,15 @@ class Ntoskrnl(api.ApiHandler):
         path = self.read_unicode_string(oa.ObjectName) if oa.ObjectName else ""
         if oa.RootDirectory:
             root = self.get_reg_key(oa.RootDirectory)
+            if not root:
+                return ddk.STATUS_INVALID_HANDLE
             path = f"{root.get_path()}\\{path}" if path else root.get_path()
         ctx.args["ObjectAttributes"].display = path
 
         existing = emu.reg_get_key(path=path)
         hnd = self.reg_open_key(path, create=True)
-        if not hnd:
+        key = self.get_reg_key(hnd)
+        if not hnd or not key:
             return ddk.STATUS_OBJECT_NAME_NOT_FOUND
 
         if KeyHandle:
@@ -2801,7 +2821,7 @@ class Ntoskrnl(api.ApiHandler):
             disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
             self.write_dword(Disposition, disp)
 
-        self.record_registry_access_event(self.get_reg_key(hnd).get_path(), REG_CREATE, handle=hnd)
+        self.record_registry_access_event(key.get_path(), REG_CREATE, handle=hnd)
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwSetValueKey", argc=6)
@@ -2821,6 +2841,8 @@ class Ntoskrnl(api.ApiHandler):
         DataSize &= 0xFFFFFFFF
 
         key = self.get_reg_key(KeyHandle)
+        if not key:
+            return ddk.STATUS_INVALID_HANDLE
 
         name = self.read_unicode_string(ValueName) if ValueName else ""
         ctx.args["ValueName"].display = name
@@ -3004,6 +3026,8 @@ class Ntoskrnl(api.ApiHandler):
 
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.get_file(FileHandle)
+        if not _file:
+            return ddk.STATUS_INVALID_HANDLE
 
         if FileInformation:
             if FileInformationClass == ddk.FILE_INFORMATION_CLASS.FileStandardInformation:
@@ -3086,6 +3110,8 @@ class Ntoskrnl(api.ApiHandler):
 
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.get_file(FileHandle)
+        if not _file:
+            return ddk.STATUS_INVALID_HANDLE
 
         if Buffer and Length:
             path = _file.path
@@ -3130,6 +3156,8 @@ class Ntoskrnl(api.ApiHandler):
 
         nts = ddk.STATUS_INVALID_PARAMETER
         _file = self.get_file(FileHandle)
+        if not _file:
+            return ddk.STATUS_INVALID_HANDLE
 
         if Buffer:
             path = _file.path
@@ -3216,6 +3244,8 @@ class Ntoskrnl(api.ApiHandler):
             size = self.mem_read(MaximumSize, 8)
             size = int.from_bytes(size, "little")
         hmap = fm.file_create_mapping(FileHandle, name, size, SectionPageProtection)
+        if hmap is None:
+            return ddk.STATUS_INVALID_HANDLE
         self.write_ptr(SectionHandle, hmap)
         ctx.args["SectionHandle"].display = hex(hmap)
 
@@ -3256,7 +3286,10 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         ProcessHandle, BaseAddress = argv
-        if emu.get_handle_table().get(ProcessHandle, objman.Process) is not emu.get_current_process():
+        proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc:
+            return ddk.STATUS_INVALID_HANDLE
+        if proc is not emu.get_current_process():
             return ddk.STATUS_SUCCESS
         mm = emu.get_address_map(BaseAddress)
         if not mm:
@@ -3298,6 +3331,8 @@ class Ntoskrnl(api.ApiHandler):
 
         sect = fman.get_mapping(SectionHandle)
         proc_obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc_obj:
+            return rv
 
         full_offset = 0
         if SectionOffset:
@@ -3311,55 +3346,56 @@ class Ntoskrnl(api.ApiHandler):
 
         tag_prefix = "api.ZwMapViewOfSection"
         access = self.win_perms_to_emu_perms(PageProtection)
-        buf = None
-        size = 0
-        f = sect.backed_file
-        if f and not pref_address:
-            data = f.get_contents()
+        if sect:
+            buf = None
+            size = 0
+            f = sect.backed_file
+            if f and not pref_address:
+                data = f.get_contents()
 
-            if bytes_to_map != 0:
-                data = data[full_offset : full_offset + bytes_to_map]
+                if bytes_to_map != 0:
+                    data = data[full_offset : full_offset + bytes_to_map]
 
-            base, size = emu.get_valid_ranges(len(data))
-            while base and base & 0xFFF:
-                base, size = emu.get_valid_ranges(size)
+                base, size = emu.get_valid_ranges(len(data))
+                while base and base & 0xFFF:
+                    base, size = emu.get_valid_ranges(size)
 
-            buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, tag="api", process=proc_obj)
-            sect.add_view(buf, full_offset, size, access)
-            mm = emu.get_address_map(buf)
-            fname = ntpath.basename(f.path)
-            fname = fname.replace(".", "_")
-            mm.tag = f"{tag_prefix}.{fname}.0x{buf:x}"
-            self.mem_write(buf, data)
-            if ViewSize:
-                self.write_ptr(ViewSize, size)
-            ctx.args["BaseAddress"].display = hex(buf)
-            ctx.args["ViewSize"].display = hex(size)
-        elif not pref_address:
-            if bytes_to_map == 0:
-                bytes_to_map = sect.size
-            base, size = emu.get_valid_ranges(bytes_to_map)
-            buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, process=proc_obj)
-            mm = emu.get_address_map(buf)
-            mm.tag = f"{tag_prefix}.0x{buf:x}"
-            if ViewSize:
-                self.write_ptr(ViewSize, size)
-            ctx.args["BaseAddress"].display = hex(buf)
-            ctx.args["ViewSize"].display = hex(size)
-            sect.add_view(buf, full_offset, size, access)
-        else:
-            buf = pref_address
-
-        if BaseAddress and buf:
-            rv = ddk.STATUS_SUCCESS
-            self.write_ptr(BaseAddress, buf)
-            if proc_obj and proc_obj is not emu.get_current_process():
-                proc_obj.is_modified = True
-
-        for base, view in sect.views.items():
-            if base != buf and view.size == size and full_offset == view.offset:
-                data = self.mem_read(base, size)
+                buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, tag="api", process=proc_obj)
+                sect.add_view(buf, full_offset, size, access)
+                mm = emu.get_address_map(buf)
+                fname = ntpath.basename(f.path)
+                fname = fname.replace(".", "_")
+                mm.tag = f"{tag_prefix}.{fname}.0x{buf:x}"
                 self.mem_write(buf, data)
+                if ViewSize:
+                    self.write_ptr(ViewSize, size)
+                ctx.args["BaseAddress"].display = hex(buf)
+                ctx.args["ViewSize"].display = hex(size)
+            elif not pref_address:
+                if bytes_to_map == 0:
+                    bytes_to_map = sect.size
+                base, size = emu.get_valid_ranges(bytes_to_map)
+                buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, process=proc_obj)
+                mm = emu.get_address_map(buf)
+                mm.tag = f"{tag_prefix}.0x{buf:x}"
+                if ViewSize:
+                    self.write_ptr(ViewSize, size)
+                ctx.args["BaseAddress"].display = hex(buf)
+                ctx.args["ViewSize"].display = hex(size)
+                sect.add_view(buf, full_offset, size, access)
+            else:
+                buf = pref_address
+
+            if BaseAddress and buf:
+                rv = ddk.STATUS_SUCCESS
+                self.write_ptr(BaseAddress, buf)
+                if proc_obj and proc_obj is not emu.get_current_process():
+                    proc_obj.is_modified = True
+
+            for base, view in sect.views.items():
+                if base != buf and view.size == size and full_offset == view.offset:
+                    data = self.mem_read(base, size)
+                    self.mem_write(buf, data)
 
         return rv
 
@@ -3389,6 +3425,8 @@ class Ntoskrnl(api.ApiHandler):
         ThreadHandle, ThreadContext = argv
 
         obj = emu.get_handle_table().get(ThreadHandle, objman.Thread)
+        if not obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         context = obj.get_context()
 
@@ -3407,6 +3445,8 @@ class Ntoskrnl(api.ApiHandler):
         ThreadHandle, ThreadContext = argv
 
         obj = emu.get_handle_table().get(ThreadHandle, objman.Thread)
+        if not obj:
+            return ddk.STATUS_INVALID_HANDLE
 
         context: windefs.CONTEXT | windefs.CONTEXT64
         if emu.get_arch() == _arch.ARCH_AMD64:

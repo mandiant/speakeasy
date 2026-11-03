@@ -29,8 +29,6 @@ class HandlerImplementation:
     func: Callable[..., Any]
     argc: int
     conv: int
-    # The return value for a bad handle, from the apihook decorator
-    fail: int | None
 
 
 @dataclass(frozen=True)

@@ -27,7 +27,7 @@ handler returns a generator (start_api_handler) or a Resume, such as NtContinue
 frames (unwind_frame).
 """
 
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
 
@@ -35,7 +35,6 @@ import unicorn as uc
 
 from speakeasy.profiler import GuestCallbackFrame
 from speakeasy.windows import thread_context
-from speakeasy.windows.handles import InvalidHandle
 from speakeasy.winenv.arch import CALL_CONV_STDCALL
 
 
@@ -113,35 +112,19 @@ class HandlerState:
     scratch: int = 0
     # CONTEXT64 of the guest state the handler interrupted, if it has no caller to return to
     context: int = 0
-    # Gives the API result when the handler raises InvalidHandle; None for a handler that no API started
-    fail_invalid_handle: Callable[[InvalidHandle], int] | None = None
 
 
-def start(
-    emu,
-    frame: GuestCallbackFrame,
-    generator: GeneratorHandler,
-    fail_invalid_handle: Callable[[InvalidHandle], int] | None = None,
-) -> None:
+def start(emu, frame: GuestCallbackFrame, generator: GeneratorHandler) -> None:
     """Run a generator handler on frame up to its first guest call. A CallbackError of that first step propagates."""
-    frame.handler = HandlerState(generator, fail_invalid_handle=fail_invalid_handle)
+    frame.handler = HandlerState(generator)
     emu.get_current_run().guest_callbacks.append(frame)
     _step(emu, frame, None)
 
 
-def start_api_handler(
-    emu,
-    frame: GuestCallbackFrame,
-    generator: GeneratorHandler,
-    fail_invalid_handle: Callable[[InvalidHandle], int],
-) -> int | None:
-    """
-    Run the generator an API handler returned; return the API result if it already finished.
-
-    If the generator raises InvalidHandle, the API returns the result of ``fail_invalid_handle``.
-    """
+def start_api_handler(emu, frame: GuestCallbackFrame, generator: GeneratorHandler) -> int | None:
+    """Run the generator an API handler returned; return the API result if it already finished."""
     try:
-        start(emu, frame, generator, fail_invalid_handle)
+        start(emu, frame, generator)
     except CallbackError as e:
         fail(emu, e)
     return frame.result
@@ -173,10 +156,6 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
         emu.start_guest_callback(frame, call.function, call.args, sp=frame.stack_pointer - frame.handler.scratch)
     except StopIteration as done:
         result = done.value
-    except InvalidHandle as e:
-        if frame.handler.fail_invalid_handle is None:
-            raise
-        result = frame.handler.fail_invalid_handle(e)
     except uc.UcError as e:
         kind, address, access_type, message = get_handler_fault(emu, e, emu.get_pc())
         raise CallbackError(kind, address, access_type, message=message) from e
