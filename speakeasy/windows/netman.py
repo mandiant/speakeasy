@@ -11,10 +11,17 @@ from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
 from speakeasy.windows.handles import HandleTable
-from speakeasy.winenv.defs.enums import INTERNET_FLAGS
+from speakeasy.winenv.defs.enums import INTERNET_FLAGS, SOCKET_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
+    from speakeasy.windows.winemu import WindowsEmulator
+
+SOCKET_PROTOCOLS: dict[int, str] = {
+    SOCKET_TYPE.SOCK_STREAM: "tcp",
+    SOCKET_TYPE.SOCK_DGRAM: "udp",
+    SOCKET_TYPE.SOCK_RAW: "raw",
+}
 
 T = TypeVar("T", bound="WininetComponent")
 
@@ -59,6 +66,10 @@ class Socket:
 
     def get_connection_info(self):
         return (self.connected_host, self.connected_port)
+
+    def get_protocol(self):
+        """Get the name of the protocol of the socket type, for example ``tcp``."""
+        return SOCKET_PROTOCOLS.get(self.type, "unknown")
 
     def fill_recv_queue(self, responses):
         for resp in responses:
@@ -257,14 +268,17 @@ class NetworkManager:
     Sockets and WinInet objects are not kernel objects, so their handles are in tables of the
     manager and not in the process handle table. Each WinInet level (instance, session and
     request) has its own handle.
+
+    With an ``emu``, the name lookup, socket and HTTP methods record their events in the report.
     """
 
-    def __init__(self, allocator, config):
+    def __init__(self, allocator, config, emu=None):
         super().__init__()
         self.sockets: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.wininets: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.config: NetworkConfig = config
         self.dns: DnsConfig | None = None
+        self.emu: WindowsEmulator | None = emu
 
         if config:
             self.dns = config.dns
@@ -281,6 +295,14 @@ class NetworkManager:
         return sock
 
     def name_lookup(self, domain):
+        """Get the IP address of a domain name, or None when the config has no address, and record the lookup."""
+        ip = self.get_address(domain)
+        if self.emu:
+            self.emu.record_dns_event(domain, ip or "")
+        return ip
+
+    def get_address(self, domain):
+        """Get the IP address of a domain name, or the default address of the config, or None."""
         if not self.dns:
             return None
 
@@ -338,6 +360,64 @@ class NetworkManager:
     def get_socket(self, fd) -> Socket | None:
         """Get the socket of an open socket handle, else None."""
         return self.sockets.get(fd, Socket)
+
+    def record_traffic(self, sock, typ, method, data=b""):
+        if self.emu:
+            host, port = sock.get_connection_info()
+            self.emu.record_network_event(host, port, typ=typ, proto=sock.get_protocol(), data=data, method=method)
+
+    def connect(self, sock, host, port):
+        """Connect a socket to a remote address."""
+        sock.set_connection_info(host, port)
+        self.record_traffic(sock, "connect", "winsock.connect")
+
+    def bind(self, sock, host, port):
+        """Bind a socket to a local address."""
+        sock.set_connection_info(host, port)
+        self.record_traffic(sock, "bind", "winsock.bind")
+
+    def accept(self, sock):
+        """
+        Accept a connection on a listening socket, and return the new socket.
+
+        The peer has the default address of the config, or 127.0.0.1.
+        """
+        new_sock = self.new_socket(sock.family, sock.type, sock.protocol, 0)
+        new_sock.set_connection_info(self.get_address("default") or "127.0.0.1", sock.connected_port)
+        self.record_traffic(new_sock, "accept", "winsock.accept")
+        return new_sock
+
+    def recv(self, sock, size, peek=False):
+        """Get the next data that a socket receives."""
+        data = sock.get_recv_data(size, peek)
+        self.record_traffic(sock, "data_in", "winsock.recv", data=data)
+        return data
+
+    def send(self, sock, data):
+        """Send data on a socket."""
+        self.record_traffic(sock, "data_out", "winsock.send", data=data)
+
+    def record_http_request(self, server, port, headers="", body=b"", secure=False):
+        if self.emu:
+            self.emu.record_http_event(server, port, headers=headers, body=body, secure=secure)
+
+    def send_request(self, req, headers=None, body=b""):
+        """
+        Send an HTTP request.
+
+        A server name gets a name lookup first.
+        """
+        srv = req.get_server()
+        if not is_ip_address(srv):
+            self.name_lookup(srv)
+        req_str = req.format_http_request(headers=headers)
+        self.record_http_request(srv, req.get_port(), headers=req_str, body=body, secure=req.is_secure())
+
+    def open_url(self, inst, url, server, port, headers, flags, ctx):
+        """Open a session and a GET request for a URL, and return the request."""
+        self.record_http_request(server, port, headers=headers)
+        sess = inst.new_session(server, port, "", "", "", flags, ctx)
+        return sess.new_request("GET", url, None, None, None, flags, ctx)
 
     def close_socket(self, fd) -> bool:
         """Close a socket handle. Return False if the socket handle is not open."""

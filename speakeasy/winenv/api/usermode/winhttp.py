@@ -217,17 +217,8 @@ class WinHttp(api.ApiHandler):
         if not req:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
-        srv = req.get_server()
-        port = req.get_port()
-
-        if not netman.is_ip_address(srv):
-            self.record_dns_event(srv)
-
-        rv = 1
-        req_str = req.format_http_request(headers=lpszHeaders)
-
-        self.record_http_event(srv, port, headers=req_str, body=body, secure=req.is_secure())
-        return rv
+        self.netman.send_request(req, headers=lpszHeaders, body=body)
+        return 1
 
     @apihook("WinHttpReceiveResponse", argc=2, conv=_arch.CALL_CONV_STDCALL)
     def WinHttpReceiveResponse(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

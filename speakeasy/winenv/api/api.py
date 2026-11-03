@@ -433,15 +433,6 @@ class ApiHandler:
             pos = self.emu.get_trace_position()
             profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
-    def record_dns_event(self, domain, ip=""):
-        self.emu.record_dns_event(domain, ip)
-
-    def record_network_event(self, server, port, typ="unknown", proto="unknown", data=b"", method=""):
-        self.emu.record_network_event(server, port, typ=typ, proto=proto, data=data, method=method)
-
-    def record_http_event(self, server, port, headers="", body=b"", secure=False):
-        self.emu.record_http_event(server, port, headers=headers, body=body, secure=secure)
-
     def get_max_int(self):
         # Byte order is irrelevant here
         return int.from_bytes(b"\xff" * self.get_ptr_size(), "little")

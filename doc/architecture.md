@@ -6,7 +6,7 @@ This page tells you where the main parts of the Windows emulator are, and how a 
 
 `BinaryEmulator` (`speakeasy/binemu.py`) wraps Unicorn and capstone. It has the memory manager and the hook lists. It does not know about Windows.
 
-`WindowsEmulator` (`speakeasy/windows/winemu.py`) adds processes, threads, modules, runs, API calls and SEH. It also gives access to the object, file, registry and network managers.
+`WindowsEmulator` (`speakeasy/windows/winemu.py`) adds processes, threads, modules, runs, API calls and SEH. It also gives access to the object, file, registry and network managers. The file, registry and network managers record the file, registry and network events of the report, so each handler that uses a manager method gets the event.
 
 `Win32Emulator` (`speakeasy/windows/win32.py`) runs user mode executables, DLLs and shellcode. `WinKernelEmulator` (`speakeasy/windows/kernel.py`) runs drivers. The `Speakeasy` class (`speakeasy/speakeasy.py`) is the public interface. It creates the emulator for the input.
 
