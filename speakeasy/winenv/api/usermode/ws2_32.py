@@ -279,10 +279,10 @@ class Ws2_32(api.ApiHandler):
         """
         (name,) = argv
 
-        name = self.read_mem_string(name, 1)
+        host = self.read_mem_string(name, 1)
         ptr_hostent = 0
 
-        ip = self.netman.name_lookup(name)
+        ip = self.netman.name_lookup(host)
 
         if ip:
             hostent = self.wstypes.hostent(emu.get_ptr_size())
@@ -309,8 +309,8 @@ class Ws2_32(api.ApiHandler):
         else:
             ip = ""
 
-        ctx.args["name"].display = name
-        self.record_dns_event(name, ip)
+        ctx.args["name"].display = host
+        self.record_dns_event(host, ip)
 
         return ptr_hostent
 

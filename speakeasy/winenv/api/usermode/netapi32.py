@@ -102,8 +102,8 @@ class NetApi32(api.ApiHandler):
         wki.wki_langroup = langroup_ptr
 
         osver = emu.config.os_ver
-        wki.wki_ver_major = osver.major
-        wki.wki_ver_minor = osver.minor
+        wki.wki_ver_major = osver.major or 0
+        wki.wki_ver_minor = osver.minor or 0
 
         self.mem_write(wki_addr, wki.get_bytes())
         self.write_ptr(bufptr, wki_addr)
