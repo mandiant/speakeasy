@@ -1064,13 +1064,13 @@ def test_get_version_ex_fills_the_struct_of_the_given_size(dll_emu: Speakeasy, n
     assert dll_emu.mem_read(addr + info.sizeof(), 0x10) == b"\xcc" * 0x10
 
 
-def test_process_id_to_session_id(dll_emu: Speakeasy) -> None:
+def test_process_id_to_session_id_gives_the_container_the_configured_session(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
     proc = emu.get_current_process()
     out = alloc(dll_emu, b"\xcc" * 4)
     assert call(dll_emu, "kernel32", "ProcessIdToSessionId", [proc.id, out])[0] is True
-    assert struct.unpack("<I", dll_emu.mem_read(out, 4))[0] == proc.session
+    assert struct.unpack("<I", dll_emu.mem_read(out, 4))[0] == 1
 
 
 @pytest.mark.parametrize("pid, has_out", [(0xFFFF0, True), (None, False)])

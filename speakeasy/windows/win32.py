@@ -597,6 +597,7 @@ class Win32Emulator(WindowsEmulator):
             path=entry.path or "",
             base=self.container_image.base,
             cmdline=entry.command_line or "",
+            session=entry.session or 0,
         )
         self.processes.append(process)
         self.curr_process = process
