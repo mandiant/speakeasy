@@ -2088,9 +2088,11 @@ class WindowsEmulator(BinaryEmulator):
         om = self.get_object_manager("object creation")
         return om.new_object(otype)
 
-    def create_process(self, path=None, cmdline=None, image=None, *, child=False):
+    def create_process(self, path=None, cmdline=None, image=None, *, child=False, cd=""):
         """
         Create a process object that will exist in the emulator.
+
+        An empty cd gives the process the current directory of the current process.
 
         Raises:
             IsADirectoryError: if the program path is a directory.
@@ -2127,6 +2129,8 @@ class WindowsEmulator(BinaryEmulator):
         p.path = file_path
         p.image = ntpath.basename(file_path)
         p.cmdline = cmdline
+        if cd:
+            p.cd = cd
 
         # Create a thread object for the new process
         t = om.new_object(objman.Thread)

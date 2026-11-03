@@ -1114,17 +1114,21 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
         cmdstr = ""
         appstr = ""
+        cdstr = ""
         if lpApplicationName:
             appstr = self.read_mem_string(lpApplicationName, cw)
             ctx.args["lpApplicationName"].display = appstr
         if lpCommandLine:
             cmdstr = self.read_mem_string(lpCommandLine, cw)
             ctx.args["lpCommandLine"].display = cmdstr
+        if lpCurrentDirectory:
+            cdstr = self.read_mem_string(lpCurrentDirectory, cw)
+            ctx.args["lpCurrentDirectory"].display = cdstr
 
         ctx.args["dwCreationFlags"].display = decode(PROCESS_CREATION_FLAGS, dwCreationFlags)
 
         try:
-            proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True)
+            proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True, cd=cdstr)
         except IsADirectoryError:
             emu.set_last_error(windefs.ERROR_ACCESS_DENIED)
             return 0
