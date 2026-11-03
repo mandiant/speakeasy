@@ -414,9 +414,9 @@ class NetworkManager:
         req_str = req.format_http_request(headers=headers)
         self.record_http_request(srv, req.get_port(), headers=req_str, body=body, secure=req.is_secure())
 
-    def open_url(self, inst, url, server, port, headers, flags, ctx):
+    def open_url(self, inst, url, server, port, headers, flags, ctx, secure=False):
         """Open a session and a GET request for a URL, and return the request."""
-        self.record_http_request(server, port, headers=headers)
+        self.record_http_request(server, port, headers=headers, secure=secure)
         sess = inst.new_session(server, port, "", "", "", flags, ctx)
         return sess.new_request("GET", url, None, None, None, flags, ctx)
 

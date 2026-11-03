@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 import speakeasy
-from speakeasy import Speakeasy
+from speakeasy import NetHttpProtocol, Speakeasy
 from speakeasy.winenv.defs.enums import INTERNET_FLAGS, WINHTTP_OPEN_REQUEST_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
@@ -693,19 +693,22 @@ def test_internet_open_url_rejects_a_url_without_a_known_scheme(dll_emu: Speakea
 
 
 @pytest.mark.parametrize(
-    "url, server, port",
+    "url, server, port, proto",
     [
-        (b"http://example.com/a", "example.com", 80),
-        (b"https://example.com/a", "example.com", 443),
-        (b"http://example.com:8080/a", "example.com", 8080),
-        (b"https://user:pw@example.com:8443/a", "example.com", 8443),
+        (b"http://example.com/a", "example.com", 80, NetHttpProtocol.HTTP),
+        (b"https://example.com/a", "example.com", 443, NetHttpProtocol.HTTPS),
+        (b"HTTPS://example.com/a", "example.com", 443, NetHttpProtocol.HTTPS),
+        (b"http://example.com:8080/a", "example.com", 8080, NetHttpProtocol.HTTP),
+        (b"https://user:pw@example.com:8443/a", "example.com", 8443, NetHttpProtocol.HTTPS),
     ],
 )
-def test_internet_open_url_records_the_host_and_port(dll_emu: Speakeasy, url: bytes, server: str, port: int) -> None:
+def test_internet_open_url_records_the_host_port_and_protocol(
+    dll_emu: Speakeasy, url: bytes, server: str, port: int, proto: NetHttpProtocol
+) -> None:
     inet, _ = call(dll_emu, "wininet", "InternetOpenA", [0, 0, 0, 0, 0])
     assert call(dll_emu, "wininet", "InternetOpenUrlA", [inet, alloc(dll_emu, url + b"\x00"), 0, 0, 0, 0])[0]
     events = [e for e in dll_emu.emu.get_current_run().events if e.event == "net_http"]
-    assert [(e.server, e.port) for e in events] == [(server, port)]
+    assert [(e.server, e.port, e.proto) for e in events] == [(server, port, proto)]
 
 
 @pytest.mark.parametrize(
