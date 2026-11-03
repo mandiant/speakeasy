@@ -44,8 +44,8 @@ class Urlmon(api.ApiHandler):
             url = self.read_mem_string(szURL, cw)
             ctx.args["szURL"].display = url
             parsed = urlparse(url)
-            if parsed.netloc:
-                self.record_dns_event(parsed.netloc)
+            if parsed.hostname:
+                emu.get_network_manager().name_lookup(parsed.hostname)
 
         if szFileName:
             name = self.read_mem_string(szFileName, cw)
@@ -76,8 +76,8 @@ class Urlmon(api.ApiHandler):
             url = self.read_mem_string(szURL, cw)
             ctx.args["szURL"].display = url
             parsed = urlparse(url)
-            if parsed.netloc:
-                self.record_dns_event(parsed.netloc)
+            if parsed.hostname:
+                emu.get_network_manager().name_lookup(parsed.hostname)
             tail = parsed.path.rsplit("/", 1)[-1]
             if tail:
                 cache_name = f"C:\\Windows\\Temp\\{tail}"

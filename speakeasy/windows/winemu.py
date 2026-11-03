@@ -405,7 +405,7 @@ class WindowsEmulator(BinaryEmulator):
             self.get_handle_table, self.config.registry, os_ver=self.config.os_ver, emu=self
         )
         self.fileman: FileManager = FileManager(config, self)
-        self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network)
+        self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network, emu=self)
         self.driveman: DriveManager = DriveManager(config=self.config.drives)
         self.cryptman: CryptoManager = CryptoManager(self.handle_allocator)
         self.rng: random.Random = random.Random(self.config.random_seed)

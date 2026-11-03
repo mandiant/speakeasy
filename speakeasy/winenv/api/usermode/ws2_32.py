@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
+from speakeasy.windows.netman import is_ip_address
 from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import ADDRESS_FAMILY, SOCKET_OPTION, SOCKET_OPTION_LEVEL, SOCKET_TYPE
 from speakeasy.winenv.defs.lookup import decode
@@ -307,11 +308,8 @@ class Ws2_32(api.ApiHandler):
 
             # Write the hostent struct
             self.mem_write(ptr_hostent, self.get_bytes(hostent))
-        else:
-            ip = ""
 
         ctx.args["name"].display = host
-        self.record_dns_event(host, ip)
 
         return ptr_hostent
 
@@ -338,18 +336,8 @@ class Ws2_32(api.ApiHandler):
         if not socket:
             emu.set_last_error(winsock.WSAENOTSOCK)
             return winsock.SOCKET_ERROR
-        stype = socket.type
-        proto = "unknown"
-        if stype == SOCKET_TYPE.SOCK_STREAM:
-            proto = "tcp"
-        elif stype == SOCKET_TYPE.SOCK_DGRAM:
-            proto = "udp"
-        elif stype == SOCKET_TYPE.SOCK_RAW:
-            proto = "raw"
 
-        socket.set_connection_info(raddr, rport)
-
-        self.record_network_event(raddr, rport, typ="connect", proto=proto, method="winsock.connect")
+        self.netman.connect(socket, raddr, rport)
 
         ctx.args["name"].display = f"{raddr}:{rport}"
 
@@ -376,17 +364,8 @@ class Ws2_32(api.ApiHandler):
         if not socket:
             emu.set_last_error(winsock.WSAENOTSOCK)
             return winsock.SOCKET_ERROR
-        stype = socket.type
-        proto = "unknown"
-        if stype == SOCKET_TYPE.SOCK_STREAM:
-            proto = "tcp"
-        elif stype == SOCKET_TYPE.SOCK_DGRAM:
-            proto = "udp"
-        elif stype == SOCKET_TYPE.SOCK_RAW:
-            proto = "raw"
 
-        socket.set_connection_info(raddr, rport)
-        self.record_network_event(raddr, rport, typ="bind", proto=proto, method="winsock.bind")
+        self.netman.bind(socket, raddr, rport)
 
         ctx.args["name"].display = f"{raddr}:{rport}"
 
@@ -443,26 +422,10 @@ class Ws2_32(api.ApiHandler):
         if not socket:
             emu.set_last_error(winsock.WSAENOTSOCK)
             return self.get_max_int()
-        stype = socket.type
-        proto = "unknown"
-        if stype == SOCKET_TYPE.SOCK_STREAM:
-            proto = "tcp"
-        elif stype == SOCKET_TYPE.SOCK_DGRAM:
-            proto = "udp"
-        elif stype == SOCKET_TYPE.SOCK_RAW:
-            proto = "raw"
 
-        new_sock = self.netman.new_socket(socket.family, socket.type, socket.protocol, 0)
-        aip = self.netman.name_lookup("default")
-        if not aip:
-            aip = "127.0.0.1"
-
-        port = socket.connected_port
+        new_sock = self.netman.accept(socket)
+        aip, port = new_sock.get_connection_info()
         nip = int.from_bytes(inet_aton(aip), "little")
-
-        new_sock.set_connection_info(aip, port)
-
-        self.record_network_event(aip, port, typ="accept", proto=proto, method="winsock.accept")
 
         if addr:
             sockaddr = self.wstypes.sockaddr_in(emu.get_ptr_size())
@@ -651,22 +614,10 @@ class Ws2_32(api.ApiHandler):
         if not sock:
             emu.set_last_error(winsock.WSAENOTSOCK)
             return winsock.SOCKET_ERROR
-        data = sock.get_recv_data(blen, peek)
+        data = self.netman.recv(sock, blen, peek)
         rv = len(data)
 
         self.mem_write(buf, data)
-
-        stype = sock.type
-        proto = "unknown"
-        if stype == SOCKET_TYPE.SOCK_STREAM:
-            proto = "tcp"
-        elif stype == SOCKET_TYPE.SOCK_DGRAM:
-            proto = "udp"
-        elif stype == SOCKET_TYPE.SOCK_RAW:
-            proto = "raw"
-
-        raddr, rport = sock.get_connection_info()
-        self.record_network_event(raddr, rport, typ="data_in", proto=proto, method="winsock.recv", data=data)
 
         return rv
 
@@ -687,20 +638,10 @@ class Ws2_32(api.ApiHandler):
         if not socket:
             emu.set_last_error(winsock.WSAENOTSOCK)
             return winsock.SOCKET_ERROR
-        stype = socket.type
-        proto = "unknown"
-        if stype == SOCKET_TYPE.SOCK_STREAM:
-            proto = "tcp"
-        elif stype == SOCKET_TYPE.SOCK_DGRAM:
-            proto = "udp"
-        elif stype == SOCKET_TYPE.SOCK_RAW:
-            proto = "raw"
 
         if buf:
             data = self.mem_read(buf, blen)
-        raddr, rport = socket.get_connection_info()
-
-        self.record_network_event(raddr, rport, typ="data_out", proto=proto, method="winsock.send", data=data)
+        self.netman.send(socket, data)
 
         return len(data)
 
@@ -782,11 +723,13 @@ class Ws2_32(api.ApiHandler):
         match = re.match(ip_url_re, host)
         if match:
             ip_addr = match.group(1)
+        elif is_ip_address(host):
+            ip_addr = host
+        elif host:
+            ip_addr = self.netman.name_lookup(host) or "127.0.0.1"
         else:
             # Use default IP address
-            ip_addr = self.netman.name_lookup("default")
-            if not ip_addr:
-                ip_addr = "127.0.0.1"
+            ip_addr = self.netman.get_address("default") or "127.0.0.1"
 
         ip_bytes = inet_aton(ip_addr)
 
