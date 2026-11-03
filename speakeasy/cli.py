@@ -253,6 +253,8 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             f.write(report)
     elif report:
         print(report)  # noqa: T201
+        # A short write stays in the buffer, so flush here to raise inside the try block of main.
+        sys.stdout.flush()
 
     return error
 
@@ -390,10 +392,17 @@ def main():
     add_config_cli_arguments(parser, config_specs)
 
     args = parser.parse_args()
-    if args.dump_default_config:
-        print(json.dumps(SpeakeasyConfig().model_dump(mode="json"), indent=4))  # noqa: T201
-        return
-    error = run_main(parser, args, config_specs)
+    try:
+        if args.dump_default_config:
+            print(json.dumps(SpeakeasyConfig().model_dump(mode="json"), indent=4))  # noqa: T201
+            # A short write stays in the buffer, so flush here to raise inside the try block.
+            sys.stdout.flush()
+            return
+        error = run_main(parser, args, config_specs)
+    except BrokenPipeError:
+        # The reader closed stdout. Python flushes stdout again at exit, so point it at devnull to stop a second error.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(1)
     if error:
         logger.error("error: %s", error)
         sys.exit(1)
