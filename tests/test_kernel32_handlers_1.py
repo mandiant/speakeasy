@@ -344,6 +344,12 @@ def test_lstrcmp_exports_without_suffix_read_ansi(dll_emu: Speakeasy, api: str, 
     assert rv == 0
 
 
+def test_lstrlen_w_counts_a_lone_surrogate(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, encode("C:\\a", 2) + b"\x00\xd8" + encode(".txt\0", 2))
+    rv, _ = call(dll_emu, "kernel32", "lstrlenW", [s])
+    assert rv == 9
+
+
 def test_terminate_process_returns_true(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     app = alloc(dll_emu, b"c:\\Windows\\system32\\cmd.exe\x00")

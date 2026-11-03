@@ -386,7 +386,7 @@ class PeLoader:
         alignment = pe.OPTIONAL_HEADER.FileAlignment or 1
         file_end = -(-pe.file_size // alignment) * alignment
         truncated = [
-            sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            sect.Name.partition(b"\x00")[0].decode("utf-8", errors="replace")
             for sect in pe.sections
             if sect.SizeOfRawData
             and sect.PointerToRawData + min(sect.SizeOfRawData, sect.Misc_VirtualSize or sect.SizeOfRawData) > file_end
@@ -714,7 +714,7 @@ class PeLoader:
             extent = min(max(sect.Misc_VirtualSize, sect.SizeOfRawData), available)
             if not extent:
                 continue
-            sect_name = sect.Name.decode("utf-8", errors="ignore").rstrip("\x00")
+            sect_name = sect.Name.partition(b"\x00")[0].decode("utf-8", errors="replace")
             sections.append(
                 SectionEntry(
                     name=sect_name,

@@ -2372,7 +2372,7 @@ class Msvcrt(api.ApiHandler):
         if count:
             ws = self.read_cstr(strSource, max_chars=count, width=2)
             self.mem_write(strDest, ws.ljust(count * 2, b"\x00"))
-            ctx.args[1].display = ws.decode("utf-16le", "ignore")
+            ctx.args[1].display = ws.decode("utf-16le", "replace")
         return strDest
 
     @apihook("memcpy", argc=3, conv=e_arch.CALL_CONV_CDECL)

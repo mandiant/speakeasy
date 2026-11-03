@@ -2877,7 +2877,7 @@ class Ntoskrnl(api.ApiHandler):
         raw = self.mem_read(Data, DataSize) if Data and DataSize else b""
         value_data: str | int | bytes
         if Type in (REG_VALUE_TYPE.REG_SZ, REG_VALUE_TYPE.REG_EXPAND_SZ, REG_VALUE_TYPE.REG_MULTI_SZ):
-            value_data = raw.decode("utf-16le", errors="ignore").rstrip("\x00")
+            value_data = raw.decode("utf-16le", errors="replace").rstrip("\x00")
             ctx.args["Data"].display = value_data
         elif Type == REG_VALUE_TYPE.REG_DWORD:
             value_data = int.from_bytes(raw[:4].ljust(4, b"\x00"), "little")
