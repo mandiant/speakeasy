@@ -86,7 +86,7 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
           {
             "tag": "emu.module.<hash>.exe.headers.0x10000000",
             "base": "0x10000000",
-            "size": "0x1000",
+            "size": 4096,
             "perms": "r--",
             "accesses": null,
             "data_ref": "<sha256>"
@@ -94,7 +94,7 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
           {
             "tag": "emu.module.<hash>.exe..text.0x10001000",
             "base": "0x10001000",
-            "size": "0xce4",
+            "size": 3300,
             "perms": "r-x",
             "accesses": {"reads": 0, "writes": 0, "execs": 677},
             "data_ref": "<sha256>"
@@ -102,7 +102,7 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
           {
             "tag": "emu.module.<hash>.exe..rdata.0x10002000",
             "base": "0x10002000",
-            "size": "0x876",
+            "size": 2166,
             "perms": "r--",
             "accesses": {"reads": 15, "writes": 0, "execs": 0},
             "data_ref": "<sha256>"
@@ -110,7 +110,7 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
           {
             "tag": "emu.module.<hash>.exe..data.0x10003000",
             "base": "0x10003000",
-            "size": "0x388",
+            "size": 904,
             "perms": "rw-",
             "accesses": {"reads": 30, "writes": 26, "execs": 0},
             "data_ref": "<sha256>"
@@ -118,7 +118,7 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
           {
             "tag": "emu.stack.0x1200000",
             "base": "0x1200000",
-            "size": "0x100000",
+            "size": 1048576,
             "perms": "rwx",
             "accesses": {"reads": 170, "writes": 210, "execs": 0},
             "data_ref": null
@@ -149,18 +149,18 @@ Here is an actual report excerpt from `tests/bins/dll_test_x86.dll.xz` showing s
   "module": {
     "name": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe",
     "base": "0x10000000",
-    "size": "0x7000",
+    "size": 28672,
     "segments": [
-      {"name": ".text", "base": "0x10001000", "size": "0xce4", "perms": "r-x"},
-      {"name": ".rdata", "base": "0x10002000", "size": "0x876", "perms": "r--"},
-      {"name": ".data", "base": "0x10003000", "size": "0x388", "perms": "rw-"}
+      {"name": ".text", "base": "0x10001000", "size": 3300, "perms": "r-x"},
+      {"name": ".rdata", "base": "0x10002000", "size": 2166, "perms": "r--"},
+      {"name": ".data", "base": "0x10003000", "size": 904, "perms": "rw-"}
     ]
   },
   "layout": [
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe.headers.0x10000000", "base": "0x10000000", "size": "0x1000", "perms": "r--"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..text.0x10001000", "base": "0x10001000", "size": "0xce4", "perms": "r-x"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..rdata.0x10002000", "base": "0x10002000", "size": "0x876", "perms": "r--"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..data.0x10003000", "base": "0x10003000", "size": "0x388", "perms": "rw-"}
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe.headers.0x10000000", "base": "0x10000000", "size": 4096, "perms": "r--"},
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..text.0x10001000", "base": "0x10001000", "size": 3300, "perms": "r-x"},
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..rdata.0x10002000", "base": "0x10002000", "size": 2166, "perms": "r--"},
+    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..data.0x10003000", "base": "0x10003000", "size": 904, "perms": "rw-"}
   ]
 }
 ```

@@ -273,7 +273,7 @@
         "size": {
           "description": "Region size of the dynamic code segment.\n\nLarge regions may indicate unpacked module images or staged blobs.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         }
       },
       "required": [
@@ -1373,7 +1373,7 @@
         "size": {
           "description": "Total mapped module size in bytes.\n\nHelps identify unusually large or tiny mapped images.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "segments": {
           "description": "Section/segment breakdown for the module mapping.\n\nUse these entries for section-aware interpretation of memory behavior.",
@@ -1421,7 +1421,7 @@
         "size": {
           "description": "Allocation size in bytes.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "protect": {
           "anyOf": [
@@ -1490,7 +1490,7 @@
         "size": {
           "description": "Freed region size in bytes.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "pid": {
           "anyOf": [
@@ -1543,7 +1543,7 @@
         "size": {
           "description": "Protection-change size in bytes.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "protect": {
           "anyOf": [
@@ -1785,7 +1785,7 @@
         "size": {
           "description": "Region size in bytes.\n\nCombine with ``base`` to derive half-open address ranges.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "perms": {
           "description": "Permission string (for example ``r-x`` or ``rw-``).\n\nInterpret this as the final effective page protection at capture time.",
@@ -1866,7 +1866,7 @@
         "size": {
           "description": "Mapped module size in bytes.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         }
       },
       "required": [
@@ -1896,7 +1896,7 @@
         "size": {
           "description": "Segment size in bytes.\n\nLarge executable segments usually contain primary code paths.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "perms": {
           "description": "Effective memory permissions for the segment, such as ``r-x``.\n\nUse this to identify writable-executable anomalies or data-only regions.",
@@ -2660,7 +2660,7 @@
         "size": {
           "description": "Region size in bytes.",
           "title": "Size",
-          "type": "string"
+          "type": "integer"
         },
         "perms": {
           "anyOf": [

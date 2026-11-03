@@ -231,7 +231,7 @@ class MemAllocEvent(Event):
     )
     path: str = Field(description="Target process path associated with the allocation event.")
     base: HexInt = Field(description="Allocated base address.")
-    size: HexInt = Field(description="Allocation size in bytes.")
+    size: int = Field(description="Allocation size in bytes.")
     protect: list[str] | None = Field(
         default=None,
         description="Names of the requested page protection flags, such as ``PAGE_READWRITE``.",
@@ -318,7 +318,7 @@ class MemProtectEvent(Event):
     )
     path: str = Field(description="Target process path associated with the protection change.")
     base: HexInt = Field(description="Protection-change base address.")
-    size: HexInt = Field(description="Protection-change size in bytes.")
+    size: int = Field(description="Protection-change size in bytes.")
     protect: list[str] | None = Field(
         default=None,
         description="Names of the new page protection flags, such as ``PAGE_EXECUTE_READ``.",
@@ -346,7 +346,7 @@ class MemFreeEvent(Event):
     )
     path: str = Field(description="Target process path associated with the free event.")
     base: HexInt = Field(description="Freed region base address.")
-    size: HexInt = Field(description="Freed region size in bytes.")
+    size: int = Field(description="Freed region size in bytes.")
     pid: int | None = Field(
         default=None,
         description=(
@@ -371,7 +371,7 @@ class ModuleLoadEvent(Event):
     name: str = Field(description="Loaded module name.")
     path: str = Field(description="Loaded module path in emulated filesystem space.")
     base: HexInt = Field(description="Module base address.")
-    size: HexInt = Field(description="Mapped module size in bytes.")
+    size: int = Field(description="Mapped module size in bytes.")
 
 
 class ThreadCreateEvent(Event):

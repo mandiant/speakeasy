@@ -202,7 +202,7 @@ thread, even for a local create.
           "event": "mem_alloc",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
-          "size": "0x1000",
+          "size": 4096,
           "protect": ["PAGE_EXECUTE_READWRITE"],
           "pid": 4242
         },
@@ -230,7 +230,7 @@ thread, even for a local create.
           "event": "mem_protect",
           "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x401000",
-          "size": "0x1000",
+          "size": 4096,
           "protect": ["PAGE_EXECUTE_READ"]
         },
         {
@@ -238,7 +238,7 @@ thread, even for a local create.
           "event": "mem_free",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
-          "size": "0x1000",
+          "size": 4096,
           "pid": 4242
         },
         {
@@ -247,7 +247,7 @@ thread, even for a local create.
           "name": "wininet.dll",
           "path": "C:\\Windows\\System32\\wininet.dll",
           "base": "0x7bc00000",
-          "size": "0x1a000"
+          "size": 106496
         },
         {
           // Local thread creation keeps the new tid but carries no pid payload.
@@ -422,7 +422,7 @@ thread, even for a local create.
         {
           "tag": "emu.alloc.0x10000000",
           "base": "0x10000000",
-          "size": "0x1000"
+          "size": 4096
         }
       ],
 
@@ -444,7 +444,7 @@ thread, even for a local create.
           {
             "tag": "emu.module.main..text.0x401000",
             "base": "0x401000",
-            "size": "0x2000",
+            "size": 8192,
             "perms": "r-x",
             "is_free": false,
             "accesses": {
@@ -462,12 +462,12 @@ thread, even for a local create.
             "name": "sample.exe",
             "path": "C:\\Windows\\System32\\sample.exe",
             "base": "0x400000",
-            "size": "0x5000",
+            "size": 20480,
             "segments": [
               {
                 "name": ".text",
                 "base": "0x401000",
-                "size": "0x2000",
+                "size": 8192,
                 "perms": "r-x"
               }
             ]

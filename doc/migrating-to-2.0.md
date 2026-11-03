@@ -71,7 +71,6 @@ These values have a new format:
 |---|---|---|---|
 | `apis[].args[]` | `args[]` | `"0x1"` | `{"type": "int", "value": "0x1", "display": "0x1"}` |
 | `file_access[].handle` | `handle` | `128` | `"0x80"` |
-| `process_events[].size` of `mem_alloc`, `mem_protect` | `size` | `4096` | `"0x1000"` |
 | `process_events[].protect` | `protect` | `"PAGE_READWRITE\|PAGE_GUARD"` | `["PAGE_READWRITE", "PAGE_GUARD"]` |
 | `error.regs`, `handled_exceptions[].registers` values | `registers` values | `"0x012f8a34"` | `"0x12f8a34"` |
 | `errors[]` | `errors[]` | traceback text | an object like `entry_points[].error` |
