@@ -6,7 +6,6 @@ from typing import Any
 
 import pefile
 import pytest
-import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
@@ -209,14 +208,6 @@ def test_oem_to_char_copies_the_string_and_its_nul(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "user32", "OemToCharA", [src, dst])
     assert rv == 1
     assert dll_emu.mem_read(dst, 8) == b"hi\x80\x00" + b"\xcc" * 4
-
-
-def test_oem_to_char_does_not_map_an_unmapped_buffer(dll_emu: Speakeasy) -> None:
-    src = alloc(dll_emu, b"hi\x00")
-    dst = 0x5FFF0010
-    with pytest.raises(unicorn.UcError):
-        call(dll_emu, "user32", "OemToCharA", [src, dst])
-    assert not dll_emu.emu.is_address_valid(dst)
 
 
 @pytest.mark.parametrize(

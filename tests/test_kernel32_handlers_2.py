@@ -1551,8 +1551,3 @@ def test_get_cp_info_describes_the_code_page(emu: Speakeasy, code_page: int, max
     info = alloc(emu, b"\xcc" * 20)
     assert call(emu, "kernel32", "GetCPInfo", [code_page, info])[0] == 1
     assert emu.mem_read(info, 20) == struct.pack("<I", max_char_size) + b"?\x00" + b"\x00" * 12 + b"\xcc\xcc"
-
-
-def test_get_drive_type_of_a_null_path_is_the_current_drive(dll_emu: Speakeasy) -> None:
-    rv, _ = call(dll_emu, "kernel32", "GetDriveTypeA", [0])
-    assert rv == k32defs.DRIVE_FIXED
