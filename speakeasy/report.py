@@ -76,7 +76,7 @@ class RegionInfo(BaseModel):
 
     tag: str = Field(description="Memory-map tag identifying the region.")
     base: HexInt = Field(description="Base address of the region.")
-    size: HexInt = Field(description="Region size in bytes.")
+    size: int = Field(description="Region size in bytes.")
     perms: str | None = Field(default=None, description="Permission string (e.g. ``r-x``).")
 
 
@@ -268,7 +268,7 @@ class DynamicCodeSegment(BaseModel):
             "Use this with memory layout data to inspect surrounding mapped content."
         )
     )
-    size: HexInt = Field(
+    size: int = Field(
         description=(
             "Region size of the dynamic code segment.\n\n"
             "Large regions may indicate unpacked module images or staged blobs."
@@ -382,7 +382,7 @@ class MemoryRegion(BaseModel):
             "Treat this as the start of the region for disassembly and dump slicing."
         )
     )
-    size: HexInt = Field(
+    size: int = Field(
         description=("Region size in bytes.\n\nCombine with ``base`` to derive half-open address ranges.")
     )
     perms: str = Field(
@@ -437,7 +437,7 @@ class ModuleSegment(BaseModel):
             "Absolute virtual address of the segment start.\n\nUse with ``size`` to identify covered address ranges."
         )
     )
-    size: HexInt = Field(
+    size: int = Field(
         description=("Segment size in bytes.\n\nLarge executable segments usually contain primary code paths.")
     )
     perms: str = Field(
@@ -474,7 +474,7 @@ class LoadedModule(BaseModel):
             "Use this as the relocation anchor for offsets and symbol lookups."
         )
     )
-    size: HexInt = Field(
+    size: int = Field(
         description=("Total mapped module size in bytes.\n\nHelps identify unusually large or tiny mapped images.")
     )
     segments: list[ModuleSegment] = Field(
