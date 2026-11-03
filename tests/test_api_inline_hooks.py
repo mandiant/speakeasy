@@ -40,6 +40,6 @@ def test_x86_guest_five_byte_hook_calls_original_trampoline(config, memory_traci
 
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 78
+        assert run.return_value == 78
         assert hits == ["kernel32.GetTickCount"]
         assert [event.api_name for event in run.events if event.event == "api"] == ["kernel32.GetTickCount"]

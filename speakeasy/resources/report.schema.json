@@ -94,7 +94,7 @@
           "title": "Args",
           "type": "array"
         },
-        "ret_val": {
+        "return_value": {
           "anyOf": [
             {
               "type": "string"
@@ -105,7 +105,7 @@
           ],
           "default": null,
           "description": "Return value of the API call, when available.\n\nUse this to identify failure codes and branch-driving outcomes.",
-          "title": "Ret Val"
+          "title": "Return Value"
         }
       },
       "required": [
@@ -363,7 +363,7 @@
           "title": "Api Hash",
           "type": "string"
         },
-        "ret_val": {
+        "return_value": {
           "anyOf": [
             {
               "type": "string"
@@ -374,7 +374,7 @@
           ],
           "default": null,
           "description": "Return value produced when the run ended normally.\n\nInterpret this in the calling convention context of ``type``.",
-          "title": "Ret Val"
+          "title": "Return Value"
         },
         "error": {
           "anyOf": [
@@ -649,7 +649,7 @@
           "description": "Program counter associated with the error, when available.\n\nUse this address to align failures with disassembly and event traces.",
           "title": "Pc"
         },
-        "instr": {
+        "instruction": {
           "anyOf": [
             {
               "type": "string"
@@ -660,7 +660,7 @@
           ],
           "default": null,
           "description": "Faulting instruction text, when known.\n\nUseful for quickly identifying invalid memory operations or bad control flow transitions.",
-          "title": "Instr"
+          "title": "Instruction"
         },
         "address": {
           "anyOf": [
@@ -930,9 +930,9 @@
           "title": "Event",
           "type": "string"
         },
-        "instr": {
+        "instruction": {
           "description": "Instruction text associated with the exception.",
-          "title": "Instr",
+          "title": "Instruction",
           "type": "string"
         },
         "exception_code": {
@@ -998,7 +998,7 @@
       },
       "required": [
         "pos",
-        "instr",
+        "instruction",
         "exception_code",
         "handler_address",
         "registers"

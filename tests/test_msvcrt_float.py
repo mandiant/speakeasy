@@ -34,7 +34,7 @@ def get_failed_cases(config, load_test_bin, run_test, arch: str, cases: dict[int
     report = run_test(config, load_test_bin(f"float_cases_{arch}.exe.xz"))
     ep = report.entry_points[0]
     assert ep.error is None
-    return [case for bit, case in cases.items() if not ep.ret_val & bit]
+    return [case for bit, case in cases.items() if not ep.return_value & bit]
 
 
 @pytest.mark.parametrize("arch", ["x64", "x86"])
@@ -63,7 +63,7 @@ def test_fmod_takes_and_returns_doubles_in_xmm_registers_on_amd64(config, load_t
             run = se.get_report().entry_points[-1]
             assert run.error is None
             assert [event.api_name for event in run.events if event.event == "api"] == ["msvcrt.fmod"] * 2
-            zones.append(run.ret_val)
+            zones.append(run.return_value)
 
     assert zones == [33, 2, 33]
 

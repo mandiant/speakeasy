@@ -72,7 +72,7 @@ def test_repaired_register_allows_the_same_fault_site_again(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert handler_calls(session, data) == 8
 
 

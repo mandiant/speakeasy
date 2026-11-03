@@ -50,8 +50,8 @@ def test_invalid_read_error_fields(_read_error):
     assert e.access_type == "read"
     assert e.address == 0xDEADBEEF
     assert e.pc is not None
-    assert e.instr is not None
-    assert "mov" in e.instr.lower()
+    assert e.instruction is not None
+    assert "mov" in e.instruction.lower()
     assert e.pc_module is not None
     assert e.tid is not None
     assert e.pid is not None

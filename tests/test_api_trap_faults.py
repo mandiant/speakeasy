@@ -53,7 +53,7 @@ def test_x86_probe_of_jump_target_reaches_guest_seh(config, access, handled):
         assert se.get_address_map(target) is None
         if handled:
             assert run.error is None
-            assert run.ret_val == 42
+            assert run.return_value == 42
             assert int.from_bytes(se.mem_read(data, 4), "little") == 1
             assert mapped_in_handler == [None]
         else:

@@ -2654,7 +2654,7 @@ class WindowsEmulator(BinaryEmulator):
             pc=pc,
             address=address,
             access_type=access_type,
-            instr=instr,
+            instruction=instr,
             registers=registers,
             stack=stack,
             pc_module=pc_module,
@@ -3192,7 +3192,7 @@ class WindowsEmulator(BinaryEmulator):
         else:
             run.guest_callbacks.pop()
             if frame.event is not None:
-                frame.event.ret_val = frame.result
+                frame.event.return_value = frame.result
             self.restore_caller_registers(frame)
             self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
 

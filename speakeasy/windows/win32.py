@@ -672,10 +672,10 @@ class Win32Emulator(WindowsEmulator):
         self.is_run_complete = True
         run = self.curr_run
         if run is not None:
-            run.ret_val = self.get_return_val()
+            run.return_value = self.get_return_val()
             thread = run.thread
             if thread and thread.exit_code is None:
-                thread.exit_code = run.ret_val & 0xFFFFFFFF
+                thread.exit_code = run.return_value & 0xFFFFFFFF
             if self.profiler:
                 self.profiler.record_dropped_files_event(run, self.get_dropped_files())
                 self._capture_memory_layout(run)

@@ -52,7 +52,7 @@ def test_function_table_lets_handlers_run(config, delete):
         run = se.get_report().entry_points[0]
         if not delete:
             assert run.error is None
-            assert run.ret_val == 42
+            assert run.return_value == 42
         else:
             assert run.error is not None
             assert run.error.type == "invalid_write"
@@ -84,4 +84,4 @@ def test_rtl_unwind_continues_in_the_target_frame(config):
 
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 42
+        assert run.return_value == 42

@@ -88,7 +88,7 @@ def test_nested_dialog_callbacks_return_to_their_api_callers(config, architectur
         outer_hwnd, leaf_hwnd = slot(0x18), slot(0x28)
         assert outer_hwnd and leaf_hwnd and outer_hwnd != leaf_hwnd
         assert slot(0x40) == leaf_hwnd
-        assert slot(8) == run.ret_val == outer_hwnd
+        assert slot(8) == run.return_value == outer_hwnd
 
 
 @pytest.mark.parametrize("argc", [4, 5, 6])

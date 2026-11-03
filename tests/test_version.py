@@ -52,7 +52,7 @@ def mpsigstub_run(base_config: dict[str, Any], load_test_bin: Callable[[str], by
         if event.event == "api" and event.api_name.startswith("version.GetFileVersionInfo"):
             path = event.args[1].display
             if path:
-                run.calls.append((event.api_name, path, event.ret_val))
+                run.calls.append((event.api_name, path, event.return_value))
     return run
 
 
@@ -223,7 +223,7 @@ def test_handler_takes_precedence_over_signature_fallback(arch, build):
 
     entry = se.get_report().entry_points[0]
     assert entry.error is None
-    results = {event.api_name: event.ret_val for event in entry.events if event.api_name.startswith("version.")}
+    results = {event.api_name: event.return_value for event in entry.events if event.api_name.startswith("version.")}
     assert results == {"version.GetFileVersionInfoSizeA": 0, "version.VerQueryValueA": 0}
     assert emu.get_last_error() == ERROR_RESOURCE_TYPE_NOT_FOUND
     assert emu.mem_read(base + labels["handle"], 4) == b"\0" * 4

@@ -1369,7 +1369,7 @@ def test_gdb_detach_at_api_handler_error_runs_the_next_runs(config, resume, runs
         assert len(reported) == runs
         assert reported[0].error is not None
         if runs == 2:
-            assert (reported[1].error, reported[1].ret_val) == (None, 42)
+            assert (reported[1].error, reported[1].return_value) == (None, 42)
 
 
 @pytest.mark.parametrize("gdb_shellcode_emulator", ["c3"], indirect=True)  # ret

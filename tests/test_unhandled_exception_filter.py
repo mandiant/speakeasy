@@ -57,5 +57,5 @@ def test_filter_continues_after_raise_exception(config):
 
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 42
+        assert run.return_value == 42
         assert int.from_bytes(se.mem_read(counter, 4), "little") == 1

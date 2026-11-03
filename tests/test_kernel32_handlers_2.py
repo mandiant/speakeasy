@@ -1134,7 +1134,7 @@ def test_sleep_advances_the_time_stamp_counter(
 ) -> None:
     run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).entry_points[0]
     assert run.error is None
-    assert run.ret_val & 1, "rdtsc; Sleep(50); rdtsc gives a delta of at least 50 ms at 1 GHz"
+    assert run.return_value & 1, "rdtsc; Sleep(50); rdtsc gives a delta of at least 50 ms at 1 GHz"
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
@@ -1466,8 +1466,8 @@ def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
 ) -> None:
     entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
     assert [(entry.type, entry.error) for entry in entries] == [("module_entry", None)] + [("thread", None)] * 5
-    assert entries[0].ret_val == 1, "the queued thread gives 0, not STILL_ACTIVE"
-    failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].ret_val & bit]
+    assert entries[0].return_value == 1, "the queued thread gives 0, not STILL_ACTIVE"
+    failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].return_value & bit]
     assert not failed
 
 

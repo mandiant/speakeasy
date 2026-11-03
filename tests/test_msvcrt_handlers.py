@@ -1940,11 +1940,11 @@ def test_ifstream_of_a_missing_file_sets_failbit(config: dict[str, Any], load_te
         f"msvcrt.??0{BASIC_ISTREAM}QEAA@PEAV?$basic_streambuf@DU?$char_traits@D@std@@@1@_N@Z",
         f"msvcrt.??0{BASIC_STREAMBUF}IEAA@XZ",
     ]
-    assert all(e.ret_val == (e.args[0].value or 0) for e in ctors)
+    assert all(e.return_value == (e.args[0].value or 0) for e in ctors)
     assert init.api_name == f"msvcrt.?_Init@{BASIC_STREAMBUF}IEAAXXZ"
     assert fiopen.api_name == f"msvcrt.{FIOPEN_W}"
     assert fiopen.args[0].display.endswith("\\config.json")
-    assert fiopen.ret_val == 0
+    assert fiopen.return_value == 0
     assert setstate.api_name == f"msvcrt.?setstate@{BASIC_IOS}QEAAXH_N@Z"
     assert state == 2  # failbit
 
@@ -2154,4 +2154,4 @@ def test_endthread_ends_only_the_current_thread(
     assert (ending.type, ending.error) == ("thread", None)
     assert [event.api_name for event in ending.events or [] if event.event == "api"] == ["msvcrt._endthread"]
     assert (checking.type, checking.error) == ("thread", None)
-    assert checking.ret_val & 0x08, "the thread that calls _endthread gives 0"
+    assert checking.return_value & 0x08, "the thread that calls _endthread gives 0"

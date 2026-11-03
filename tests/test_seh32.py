@@ -54,4 +54,4 @@ def test_handler_that_unwinds_and_jumps_to_its_frame(config):
 
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 5
+        assert run.return_value == 5

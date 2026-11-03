@@ -32,7 +32,7 @@ def test_allocations_do_not_cover_the_return_hook(config, arch, code):
         se.run_shellcode(base)
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 0
+        assert run.return_value == 0
     finally:
         se.shutdown()
 

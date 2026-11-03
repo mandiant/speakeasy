@@ -425,7 +425,7 @@ def test_bcrypt_aes_gcm_round_trip_matches_pycryptodome(config: dict, load_test_
         dropped = [f.get_contents() for f in se.get_dropped_files()]
 
     assert run.error is None
-    assert not [case for bit, case in BCRYPT_GCM_CASES.items() if not run.ret_val & bit]
+    assert not [case for bit, case in BCRYPT_GCM_CASES.items() if not run.return_value & bit]
     secret, nonce, aad, plain = bytes(range(32)), b"\x07" * 12, b"UK01", bytes(range(0x40, 0x80))
     expected, expected_tag = AES.new(secret, AES.MODE_GCM, nonce=nonce).update(aad).encrypt_and_digest(plain)
     assert dropped == [expected + expected_tag]
