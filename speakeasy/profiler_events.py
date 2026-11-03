@@ -43,6 +43,16 @@ class EventType(str, Enum):
     EXCEPTION = "exception"
 
 
+class StackEntry(BaseModel):
+    """One pointer-size slot of the stack at the time of an error or an exception."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    offset: int = Field(description="Offset of the slot from the stack pointer, in bytes.")
+    value: HexIntOptional = Field(default=None, description="Value in the slot. Absent when the slot is not mapped.")
+    tag: str | None = Field(default=None, description="Tag of the memory region that ``value`` points into.")
+
+
 class TracePosition(BaseModel):
     """
     Locates where an event occurred in execution time and context.
@@ -832,8 +842,9 @@ class ExceptionEvent(Event):
     address: HexIntOptional = Field(
         default=None, description="Memory address that caused an access violation or a guard page violation."
     )
-    pc_module: str | None = Field(default=None, description="Module name + offset containing the faulting PC.")
-    stack: list[str] | None = Field(default=None, description="Stack entries at exception time.")
+    pc_module: str | None = Field(default=None, description="Name of the module that contains the faulting PC.")
+    pc_offset: int | None = Field(default=None, description="Offset of the faulting PC from the base of ``pc_module``.")
+    stack: list[StackEntry] | None = Field(default=None, description="Stack slots at exception time.")
 
 
 AnyEvent = Annotated[

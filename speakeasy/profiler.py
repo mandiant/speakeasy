@@ -654,6 +654,7 @@ class Profiler:
         registers,
         address=None,
         pc_module=None,
+        pc_offset=None,
         stack=None,
     ):
         """Log a handled exception event."""
@@ -665,6 +666,7 @@ class Profiler:
             registers=registers,
             address=address,
             pc_module=pc_module,
+            pc_offset=pc_offset,
             stack=stack,
         )
         run.events.append(event)

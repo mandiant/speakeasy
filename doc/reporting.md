@@ -403,7 +403,12 @@ thread, even for a local create.
           "exception_code": "0x80000003",
           "handler_address": "0x401500",
           "registers": {"eax": "0x0", "ebx": "0x0"},
-          "stack": ["sp+0x00: 0x00401010", "sp+0x04: 0x00000000"]
+          "pc_module": "sample.exe",
+          "pc_offset": 4306,
+          "stack": [
+            {"offset": 0, "value": "0x401010", "tag": "emu.module.sample.exe.0x400000"},
+            {"offset": 4, "value": "0x0"}
+          ]
         }
       ],
 

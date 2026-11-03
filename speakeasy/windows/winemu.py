@@ -2522,14 +2522,21 @@ class WindowsEmulator(BinaryEmulator):
 
         return self._raise_memory_fault(address, "fetch")
 
-    def _resolve_module_offset(self, addr: int) -> str | None:
-        """Return 'module+0xoffset' string for an address inside a loaded module, or None."""
+    def _resolve_module_offset(self, addr: int) -> tuple[str, int] | None:
+        """Return the name of the loaded module that contains addr and the offset of addr in it, or None."""
         mod = self.get_module_from_addr(addr)
         if mod:
-            offset = addr - mod.base
-            name = getattr(mod, "name", None) or getattr(mod, "path", "unknown")
-            return f"{name}+{offset:#x}"
+            name = getattr(mod, "name", None) or getattr(mod, "path", None) or "unknown"
+            return name, addr - mod.base
         return None
+
+    def _format_module_offset(self, addr: int) -> str:
+        """Return 'module+0xoffset' for an address inside a loaded module, or the address in hex."""
+        resolved = self._resolve_module_offset(addr)
+        if resolved is None:
+            return hex(addr)
+        name, offset = resolved
+        return f"{name}+{offset:#x}"
 
     def _resolve_region_info(self, addr: int) -> RegionInfo | None:
         """Return a RegionInfo for the region containing addr, or None if unmapped."""
@@ -2625,7 +2632,7 @@ class WindowsEmulator(BinaryEmulator):
 
         registers = self.get_register_state()
         stack = self.get_stack_trace()
-        pc_module = self._resolve_module_offset(pc)
+        pc_module, pc_offset = self._resolve_module_offset(pc) or (None, None)
         address_region = self._resolve_region_info(address)
         nearby_regions = self._find_nearby_regions(address) if not address_region else None
         tid = self.curr_thread.tid if self.curr_thread else None
@@ -2633,10 +2640,16 @@ class WindowsEmulator(BinaryEmulator):
 
         label = f"{desc.value}: {message}" if message else desc.value
         if api_name:
-            summary = f"{label} {api_name} called from {self._resolve_module_offset(address) or hex(address)}"
+            summary = f"{label} {api_name} called from {self._format_module_offset(address)}"
         else:
             summary = self._build_context_summary(
-                label, pc, address, access_type, pc_module, address_region, nearby_regions
+                label,
+                pc,
+                address,
+                access_type,
+                self._format_module_offset(pc) if pc_module else None,
+                address_region,
+                nearby_regions,
             )
 
         logger.error(
@@ -2658,6 +2671,7 @@ class WindowsEmulator(BinaryEmulator):
             registers=registers,
             stack=stack,
             pc_module=pc_module,
+            pc_offset=pc_offset,
             address_region=address_region,
             nearby_regions=nearby_regions,
             tid=tid,
@@ -3716,16 +3730,17 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             logger.error(str(e))
             instr = "disasm_failed"
-        pc_module = self._resolve_module_offset(address)
-        handler_module = self._resolve_module_offset(handler)
-        handler_desc = f"0x{handler:x}" + (f" ({handler_module})" if handler_module else "")
+        pc_module, pc_offset = self._resolve_module_offset(address) or (None, None)
+        handler_desc = f"0x{handler:x}"
+        if self._resolve_module_offset(handler):
+            handler_desc += f" ({self._format_module_offset(handler)})"
         logger.info(
             '0x%x: Exception caught: code=0x%x handler=%s instr="%s"\n  pc: %s\n  regs: %s',
             address,
             code,
             handler_desc,
             instr,
-            pc_module or f"0x{address:x}",
+            self._format_module_offset(address),
             "  ".join(f"{k}={v:#x}" for k, v in registers.items()),
         )
         if self.profiler:
@@ -3742,6 +3757,7 @@ class WindowsEmulator(BinaryEmulator):
                 registers,
                 address=faulting_address,
                 pc_module=pc_module,
+                pc_offset=pc_offset,
                 stack=self.get_stack_trace(),
             )
 

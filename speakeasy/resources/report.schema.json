@@ -731,7 +731,7 @@
           "anyOf": [
             {
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/StackEntry"
               },
               "type": "array"
             },
@@ -740,7 +740,7 @@
             }
           ],
           "default": null,
-          "description": "Stack entries captured at the time of the error.",
+          "description": "Stack slots at the time of the error, from the stack pointer up.",
           "title": "Stack"
         },
         "pc_module": {
@@ -753,8 +753,21 @@
             }
           ],
           "default": null,
-          "description": "Module name + offset containing the faulting PC (e.g. ``sample.exe+0x1234``).",
+          "description": "Name of the module that contains the faulting PC, for example ``sample.exe``.",
           "title": "Pc Module"
+        },
+        "pc_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Offset of the faulting PC from the base of ``pc_module``.",
+          "title": "Pc Offset"
         },
         "address_region": {
           "anyOf": [
@@ -999,14 +1012,27 @@
             }
           ],
           "default": null,
-          "description": "Module name + offset containing the faulting PC.",
+          "description": "Name of the module that contains the faulting PC.",
           "title": "Pc Module"
+        },
+        "pc_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Offset of the faulting PC from the base of ``pc_module``.",
+          "title": "Pc Offset"
         },
         "stack": {
           "anyOf": [
             {
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/StackEntry"
               },
               "type": "array"
             },
@@ -1015,7 +1041,7 @@
             }
           ],
           "default": null,
-          "description": "Stack entries at exception time.",
+          "description": "Stack slots at exception time.",
           "title": "Stack"
         }
       },
@@ -2705,6 +2731,48 @@
         "size"
       ],
       "title": "RegionInfo",
+      "type": "object"
+    },
+    "StackEntry": {
+      "additionalProperties": false,
+      "description": "One pointer-size slot of the stack at the time of an error or an exception.",
+      "properties": {
+        "offset": {
+          "description": "Offset of the slot from the stack pointer, in bytes.",
+          "title": "Offset",
+          "type": "integer"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Value in the slot. Absent when the slot is not mapped.",
+          "title": "Value"
+        },
+        "tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tag of the memory region that ``value`` points into.",
+          "title": "Tag"
+        }
+      },
+      "required": [
+        "offset"
+      ],
+      "title": "StackEntry",
       "type": "object"
     },
     "StringCollection": {

@@ -53,6 +53,7 @@ def test_invalid_read_error_fields(_read_error):
     assert e.instruction is not None
     assert "mov" in e.instruction.lower()
     assert e.pc_module is not None
+    assert e.pc_offset is not None
     assert e.tid is not None
     assert e.pid is not None
 
@@ -69,8 +70,8 @@ def test_invalid_read_has_register_state(_read_error):
 def test_invalid_read_has_stack_trace(_read_error):
     e = _read_error
     assert e.stack is not None
-    assert len(e.stack) > 0
-    assert "sp+" in e.stack[0]
+    assert [entry.offset for entry in e.stack[:2]] == [0, 4]
+    assert e.stack[0].value is not None
 
 
 def test_invalid_read_context_summary(_read_error):

@@ -18,6 +18,7 @@ from speakeasy.engines import unicorn_eng
 from speakeasy.errors import EmuException
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
+from speakeasy.profiler_events import StackEntry
 from speakeasy.report import ErrorInfo, ErrorType, Report
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
@@ -502,27 +503,20 @@ class BinaryEmulator(MemoryManager, ABC):
         elif self.get_arch() == e_arch.ARCH_AMD64:
             self.reg_write(e_arch.AMD64_REG_RSP, addr)
 
-    def get_stack_trace(self, num_ptrs=16):
-        """Get the current stack state."""
+    def get_stack_trace(self, num_ptrs=16) -> list[StackEntry]:
+        """Get the current stack state. The first slot that is not mapped ends the list."""
         trace = []
         sp = self.get_stack_ptr()
+        ptr_size = self.get_ptr_size()
         for i in range(num_ptrs):
+            offset = i * ptr_size
             try:
-                data = self.mem_read(sp, self.get_ptr_size())
+                data = self.mem_read(sp + offset, ptr_size)
             except Exception:
-                sp_off = "{0:#0{1}x}".format(i * self.get_ptr_size(), 2 * 2)
-                trace.append(f"sp+{sp_off}: <unmapped @ 0x{sp:x}>")
+                trace.append(StackEntry(offset=offset))
                 break
             ptr = int.from_bytes(data, "little")
-            tag = self.get_address_tag(ptr)
-            fmt = "{0:#0{1}x}".format(ptr, 2 + (self.get_ptr_size() * 2))
-            sp_off = "{0:#0{1}x}".format(i * self.get_ptr_size(), 2 * 2)
-            if not tag:
-                entry = f"sp+{sp_off}: {fmt}"
-            else:
-                entry = f"sp+{sp_off}: {fmt} -> {tag}"
-            trace.append(entry)
-            sp += self.get_ptr_size()
+            trace.append(StackEntry(offset=offset, value=ptr, tag=self.get_address_tag(ptr) or None))
         return trace
 
     def get_pc(self) -> int:
