@@ -282,12 +282,36 @@ se.run_module(module, all_entrypoints=True, emulate_children=False)
 
 ## Command line
 
-`--raw-offset` now takes a decimal number, like `--entry-point`. Write `0x` before a hex offset. In 1.x, `--raw-offset` was always hex, so `--raw-offset 10` started at offset 0x10.
+Many flags have new names, and some short flags are removed. The CLI does not accept the 1.x names or an abbreviation of a flag, so an old flag is an argument error, and the CLI exits 2.
+
+| 1.x | 2.0 |
+|---|---|
+| `-p`, `--params` with one argument for each parameter | `--argv` with one quoted string, for example `--argv="-log -path out.txt"` |
+| `-m`, `--mem-tracing` | `--analysis-memory-tracing` |
+| `-r`, `--raw` | `--raw` |
+| `--raw_offset` | `--raw-offset` |
+| `-a`, `--arch` | `--arch` |
+| `-q`, `--timeout` | `--max-run-time` |
+| `-z`, `--dropped-files` | `--dropped-files-path` |
+| `-l`, `--module-dir` | `--module-directory-x86` and `--module-directory-x64` |
+| `-d`, `--dump` | none, use `Speakeasy.get_memory_dumps()` |
+
+`-t`, `-o`, `-c`, `-k` and `--no-mp` do not change. The 2.0 pre-releases had other names for some flags:
+
+| 2.0 pre-release | 2.0 |
+|---|---|
+| `--timeout` | `--max-run-time` |
+| `--max-api-count` | `--max-api-calls` |
+| `--modules-module-directory-x86`, `--modules-module-directory-x64` | `--module-directory-x86`, `--module-directory-x64` |
+| `--modules-modules-always-exist`, `--no-modules-modules-always-exist` | `--modules-always-exist`, `--no-modules-always-exist` |
+| `--os-ver-release` | none |
+
+`--raw-offset` takes a decimal number, like `--entry-point`. Write `0x` before a hex offset. In 1.x, `--raw_offset` was always hex, so `--raw_offset 10` started at offset 0x10.
 
 Before:
 
 ```bash
-speakeasy -t shellcode.bin --raw --arch x86 --raw-offset 10 -o report.json
+speakeasy -t shellcode.bin -r -a x86 --raw_offset 10 -o report.json
 ```
 
 After:
