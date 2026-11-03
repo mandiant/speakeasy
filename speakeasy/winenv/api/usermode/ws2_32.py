@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.winsock.ws2_32 as wstypes
+from speakeasy.winenv.defs.enums import ADDRESS_FAMILY, SOCKET_OPTION, SOCKET_OPTION_LEVEL, SOCKET_TYPE
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.winsock import winsock
-from speakeasy.winenv.defs.winsock.winsock import ADDRESS_FAMILY, SOCKET_OPTION, SOCKET_OPTION_LEVEL, SOCKET_TYPE
 
 from .. import api
 

@@ -5,7 +5,7 @@ import pytest
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager, RegValue
-from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
+from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 
 
 def test_config_values_have_type_codes(config: dict[str, Any]) -> None:

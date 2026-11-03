@@ -12,14 +12,9 @@ import unicorn
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION, LCTYPE, PAGE_PROTECTION_FLAGS, THREAD_CREATION_FLAGS
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from speakeasy.winenv.defs.windows.kernel32 import LCTYPE
-from speakeasy.winenv.defs.windows.windows import (
-    FILE_CREATION_DISPOSITION,
-    PAGE_PROTECTION_FLAGS,
-    THREAD_CREATION_FLAGS,
-)
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)

@@ -1,22 +1,12 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
-from enum import IntEnum, IntFlag
+from enum import IntEnum
 
 from speakeasy.struct import EmuStruct, Ptr
 
 MAX_PATH = 260
 MAX_MODULE_NAME32 = 255
-
-
-class CREATE_TOOLHELP_SNAPSHOT_FLAGS(IntFlag):
-    TH32CS_INHERIT = 0x80000000
-    TH32CS_SNAPALL = 0x0000000F
-    TH32CS_SNAPHEAPLIST = 0x00000001
-    TH32CS_SNAPMODULE = 0x00000008
-    TH32CS_SNAPMODULE32 = 0x00000010
-    TH32CS_SNAPPROCESS = 0x00000002
-    TH32CS_SNAPTHREAD = 0x00000004
 
 
 GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004
@@ -73,42 +63,6 @@ class LCID(IntEnum):
     LOCALE_CUSTOM_DEFAULT = 0xC00
     LOCALE_CUSTOM_UNSPECIFIED = 0x1000
     LOCALE_CUSTOM_UI_DEFAULT = 0x1400
-
-
-class LCTYPE(IntEnum):
-    """The LCType values of GetLocaleInfo. The SDK has no enum type for them."""
-
-    LOCALE_SENGLISHLANGUAGENAME = 0x1001
-    LOCALE_SENGLISHCOUNTRYNAME = 0x1002
-
-
-class DRIVE_TYPE(IntEnum):
-    """The return values of GetDriveType. The SDK has no enum type for them."""
-
-    DRIVE_UNKNOWN = 0
-    DRIVE_NO_ROOT_DIR = 1
-    DRIVE_REMOVABLE = 2
-    DRIVE_FIXED = 3
-    DRIVE_REMOTE = 4
-    DRIVE_CDROM = 5
-    DRIVE_RAMDISK = 6
-
-
-class COMPUTER_NAME_FORMAT(IntEnum):
-    ComputerNameNetBIOS = 0
-    ComputerNameDnsHostname = 1
-    ComputerNameDnsDomain = 2
-    ComputerNameDnsFullyQualified = 3
-    ComputerNamePhysicalNetBIOS = 4
-    ComputerNamePhysicalDnsHostname = 5
-    ComputerNamePhysicalDnsDomain = 6
-    ComputerNamePhysicalDnsFullyQualified = 7
-    ComputerNameMax = 8
-
-
-class GET_FILEEX_INFO_LEVELS(IntEnum):
-    GetFileExInfoStandard = 0
-    GetFileExMaxInfoLevel = 1
 
 
 THREAD_PRIORITY_NORMAL = 0

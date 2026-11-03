@@ -4,8 +4,8 @@ import speakeasy
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.usb as usbdefs
 from speakeasy.winenv.defs import wdf
+from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
-from speakeasy.winenv.defs.registry import reg
 
 IOCTL_IS_SUPER_SPEED_SUPPORTED = 0x49104B
 
@@ -197,7 +197,7 @@ def main(args):
     usb.run_module(module)
 
     param_key = usb.get_registry_key(path="HKLM\\System\\CurrentControlSet\\Services\\*\\Parameters")
-    param_key.create_value("MaximumTransferSize", reg.REG_VALUE_TYPE.REG_DWORD, 65536)
+    param_key.create_value("MaximumTransferSize", REG_VALUE_TYPE.REG_DWORD, 65536)
 
     # Call the AddDevice function to get us setup
 

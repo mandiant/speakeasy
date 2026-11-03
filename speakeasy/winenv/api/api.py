@@ -17,7 +17,7 @@ from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, TracePosition
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
-from speakeasy.winenv.defs.windows.windows import PAGE_PROTECTION_FLAGS
+from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 
 if TYPE_CHECKING:
     from speakeasy.windows.winemu import WindowsEmulator

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from speakeasy.winenv.defs.windows.kernel32 import DRIVE_TYPE
+from speakeasy.winenv.defs.enums import DRIVE_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import DriveConfig

@@ -3,9 +3,9 @@
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
+from speakeasy.winenv.defs.enums import NET_RESOURCE_SCOPE, NET_RESOURCE_TYPE, WNET_OPEN_ENUM_USAGE
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.windows import mpr
-from speakeasy.winenv.defs.windows.mpr import NET_RESOURCE_SCOPE, NET_RESOURCE_TYPE, WNET_OPEN_ENUM_USAGE
 
 from .. import api
 

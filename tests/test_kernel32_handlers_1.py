@@ -11,12 +11,11 @@ import pytest
 from speakeasy import Speakeasy, common
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
+from speakeasy.winenv.defs.enums import CREATE_TOOLHELP_SNAPSHOT_FLAGS, PAGE_PROTECTION_FLAGS, PROCESS_CREATION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.nt import ntoskrnl as ntdefs
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from speakeasy.winenv.defs.windows.kernel32 import CREATE_TOOLHELP_SNAPSHOT_FLAGS
-from speakeasy.winenv.defs.windows.windows import PAGE_PROTECTION_FLAGS, PROCESS_CREATION_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 PAGE_READWRITE = 0x04

@@ -14,8 +14,8 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
+from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
-from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 from tests.handler_harness import alloc, call
 from tests.test_ntoskrnl_handlers import CDECL, STDCALL, call_x86
 
