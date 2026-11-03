@@ -198,7 +198,7 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load
         ("pFileName", "str", "\\RemoteRegistry.exe"),
         ("bDeleteExistingResources", "bool", "FALSE"),
     ]
-    handle = hex(begin.ret_val)
+    handle = hex(begin.return_value)
     assert handle != "0x0"
     assert [(a.name, a.type, a.display) for a in update.args] == [
         ("hUpdate", "handle", handle),
@@ -208,12 +208,12 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load
         ("lpData", "ptr", "0x4050b4"),
         ("cb", "int", "0x3000"),
     ]
-    assert update.ret_val == 1
+    assert update.return_value == 1
     assert [(a.name, a.type, a.display) for a in end.args] == [
         ("hUpdate", "handle", handle),
         ("fDiscard", "bool", "FALSE"),
     ]
-    assert end.ret_val == 1
+    assert end.return_value == 1
     assert stack_pointers[0x1413] == stack_pointers[0x1449]
 
 
@@ -234,7 +234,7 @@ def test_unhooked_import_is_emulated_from_signature_on_x64(config: dict[str, Any
     ]
     assert created.args[2].value == SYMBOLIC_LINK_FLAG_DIRECTORY
     # BOOLEAN return: fake success
-    assert created.ret_val == 1
+    assert created.return_value == 1
 
     # the registers were left exactly as the caller expects
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
@@ -273,7 +273,7 @@ def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
     # the Out buffer is a pointer, not a string, before the call fills it
     assert [a.type for a in call.args] == ["str", "str", "str", "ptr", "int", "str"]
     # "0 characters copied" and an empty string in the buffer agree with each other
-    assert call.ret_val == 0
+    assert call.return_value == 0
     assert blobs[3] == b"\x00" * (PROFILE_BUFFER_CHARS * 2) + b"\xcc" * 4
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
@@ -293,7 +293,7 @@ def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
         ("lpNewDirectory", "str", "C:\\new"),
         ("lpSecurityAttributes", "struct", "{nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}"),
     ]
-    assert events[0].ret_val == 1
+    assert events[0].return_value == 1
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
@@ -418,5 +418,5 @@ def test_struct_argument_passed_by_value_is_emulated(config: dict[str, Any]) -> 
         ("hConsoleOutput", "handle", "0x7"),
         ("dwSize", "struct", "{X: 0x50, Y: 0x19}"),
     ]
-    assert events[0].ret_val == 1
+    assert events[0].return_value == 1
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]

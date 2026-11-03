@@ -135,7 +135,7 @@ class ErrorInfo(BaseModel):
             "Use this address to align failures with disassembly and event traces."
         ),
     )
-    instr: str | None = Field(
+    instruction: str | None = Field(
         default=None,
         description=(
             "Faulting instruction text, when known.\n\n"
@@ -597,7 +597,7 @@ class EntryPoint(BaseModel):
             "Use this for coarse behavioral clustering across samples and architectures."
         ),
     )
-    ret_val: HexIntOptional = Field(
+    return_value: HexIntOptional = Field(
         default=None,
         description=(
             "Return value produced when the run ended normally.\n\n"

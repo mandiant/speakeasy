@@ -52,7 +52,7 @@ def test_raise_exception_calls_the_seh_handler_and_continues(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert struct.unpack("<5I", session.mem_read(data, 20)) == (0x0EEDFADE, 0, 2, 0x1111, 0x2222)
 
 
@@ -65,7 +65,7 @@ def test_handler_cannot_continue_a_noncontinuable_exception(session):
     assert struct.unpack("<2I", session.mem_read(data, 8)) == (0x0EEDFADE, 1)
     assert run.error is not None
     assert run.error.type == "unhandled_exception"
-    assert run.ret_val != 42
+    assert run.return_value != 42
 
 
 def test_continuable_exception_without_a_handler_returns(session):
@@ -75,7 +75,7 @@ def test_continuable_exception_without_a_handler_returns(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert session.mem_read(data, 4) == b"\x00" * 4
 
 
@@ -87,7 +87,7 @@ def test_noncontinuable_exception_without_a_handler_ends_the_run(session):
     run = session.get_report().entry_points[0]
     assert run.error is not None
     assert run.error.type == "unhandled_exception"
-    assert run.ret_val != 42
+    assert run.return_value != 42
 
 
 def test_seh_handler_reads_its_arguments_through_the_dispatcher_frame(session):
@@ -102,7 +102,7 @@ def test_seh_handler_reads_its_arguments_through_the_dispatcher_frame(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert struct.unpack("<2I", session.mem_read(data, 8)) == (0x0EEDFADE, data + 0x100)
 
 
@@ -136,7 +136,7 @@ def test_exceptions_caught_by_unwinding_can_repeat_from_one_call_site(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert struct.unpack("<I", session.mem_read(data, 4))[0] == 8
 
 
@@ -151,4 +151,4 @@ def test_exception_event_records_the_return_address_of_the_call(session):
     events = [e for e in run.events or [] if e.event == "exception"]
     assert len(events) == 1
     assert events[0].pos.pc == return_address
-    assert events[0].instr.startswith("mov dword ptr fs:[0]")
+    assert events[0].instruction.startswith("mov dword ptr fs:[0]")

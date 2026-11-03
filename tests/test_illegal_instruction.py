@@ -49,7 +49,7 @@ def test_invalid_opcode_calls_the_seh_handler_and_continues(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert struct.unpack("<I", session.mem_read(data, 4))[0] == STATUS_ILLEGAL_INSTRUCTION
 
 
@@ -60,4 +60,4 @@ def test_invalid_opcode_without_a_handler_ends_the_run(session):
 
     run = session.get_report().entry_points[0]
     assert run.error is not None
-    assert run.ret_val != 42
+    assert run.return_value != 42

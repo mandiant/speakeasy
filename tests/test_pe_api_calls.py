@@ -97,7 +97,7 @@ def test_public_guest_data_execution_and_nx_policy():
         assert previous == unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
         se.run_module(module)
         entry = se.get_report().entry_points[0]
-        assert entry.error is None and entry.ret_val == 77
+        assert entry.error is None and entry.return_value == 77
         assert hits == ["kernel32.GetTickCount"]
         assert api_names(entry) == hits
         assert permissions(data_address) == previous | unicorn.UC_PROT_EXEC
@@ -168,7 +168,7 @@ def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_ex
             assert entry.error is None
             assert api_names(entry) == [f"kernel32.{unknown}", "kernel32.GetTickCount"]
             event = next(event for event in entry.events if event.event == "api")
-            assert event.ret_val == 1 and len(event.args) == 4
+            assert event.return_value == 1 and len(event.args) == 4
         else:
             assert entry.error.type == "unsupported_api"
             assert entry.error.api_name == f"kernel32.{unknown}"
@@ -183,7 +183,7 @@ def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bi
         error = se.get_report().entry_points[0].error
         name = module.name
     assert error.type == "unsupported_api"
-    assert error.instr == f"api_trap kernel32.{unknown}"
+    assert error.instruction == f"api_trap kernel32.{unknown}"
     assert error.context_summary == f"unsupported_api kernel32.{unknown} called from {name}+0x1006"
     assert error.nearby_regions is None
     assert "Invalid memory read" not in caplog.text
@@ -257,7 +257,7 @@ def test_public_sp_changing_hook_stops_once_without_redispatch():
         assert entry.error.type == "api_handler_did_not_return"
         assert entry.error.api_name == "kernel32.GetTickCount"
         events = [event for event in entry.events if event.event == "api"]
-        assert len(events) == 1 and events[0].ret_val == 7
+        assert len(events) == 1 and events[0].return_value == 7
 
 
 @pytest.mark.parametrize("architecture", [32, 64])
@@ -327,4 +327,4 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
     assert callbacks == [(module.base, "WINE_REGISTRY", name, enum.args[3].value)]
     assert find.api_name == "kernel32.FindResourceW"
     assert [arg.display for arg in find.args[1:]] == [name, "WINE_REGISTRY"]
-    assert find.ret_val
+    assert find.return_value

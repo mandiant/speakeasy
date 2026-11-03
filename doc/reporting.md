@@ -167,13 +167,13 @@ thread, even for a local create.
       "api_hash": "2222222222222222222222222222222222222222222222222222222222222222",
 
       // Return value of the run entry point.
-      "ret_val": "0x0",
+      "return_value": "0x0",
 
       // Run-local error if abnormal termination occurred.
       "error": {
         "type": "unsupported_api",
         "pc": "0x401234",
-        "instr": "call dword ptr [eax]",
+        "instruction": "call dword ptr [eax]",
         "registers": {"eax": "0x403000", "esp": "0x12ff70"},
         "tid": 2000,
         "pid": 1337
@@ -187,7 +187,7 @@ thread, even for a local create.
           "api_name": "kernel32.LoadLibraryA",
           // "name" is present when the API signature is known.
           "args": [{"name": "lpLibFileName", "type": "str", "value": "0x40308c", "display": "ws2_32"}],
-          "ret_val": "0x78c00000"
+          "return_value": "0x78c00000"
         },
         {
           "pos": {"tick": 20, "tid": 2000, "pid": 1337, "pc": "0x40100a"},
@@ -399,7 +399,7 @@ thread, even for a local create.
         {
           "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": "0x4010d2"},
           "event": "exception",
-          "instr": "int 3",
+          "instruction": "int 3",
           "exception_code": "0x80000003",
           "handler_address": "0x401500",
           "registers": {"eax": "0x0", "ebx": "0x0"},

@@ -39,7 +39,7 @@ def test_wdm_driver_load_unload(wdm_report):
     assert create_sym.args[0].display == SYM_LINK
     assert create_sym.args[1].display == DEV_NAME
 
-    assert driver_entry.ret_val == 0
+    assert driver_entry.return_value == 0
 
     driver_unload = eps[-1]
     delete_sym = get_api_calls(driver_unload, "ntoskrnl.IoDeleteSymbolicLink")
@@ -84,22 +84,22 @@ def test_wdm_irp_handlers(wdm_report):
             assert len(dprint) == 1
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside IRP_MJ_CREATE handler"
-            assert handler.ret_val == 0
+            assert handler.return_value == 0
         elif handler.name == "IRP_MJ_DEVICE_CONTROL":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside IRP_MJ_DEVICE_CONTROL handler"
-            assert handler.ret_val == 0
+            assert handler.return_value == 0
         elif handler.name == "IRP_MJ_CLOSE":
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside IRP_MJ_CLOSE handler"
-            assert handler.ret_val == 0
+            assert handler.return_value == 0
         else:
             dprint = get_api_calls(handler, "ntoskrnl.DbgPrint")
             assert len(dprint) == 1
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside default handler"
-            assert handler.ret_val == 0xC00000BB
+            assert handler.return_value == 0xC00000BB

@@ -379,7 +379,7 @@ class WinKernelEmulator(WindowsEmulator):
         run.start_addr = drv.on_unload
         run.instr_cnt = 0
         run.args = (drv.address,)
-        run.ret_val = None
+        run.return_value = None
         self.add_run(run)
         drv.unload_called = True
 
@@ -388,7 +388,7 @@ class WinKernelEmulator(WindowsEmulator):
         func_handler = None
 
         if self.curr_run is not None and self.curr_run.type is not None:
-            self.curr_run.ret_val = self.get_return_val()
+            self.curr_run.return_value = self.get_return_val()
 
         # Check if theres anything in the run queue
         if len(self.run_queue):
@@ -441,7 +441,7 @@ class WinKernelEmulator(WindowsEmulator):
 
     def on_run_complete(self):
         if self.curr_run is not None:
-            self.curr_run.ret_val = self.get_return_val()
+            self.curr_run.return_value = self.get_return_val()
 
         for drv in self.drivers:
             drv.read_back()

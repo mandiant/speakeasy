@@ -72,4 +72,4 @@ def test_x86_eh_prolog_builds_frame_and_resumes_caller(config):
             *arguments,
         )
         assert (resumed_sp, resumed_ebp, resumed_seh) == (initial_sp, saved_ebp, previous)
-        assert run.ret_val == sum(arguments) + 1
+        assert run.return_value == sum(arguments) + 1

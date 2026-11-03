@@ -30,8 +30,8 @@ def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
     assert len(runs) == 10
     assert all(run.name.startswith("??0?$TestDataArray@") for run in runs)
     assert [run.error for run in runs] == [None] * 10
-    assert runs[0].ret_val
-    assert {run.ret_val for run in runs} == {runs[0].ret_val}
+    assert runs[0].return_value
+    assert {run.return_value for run in runs} == {runs[0].return_value}
 
 
 @pytest.mark.parametrize(

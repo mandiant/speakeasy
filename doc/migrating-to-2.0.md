@@ -56,6 +56,8 @@ These keys have new names:
 | `entry_points[].apihash` | `api_hash` |
 | `entry_points[].sym_accesses` | `symbol_accesses` |
 | `entry_points[].error.regs` | `error.registers` |
+| `entry_points[].error.instr`, `handled_exceptions[].instr` | `error.instruction`, `instruction` of the event |
+| `entry_points[].ret_val`, `apis[].ret_val` | `return_value` |
 | `apis[].pc`, `handled_exceptions[].pc` | `pos.pc` of the event |
 | `process_events[].cmdline` | `command_line` |
 | `process_events[].start_addr` | `start_address` |

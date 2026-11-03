@@ -33,8 +33,8 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     assert report.sha256 == hashlib.sha256(parent).hexdigest()
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
-    assert entries[0].ret_val == 1
-    assert entries[1].ret_val == module.base
+    assert entries[0].return_value == 1
+    assert entries[1].return_value == module.base
     assert len(set(pids)) == 2
     assert [ep.pid for ep in entries] == pids
 
@@ -62,7 +62,7 @@ def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bi
         entries = se.get_report().entry_points
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
-    assert entries[1].ret_val == CHILD_BASE
+    assert entries[1].return_value == CHILD_BASE
     assert [entry.object.DllBase for entry in child.ldr_entries][:4] == [
         CHILD_BASE,
         se.emu.get_mod_by_name("ntdll").base,

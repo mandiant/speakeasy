@@ -173,7 +173,7 @@ def _step(emu, frame: GuestCallbackFrame, value: int | None) -> None:
         return
     frame.result = result
     if frame.event is not None:
-        frame.event.ret_val = result
+        frame.event.return_value = result
     emu.set_stack_ptr(frame.stack_pointer)
     emu.restore_caller_registers(frame)
     emu.do_call_return(frame.argc, frame.return_address, result, conv=frame.convention)

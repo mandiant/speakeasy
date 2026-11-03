@@ -141,7 +141,7 @@ def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
     path = [e for e in events if e.api_name == "kernel32.LoadLibraryExW"][-1].args[0].display
     assert path.lower().startswith("c:\\windows\\temp\\ns") and path.endswith("\\nsDialogs.dll")
     create = next(e for e in events if e.api_name == "kernel32.CreateFileW" and e.args[0].display == path)
-    assert any(e.api_name == "kernel32.WriteFile" and e.args[0].value == create.ret_val for e in events)
+    assert any(e.api_name == "kernel32.WriteFile" and e.args[0].value == create.return_value for e in events)
     assert plugin is not None
     assert loaded == [plugin.base]
 
@@ -313,7 +313,7 @@ def test_startup_initializer_failure_continues_startup(config, tmp_path, result,
             ("dependency_dll_entry", "second", None),
             ("shellcode", None, None),
         ]
-        assert se.get_report().entry_points[-1].ret_val == 2
+        assert se.get_report().entry_points[-1].return_value == 2
         assert int.from_bytes(se.mem_read(first["Flag"], 4), "little") == flag
     finally:
         se.shutdown()

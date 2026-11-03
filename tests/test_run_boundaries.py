@@ -62,7 +62,7 @@ def test_synthetic_api_nx_fault_never_dispatches_handler(api_emu):
     assert failed.error.type == "invalid_protect_fetch"
     assert failed.error.pc == address
     assert following.error is None
-    assert following.ret_val == 43
+    assert following.return_value == 43
     assert not permissions_at(emu, address) & uc.UC_PROT_EXEC
 
 
@@ -76,9 +76,9 @@ def test_anonymous_nx_is_recovered_by_default(api_emu):
     emu.start()
 
     assert recovered.error is None
-    assert recovered.ret_val == 77
+    assert recovered.return_value == 77
     assert following.error is None
-    assert following.ret_val == 44
+    assert following.return_value == 44
     assert not permissions_at(emu, address) & uc.UC_PROT_EXEC
 
 
@@ -121,9 +121,9 @@ def test_sp_changing_exit_hook_ends_run_and_successor_owns_its_events(api_emu):
     emu.start()
 
     assert exiting.error is None
-    assert following.error is None and following.ret_val == 43
-    assert [(event.api_name, event.ret_val) for event in api_events(exiting)] == [("kernel32.ExitThread", 0x4D)]
-    assert [(event.api_name, event.ret_val) for event in api_events(following)] == [("run_boundary.Next", 0x2B)]
+    assert following.error is None and following.return_value == 43
+    assert [(event.api_name, event.return_value) for event in api_events(exiting)] == [("kernel32.ExitThread", 0x4D)]
+    assert [(event.api_name, event.return_value) for event in api_events(following)] == [("run_boundary.Next", 0x2B)]
     assert not emu.run_queue
 
 

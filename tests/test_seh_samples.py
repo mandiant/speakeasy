@@ -59,7 +59,7 @@ def test_al_khaser_page_guard(config, load_test_bin, arch, check):
         run = module_entry(se)
 
     assert run.error is None
-    assert run.ret_val == 0  # FALSE: no debugger
+    assert run.return_value == 0  # FALSE: no debugger
     assert exceptions(run) == [STATUS_GUARD_PAGE_VIOLATION]
 
 
@@ -110,7 +110,7 @@ def test_raise_exception_anti_emulation(config, load_test_bin):
         run = module_entry(se)
 
     assert run.error is None
-    assert run.ret_val == 0x40010006
+    assert run.return_value == 0x40010006
     assert exceptions(run) == [0x40010006]
 
 

@@ -126,7 +126,7 @@ class Run:
         self.execution_elapsed: float = 0.0
         self.budget_instructions: int = 0
         self.guest_initialization: InitRoutine | None = None
-        self.ret_val: int | None = None
+        self.return_value: int | None = None
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}
         self.dropped_files: list[dict[str, Any]] = []
@@ -259,7 +259,7 @@ class Profiler:
             run.api_hash.update(name.lower().encode("utf-8"))
             run.unique_apis.append(name)
 
-        event = ApiEvent(pos=pos, api_name=name, args=args, ret_val=ret)
+        event = ApiEvent(pos=pos, api_name=name, args=args, return_value=ret)
 
         shown = [(a.name, a.type, a.display) for a in args]
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
@@ -267,7 +267,7 @@ class Profiler:
             e.pos.pc == event.pos.pc
             and e.api_name == event.api_name
             and [(a.name, a.type, a.display) for a in e.args] == shown
-            and e.ret_val == event.ret_val
+            and e.return_value == event.return_value
             for e in recent_events
         ):
             run.events.append(event)
@@ -648,7 +648,7 @@ class Profiler:
         self,
         run,
         pos: TracePosition,
-        instr,
+        instruction,
         exception_code,
         handler_address,
         registers,
@@ -659,7 +659,7 @@ class Profiler:
         """Log a handled exception event."""
         event = ExceptionEvent(
             pos=pos,
-            instr=instr,
+            instruction=instruction,
             exception_code=exception_code,
             handler_address=handler_address,
             registers=registers,
@@ -779,7 +779,7 @@ class Profiler:
                 tid=ep_tid,
                 instruction_count=r.instr_cnt if r.instr_cnt else None,
                 api_hash=r.api_hash.hexdigest(),
-                ret_val=r.ret_val,
+                return_value=r.return_value,
                 error=error_info,
                 events=events,
                 symbol_accesses=symbol_accesses,

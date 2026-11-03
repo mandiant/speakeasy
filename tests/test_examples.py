@@ -70,8 +70,8 @@ def test_emu_dll_example_exercises_hooks(config, load_test_bin, caplog):
     assert "user32.MessageBoxA text: Inside emu_test_one" in caplog.messages
     assert "user32.MessageBoxW text: Inside emu_test_two" in caplog.messages
     assert len(report.entry_points) == 3
-    assert report.entry_points[1].ret_val == 0x41414141
-    assert report.entry_points[2].ret_val == 0x42424242
+    assert report.entry_points[1].return_value == 0x41414141
+    assert report.entry_points[2].return_value == 0x42424242
 
 
 def test_emu_exe_example_modifies_ntreadfile_buffer(config, load_test_bin, caplog):

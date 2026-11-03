@@ -104,7 +104,7 @@ CREATE_WINDOW_CASES = {
 def get_failed_window_cases(config: dict, load_test_bin, run_test, cases: dict[int, str]) -> list[str]:
     ep = run_test(config, load_test_bin("window_cases_x86.exe.xz")).entry_points[0]
     assert ep.error is None
-    return [case for bit, case in cases.items() if not ep.ret_val & bit]
+    return [case for bit, case in cases.items() if not ep.return_value & bit]
 
 
 def test_dialog_box_param_runs_the_dialog_procedure(config: dict, load_test_bin, run_test) -> None:
@@ -582,12 +582,12 @@ def test_create_window_sends_nccreate_and_create_to_the_window_procedure(config:
         events = api_events(se)
 
     created = [e for e in events if e.api_name == "user32.CreateWindowExW"]
-    hwnd = created[0].ret_val
+    hwnd = created[0].return_value
     assert hwnd
     assert messages == [(hwnd, WM_NCCREATE, "180000", "Jungo"), (hwnd, WM_CREATE, "180000", "Jungo")]
     assert [a.display for a in created[1].args[1:3]] == ["button", "Star"]
     assert created[1].args[8].value == hwnd
-    assert created[1].ret_val
+    assert created[1].return_value
 
 
 def test_create_window_fails_when_the_window_procedure_rejects_creation(config: dict, load_test_bin, run_test) -> None:

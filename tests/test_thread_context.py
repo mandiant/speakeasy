@@ -54,7 +54,7 @@ def test_restore_context_continues_at_capture(config):
 
     se, data, report = run(config, build)
     assert report.error is None
-    assert report.ret_val == 2
+    assert report.return_value == 2
     assert field(se, data, 0x30) & 0xFFFFFFFF == 0x10000F  # CONTEXT_FULL | CONTEXT_SEGMENTS
 
 

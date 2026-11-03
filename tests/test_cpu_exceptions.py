@@ -105,7 +105,7 @@ def test_cpu_exception_reaches_vectored_handler(config, arch, name):
     insn, exception_code, offset, step = CASES[name]
     run, start, record = run_under_handler(config, arch, insn, step)
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert record[:2] == (exception_code, start + offset)
 
 
@@ -151,7 +151,7 @@ def test_debug_service_without_exception_skips_a_byte(config):
 
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 42
+        assert run.return_value == 42
         assert not [e for e in run.events or [] if e.event == "exception"]
 
 
@@ -250,7 +250,7 @@ def test_guard_page_raises_once_on_execute(config):
     # call rax twice: the first fetch hits the guard, the handler retries it, the second call just runs
     run, page, record = run_with_page(config, PAGE_EXECUTE_READWRITE | PAGE_GUARD, b"\xff\xd0\xff\xd0")
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert record == (STATUS_GUARD_PAGE_VIOLATION, page, 8, page)
     assert [e.exception_code for e in run.events or [] if e.event == "exception"] == [0x80000001]
 
@@ -281,7 +281,7 @@ def test_guard_page_raises_on_read_of_memory_read_before(config):
 def test_protection_fault_is_access_violation(config, protect, access, step, access_code):
     run, page, record = run_with_page(config, protect, access, step=step)  # the handler skips the access
     assert run.error is None
-    assert run.ret_val == 42
+    assert run.return_value == 42
     assert record[0] == STATUS_ACCESS_VIOLATION
     assert record[2:] == (access_code, page)
 
@@ -363,7 +363,7 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
 
         run = se.get_report().entry_points[0]
         assert run.error is None
-        assert run.ret_val == 42
+        assert run.return_value == 42
         assert len([e for e in run.events or [] if e.event == "exception"]) == 6
 
 
@@ -494,7 +494,7 @@ def test_vectored_handler_added_first_runs_first(config):
 
         se.run_shellcode(code)
 
-        assert se.get_report().entry_points[0].ret_val == 42
+        assert se.get_report().entry_points[0].return_value == 42
         assert struct.unpack("<I", se.mem_read(data, 4))[0] == 2
 
 

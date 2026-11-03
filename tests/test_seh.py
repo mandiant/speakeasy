@@ -51,7 +51,7 @@ def test_seh_without_dispatch(config, load_test_bin, run_test):
     error = ep[0].error
 
     assert error.type == "invalid_write"
-    assert error.instr == "mov dword ptr [0], 0x14"
+    assert error.instruction == "mov dword ptr [0], 0x14"
 
 
 # Bits of the return value of seh_cases.c, one per case
@@ -84,7 +84,7 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
     ep = report.entry_points[0]
     assert ep.error is None
     cases = SEH_CASES | SEH_CASES_X86 if arch == "x86" else SEH_CASES
-    failed = [case for bit, case in cases.items() if not ep.ret_val & bit]
+    failed = [case for bit, case in cases.items() if not ep.return_value & bit]
     assert not failed
 
     exceptions = [(e.exception_code, e.address) for e in ep.events or [] if e.event == "exception"]

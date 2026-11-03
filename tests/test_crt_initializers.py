@@ -45,7 +45,9 @@ def test_iostream_static_constructors_are_thiscall_on_x86(config, load_test_bin)
 
     assert run.error is None
     ctors = [
-        (e.api_name, e.ret_val) for e in run.events or [] if e.event == "api" and e.api_name.startswith("msvcrt.??0")
+        (e.api_name, e.return_value)
+        for e in run.events or []
+        if e.event == "api" and e.api_name.startswith("msvcrt.??0")
     ]
     assert ctors == [
         ("msvcrt.??0Init@ios_base@std@@QAE@XZ", module.base + 0x44F9),

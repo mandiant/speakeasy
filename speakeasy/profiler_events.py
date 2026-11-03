@@ -177,7 +177,7 @@ class ApiEvent(Event):
             "otherwise one entry per argument slot, plus any entries a variadic handler adds."
         )
     )
-    ret_val: HexIntOptional = Field(
+    return_value: HexIntOptional = Field(
         default=None,
         description=(
             "Return value of the API call, when available.\n\n"
@@ -825,7 +825,7 @@ class ExceptionEvent(Event):
     event: Literal[EventType.EXCEPTION] = Field(
         default=EventType.EXCEPTION, description="Discriminator for exception events."
     )
-    instr: str = Field(description="Instruction text associated with the exception.")
+    instruction: str = Field(description="Instruction text associated with the exception.")
     exception_code: HexInt = Field(description="Exception code, such as ``0xc0000005``.")
     handler_address: HexInt = Field(description="Address of the selected exception handler.")
     registers: dict[str, HexInt] = Field(description="Register snapshot captured at exception time.")

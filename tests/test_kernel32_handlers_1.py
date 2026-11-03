@@ -1260,5 +1260,5 @@ def test_is_processor_feature_present_agrees_with_cpuid_for_avx(
 ) -> None:
     run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).entry_points[0]
     assert run.error is None
-    assert run.ret_val & 0x2, "IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
-    assert run.ret_val & 0x4, "IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
+    assert run.return_value & 0x2, "IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
+    assert run.return_value & 0x4, "IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE) agrees with CPUID"

@@ -33,7 +33,7 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
         assert spinning.error.type == "max_instructions"
         assert int(spinning.error.pc) == base + thread - 2
         assert created.error is None
-        assert created.ret_val == 0x2A
+        assert created.return_value == 0x2A
     finally:
         se.shutdown()
 
