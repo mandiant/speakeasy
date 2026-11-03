@@ -1,5 +1,6 @@
 """PE32/PE32+ images, built or real samples, that call APIs through their IAT."""
 
+import logging
 import struct
 import time
 
@@ -328,3 +329,32 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
     assert find.api_name == "kernel32.FindResourceW"
     assert [arg.display for arg in find.args[1:]] == [name, "WINE_REGISTRY"]
     assert find.return_value
+
+
+@pytest.mark.parametrize(("architecture", "return_value"), [(32, 0xFFFFFFFF), (64, 0xFFFFFFFFFFFFFFFF)])
+def test_api_log_and_event_show_a_negative_return_as_the_register_value(
+    caplog: pytest.LogCaptureFixture, architecture: int, return_value: int
+) -> None:
+    # LZSeek is stdcall and pops three arguments on x86.
+    pushes = b"\x6a\x00" * 3 if architecture == 32 else b""
+    imports = {"lz32.dll": ["LZSeek"]}
+    data, _ = build_pe(architecture, text=calls(architecture, [("lz32.dll", "LZSeek")], prefix=pushes), imports=imports)
+    with caplog.at_level(logging.INFO, logger="speakeasy.windows.winemu"), Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        entry = se.get_report().entry_points[0]
+    events = [event for event in entry.events if event.event == "api"]
+    assert [(event.api_name, event.return_value) for event in events] == [("lz32.LZSeek", return_value)]
+    assert f"-> {hex(return_value)}" in caplog.text
+
+
+def test_api_log_and_event_keep_the_64_bits_of_an_x86_double_return(caplog: pytest.LogCaptureFixture) -> None:
+    # floor(-2.5) is cdecl and returns -3.0 in ST(0).
+    pushes = b"\x68" + struct.pack("<I", 0xC0040000) + b"\x6a\x00"
+    text = calls(32, [("msvcrt.dll", "floor")], prefix=pushes, suffix=b"\x83\xc4\x08")
+    data, _ = build_pe(32, text=text, imports={"msvcrt.dll": ["floor"]})
+    with caplog.at_level(logging.INFO, logger="speakeasy.windows.winemu"), Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        entry = se.get_report().entry_points[0]
+    events = [event for event in entry.events if event.event == "api"]
+    assert [(event.api_name, event.return_value) for event in events] == [("msvcrt.floor", 0xC008000000000000)]
+    assert "-> 0xc008000000000000" in caplog.text
