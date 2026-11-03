@@ -15,6 +15,8 @@ The examples use JSONC for explanation. Remove comments for machine parsing.
 
 A key is absent when Speakeasy did not collect its data, for example `coverage` when `analysis.coverage=false`. An empty list or object means that Speakeasy collected the data and found nothing.
 
+The report writes each machine word as a hex string with a `0x` prefix and lowercase digits: addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value as a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string.
+
 - `report_version`: from `speakeasy.report.REPORT_VERSION`.
 - `emulation_total_runtime`: profiler start/stop wall-clock duration.
 - `timestamp`: profiler start time epoch seconds.
