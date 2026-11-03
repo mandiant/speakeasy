@@ -44,7 +44,7 @@ from speakeasy.windows.kernel import WinKernelEmulator
 from speakeasy.windows.loaders import LoadedImage, RuntimeModule
 from speakeasy.windows.regman import RegKey
 from speakeasy.windows.win32 import Win32Emulator
-from speakeasy.windows.winemu import execution_scope
+from speakeasy.windows.winemu import WindowsEmulator, execution_scope
 from speakeasy.winenv import arch as _arch
 
 logger = logging.getLogger(__name__)
@@ -211,10 +211,10 @@ class Speakeasy:
                 gdb_host=self.gdb_host,
             )
             self._emu = emu
-            emu.init_machine(pe.arch)
+            self._init_machine(emu, pe.arch)
         else:
             user_emu = self._init_user_emulator()
-            user_emu.init_machine(pe.arch)
+            self._init_machine(user_emu, pe.arch)
             if not pe.is_exe():
                 user_emu.load_container()
 
@@ -229,6 +229,16 @@ class Speakeasy:
         )
         self._emu = emu
         return emu
+
+    def _init_machine(self, emu: WindowsEmulator, arch: int) -> None:
+        """
+        Create the machine of the emulator, then add the pending hooks.
+
+        The engine exists only after the machine is created, and the hooks must be in place before the load maps
+        the input.
+        """
+        emu.init_machine(arch)
+        self._init_hooks()
 
     def _init_hooks(self) -> None:
         """Add the hooks that the user registered before the emulator existed."""
@@ -380,10 +390,9 @@ class Speakeasy:
         if is_input:
             emu = self._init_user_emulator()
             arch = image.arch if image.arch in (_arch.ARCH_X86, _arch.ARCH_AMD64) else _arch.ARCH_X86
-            emu.init_machine(arch)
+            self._init_machine(emu, arch)
             if image.module_type != "exe":
                 emu.load_container()
-        self._init_hooks()
         return self.emu.load_image(image, is_input=is_input)
 
     @check_init
@@ -412,7 +421,6 @@ class Speakeasy:
             SpeakeasyError: if no module is loaded yet.
         """
         output_active_config(self.config, logger)
-        self._init_hooks()
 
         if isinstance(self.emu, Win32Emulator):
             return self.emu.run_module(
@@ -456,7 +464,7 @@ class Speakeasy:
             raise InputError(f"Target file not found: {fpath}")
 
         emu = self._init_user_emulator()
-        emu.init_machine(sc_arch)
+        self._init_machine(emu, sc_arch)
         emu.load_container()
         self.loaded_bins.append(fpath)
 
@@ -480,7 +488,6 @@ class Speakeasy:
         if not isinstance(emu, Win32Emulator):
             raise SpeakeasyError("Shellcode runs only in the user mode emulator")
         output_active_config(self.config, logger)
-        self._init_hooks()
         return emu.run_shellcode(sc_addr, stack_commit=stack_commit, offset=offset)
 
     @check_init
