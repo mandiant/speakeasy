@@ -76,6 +76,7 @@ These values have a new format:
 | `process_events[].protect` | `protect` | `"PAGE_READWRITE\|PAGE_GUARD"` | `["PAGE_READWRITE", "PAGE_GUARD"]` |
 | `error.regs`, `handled_exceptions[].registers` values | `registers` values | `"0x012f8a34"` | `"0x12f8a34"` |
 | `errors[]` | `errors[]` | traceback text | an object like `entry_points[].error` |
+| `error.stack[]` | `error.stack[]` | `"sp+0x04: 0x0012ff80 -> emu.stack.0x1200000"` | `{"offset": 4, "value": "0x12ff80", "tag": "emu.stack.0x1200000"}` |
 | `network_events.traffic[].proto` of an HTTP request | `proto` of `net_http` | `tcp.http`, `tcp.https` | `http`, `https` |
 | `error.type` | `error.type` | the text of the exception, for example `Invalid instruction (UC_ERR_INSN_INVALID)` | an identifier, for example `invalid_instruction` |
 | `arch` | `arch` | `unknown` when not known | absent when not known |

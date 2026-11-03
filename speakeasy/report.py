@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from speakeasy.profiler_events import AnyEvent
+from speakeasy.profiler_events import AnyEvent, StackEntry
 from speakeasy.report_types import HexInt, HexIntOptional
 
 REPORT_VERSION = "6.0.0"
@@ -163,13 +163,17 @@ class ErrorInfo(BaseModel):
         default=None,
         description="Register state snapshot at the time of the error.",
     )
-    stack: list[str] | None = Field(
+    stack: list[StackEntry] | None = Field(
         default=None,
-        description="Stack entries captured at the time of the error.",
+        description="Stack slots at the time of the error, from the stack pointer up.",
     )
     pc_module: str | None = Field(
         default=None,
-        description="Module name + offset containing the faulting PC (e.g. ``sample.exe+0x1234``).",
+        description="Name of the module that contains the faulting PC, for example ``sample.exe``.",
+    )
+    pc_offset: int | None = Field(
+        default=None,
+        description="Offset of the faulting PC from the base of ``pc_module``.",
     )
     address_region: RegionInfo | None = Field(
         default=None,
