@@ -52,7 +52,24 @@ class GDI32(api.ApiHandler):
         self.count: int = 0
         self.stock_objects: dict[int, int] = {}
         self.selected: dict[int, int] = {}
+        self.handles: set[int] = set()
         super().__get_hook_attrs__(self)
+
+    def new_handle(self, emu: "Win32Emulator") -> int:
+        hnd = emu.handle_allocator.allocate_handle()
+        self.handles.add(hnd)
+        return hnd
+
+    def is_gdi_object(self, hnd: int) -> bool:
+        """
+        Return True for a handle that gdi32 gave: from new_handle or a stock object.
+
+        SelectObject gives the stock SYSTEM_FONT without a GetStockObject call,
+        so the check accepts each handle in the stock object range.
+        """
+        if STOCK_OBJECT_BASE <= hnd <= STOCK_OBJECT_BASE + DC_PEN:
+            return True
+        return hnd in self.handles
 
     @apihook("CreateBitmap", argc=5)
     def CreateBitmap(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -65,7 +82,7 @@ class GDI32(api.ApiHandler):
             const VOID *lpBits
         );
         """
-        return emu.handle_allocator.allocate_handle()
+        return self.new_handle(emu)
 
     @apihook("MoveToEx", argc=4)
     def MoveToEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -219,7 +236,7 @@ class GDI32(api.ApiHandler):
             HDC hdc
         );
         """
-        return emu.handle_allocator.allocate_handle()
+        return self.new_handle(emu)
 
     @apihook("GetDIBits", argc=7)
     def GetDIBits(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -255,7 +272,7 @@ class GDI32(api.ApiHandler):
         size = (width * bit_count + 31) // 32 * 4 * abs(height)
         if width > 0 and height != 0 and bit_count in (1, 4, 8, 16, 24, 32) and size <= MAX_DIB_SIZE:
             bits = self.mem_alloc(size, tag="api.gdi32.CreateDIBSection")
-            hbm = emu.handle_allocator.allocate_handle()
+            hbm = self.new_handle(emu)
         if ppvBits:
             self.write_ptr(ppvBits, bits)
         return hbm
@@ -310,7 +327,7 @@ class GDI32(api.ApiHandler):
         (lplf,) = argv
         if not lplf:
             return 0
-        return emu.handle_allocator.allocate_handle()
+        return self.new_handle(emu)
 
     @apihook("GetObjectA", argc=3)
     def GetObjectA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -322,19 +339,12 @@ class GDI32(api.ApiHandler):
         );
         """
         h, c, pv = argv
+        if not self.is_gdi_object(h):
+            return 0
 
-        # If caller provided a buffer, fill it with zeros.
+        # The handler does not keep the object structures, so it writes zeros in their place.
         if pv and c:
-            try:
-                data = b"\x00" * c
-                try:
-                    emu.mem_write(pv, data)
-                except Exception:
-                    base_addr = pv & ~0xFFF
-                    emu.mem_map(0x1000, base=base_addr)
-                    emu.mem_write(pv, data)
-            except Exception:
-                pass
+            emu.mem_write(pv, b"\x00" * c)
 
         # Return number of bytes "written"
         return c

@@ -218,13 +218,6 @@ def test_oem_to_char_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> N
     assert dll_emu.mem_read(dst, 3) == b"hi\x00"
 
 
-def test_get_object_maps_a_page_for_an_unmapped_buffer(dll_emu: Speakeasy) -> None:
-    pv = 0x5FFF0010
-    rv, _ = call(dll_emu, "gdi32", "GetObjectA", [0x1234, 24, pv])
-    assert rv == 24
-    assert dll_emu.mem_read(pv, 24) == b"\x00" * 24
-
-
 @pytest.mark.parametrize(
     "name, cw, maxc, expected",
     [
