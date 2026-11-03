@@ -862,6 +862,10 @@ class BinaryEmulator(MemoryManager, ABC):
         and the return value of the last hook is used. This order applies to all
         hook types in Speakeasy. An IN instruction is the exception: only the first
         IN hook that is enabled and covers the address runs.
+
+        Raises:
+            ValueError: if the engine rejects the hook, for example an instruction hook on an
+                instruction that the engine does not support.
         """
         hook.bind(self)
         if isinstance(hook, common.ApiHook):
@@ -878,7 +882,12 @@ class BinaryEmulator(MemoryManager, ABC):
             self._in_dispatch_handle = self.emu_eng.hook_add(
                 htype=common.HOOK_INSN, cb=self._hook_in_dispatch, arg1=UC_X86_INS_IN
             )
-        hook.add()
+        try:
+            hook.add()
+        except ValueError:
+            # A hook that the engine rejects must not stay in the hook list
+            self.remove_hook(hook)
+            raise
         return hook
 
     def remove_hook(self, hook: common.Hook) -> None:
@@ -1007,9 +1016,14 @@ class BinaryEmulator(MemoryManager, ABC):
         return self.add_hook(common.InterruptHook(cb))
 
     def add_instruction_hook(
-        self, cb: InHookCallback | OutHookCallback | SyscallHookCallback, begin=1, end=0, insn=None
+        self, cb: InHookCallback | OutHookCallback | SyscallHookCallback, begin=1, end=0, *, insn: int
     ) -> common.InstructionHook:
-        """Add a hook that will fire for an IN, OUT, SYSCALL, or SYSENTER instruction."""
+        """
+        Add a hook that will fire for an IN, OUT, SYSCALL, or SYSENTER instruction.
+
+        Raises:
+            ValueError: if the engine does not support hooks on ``insn``.
+        """
         return self.add_hook(common.InstructionHook(cb, begin, end, insns=(insn,)))
 
     def _hook_in_dispatch(self, uc_engine, port, size, user_data):
