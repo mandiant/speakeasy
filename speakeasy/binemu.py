@@ -754,6 +754,13 @@ class BinaryEmulator(MemoryManager, ABC):
         """Get the pointer size of the current emulation state."""
         return self.ptr_size
 
+    def get_machine_word(self, value: int | None) -> int | None:
+        """Get the register-width unsigned value of an integer, so that -1 becomes 0xffffffff on x86."""
+        if value is None:
+            return None
+        bits: int = self.get_ptr_size() * 8
+        return value & ((1 << bits) - 1)
+
     def get_mem_strings(self):
         """Get ansi and unicode strings from emulated memory."""
         tgt_tag_prefixes = ("emu.stack", "api")

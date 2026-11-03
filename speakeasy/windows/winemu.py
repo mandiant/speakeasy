@@ -2726,7 +2726,9 @@ class WindowsEmulator(BinaryEmulator):
             frame = self._active_api_frame
             if frame is not None and not any(item is frame for item in run.guest_callbacks):
                 frame = None
-            event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=frame is None)
+            event = self.profiler.record_api_event(
+                run, pos, imp_api, self.get_machine_word(rv), args, deduplicate=frame is None
+            )
             if frame is not None:
                 frame.event = event
 
@@ -3206,7 +3208,7 @@ class WindowsEmulator(BinaryEmulator):
         else:
             run.guest_callbacks.pop()
             if frame.event is not None:
-                frame.event.return_value = frame.result
+                frame.event.return_value = self.get_machine_word(frame.result)
             self.restore_caller_registers(frame)
             self.do_call_return(frame.argc, frame.return_address, frame.result, conv=frame.convention)
 
