@@ -963,6 +963,17 @@ def test_get_file_type_tells_consoles_pipes_and_files_apart(dll_emu: Speakeasy) 
     assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 1
 
 
+def test_read_file_on_stdin_reads_end_of_input(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    stdin = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF6])[0]
+    read = alloc(dll_emu, b"\xff" * 4)
+    call(dll_emu, "kernel32", "SetLastError", [windefs.ERROR_ACCESS_DENIED])
+
+    assert call(dll_emu, "kernel32", "ReadFile", [stdin, alloc(dll_emu, b"\0" * 8), 8, read, 0])[0] == 1
+    assert struct.unpack("<I", dll_emu.mem_read(read, 4))[0] == 0
+    assert call(dll_emu, "kernel32", "GetLastError", [])[0] == windefs.ERROR_SUCCESS
+
+
 def test_set_std_handle_changes_what_get_std_handle_returns(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     path = alloc(dll_emu, b"C:\\Windows\\Temp\\out.txt\0")

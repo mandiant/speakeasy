@@ -4707,6 +4707,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if lpNumberOfBytesRead:
             self.write_dword(lpNumberOfBytesRead, 0)
 
+        proc = emu.get_current_process()
+        # SetStdHandle can make a file handle the standard input, so the table comes first
+        if hFile not in emu.get_handle_table() and proc and hFile == proc.stdin:
+            # The console has no input, so a read gets the end of input
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            return True
+
         f = emu.get_handle_table().get(hFile, fileman.File)
         if not f:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
