@@ -153,18 +153,14 @@ class Driver(KernelObject):
         """
         Create the driver section for the driver.
 
-        The section is a linked list that links together driver objects.
+        The section is the loader entry of the driver image. Its load order and memory order lists hold only this
+        entry.
         """
         tag = f"emu.object.{self.name}.DriverSection"
         mod = self.pe
         mod_name = mod.emu_path if mod and mod.emu_path else "None"
 
         ldte = LdrDataTableEntry(self.emu, mod_name, tag=tag)
-        first = None
-        last = None
-        if len(self.ldr_entries):
-            first = self.ldr_entries[0]
-            last = self.ldr_entries[-1]
         self.ldr_entries.append(ldte)
 
         if mod:
@@ -187,23 +183,11 @@ class Driver(KernelObject):
         ldte.object.BaseDllName.MaximumLength = len(dllname)
         ldte.object.BaseDllName.Buffer = name_addr + (ldte.object.FullDllName.Length - len(dllname))
 
-        if first is None or last is None:
-            ldte.object.InLoadOrderLinks.Flink = ldte.address
-            ldte.object.InLoadOrderLinks.Flink = ldte.address
-            ldte.object.InLoadOrderLinks.Blink = ldte.address
-            ldte.object.InMemoryOrderLinks.Blink = ldte.address
-        else:
-            ldte.object.InLoadOrderLinks.Flink = last.object.InLoadOrderLinks.Flink
-            ldte.object.InMemoryOrderLinks.Flink = last.object.InMemoryOrderLinks.Flink
-            ldte.object.InLoadOrderLinks.Blink = last.address
-            ldte.object.InMemoryOrderLinks.Blink = last.address
-
-            last.object.InLoadOrderLinks.Flink = ldte.address
-            last.object.InMemoryOrderLinks.Flink = ldte.address
-            first.object.InLoadOrderLinks.Blink = ldte.address
-            first.object.InMemoryOrderLinks.Blink = ldte.address
-
-            last.write_back()
+        # The emulator has no PsLoadedModuleList, so each list holds only this entry and its links point to their
+        # own node.
+        for link_field in ("InLoadOrderLinks", "InMemoryOrderLinks"):
+            link = getattr(ldte.object, link_field)
+            link.Flink = link.Blink = ldte.address + getattr(ldte.object.get_cstruct(), link_field).offset
         ldte.write_back()
         return ldte
 
