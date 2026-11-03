@@ -775,9 +775,13 @@ class BinaryEmulator(MemoryManager, ABC):
         return self.ptr_size
 
     def get_machine_word(self, value: int | None) -> int | None:
-        """Get the register-width unsigned value of an integer, so that -1 becomes 0xffffffff on x86."""
-        if value is None:
-            return None
+        """
+        Get the register-width unsigned value of a negative integer, so that -1 becomes 0xffffffff on x86.
+
+        A positive value stays as it is, because an x86 double return holds the 64 bits of ST(0).
+        """
+        if value is None or value >= 0:
+            return value
         bits: int = self.get_ptr_size() * 8
         return value & ((1 << bits) - 1)
 

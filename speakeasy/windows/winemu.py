@@ -2717,6 +2717,7 @@ class WindowsEmulator(BinaryEmulator):
         """Log an API call and record it with the profiler."""
         call_str = f"{imp_api}({', '.join(self.format_api_arg(arg) for arg in args)})"
 
+        rv = self.get_machine_word(rv)
         rv_str = hex(rv) if rv is not None else None
         logger.info("%s: %s -> %s", hex(pc), repr(call_str), rv_str)
         run = self.curr_run if run is None else run
@@ -2730,9 +2731,7 @@ class WindowsEmulator(BinaryEmulator):
             frame = self._active_api_frame
             if frame is not None and not any(item is frame for item in run.guest_callbacks):
                 frame = None
-            event = self.profiler.record_api_event(
-                run, pos, imp_api, self.get_machine_word(rv), args, deduplicate=frame is None
-            )
+            event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=frame is None)
             if frame is not None:
                 frame.event = event
 
