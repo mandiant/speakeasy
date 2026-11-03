@@ -453,7 +453,8 @@ class Wininet(api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
         crack = urlparse(url)
-        default_port = DEFAULT_PORTS.get(crack.scheme.lower())
+        scheme = crack.scheme.lower()
+        default_port = DEFAULT_PORTS.get(scheme)
         server = crack.netloc.rpartition("@")[2]
         if default_port is None or not server:
             emu.set_last_error(ERROR_INTERNET_UNRECOGNIZED_SCHEME)
@@ -465,5 +466,5 @@ class Wininet(api.ApiHandler):
         port = explicit_port or default_port
         if explicit_port:
             server = server.rpartition(":")[0]
-        req = self.netman.open_url(wini, url, server, port, headers, dwFlags, dwContext)
+        req = self.netman.open_url(wini, url, server, port, headers, dwFlags, dwContext, secure=scheme == "https")
         return req.get_handle()
