@@ -108,6 +108,14 @@ class ErrorType(str, Enum):
     BUG_CHECK = "bug_check"
 
 
+class AccessType(str, Enum):
+    """Kind of memory access that faulted."""
+
+    READ = "read"
+    WRITE = "write"
+    FETCH = "fetch"
+
+
 class ErrorInfo(BaseModel):
     """
     Captures failure context for top-level or per-entry-point errors.
@@ -147,7 +155,7 @@ class ErrorInfo(BaseModel):
         default=None,
         description="Faulting memory address that triggered the error.",
     )
-    access_type: str | None = Field(
+    access_type: AccessType | None = Field(
         default=None,
         description="Memory access type that faulted: read, write, or fetch.",
     )
@@ -276,6 +284,18 @@ class DynamicCodeSegment(BaseModel):
     )
 
 
+class ArtifactCompression(str, Enum):
+    """Compression of a stored payload."""
+
+    ZLIB = "zlib"
+
+
+class ArtifactEncoding(str, Enum):
+    """Text encoding of a stored payload."""
+
+    BASE64 = "base64"
+
+
 class DataArtifact(BaseModel):
     """
     Stores one deduplicated binary payload referenced elsewhere in a report.
@@ -287,8 +307,8 @@ class DataArtifact(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    compression: str = Field(description="Compression algorithm applied to the stored payload.")
-    encoding: str = Field(description="Text encoding used for serialized payload bytes.")
+    compression: ArtifactCompression = Field(description="Compression algorithm applied to the stored payload.")
+    encoding: ArtifactEncoding = Field(description="Text encoding used for serialized payload bytes.")
     size: int = Field(description="Uncompressed payload size in bytes.")
     data: str = Field(description="Encoded payload bytes after compression and serialization.")
 
