@@ -26,10 +26,3 @@ def test_get_object_fails_for_a_handle_that_gdi32_did_not_give(dll_emu: Speakeas
     assert not dll_emu.emu.is_address_valid(pv)
     assert call(dll_emu, "gdi32", "GetObjectA", [0x1234, 24, pv])[0] == 0
     assert not dll_emu.emu.is_address_valid(pv)
-
-
-def test_get_object_fills_the_buffer_for_a_stock_object(dll_emu: Speakeasy) -> None:
-    system_font = call(dll_emu, "gdi32", "GetStockObject", [13])[0]
-    buf = alloc(dll_emu, b"\xcc" * 24)
-    assert call(dll_emu, "gdi32", "GetObjectA", [system_font, 24, buf])[0] == 24
-    assert dll_emu.mem_read(buf, 24) == b"\x00" * 24

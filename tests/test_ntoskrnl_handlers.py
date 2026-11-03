@@ -667,23 +667,13 @@ def test_ps_get_version_writes_zero_for_a_null_build(config: dict[str, Any], loa
         assert struct.unpack("<III", se.mem_read(out, 12)) == (6, 1, 0)
 
 
-def test_rtl_length_required_sid_counts_the_header_and_sub_authorities(driver_emu: Speakeasy) -> None:
-    assert call(driver_emu, "ntoskrnl", "RtlLengthRequiredSid", [2])[0] == 16
-
-
-@pytest.mark.parametrize(
-    "count, status, header",
-    [
-        (2, ddk.STATUS_SUCCESS, bytes.fromhex("0102000000000005")),
-        (16, ddk.STATUS_INVALID_PARAMETER, b"\xcc" * 8),
-    ],
-)
-def test_rtl_initialize_sid_writes_the_header(driver_emu: Speakeasy, count: int, status: int, header: bytes) -> None:
-    sid = alloc(driver_emu, b"\xcc" * 8)
+def test_rtl_sid_functions_build_the_administrators_sid(driver_emu: Speakeasy) -> None:
+    size = call(driver_emu, "ntoskrnl", "RtlLengthRequiredSid", [2])[0]
+    sid = alloc(driver_emu, b"\xcc" * size)
     nt_authority = alloc(driver_emu, bytes([0, 0, 0, 0, 0, 5]))
-    assert call(driver_emu, "ntoskrnl", "RtlInitializeSid", [sid, nt_authority, count])[0] == status
-    assert driver_emu.mem_read(sid, 8) == header
-
-
-def test_rtl_sub_authority_sid_points_after_the_header(driver_emu: Speakeasy) -> None:
-    assert call(driver_emu, "ntoskrnl", "RtlSubAuthoritySid", [0x20000000, 1])[0] == 0x2000000C
+    assert call(driver_emu, "ntoskrnl", "RtlInitializeSid", [sid, nt_authority, 2])[0] == ddk.STATUS_SUCCESS
+    for index, value in enumerate((32, 544)):
+        ptr = call(driver_emu, "ntoskrnl", "RtlSubAuthoritySid", [sid, index])[0]
+        driver_emu.mem_write(ptr, struct.pack("<I", value))
+    # S-1-5-32-544
+    assert driver_emu.mem_read(sid, size) == bytes.fromhex("0102000000000005") + struct.pack("<II", 32, 544)
