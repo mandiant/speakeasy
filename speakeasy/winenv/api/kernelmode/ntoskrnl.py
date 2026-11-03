@@ -887,31 +887,6 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args[3].display = fmt_str
         return self._write_secure_counted_string(fin, buffer, sizeOfBuffer, count)
 
-    @apihook("_stricmp", argc=2, conv=_arch.CALL_CONV_CDECL)
-    def _stricmp(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
-        """
-        int _stricmp(
-            const char *string1,
-            const char *string2
-        );
-        """
-        string1, string2 = argv
-        rv = 1
-
-        if not string1 or not string2:
-            return rv
-
-        cs1 = self.read_string(string1)
-        cs2 = self.read_string(string2)
-
-        ctx.args[0].display = cs1
-        ctx.args[1].display = cs2
-
-        if cs1.lower() == cs2.lower():
-            rv = 0
-
-        return rv
-
     @apihook("PsCreateSystemThread", argc=7)
     def PsCreateSystemThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """

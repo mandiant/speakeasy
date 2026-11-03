@@ -124,6 +124,7 @@ def test_rtl_compare_memory_counts_matching_bytes(
         "_snprintf",
         "_snprintf_s",
         "_snwprintf",
+        "_stricmp",
         "_vsnprintf",
         "_vsnwprintf",
         "_wcsicmp",
