@@ -345,6 +345,7 @@ class EmuEngine:
 
         Raises:
             EngineError: if ``htype`` is not a known hook type.
+            ValueError: if ``htype`` is the instruction hook type and ``arg1`` is not IN, OUT, SYSCALL, or SYSENTER.
             unicorn.UcError: if Unicorn rejects the hook.
         """
         assert self.emu is not None
@@ -364,6 +365,8 @@ class EmuEngine:
                 cb = ct.cast(UC_HOOK_INSN_OUT_CB(cb), UC_HOOK_INSN_OUT_CB)
             elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):  # SYSCALL/SYSENTER
                 cb = ct.cast(UC_HOOK_INSN_SYSCALL_CB(cb), UC_HOOK_INSN_SYSCALL_CB)
+            else:
+                raise ValueError(f"unsupported instruction for an instruction hook: {arg1}")
         elif hook_type == uc.UC_HOOK_CODE:
             cb = ct.cast(UC_HOOK_CODE_CB(cb), UC_HOOK_CODE_CB)
         elif hook_type in (uc.UC_HOOK_MEM_READ, uc.UC_HOOK_MEM_WRITE):
