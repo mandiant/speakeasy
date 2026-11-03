@@ -1,4 +1,4 @@
-# Installation and Docker usage
+# Installation
 
 Speakeasy requires Python 3.10+.
 
@@ -27,21 +27,6 @@ python3 scripts/gen_phnt_signatures.py
 The last two steps build the API signature databases from the `deps/win32json` and `deps/phnt` submodules (see [Adding API handlers](api-handlers.md)). Wheels built with `python -m build` include them automatically; an editable install needs them generated once, and again after updating the submodules.
 
 GDB support ([GDB debugging](gdb.md)) needs no extra packages.
-
-## Run in Docker
-
-Build image:
-
-```console
-cd <repo_base_dir>
-docker build -t speakeasy:local .
-```
-
-Run container with a host sample directory mounted at `/sandbox`:
-
-```console
-docker run -v <path_containing_samples>:/sandbox -it speakeasy:local
-```
 
 ## Related docs
 

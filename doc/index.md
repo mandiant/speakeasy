@@ -5,7 +5,7 @@ This page maps common tasks to the right Speakeasy documentation.
 ## Start here
 
 - [Project README](../README.md)
-- [Installation and Docker usage](install.md)
+- [Installation](install.md)
 - [Help and troubleshooting](help.md)
 - [Migrating to 2.0](migrating-to-2.0.md)
 
