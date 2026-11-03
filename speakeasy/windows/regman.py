@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
-from speakeasy.winenv.defs.registry.reg import HKEY, REG_VALUE_TYPE
+from speakeasy.winenv.defs.enums import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
     from speakeasy.config import RegistryConfig

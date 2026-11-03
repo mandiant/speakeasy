@@ -12,10 +12,10 @@ from Crypto.Util.Padding import pad
 from speakeasy import Speakeasy
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import RegistryManager
+from speakeasy.winenv.defs.enums import ENUM_SERVICE_STATE, ENUM_SERVICE_TYPE
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import advapi32 as adv32defs
 from speakeasy.winenv.defs.windows import windows as windefs
-from speakeasy.winenv.defs.windows.advapi32 import ENUM_SERVICE_STATE, ENUM_SERVICE_TYPE
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 HKEY_CURRENT_USER = 0x80000001

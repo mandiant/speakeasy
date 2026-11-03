@@ -14,9 +14,13 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import PROC_CREATE, REG_CREATE, REG_LIST, REG_OPEN, REG_READ, REG_WRITE
 from speakeasy.windows import objman
+from speakeasy.winenv.defs.enums import (
+    ENUM_SERVICE_STATE,
+    ENUM_SERVICE_TYPE,
+    REG_VALUE_TYPE,
+    SERVICE_STATUS_CURRENT_STATE,
+)
 from speakeasy.winenv.defs.lookup import decode
-from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
-from speakeasy.winenv.defs.windows.advapi32 import ENUM_SERVICE_STATE, ENUM_SERVICE_TYPE, SERVICE_STATUS_CURRENT_STATE
 
 from .. import api
 

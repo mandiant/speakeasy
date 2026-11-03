@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.secur32 as sec32defs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.defs.enums import EXTENDED_NAME_FORMAT
 from speakeasy.winenv.defs.lookup import decode
-from speakeasy.winenv.defs.windows.secur32 import EXTENDED_NAME_FORMAT
 
 from .. import api
 

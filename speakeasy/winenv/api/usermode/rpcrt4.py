@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.com as comdefs
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
+from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 
 from .. import api
 

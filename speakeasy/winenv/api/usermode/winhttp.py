@@ -7,8 +7,8 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 import speakeasy.winenv.defs.wininet as inetdefs
 from speakeasy.windows import netman
+from speakeasy.winenv.defs.enums import WINHTTP_ADDREQ_FLAG, WINHTTP_OPEN_REQUEST_FLAGS, WINHTTP_QUERY
 from speakeasy.winenv.defs.lookup import decode
-from speakeasy.winenv.defs.wininet import WINHTTP_ADDREQ_FLAG, WINHTTP_OPEN_REQUEST_FLAGS, WINHTTP_QUERY
 
 from .. import api
 

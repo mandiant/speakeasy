@@ -31,23 +31,21 @@ from speakeasy.profiler_events import (
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
-from speakeasy.winenv.defs.lookup import decode, decode_flags
-from speakeasy.winenv.defs.nt import ddk
-from speakeasy.winenv.defs.nt.ddk import FILE_ACCESS_FLAGS
-from speakeasy.winenv.defs.windows import com as comdefs
-from speakeasy.winenv.defs.windows.kernel32 import (
+from speakeasy.winenv.defs.enums import (
     COMPUTER_NAME_FORMAT,
     CREATE_TOOLHELP_SNAPSHOT_FLAGS,
-    GET_FILEEX_INFO_LEVELS,
-    LCID,
-    LCTYPE,
-)
-from speakeasy.winenv.defs.windows.windows import (
+    FILE_ACCESS_FLAGS,
     FILE_CREATION_DISPOSITION,
+    GET_FILEEX_INFO_LEVELS,
+    LCTYPE,
     PAGE_PROTECTION_FLAGS,
     PROCESS_CREATION_FLAGS,
     THREAD_CREATION_FLAGS,
 )
+from speakeasy.winenv.defs.lookup import decode, decode_flags
+from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import com as comdefs
+from speakeasy.winenv.defs.windows.kernel32 import LCID
 
 from .. import api
 from ..exception_apis import ExceptionApis

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
 from speakeasy.errors import NetworkEmuError
-from speakeasy.winenv.defs.wininet import INTERNET_FLAGS
+from speakeasy.winenv.defs.enums import INTERNET_FLAGS
 
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig

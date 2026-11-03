@@ -8,7 +8,7 @@ import pytest
 
 import speakeasy
 from speakeasy import Speakeasy
-from speakeasy.winenv.defs.wininet import INTERNET_FLAGS, WINHTTP_OPEN_REQUEST_FLAGS
+from speakeasy.winenv.defs.enums import INTERNET_FLAGS, WINHTTP_OPEN_REQUEST_FLAGS
 from tests.handler_harness import alloc, call, load_emu, start_process
 
 IID_IFOO = uuid.UUID("11223344-5566-7788-99aa-bbccddeeff00")

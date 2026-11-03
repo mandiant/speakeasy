@@ -7,8 +7,8 @@ import speakeasy.winenv.arch as e_arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.usb as usbdefs
 from speakeasy.winenv.defs import wdf
+from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
-from speakeasy.winenv.defs.registry.reg import REG_VALUE_TYPE
 
 from .. import api
 

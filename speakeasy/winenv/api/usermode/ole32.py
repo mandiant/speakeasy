@@ -5,9 +5,9 @@ import uuid
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.winenv.defs.enums import RPC_C_AUTHN_LEVEL, RPC_C_IMP_LEVEL
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.windows import com as comdefs
-from speakeasy.winenv.defs.windows.com import RPC_C_AUTHN_LEVEL, RPC_C_IMP_LEVEL
 
 from .. import api
 

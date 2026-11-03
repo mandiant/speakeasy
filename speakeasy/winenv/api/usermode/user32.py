@@ -7,10 +7,10 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as u32defs
 from speakeasy.windows import guest_callbacks, sessman
 from speakeasy.windows.guest_callbacks import GuestCall
+from speakeasy.winenv.defs.enums import WINDOWS_HOOK_ID
 from speakeasy.winenv.defs.lookup import decode
 from speakeasy.winenv.defs.windows import windef
 from speakeasy.winenv.defs.windows import windows as windefs
-from speakeasy.winenv.defs.windows.user32 import WINDOWS_HOOK_ID
 
 from .. import api
 

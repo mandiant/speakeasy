@@ -7,6 +7,7 @@ from pathlib import Path
 from types import ModuleType
 
 from speakeasy import Speakeasy
+from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 EXAMPLES_DIR = ROOT_DIR / "examples"
@@ -129,7 +130,7 @@ def test_usb_emu_example_runs_and_emits_report(load_test_bin):
         module = usb.load_module(data=load_test_bin("wdm_test_x86.sys.xz"))
         usb.run_module(module)
         param_key = usb.get_registry_key(path="HKLM\\System\\CurrentControlSet\\Services\\*\\Parameters")
-        param_key.create_value("MaximumTransferSize", example.reg.REG_VALUE_TYPE.REG_DWORD, 65536)
+        param_key.create_value("MaximumTransferSize", REG_VALUE_TYPE.REG_DWORD, 65536)
         report = json.loads(usb.get_json_report())
     finally:
         usb.shutdown()

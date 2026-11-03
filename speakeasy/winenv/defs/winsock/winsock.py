@@ -1,36 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-from enum import IntEnum
-
-
-class ADDRESS_FAMILY(IntEnum):
-    AF_INET = 2
-    AF_INET6 = 23
-    AF_UNSPEC = 0
-
-
-class SOCKET_TYPE(IntEnum):
-    """The socket types of the SOCK_* constants. The SDK has no enum type for them."""
-
-    SOCK_STREAM = 1
-    SOCK_DGRAM = 2
-    SOCK_RAW = 3
-    SOCK_RDM = 4
-    SOCK_SEQPACKET = 5
-
-
-class SOCKET_OPTION_LEVEL(IntEnum):
-    """The option levels of getsockopt and setsockopt that the handlers know. The SDK has no enum type for them."""
-
-    SOL_SOCKET = 0xFFFF
-
-
-class SOCKET_OPTION(IntEnum):
-    """The SOL_SOCKET options that the handlers know. The SDK has no enum type for them."""
-
-    SO_SNDBUF = 0x1001
-    SO_RCVBUF = 0x1002
-
 
 # Protocol types
 IPPROTO_ICMP = 1

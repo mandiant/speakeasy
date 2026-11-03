@@ -1,28 +1,8 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
 import ctypes as ct
-from enum import IntEnum
 
 from speakeasy.struct import EmuStruct, Ptr
-
-
-class WINDOWS_HOOK_ID(IntEnum):
-    WH_CALLWNDPROC = 4
-    WH_CALLWNDPROCRET = 12
-    WH_CBT = 5
-    WH_DEBUG = 9
-    WH_FOREGROUNDIDLE = 11
-    WH_GETMESSAGE = 3
-    WH_JOURNALPLAYBACK = 1
-    WH_JOURNALRECORD = 0
-    WH_KEYBOARD = 2
-    WH_KEYBOARD_LL = 13
-    WH_MOUSE = 7
-    WH_MOUSE_LL = 14
-    WH_MSGFILTER = 0xFFFFFFFF
-    WH_SHELL = 10
-    WH_SYSMSGFILTER = 6
-
 
 WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
