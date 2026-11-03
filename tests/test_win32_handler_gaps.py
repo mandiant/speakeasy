@@ -46,8 +46,7 @@ def last_error(se: Speakeasy) -> int:
 
 def api_names(se: Speakeasy) -> list[list[str]]:
     return [
-        [event.api_name for event in (entry.events or []) if event.event == "api"]
-        for entry in se.get_report().entry_points
+        [event.api_name for event in entry.events if event.event == "api"] for entry in se.get_report().entry_points
     ]
 
 

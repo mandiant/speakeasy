@@ -23,7 +23,7 @@ KHALESI = "4b60f76584ccf31f0abb050c69d5bc975356792c2235b4e7b313455d89aa6297.exe.
 
 
 def exceptions(run):
-    return [e.exception_code for e in run.events or [] if e.event == "exception"]
+    return [e.exception_code for e in run.events if e.event == "exception"]
 
 
 def module_entry(se):

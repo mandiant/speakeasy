@@ -12,7 +12,7 @@ def dword(value):
 
 
 def api_events(entry):
-    return [event.api_name for event in entry.events or [] if event.event == "api"]
+    return [event.api_name for event in entry.events if event.event == "api"]
 
 
 @pytest.mark.parametrize(("access", "handled"), [("read", True), ("write", False)], ids=["read-seh", "write-unhandled"])

@@ -9,7 +9,7 @@ SYM_LINK = "\\DosDevices\\wdm_test"
 
 
 def get_api_calls(ep, api_name):
-    return [evt for evt in ep.events or [] if evt.event == "api" and evt.api_name == api_name]
+    return [evt for evt in ep.events if evt.event == "api" and evt.api_name == api_name]
 
 
 @pytest.fixture(scope="module", params=["wdm_test_x86.sys.xz", "wdm_test_x64.sys.xz"], ids=["x86", "x64"])

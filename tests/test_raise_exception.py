@@ -148,7 +148,7 @@ def test_exception_event_records_the_return_address_of_the_call(session):
     session.run_shellcode(code)
 
     run = session.get_report().entry_points[0]
-    events = [e for e in run.events or [] if e.event == "exception"]
+    events = [e for e in run.events if e.event == "exception"]
     assert len(events) == 1
     assert events[0].pos.pc == return_address
     assert events[0].instruction.startswith("mov dword ptr fs:[0]")

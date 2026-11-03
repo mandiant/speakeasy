@@ -1930,7 +1930,7 @@ def test_ifstream_of_a_missing_file_sets_failbit(config: dict[str, Any], load_te
         run = se.get_report().entry_points[0]
         assert run.error is None
         assert reached == [module.base + 0x3BA8]
-        apis = [e for e in run.events or [] if e.event == "api"]
+        apis = [e for e in run.events if e.event == "api"]
         ios = apis[-1].args[0].value or 0
         state = struct.unpack("<I", se.mem_read(ios + 0x10, 4))[0]
 
@@ -1992,7 +1992,7 @@ def run_code(se: Speakeasy, code: bytes) -> list[Any]:
     se.call(address)
     run = se.get_report().entry_points[-1]
     assert run.error is None
-    return [e for e in run.events or [] if e.event == "api"]
+    return [e for e in run.events if e.event == "api"]
 
 
 def test_cout_insert_of_a_string_writes_to_stdout(shellcode64_emu: Speakeasy) -> None:
@@ -2139,7 +2139,7 @@ def test_endthreadex_ends_only_the_current_thread(
 
     assert [(run.type, run.error) for run in runs] == [("thread", None), ("thread", None)]
     for run in runs:
-        apis = [e for e in run.events or [] if e.event == "api"]
+        apis = [e for e in run.events if e.event == "api"]
         assert [(e.api_name, e.args[0].value) for e in apis[-2:]] == [
             ("ws2_32.closesocket", apis[0].args[0].value),
             ("msvcrt._endthreadex", 0),
@@ -2152,6 +2152,6 @@ def test_endthread_ends_only_the_current_thread(
     entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
     ending, checking = entries[4], entries[5]
     assert (ending.type, ending.error) == ("thread", None)
-    assert [event.api_name for event in ending.events or [] if event.event == "api"] == ["msvcrt._endthread"]
+    assert [event.api_name for event in ending.events if event.event == "api"] == ["msvcrt._endthread"]
     assert (checking.type, checking.error) == ("thread", None)
     assert checking.return_value & 0x08, "the thread that calls _endthread gives 0"

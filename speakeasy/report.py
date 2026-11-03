@@ -635,8 +635,8 @@ class EntryPoint(BaseModel):
             "Consult this with ``events`` to identify the exact failure transition."
         ),
     )
-    events: list[AnyEvent] | None = Field(
-        default=None,
+    events: list[AnyEvent] = Field(
+        default_factory=list,
         description=(
             "Chronological event stream emitted during this run.\n\n"
             "Event contents are produced by API, process, file, registry, network, "
@@ -647,11 +647,11 @@ class EntryPoint(BaseModel):
         default=None,
         description=(
             "Symbol-level access counters observed during tracing.\n\n"
-            "Typically populated when memory tracing hooks are active."
+            "Present only when memory tracing is enabled in config."
         ),
     )
-    dynamic_code_segments: list[DynamicCodeSegment] | None = Field(
-        default=None,
+    dynamic_code_segments: list[DynamicCodeSegment] = Field(
+        default_factory=list,
         description=(
             "Dynamically generated code regions that executed in this run.\n\n"
             "Indicates unpacking, JIT-like behavior, or in-memory staging activity."
@@ -661,11 +661,11 @@ class EntryPoint(BaseModel):
         default=None,
         description=(
             "Sorted list of executed instruction addresses for coverage analysis.\n\n"
-            "Populated only when coverage collection is enabled in config."
+            "Present only when coverage collection is enabled in config."
         ),
     )
-    dropped_files: list[DroppedFile] | None = Field(
-        default=None,
+    dropped_files: list[DroppedFile] = Field(
+        default_factory=list,
         description=(
             "File artifacts detected as fully written during the run.\n\n"
             "Use this list to extract secondary payloads and logs."
@@ -763,8 +763,8 @@ class Report(BaseModel):
             "Use this to rebase analysis tools (e.g. IDA Pro) to match emulated addresses."
         ),
     )
-    errors: list[ErrorInfo] | None = Field(
-        default=None,
+    errors: list[ErrorInfo] = Field(
+        default_factory=list,
         description=(
             "Top-level emulator errors not tied to a specific run.\n\n"
             "These usually reflect session-level failures rather than per-entry-point "
@@ -775,12 +775,11 @@ class Report(BaseModel):
         default=None,
         description=(
             "Optional static and in-memory string extraction output.\n\n"
-            "Present when string analysis is enabled and at least one string bucket is "
-            "non-empty."
+            "Present only when string analysis is enabled in config."
         ),
     )
-    data: dict[str, DataArtifact] | None = Field(
-        default=None,
+    data: dict[str, DataArtifact] = Field(
+        default_factory=dict,
         description=(
             "Deduplicated binary payload store keyed by SHA-256.\n\n"
             "Resolve ``*_ref`` fields in the report against this mapping to recover compressed payload bytes."

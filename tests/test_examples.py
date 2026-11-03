@@ -90,7 +90,7 @@ def test_emu_exe_example_modifies_ntreadfile_buffer(config, load_test_bin, caplo
     assert any(message.startswith("b'") and "\\x90" in message for message in caplog.messages)
     printfs = [
         event
-        for event in report.entry_points[0].events or []
+        for event in report.entry_points[0].events
         if event.event == "api" and "__stdio_common_vfprintf" in event.api_name
     ]
     assert printfs[-1].args[2].display.strip() == "File contained: 0x4141414141414141"

@@ -23,7 +23,7 @@ RESOLVED_APIS = [
 
 
 def get_api_calls(ep, api_name):
-    events = ep.events or []
+    events = ep.events
     return [evt for evt in events if evt.event == "api" and evt.api_name == api_name]
 
 
@@ -47,7 +47,7 @@ def get_self_resolutions(config: dict[str, Any], data: bytes) -> tuple[list[tupl
         size_after = get_export_directory_size(se, module.base)
         resolutions = []
         forwarder = ""
-        for event in se.get_report().entry_points[0].events or []:
+        for event in se.get_report().entry_points[0].events:
             if event.event != "api":
                 continue
             if event.api_name == "kernel32.lstrcatA":

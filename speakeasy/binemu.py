@@ -113,7 +113,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.config: SpeakeasyConfig = config
         self.hooks: dict[int, Any] = {}
 
-        self.profiler: Profiler = Profiler()
+        self.profiler: Profiler = Profiler(config.analysis)
 
         self.runtime: float = 0
 

@@ -83,7 +83,7 @@ def test_anonymous_nx_is_recovered_by_default(api_emu):
 
 
 def api_events(run):
-    return [event for event in (run.events or []) if event.event == "api"]
+    return [event for event in run.events if event.event == "api"]
 
 
 def guest_call(emu, target):

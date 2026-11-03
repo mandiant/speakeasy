@@ -120,8 +120,7 @@ The same snapshot also shows the broader capture rule: non-excluded regions get 
             "base": "0x1200000",
             "size": 1048576,
             "perms": "rwx",
-            "accesses": {"reads": 170, "writes": 210, "execs": 0},
-            "data_ref": null
+            "accesses": {"reads": 170, "writes": 210, "execs": 0}
           }
         ]
       }

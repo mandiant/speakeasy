@@ -796,7 +796,7 @@ class Speakeasy:
                 manifest.append(entry)
                 zf.writestr(file_name, f.get_contents())
 
-            manifest_json = "[" + ",".join(e.model_dump_json(indent=4) for e in manifest) + "]"
+            manifest_json = "[" + ",".join(e.model_dump_json(indent=4, exclude_none=True) for e in manifest) + "]"
             zf.writestr("speakeasy_manifest.json", manifest_json)
 
         return _zip.getvalue()

@@ -4,7 +4,7 @@ import pytest
 
 
 def get_api_calls(ep, api_name):
-    return [evt for evt in ep.events or [] if evt.event == "api" and evt.api_name == api_name]
+    return [evt for evt in ep.events if evt.event == "api" and evt.api_name == api_name]
 
 
 @pytest.mark.parametrize(

@@ -136,7 +136,7 @@ def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
         se.add_code_hook(after_load_library, begin=0x40211F, end=0x40211F)
         se.run_module(module)
         plugin = se.emu.get_mod_by_name("nsDialogs")
-        events = [e for ep in se.get_report().entry_points for e in ep.events or [] if e.event == "api"]
+        events = [e for ep in se.get_report().entry_points for e in ep.events if e.event == "api"]
 
     path = [e for e in events if e.api_name == "kernel32.LoadLibraryExW"][-1].args[0].display
     assert path.lower().startswith("c:\\windows\\temp\\ns") and path.endswith("\\nsDialogs.dll")

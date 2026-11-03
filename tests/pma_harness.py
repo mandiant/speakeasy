@@ -103,7 +103,7 @@ def run_case(base_config: dict[str, Any], case: PmaCase, tmp_path: Path):
 
 
 def collect_behavior(report) -> ObservedBehavior:
-    events = [evt for ep in report.entry_points for evt in (ep.events or [])]
+    events = [evt for ep in report.entry_points for evt in ep.events]
     api_events = [evt for evt in events if evt.event == "api"]
 
     api_names = {normalize_value(evt.api_name) for evt in api_events if evt.api_name}
@@ -115,7 +115,7 @@ def collect_behavior(report) -> ObservedBehavior:
     files.update(
         normalize_value(dropped.path)
         for ep in report.entry_points
-        for dropped in (ep.dropped_files or [])
+        for dropped in ep.dropped_files
         if getattr(dropped, "path", None)
     )
 
@@ -153,7 +153,7 @@ def collect_behavior(report) -> ObservedBehavior:
 
 
 def assert_case(case: PmaCase, report, observed: ObservedBehavior) -> None:
-    assert report.errors is None
+    assert report.errors == []
     assert report.entry_points
     assert observed.unsupported_api_count == 0
 

@@ -157,7 +157,7 @@ def _run_x64(config: dict[str, Any]) -> Report:
 
 
 def _api_events(report: Report) -> list[ApiEvent]:
-    return [e for e in (report.entry_points[0].events or []) if e.event == "api"]
+    return [e for e in report.entry_points[0].events if e.event == "api"]
 
 
 def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load_test_bin) -> None:

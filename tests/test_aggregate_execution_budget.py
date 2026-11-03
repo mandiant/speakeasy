@@ -114,7 +114,7 @@ def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
 
         (run,) = se.get_report().entry_points
         assert run.error is not None and run.error.type == "max_total_time"
-        assert [event.api_name for event in run.events or [] if event.event == "api"] == ["kernel32.ExitProcess"]
+        assert [event.api_name for event in run.events if event.event == "api"] == ["kernel32.ExitProcess"]
 
 
 def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog):

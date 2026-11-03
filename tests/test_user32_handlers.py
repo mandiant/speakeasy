@@ -599,7 +599,7 @@ def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict,
 
 
 def api_events(se: Speakeasy) -> list[Any]:
-    return [e for ep in se.get_report().entry_points for e in ep.events or [] if e.event == "api"]
+    return [e for ep in se.get_report().entry_points for e in ep.events if e.event == "api"]
 
 
 def test_call_window_proc_runs_the_previous_procedure(config: dict, load_test_bin) -> None:
