@@ -1,4 +1,5 @@
 import struct
+from typing import Any
 
 import pytest
 
@@ -8,7 +9,7 @@ from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv.api.usermode.msvcrt import Msvcrt
 from speakeasy.winenv.defs.nt import ddk
-from tests.handler_harness import alloc, call, get_kernel_emu, object_attributes, unicode_string
+from tests.handler_harness import alloc, call, get_kernel_emu, load_emu, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -660,3 +661,12 @@ def test_rtl_time_to_time_fields_splits_the_time(driver_emu: Speakeasy) -> None:
     call(driver_emu, "ntoskrnl", "RtlTimeToTimeFields", [time, fields])
 
     assert struct.unpack("<8H", driver_emu.mem_read(fields, 16)) == (2021, 3, 14, 15, 9, 26, 535, 0)
+
+
+def test_ps_get_version_writes_zero_for_a_null_build(config: dict[str, Any], load_test_bin: Any) -> None:
+    config["os_ver"] = {"major": 6, "minor": 1, "build": None}
+    for se in load_emu(config, load_test_bin("wdm_test_x86.sys.xz")):
+        out = alloc(se, b"\xcc" * 12)
+        rv, _ = call(se, "ntoskrnl", "PsGetVersion", [out, out + 4, out + 8, 0])
+        assert rv == 0
+        assert struct.unpack("<III", se.mem_read(out, 12)) == (6, 1, 0)

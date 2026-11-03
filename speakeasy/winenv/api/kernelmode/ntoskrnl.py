@@ -24,6 +24,7 @@ from speakeasy.winenv.defs.lookup import decode, decode_flags
 from speakeasy.winenv.defs.nt import ddk
 
 if TYPE_CHECKING:
+    from speakeasy.windows.kernel import WinKernelEmulator
     from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class Ntoskrnl(api.ApiHandler):
     name = "ntoskrnl"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
+    emu: "WinKernelEmulator"
 
     def __init__(self, emu):
         super().__init__(emu)
@@ -2611,16 +2613,15 @@ class Ntoskrnl(api.ApiHandler):
         MajorVersion, MinorVersion, BuildNumber, CSDVersion = argv
 
         ver = self.emu.config.os_ver
-        major, minor, build = ver.major, ver.minor, ver.build
 
         if MajorVersion:
-            self.mem_write(MajorVersion, major.to_bytes(4, "little"))
+            self.write_dword(MajorVersion, ver.major or 0)
 
         if MinorVersion:
-            self.mem_write(MinorVersion, minor.to_bytes(4, "little"))
+            self.write_dword(MinorVersion, ver.minor or 0)
 
         if BuildNumber:
-            self.mem_write(BuildNumber, build.to_bytes(4, "little"))
+            self.write_dword(BuildNumber, ver.build or 0)
 
         return 0
 
