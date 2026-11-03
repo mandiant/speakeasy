@@ -53,6 +53,7 @@ class GDI32(api.ApiHandler):
         self.stock_objects: dict[int, int] = {}
         self.selected: dict[int, int] = {}
         self.handles: set[int] = set()
+        self.dcs: set[int] = set()
         super().__get_hook_attrs__(self)
 
     def new_handle(self, emu: "Win32Emulator") -> int:
@@ -236,7 +237,9 @@ class GDI32(api.ApiHandler):
             HDC hdc
         );
         """
-        return self.new_handle(emu)
+        hdc = self.new_handle(emu)
+        self.dcs.add(hdc)
+        return hdc
 
     @apihook("GetDIBits", argc=7)
     def GetDIBits(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -339,7 +342,8 @@ class GDI32(api.ApiHandler):
         );
         """
         h, c, pv = argv
-        if not self.is_gdi_object(h):
+        # GetObject supports bitmaps, brushes, fonts, palettes and pens, but not device contexts.
+        if not self.is_gdi_object(h) or h in self.dcs:
             return 0
 
         # The handler does not keep the object structures, so it writes zeros in their place.
