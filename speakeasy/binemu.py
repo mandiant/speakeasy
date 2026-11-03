@@ -786,11 +786,10 @@ class BinaryEmulator(MemoryManager, ABC):
         tgt_tag_prefixes = ("emu.stack", "api")
         ansi_strings = []
         unicode_strings = []
-        input_mem_tag = self.input.get("mem_tag") if self.input else None
 
         for mmap in self.get_mem_maps():
             tag = mmap.tag
-            if tag and tag.startswith(tgt_tag_prefixes) and tag != input_mem_tag:
+            if tag and tag.startswith(tgt_tag_prefixes):
                 data = self.mem_read(mmap.base, mmap.size - 1)
                 data = data[: len(data.rstrip(b"\x00")) + 1]
                 lead = len(data) - len(data.lstrip(b"\x00"))

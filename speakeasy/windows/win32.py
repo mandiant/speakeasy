@@ -394,7 +394,6 @@ class Win32Emulator(WindowsEmulator):
         rtmod = self.load_image(image, is_input=True)
         sc_addr = rtmod.base
 
-        sc_tag = f"emu.shellcode.{sc_hash}"
         if self.profiler:
             self.input = {
                 "path": path,
@@ -403,7 +402,6 @@ class Win32Emulator(WindowsEmulator):
                 "arch": REPORT_ARCHES.get(arch),
                 "file_type": FileType.SHELLCODE,
                 "image_base": sc_addr,
-                "mem_tag": sc_tag,
                 "emu_version": self.get_emu_version(),
                 "os_run": self.get_osver_string(),
             }
