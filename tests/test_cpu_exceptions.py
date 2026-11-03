@@ -139,7 +139,7 @@ def test_system_service_gate_is_not_an_exception(config, arch, gate):
     assert run.error is not None
     assert run.error.type == "unhandled_interrupt"
     assert run.error.interrupt_num == gate
-    assert not [e for e in run.events or [] if e.event == "exception"]
+    assert not [e for e in run.events if e.event == "exception"]
 
 
 def test_debug_service_without_exception_skips_a_byte(config):
@@ -152,7 +152,7 @@ def test_debug_service_without_exception_skips_a_byte(config):
         run = se.get_report().entry_points[0]
         assert run.error is None
         assert run.return_value == 42
-        assert not [e for e in run.events or [] if e.event == "exception"]
+        assert not [e for e in run.events if e.event == "exception"]
 
 
 @pytest.mark.parametrize("handler", [False, True], ids=["no handler", "handler continues search"])
@@ -185,7 +185,7 @@ def test_unhandled_cpu_exception_ends_the_run(config, insn, error, interrupt_num
         assert run.error.type == error
         assert run.error.pc == code + len(setup)
         assert run.error.interrupt_num == interrupt_num
-        assert len([e for e in run.events or [] if e.event == "exception"]) == handler
+        assert len([e for e in run.events if e.event == "exception"]) == handler
 
 
 @pytest.mark.parametrize("arch", ["amd64", "x86"])
@@ -252,7 +252,7 @@ def test_guard_page_raises_once_on_execute(config):
     assert run.error is None
     assert run.return_value == 42
     assert record == (STATUS_GUARD_PAGE_VIOLATION, page, 8, page)
-    assert [e.exception_code for e in run.events or [] if e.event == "exception"] == [0x80000001]
+    assert [e.exception_code for e in run.events if e.event == "exception"] == [0x80000001]
 
 
 def test_guard_page_raises_on_execute_of_code_that_ran(config):
@@ -317,7 +317,7 @@ def test_api_fault_without_handler_keeps_its_error(config):
         run = se.get_report().entry_points[0]
         assert run.error is not None
         assert run.error.type == "invalid_read"
-        assert [e.api_name for e in run.events or [] if e.event == "api"] == ["kernel32.RtlMoveMemory"]
+        assert [e.api_name for e in run.events if e.event == "api"] == ["kernel32.RtlMoveMemory"]
 
 
 def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
@@ -333,7 +333,7 @@ def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
         run = next(ep for ep in se.get_report().entry_points if ep.name == "??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z")
         first_unmapped = se.get_address_map(0x41424000)
 
-    assert [e.api_name for e in run.events or [] if e.event == "api"] == ["msvcrt.memcpy"]
+    assert [e.api_name for e in run.events if e.event == "api"] == ["msvcrt.memcpy"]
     assert run.error is not None
     assert (run.error.type, run.error.address) == ("invalid_read", 0x41424000)
     assert run.error.address_region is None
@@ -364,7 +364,7 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
         run = se.get_report().entry_points[0]
         assert run.error is None
         assert run.return_value == 42
-        assert len([e for e in run.events or [] if e.event == "exception"]) == 6
+        assert len([e for e in run.events if e.event == "exception"]) == 6
 
 
 def test_contributory_exception_can_repeat(config, load_test_bin):
@@ -379,7 +379,7 @@ def test_contributory_exception_can_repeat(config, load_test_bin):
         se.run_module(module)
         run = module_entry(se)
 
-    faults = [(e.exception_code, e.pos.pc) for e in run.events or [] if e.event == "exception"][:3]
+    faults = [(e.exception_code, e.pos.pc) for e in run.events if e.event == "exception"][:3]
     assert [code for code, _ in faults] == [STATUS_ACCESS_VIOLATION] * 3
     assert [pc for _, pc in faults] == [0x40F231, 0x4115A7, 0x4115A7]
 
@@ -514,5 +514,5 @@ def test_run_after_a_fastfail_runs_once(config, load_test_bin):
     assert (dll_main.type, dll_main.name) == ("dll_entry", "DLL_PROCESS_ATTACH")
     assert (dll_main.error.type, dll_main.error.interrupt_num) == ("unhandled_interrupt", 0x29)
     assert (export.type, export.name) == ("export", "?RdvServiceMain@@YAXPEAX0K0K@Z")
-    assert [e.api_name for e in export.events or [] if e.event == "api"] == ["kernel32.VirtualAlloc"]
+    assert [e.api_name for e in export.events if e.event == "api"] == ["kernel32.VirtualAlloc"]
     assert (export.error.type, export.error.pc, export.error.address) == ("invalid_read", module.base + 0x12276, 0xC)

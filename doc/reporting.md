@@ -13,12 +13,14 @@ The examples use JSONC for explanation. Remove comments for machine parsing.
 
 ## How report fields are populated
 
+A key is absent when Speakeasy did not collect its data, for example `coverage` when `analysis.coverage=false`. An empty list or object means that Speakeasy collected the data and found nothing.
+
 - `report_version`: from `speakeasy.report.REPORT_VERSION`.
 - `emulation_total_runtime`: profiler start/stop wall-clock duration.
 - `timestamp`: profiler start time epoch seconds.
 - `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`), `image_base`: input metadata that the loader records. `path` is the host path of the input file. It is absent when the input came from bytes in memory.
 - `errors`: top-level session errors recorded by profiler. The loader adds an `invalid_image` error, with the defect in `context_summary`, when the entry point or the import directory of the input PE is outside the image, or when the raw data of a section is past the end of the file. Emulation then continues.
-- `strings`: only present if string extraction is enabled and non-empty.
+- `strings`: present when string extraction is enabled (`analysis.strings=true`).
 - `data`: payloads that the report stores once, keyed by SHA-256. The `data_ref` fields refer to its keys.
 - `entry_points`: one per run (`Run` object) in execution order.
 
@@ -26,9 +28,9 @@ Entry-point highlights:
 - `type` and `name`: the kind of code that the run executes, and a detail for that kind. The JSON report leaves out `name` when the kind has no detail (`None` in Python). See the table below.
 - `api_hash`: SHA-256 over unique API names, lowercased, first-seen order.
 - `events`: built by profiler recorders (`record_api_event`, `record_file_access_event`, `record_process_event`, `record_registry_access_event`, `record_dns_event`, `record_http_event`, `record_network_event`, `record_exception_event`).
-- `symbol_accesses`: populated from memory-tracing symbol counters.
+- `symbol_accesses`: symbol counters from memory tracing, present only if `analysis.memory_tracing=true`.
 - `dynamic_code_segments`: populated when dynamically mapped code executes.
-- `coverage`: executed instruction addresses as hex strings, populated only if `analysis.coverage=true`.
+- `coverage`: executed instruction addresses as hex strings, present only if `analysis.coverage=true`.
 - `dropped_files`: populated from filesystem manager fully-written files.
 - `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
 - `error`: present when the run ended abnormally. `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
@@ -393,8 +395,7 @@ thread, even for a local create.
           "server": "example.org",
           "port": 443,
           "proto": "https",
-          "headers": "GET /stage HTTP/1.1\nHost: example.org\n",
-          "data_ref": null
+          "headers": "GET /stage HTTP/1.1\nHost: example.org\n"
         },
         {
           "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": "0x4010d2"},

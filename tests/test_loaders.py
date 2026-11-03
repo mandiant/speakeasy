@@ -433,6 +433,6 @@ def test_broken_input_image_is_reported_and_still_runs(mutation, invalid, config
 
     report = run_test(config, data)
 
-    assert [error.type for error in report.errors or []] == (["invalid_image"] if invalid else [])
+    assert [error.type for error in report.errors] == (["invalid_image"] if invalid else [])
     assert len(report.entry_points) == 1
     assert report.entry_points[0].start_address < 1 << 32

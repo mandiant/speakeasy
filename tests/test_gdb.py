@@ -328,7 +328,7 @@ _SHELLCODE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
     print(json.dumps({
         "error": run.error.type if run.error else None,
         "pc": run.error.pc if run.error else None,
-        "events": len(run.events or []),
+        "events": len(run.events),
     }), flush=True)
     se.shutdown()
 """)

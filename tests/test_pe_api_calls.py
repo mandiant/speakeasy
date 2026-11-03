@@ -49,7 +49,7 @@ def calls(architecture, imports, *, prefix=b"", suffix=b""):
 
 
 def api_names(entry):
-    return [event.api_name for event in (entry.events or []) if event.event == "api"]
+    return [event.api_name for event in entry.events if event.event == "api"]
 
 
 def test_timeout_budget_public_pe_iat_calls_are_independent():

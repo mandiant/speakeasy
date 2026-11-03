@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
+from speakeasy.config import AnalysisConfig
 from speakeasy.errors import SpeakeasyError
 from speakeasy.profiler_events import (
     AnyEvent,
@@ -167,9 +168,10 @@ class Run:
 class Profiler:
     """Generate an execution report for all runs that occur within a binary emulation."""
 
-    def __init__(self):
+    def __init__(self, analysis: AnalysisConfig | None = None):
         super().__init__()
 
+        self.analysis: AnalysisConfig = analysis or AnalysisConfig()
         self.start_time: float = 0
         self.strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
         self.decoded_strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
@@ -683,39 +685,22 @@ class Profiler:
         for r in self.runs:
             error_info = r.error
 
-            events = None
-            if r.events:
-                events = list(r.events)
-
             symbol_accesses: list[SymAccessReport] | None = None
-            if r.sym_access:
-                symbol_accesses = []
-                for maccess in r.sym_access.values():
-                    if maccess.sym is None:
-                        continue
-                    symbol_accesses.append(
-                        SymAccessReport(
-                            symbol=maccess.sym,
-                            reads=maccess.reads,
-                            writes=maccess.writes,
-                            execs=maccess.execs,
-                        )
-                    )
-                if not symbol_accesses:
-                    symbol_accesses = None
-
-            dyn_code_segments = None
-            if r.dyn_code and r.dyn_code.get("mmap"):
-                dyn_code_segments = [
-                    DynamicCodeSegment(tag=seg["tag"], base=seg["base"], size=seg["size"]) for seg in r.dyn_code["mmap"]
+            if self.analysis.memory_tracing:
+                symbol_accesses = [
+                    SymAccessReport(symbol=maccess.sym, reads=maccess.reads, writes=maccess.writes, execs=maccess.execs)
+                    for maccess in r.sym_access.values()
+                    if maccess.sym is not None
                 ]
 
-            dropped_files = None
-            if r.dropped_files:
-                dropped_files = [
-                    DroppedFile(path=f["path"], size=f["size"], sha256=f["sha256"], data_ref=f.get("data_ref"))
-                    for f in r.dropped_files
-                ]
+            dyn_code_segments = [
+                DynamicCodeSegment(tag=seg["tag"], base=seg["base"], size=seg["size"]) for seg in r.dyn_code["mmap"]
+            ]
+
+            dropped_files = [
+                DroppedFile(path=f["path"], size=f["size"], sha256=f["sha256"], data_ref=f.get("data_ref"))
+                for f in r.dropped_files
+            ]
 
             memory_layout = None
             if r.memory_regions or r.loaded_modules:
@@ -783,22 +768,17 @@ class Profiler:
                 api_hash=r.api_hash.hexdigest(),
                 return_value=r.return_value,
                 error=error_info,
-                events=events,
+                events=list(r.events),
                 symbol_accesses=symbol_accesses,
                 dynamic_code_segments=dyn_code_segments,
-                coverage=sorted(r.coverage) if r.coverage else None,
+                coverage=sorted(r.coverage) if self.analysis.coverage else None,
                 dropped_files=dropped_files,
                 memory=memory_layout,
             )
             entry_points.append(ep)
 
         strings_report = None
-        if (
-            self.strings["ansi"]
-            or self.strings["unicode"]
-            or self.decoded_strings["ansi"]
-            or self.decoded_strings["unicode"]
-        ):
+        if self.analysis.strings:
             strings_report = StringsReport(
                 static=StringCollection(
                     ansi=self.strings["ansi"],
@@ -810,9 +790,8 @@ class Profiler:
                 ),
             )
 
-        errors: list[ErrorInfo] | None = self.meta.get("errors") or None
+        errors: list[ErrorInfo] = self.meta.get("errors", [])
 
-        report_data = self.artifact_store.to_report_data()
         return Report(
             emulation_total_runtime=round(self.runtime, 3),
             timestamp=int(self.start_time),
@@ -824,6 +803,6 @@ class Profiler:
             image_base=self.meta.get("image_base"),
             errors=errors,
             strings=strings_report,
-            data=report_data or None,
+            data=self.artifact_store.to_report_data(),
             entry_points=entry_points,
         )

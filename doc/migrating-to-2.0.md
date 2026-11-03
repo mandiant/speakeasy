@@ -23,12 +23,12 @@ After:
 ```python
 report = se.get_report()
 for ep in report.entry_points:
-    for event in ep.events or []:
+    for event in ep.events:
         if event.event == "file_write":
             print(event.path, event.size)
 ```
 
-For a dict, use `json.loads(se.get_json_report())`. It has the same keys as the JSON report, which leaves out the keys that have no value.
+For a dict, use `json.loads(se.get_json_report())`. It has the same keys as the JSON report. A key is absent when Speakeasy did not collect its data, for example `coverage` when coverage collection is off. An empty list means that Speakeasy collected the data and found nothing, so `events` is always a list.
 
 This table gives the `events` that hold the data of each 1.x list:
 

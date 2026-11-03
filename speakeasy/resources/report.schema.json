@@ -413,138 +413,130 @@
           "description": "Run-local error details when execution did not complete cleanly.\n\nConsult this with ``events`` to identify the exact failure transition."
         },
         "events": {
-          "anyOf": [
-            {
-              "items": {
-                "discriminator": {
-                  "mapping": {
-                    "api": "#/$defs/ApiEvent",
-                    "directory_create": "#/$defs/DirectoryCreateEvent",
-                    "directory_delete": "#/$defs/DirectoryDeleteEvent",
-                    "exception": "#/$defs/ExceptionEvent",
-                    "file_create": "#/$defs/FileCreateEvent",
-                    "file_delete": "#/$defs/FileDeleteEvent",
-                    "file_open": "#/$defs/FileOpenEvent",
-                    "file_read": "#/$defs/FileReadEvent",
-                    "file_write": "#/$defs/FileWriteEvent",
-                    "mem_alloc": "#/$defs/MemAllocEvent",
-                    "mem_free": "#/$defs/MemFreeEvent",
-                    "mem_protect": "#/$defs/MemProtectEvent",
-                    "mem_read": "#/$defs/MemReadEvent",
-                    "mem_write": "#/$defs/MemWriteEvent",
-                    "module_load": "#/$defs/ModuleLoadEvent",
-                    "net_dns": "#/$defs/NetDnsEvent",
-                    "net_http": "#/$defs/NetHttpEvent",
-                    "net_traffic": "#/$defs/NetTrafficEvent",
-                    "process_create": "#/$defs/ProcessCreateEvent",
-                    "reg_create_key": "#/$defs/RegCreateKeyEvent",
-                    "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
-                    "reg_delete_value": "#/$defs/RegDeleteValueEvent",
-                    "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
-                    "reg_open_key": "#/$defs/RegOpenKeyEvent",
-                    "reg_read_value": "#/$defs/RegReadValueEvent",
-                    "reg_write_value": "#/$defs/RegWriteValueEvent",
-                    "thread_create": "#/$defs/ThreadCreateEvent",
-                    "thread_inject": "#/$defs/ThreadInjectEvent"
-                  },
-                  "propertyName": "event"
-                },
-                "oneOf": [
-                  {
-                    "$ref": "#/$defs/ApiEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/ProcessCreateEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/MemAllocEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/MemWriteEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/MemReadEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/MemProtectEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/MemFreeEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/ModuleLoadEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/ThreadCreateEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/ThreadInjectEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/FileCreateEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/FileOpenEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/FileReadEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/FileWriteEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/FileDeleteEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/DirectoryCreateEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/DirectoryDeleteEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegOpenKeyEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegCreateKeyEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegReadValueEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegWriteValueEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegListSubkeysEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegDeleteKeyEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/RegDeleteValueEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/NetDnsEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/NetTrafficEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/NetHttpEvent"
-                  },
-                  {
-                    "$ref": "#/$defs/ExceptionEvent"
-                  }
-                ]
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
           "description": "Chronological event stream emitted during this run.\n\nEvent contents are produced by API, process, file, registry, network, and exception recorders.",
-          "title": "Events"
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "api": "#/$defs/ApiEvent",
+                "directory_create": "#/$defs/DirectoryCreateEvent",
+                "directory_delete": "#/$defs/DirectoryDeleteEvent",
+                "exception": "#/$defs/ExceptionEvent",
+                "file_create": "#/$defs/FileCreateEvent",
+                "file_delete": "#/$defs/FileDeleteEvent",
+                "file_open": "#/$defs/FileOpenEvent",
+                "file_read": "#/$defs/FileReadEvent",
+                "file_write": "#/$defs/FileWriteEvent",
+                "mem_alloc": "#/$defs/MemAllocEvent",
+                "mem_free": "#/$defs/MemFreeEvent",
+                "mem_protect": "#/$defs/MemProtectEvent",
+                "mem_read": "#/$defs/MemReadEvent",
+                "mem_write": "#/$defs/MemWriteEvent",
+                "module_load": "#/$defs/ModuleLoadEvent",
+                "net_dns": "#/$defs/NetDnsEvent",
+                "net_http": "#/$defs/NetHttpEvent",
+                "net_traffic": "#/$defs/NetTrafficEvent",
+                "process_create": "#/$defs/ProcessCreateEvent",
+                "reg_create_key": "#/$defs/RegCreateKeyEvent",
+                "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
+                "reg_delete_value": "#/$defs/RegDeleteValueEvent",
+                "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
+                "reg_open_key": "#/$defs/RegOpenKeyEvent",
+                "reg_read_value": "#/$defs/RegReadValueEvent",
+                "reg_write_value": "#/$defs/RegWriteValueEvent",
+                "thread_create": "#/$defs/ThreadCreateEvent",
+                "thread_inject": "#/$defs/ThreadInjectEvent"
+              },
+              "propertyName": "event"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ApiEvent"
+              },
+              {
+                "$ref": "#/$defs/ProcessCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/MemAllocEvent"
+              },
+              {
+                "$ref": "#/$defs/MemWriteEvent"
+              },
+              {
+                "$ref": "#/$defs/MemReadEvent"
+              },
+              {
+                "$ref": "#/$defs/MemProtectEvent"
+              },
+              {
+                "$ref": "#/$defs/MemFreeEvent"
+              },
+              {
+                "$ref": "#/$defs/ModuleLoadEvent"
+              },
+              {
+                "$ref": "#/$defs/ThreadCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/ThreadInjectEvent"
+              },
+              {
+                "$ref": "#/$defs/FileCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/FileOpenEvent"
+              },
+              {
+                "$ref": "#/$defs/FileReadEvent"
+              },
+              {
+                "$ref": "#/$defs/FileWriteEvent"
+              },
+              {
+                "$ref": "#/$defs/FileDeleteEvent"
+              },
+              {
+                "$ref": "#/$defs/DirectoryCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/DirectoryDeleteEvent"
+              },
+              {
+                "$ref": "#/$defs/RegOpenKeyEvent"
+              },
+              {
+                "$ref": "#/$defs/RegCreateKeyEvent"
+              },
+              {
+                "$ref": "#/$defs/RegReadValueEvent"
+              },
+              {
+                "$ref": "#/$defs/RegWriteValueEvent"
+              },
+              {
+                "$ref": "#/$defs/RegListSubkeysEvent"
+              },
+              {
+                "$ref": "#/$defs/RegDeleteKeyEvent"
+              },
+              {
+                "$ref": "#/$defs/RegDeleteValueEvent"
+              },
+              {
+                "$ref": "#/$defs/NetDnsEvent"
+              },
+              {
+                "$ref": "#/$defs/NetTrafficEvent"
+              },
+              {
+                "$ref": "#/$defs/NetHttpEvent"
+              },
+              {
+                "$ref": "#/$defs/ExceptionEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
         },
         "symbol_accesses": {
           "anyOf": [
@@ -559,24 +551,16 @@
             }
           ],
           "default": null,
-          "description": "Symbol-level access counters observed during tracing.\n\nTypically populated when memory tracing hooks are active.",
+          "description": "Symbol-level access counters observed during tracing.\n\nPresent only when memory tracing is enabled in config.",
           "title": "Symbol Accesses"
         },
         "dynamic_code_segments": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/DynamicCodeSegment"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
           "description": "Dynamically generated code regions that executed in this run.\n\nIndicates unpacking, JIT-like behavior, or in-memory staging activity.",
-          "title": "Dynamic Code Segments"
+          "items": {
+            "$ref": "#/$defs/DynamicCodeSegment"
+          },
+          "title": "Dynamic Code Segments",
+          "type": "array"
         },
         "coverage": {
           "anyOf": [
@@ -591,24 +575,16 @@
             }
           ],
           "default": null,
-          "description": "Sorted list of executed instruction addresses for coverage analysis.\n\nPopulated only when coverage collection is enabled in config.",
+          "description": "Sorted list of executed instruction addresses for coverage analysis.\n\nPresent only when coverage collection is enabled in config.",
           "title": "Coverage"
         },
         "dropped_files": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/DroppedFile"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
           "description": "File artifacts detected as fully written during the run.\n\nUse this list to extract secondary payloads and logs.",
-          "title": "Dropped Files"
+          "items": {
+            "$ref": "#/$defs/DroppedFile"
+          },
+          "title": "Dropped Files",
+          "type": "array"
         },
         "memory": {
           "anyOf": [
@@ -3119,20 +3095,12 @@
       "title": "Image Base"
     },
     "errors": {
-      "anyOf": [
-        {
-          "items": {
-            "$ref": "#/$defs/ErrorInfo"
-          },
-          "type": "array"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
       "description": "Top-level emulator errors not tied to a specific run.\n\nThese usually reflect session-level failures rather than per-entry-point termination.",
-      "title": "Errors"
+      "items": {
+        "$ref": "#/$defs/ErrorInfo"
+      },
+      "title": "Errors",
+      "type": "array"
     },
     "strings": {
       "anyOf": [
@@ -3144,23 +3112,15 @@
         }
       ],
       "default": null,
-      "description": "Optional static and in-memory string extraction output.\n\nPresent when string analysis is enabled and at least one string bucket is non-empty."
+      "description": "Optional static and in-memory string extraction output.\n\nPresent only when string analysis is enabled in config."
     },
     "data": {
-      "anyOf": [
-        {
-          "additionalProperties": {
-            "$ref": "#/$defs/DataArtifact"
-          },
-          "type": "object"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
+      "additionalProperties": {
+        "$ref": "#/$defs/DataArtifact"
+      },
       "description": "Deduplicated binary payload store keyed by SHA-256.\n\nResolve ``*_ref`` fields in the report against this mapping to recover compressed payload bytes.",
-      "title": "Data"
+      "title": "Data",
+      "type": "object"
     },
     "entry_points": {
       "description": "Ordered list of all runs executed during emulation.\n\nThis is the primary behavioral timeline for the report.",

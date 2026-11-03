@@ -46,7 +46,7 @@ def mpsigstub_run(base_config: dict[str, Any], load_test_bin: Callable[[str], by
 
         se.add_api_hook(query, "version", "VerQueryValueW", argc=4)
         se.run_module(module)
-        events = se.get_report().entry_points[0].events or []
+        events = se.get_report().entry_points[0].events
 
     for event in events:
         if event.event == "api" and event.api_name.startswith("version.GetFileVersionInfo"):

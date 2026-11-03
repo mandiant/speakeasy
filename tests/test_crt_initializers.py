@@ -10,7 +10,7 @@ ACTIVE_SETUP_DROPPER = "025bd4d05ca3557f429bf0a44f5f93745df2b70398ed80a19b7807cc
 @pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz", "argv_test_x64.exe.xz"])
 def test_initterm_e_runs_the_crt_initializers_in_order(config, load_test_bin, run_test, bin_file):
     report = run_test(config, load_test_bin(bin_file))
-    names = [evt.api_name for evt in report.entry_points[0].events or [] if evt.event == "api"]
+    names = [evt.api_name for evt in report.entry_points[0].events if evt.event == "api"]
     initializers = names[names.index("msvcrt._initterm_e") + 1 : names.index("msvcrt._initterm")]
     calls = [
         name
@@ -45,9 +45,7 @@ def test_iostream_static_constructors_are_thiscall_on_x86(config, load_test_bin)
 
     assert run.error is None
     ctors = [
-        (e.api_name, e.return_value)
-        for e in run.events or []
-        if e.event == "api" and e.api_name.startswith("msvcrt.??0")
+        (e.api_name, e.return_value) for e in run.events if e.event == "api" and e.api_name.startswith("msvcrt.??0")
     ]
     assert ctors == [
         ("msvcrt.??0Init@ios_base@std@@QAE@XZ", module.base + 0x44F9),

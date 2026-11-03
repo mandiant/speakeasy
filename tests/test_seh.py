@@ -23,7 +23,7 @@ def test_seh_dispatch(config, load_test_bin, run_test):
 
     ep = report.entry_points
     printfs = []
-    for evt in ep[0].events or []:
+    for evt in ep[0].events:
         if evt.event == "api" and "__stdio_common_vfprintf" in evt.api_name:
             printfs.append(evt)
 
@@ -42,7 +42,7 @@ def test_seh_without_dispatch(config, load_test_bin, run_test):
 
     ep = report.entry_points
     printfs = []
-    for evt in ep[0].events or []:
+    for evt in ep[0].events:
         if evt.event == "api" and "__stdio_common_vfprintf" in evt.api_name:
             printfs.append(evt)
             break
@@ -87,7 +87,7 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
     failed = [case for bit, case in cases.items() if not ep.return_value & bit]
     assert not failed
 
-    exceptions = [(e.exception_code, e.address) for e in ep.events or [] if e.event == "exception"]
+    exceptions = [(e.exception_code, e.address) for e in ep.events if e.event == "exception"]
     assert exceptions == [
         (0xE0000001, None),
         (0xE0000002, None),

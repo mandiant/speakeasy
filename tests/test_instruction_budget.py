@@ -100,4 +100,4 @@ def test_cap_reached_at_an_api_trap_reports_the_public_entry(capped_session):
     run = se.get_report().entry_points[0]
     assert_limit(run, 7)
     assert int(run.error.pc) == api
-    assert not [event for event in run.events or [] if event.event == "api"]
+    assert not [event for event in run.events if event.event == "api"]

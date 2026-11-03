@@ -711,7 +711,7 @@ def test_shell_execute_ex_writes_h_inst_app_and_h_process(config: dict, load_tes
         se.add_code_hook(after_shell_execute_ex, begin=0x14000136E, end=0x14000136E)
         se.add_code_hook(after_wait, begin=0x14000138D, end=0x14000138D)
         se.run_module(module)
-        events = [e for ep in se.get_report().entry_points for e in ep.events or [] if e.event == "api"]
+        events = [e for ep in se.get_report().entry_points for e in ep.events if e.event == "api"]
 
     cb_size, mask = struct.unpack_from("<II", sei[0])
     h_inst_app, h_process = struct.unpack_from("<Q", sei[0], 0x38)[0], struct.unpack_from("<Q", sei[0], 0x68)[0]
