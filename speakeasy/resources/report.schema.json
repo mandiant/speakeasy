@@ -1,5 +1,15 @@
 {
   "$defs": {
+    "AccessType": {
+      "description": "Kind of memory access that faulted.",
+      "enum": [
+        "read",
+        "write",
+        "fetch"
+      ],
+      "title": "AccessType",
+      "type": "string"
+    },
     "ApiArg": {
       "additionalProperties": false,
       "description": "One argument of an API call, as passed by the caller and as shown in the trace.",
@@ -125,19 +135,33 @@
       "title": "Arch",
       "type": "string"
     },
+    "ArtifactCompression": {
+      "description": "Compression of a stored payload.",
+      "enum": [
+        "zlib"
+      ],
+      "title": "ArtifactCompression",
+      "type": "string"
+    },
+    "ArtifactEncoding": {
+      "description": "Text encoding of a stored payload.",
+      "enum": [
+        "base64"
+      ],
+      "title": "ArtifactEncoding",
+      "type": "string"
+    },
     "DataArtifact": {
       "additionalProperties": false,
       "description": "Stores one deduplicated binary payload referenced elsewhere in a report.\n\nPayloads are keyed by SHA-256 in the top-level ``Report.data`` mapping.\nOther models store the SHA-256 key as a reference instead of embedding bytes\ninline repeatedly.",
       "properties": {
         "compression": {
-          "description": "Compression algorithm applied to the stored payload.",
-          "title": "Compression",
-          "type": "string"
+          "$ref": "#/$defs/ArtifactCompression",
+          "description": "Compression algorithm applied to the stored payload."
         },
         "encoding": {
-          "description": "Text encoding used for serialized payload bytes.",
-          "title": "Encoding",
-          "type": "string"
+          "$ref": "#/$defs/ArtifactEncoding",
+          "description": "Text encoding used for serialized payload bytes."
         },
         "size": {
           "description": "Uncompressed payload size in bytes.",
@@ -678,15 +702,14 @@
         "access_type": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/AccessType"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Memory access type that faulted: read, write, or fetch.",
-          "title": "Access Type"
+          "description": "Memory access type that faulted: read, write, or fetch."
         },
         "registers": {
           "anyOf": [

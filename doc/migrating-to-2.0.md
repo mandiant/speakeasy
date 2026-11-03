@@ -94,6 +94,9 @@ These keys take one value from a fixed set. The schema lists them:
 | `network_events.traffic[].type` | `type` of `net_traffic` | `connect`, `bind`, `accept`, `data_in`, `data_out` |
 | `network_events.traffic[].proto` | `proto` of `net_traffic` | `tcp`, `udp`, `raw`, `unknown` |
 | `network_events.traffic[].proto` of an HTTP request | `proto` of `net_http` | `http`, `https` |
+| none | `error.access_type` | `read`, `write`, `fetch` |
+| none | `compression` of a `data` entry | `zlib` |
+| none | `encoding` of a `data` entry | `base64` |
 
 `ep_type` was one string with the kind of run and a detail. In 2.0, `type` holds the kind and `name` holds the detail. The JSON report leaves out `name` when the run has no detail.
 

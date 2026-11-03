@@ -31,7 +31,7 @@ from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuErr
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
-from speakeasy.report import Arch, EntryPointType, ErrorInfo, ErrorType, FileType, RegionInfo
+from speakeasy.report import AccessType, Arch, EntryPointType, ErrorInfo, ErrorType, FileType, RegionInfo
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
@@ -2653,7 +2653,7 @@ class WindowsEmulator(BinaryEmulator):
             type=desc,
             pc=pc,
             address=address,
-            access_type=access_type,
+            access_type=AccessType(access_type) if access_type else None,
             instruction=instr,
             registers=registers,
             stack=stack,
