@@ -34,6 +34,7 @@
         "value": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -107,6 +108,7 @@
         "return_value": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -291,6 +293,7 @@
         },
         "base": {
           "description": "Base address of the dynamic code region.\n\nUse this with memory layout data to inspect surrounding mapped content.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -331,12 +334,14 @@
         },
         "start_address": {
           "description": "Address where this run began executing.\n\nUse this as the anchor when following control flow in disassembly.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Start Address",
           "type": "string"
         },
         "args": {
           "description": "Argument values supplied at run entry.",
           "items": {
+            "pattern": "^0x[0-9a-f]+$",
             "type": "string"
           },
           "title": "Args",
@@ -390,6 +395,7 @@
         "return_value": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -566,6 +572,7 @@
           "anyOf": [
             {
               "items": {
+                "pattern": "^0x[0-9a-f]+$",
                 "type": "string"
               },
               "type": "array"
@@ -639,6 +646,7 @@
         "pc": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -665,6 +673,7 @@
         "address": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -691,6 +700,7 @@
           "anyOf": [
             {
               "additionalProperties": {
+                "pattern": "^0x[0-9a-f]+$",
                 "type": "string"
               },
               "type": "object"
@@ -949,16 +959,19 @@
         },
         "exception_code": {
           "description": "Exception code, such as ``0xc0000005``.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Exception Code",
           "type": "string"
         },
         "handler_address": {
           "description": "Address of the selected exception handler.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Handler Address",
           "type": "string"
         },
         "registers": {
           "additionalProperties": {
+            "pattern": "^0x[0-9a-f]+$",
             "type": "string"
           },
           "description": "Register snapshot captured at exception time.",
@@ -968,6 +981,7 @@
         "address": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1054,6 +1068,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1155,6 +1170,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1228,6 +1244,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1267,6 +1284,7 @@
         "buffer": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1319,6 +1337,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1358,6 +1377,7 @@
         "buffer": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -1392,6 +1412,7 @@
         },
         "base": {
           "description": "Module base address in virtual memory.\n\nUse this as the relocation anchor for offsets and symbol lookups.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1440,6 +1461,7 @@
         },
         "base": {
           "description": "Allocated base address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1509,6 +1531,7 @@
         },
         "base": {
           "description": "Freed region base address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1562,6 +1585,7 @@
         },
         "base": {
           "description": "Protection-change base address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1631,6 +1655,7 @@
         },
         "base": {
           "description": "Read start address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1697,6 +1722,7 @@
         },
         "base": {
           "description": "Write start address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1804,6 +1830,7 @@
         },
         "base": {
           "description": "Base address of the memory region.\n\nTreat this as the start of the region for disassembly and dump slicing.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1885,6 +1912,7 @@
         },
         "base": {
           "description": "Module base address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -1915,6 +1943,7 @@
         },
         "base": {
           "description": "Absolute virtual address of the segment start.\n\nUse with ``size`` to identify covered address ranges.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -2223,6 +2252,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2296,6 +2326,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2337,6 +2368,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2391,6 +2423,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2432,6 +2465,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2505,6 +2539,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2557,6 +2592,7 @@
         "buffer": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2598,6 +2634,7 @@
         "handle": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2650,6 +2687,7 @@
         "buffer": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2679,6 +2717,7 @@
         },
         "base": {
           "description": "Base address of the region.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
@@ -2721,6 +2760,7 @@
         "value": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2847,11 +2887,13 @@
         },
         "start_address": {
           "description": "Thread start address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Start Address",
           "type": "string"
         },
         "param": {
           "description": "Thread parameter pointer or value.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Param",
           "type": "string"
         },
@@ -2913,11 +2955,13 @@
         },
         "start_address": {
           "description": "Injected thread start address.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Start Address",
           "type": "string"
         },
         "param": {
           "description": "Injected thread parameter pointer or value.",
+          "pattern": "^0x[0-9a-f]+$",
           "title": "Param",
           "type": "string"
         },
@@ -2979,6 +3023,7 @@
         "pc": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -3000,7 +3045,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Top-level Speakeasy output report model.\n\nThis object combines run telemetry, metadata for the emulated input, and\noptional analysis artifacts.\n\nTreat this as the canonical machine-readable output for downstream tooling.",
+  "description": "Top-level Speakeasy output report model.\n\nThis object combines run telemetry, metadata for the emulated input, and\noptional analysis artifacts.\n\nTreat this as the canonical machine-readable output for downstream tooling.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data. An empty list or\nobject means that Speakeasy collected the data and found nothing.",
   "properties": {
     "report_version": {
       "default": "6.0.0",
@@ -3084,6 +3129,7 @@
     "image_base": {
       "anyOf": [
         {
+          "pattern": "^0x[0-9a-f]+$",
           "type": "string"
         },
         {

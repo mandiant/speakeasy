@@ -704,6 +704,16 @@ class Report(BaseModel):
     optional analysis artifacts.
 
     Treat this as the canonical machine-readable output for downstream tooling.
+
+    Machine words are ``0x``-prefixed hex strings: addresses, pointers,
+    handles, raw argument values, return values, register values and exception
+    codes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go
+    ``interface{}``, jq and int64 stores such as SQLite lose such a value as a
+    JSON number with no error. Quantities, such as sizes, counts, offsets,
+    ticks and IDs, are JSON numbers.
+
+    A key is absent when Speakeasy did not collect its data. An empty list or
+    object means that Speakeasy collected the data and found nothing.
     """
 
     model_config = ConfigDict(extra="forbid")
