@@ -32,7 +32,7 @@ jq '{sha256, arch, file_type, entry_points: (.entry_points | length)}' report.js
 
 ### Start here
 
-- [Installation and Docker usage](https://github.com/mandiant/speakeasy/blob/master/doc/install.md)
+- [Installation](https://github.com/mandiant/speakeasy/blob/master/doc/install.md)
 - [Python library usage](https://github.com/mandiant/speakeasy/blob/master/doc/library.md)
 - [Help and troubleshooting](https://github.com/mandiant/speakeasy/blob/master/doc/help.md)
 - [Documentation index](https://github.com/mandiant/speakeasy/blob/master/doc/index.md)
