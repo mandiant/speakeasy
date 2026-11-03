@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.config import FileEntry, FileEntryFullPath, FilesystemConfig, SpeakeasyConfig
 from speakeasy.errors import FileSystemEmuError
-from speakeasy.windows.handles import HandleTable, InvalidHandle
+from speakeasy.windows.handles import HandleTable
 
 if TYPE_CHECKING:
     from speakeasy.windows.objman import Process
@@ -279,21 +279,19 @@ class FileManager:
         """Get the object of an open handle if it is one of ``types``, else None."""
         if handle is None:
             return None
-        try:
-            return self.emu.get_handle_table().get(handle, *types)
-        except InvalidHandle:
-            return None
+        return self.emu.get_handle_table().get(handle, *types)
 
-    def file_create_mapping(self, hfile, name, size, prot):
+    def file_create_mapping(self, hfile, name, size, prot) -> int | None:
         """
         Create a mapping of the file of ``hfile``, or of no file for NULL or INVALID_HANDLE_VALUE.
 
-        Raises:
-            InvalidHandle: if ``hfile`` is not an open file handle.
+        Return None if ``hfile`` is not an open file handle.
         """
         f = None
         if hfile and ct.c_int32(hfile).value != windefs.INVALID_HANDLE_VALUE:
             f = self.get_file(hfile)
+            if f is None:
+                return None
         fm = FileMap(name, size, prot, f)
         self.mappings.append(fm)
         return self.new_handle(fm)
@@ -356,36 +354,19 @@ class FileManager:
         f = self.get_handle_object(handle, File)
         return None if isinstance(f, Pipe) else f
 
-    def get_file(self, handle) -> File:
-        """
-        Get the file of an open handle.
-
-        Raises:
-            InvalidHandle: if the handle is not open, or it refers to a pipe or an object that is not a file.
-        """
+    def get_file(self, handle) -> File | None:
+        """Get the file of an open handle, or None if the handle is not open or refers to a pipe or another object."""
         table: HandleTable = self.emu.get_handle_table()
         f = table.get(handle, File)
-        if isinstance(f, Pipe):
-            raise InvalidHandle(handle)
-        return f
+        return None if isinstance(f, Pipe) else f
 
-    def get_pipe(self, handle) -> Pipe:
-        """
-        Get the pipe of an open handle.
-
-        Raises:
-            InvalidHandle: if the handle is not open, or it does not refer to a pipe.
-        """
+    def get_pipe(self, handle) -> Pipe | None:
+        """Get the pipe of an open handle, or None if the handle is not open or refers to another object."""
         table: HandleTable = self.emu.get_handle_table()
         return table.get(handle, Pipe)
 
-    def get_mapping(self, handle) -> FileMap:
-        """
-        Get the file mapping of an open handle.
-
-        Raises:
-            InvalidHandle: if the handle is not open, or it does not refer to a file mapping.
-        """
+    def get_mapping(self, handle) -> FileMap | None:
+        """Get the file mapping of an open handle, or None if the handle is not open or refers to another object."""
         table: HandleTable = self.emu.get_handle_table()
         return table.get(handle, FileMap)
 

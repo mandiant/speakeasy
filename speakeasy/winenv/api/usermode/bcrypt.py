@@ -46,7 +46,6 @@ class Bcrypt(api.ApiHandler):
     """
 
     name = "bcrypt"
-    sets_last_error = False
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
 
@@ -88,7 +87,7 @@ class Bcrypt(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptImportKeyPair", argc=7, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptImportKeyPair", argc=7)
     def BCryptImportKeyPair(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptImportKeyPair(
@@ -113,6 +112,8 @@ class Bcrypt(api.ApiHandler):
         cm = emu.get_crypt_manager()
         if hAlgorithm and phKey:
             alg_ctx = cm.get_context(hAlgorithm)
+            if not alg_ctx:
+                return ddk.STATUS_INVALID_HANDLE
             hnd = alg_ctx.import_key(blob_type=blob_type, blob=blob, blob_len=cbInput, flags=dwFlags)
             if hnd:
                 self.write_ptr(phKey, hnd)
@@ -120,7 +121,7 @@ class Bcrypt(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptCloseAlgorithmProvider", argc=2, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptCloseAlgorithmProvider", argc=2)
     def BCryptCloseAlgorithmProvider(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptCloseAlgorithmProvider(
@@ -130,11 +131,12 @@ class Bcrypt(api.ApiHandler):
         """
         hAlgorithm, dwFlags = argv
 
-        emu.get_crypt_manager().crypt_close(hAlgorithm)
+        if not emu.get_crypt_manager().crypt_close(hAlgorithm):
+            return ddk.STATUS_INVALID_HANDLE
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptGetProperty", argc=6, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptGetProperty", argc=6)
     def BCryptGetProperty(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGetProperty(
@@ -152,7 +154,10 @@ class Bcrypt(api.ApiHandler):
         if property:
             ctx.args["pszProperty"].display = property
 
-        alg_ctx, key = self.get_object(emu, hObject)
+        obj = self.get_object(emu, hObject)
+        if obj is None:
+            return ddk.STATUS_INVALID_HANDLE
+        alg_ctx, key = obj
         # Properties of other algorithms are not emulated
         if not is_aes(alg_ctx):
             return ddk.STATUS_SUCCESS
@@ -168,7 +173,7 @@ class Bcrypt(api.ApiHandler):
         self.mem_write(pbOutput, value)
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptSetProperty", argc=5, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptSetProperty", argc=5)
     def BCryptSetProperty(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptSetProperty(
@@ -184,7 +189,10 @@ class Bcrypt(api.ApiHandler):
         property = self.read_wide_string(pszProperty)
         ctx.args["pszProperty"].display = property
 
-        alg_ctx, key = self.get_object(emu, hObject)
+        found = self.get_object(emu, hObject)
+        if found is None:
+            return ddk.STATUS_INVALID_HANDLE
+        alg_ctx, key = found
         obj = key or alg_ctx
 
         if property == "ChainingMode":
@@ -196,7 +204,7 @@ class Bcrypt(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptGenerateSymmetricKey", argc=7, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptGenerateSymmetricKey", argc=7)
     def BCryptGenerateSymmetricKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGenerateSymmetricKey(
@@ -212,6 +220,8 @@ class Bcrypt(api.ApiHandler):
         hAlgorithm, phKey, pbKeyObject, cbKeyObject, pbSecret, cbSecret, dwFlags = argv
 
         alg_ctx = emu.get_crypt_manager().get_context(hAlgorithm)
+        if not alg_ctx:
+            return ddk.STATUS_INVALID_HANDLE
         cbSecret &= 0xFFFFFFFF
         if not phKey or (is_aes(alg_ctx) and cbSecret not in AES_KEY_LENGTHS):
             return ddk.STATUS_INVALID_PARAMETER
@@ -224,7 +234,7 @@ class Bcrypt(api.ApiHandler):
         ctx.args["phKey"].display = hex(hnd)
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptEncrypt", argc=10, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptEncrypt", argc=10)
     def BCryptEncrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptEncrypt(
@@ -242,7 +252,7 @@ class Bcrypt(api.ApiHandler):
         """
         return self.aes_crypt(emu, argv, ctx, encrypt=True)
 
-    @apihook("BCryptDecrypt", argc=10, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptDecrypt", argc=10)
     def BCryptDecrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDecrypt(
@@ -264,14 +274,15 @@ class Bcrypt(api.ApiHandler):
         if pcbResult:
             self.write_dword(pcbResult, size)
 
-    def get_object(self, emu, hObject) -> tuple[CryptContext, CryptKey | None]:
+    def get_object(self, emu, hObject) -> tuple[CryptContext, CryptKey | None] | None:
         """
         Get the algorithm context and the key of an algorithm or key handle. The key of an algorithm handle is None.
 
-        Raises:
-            InvalidHandle: if the handle does not refer to an algorithm or a key.
+        Return None if the handle does not refer to an algorithm or a key.
         """
         obj = emu.get_crypt_manager().handles.get(hObject, CryptContext, CryptKey)
+        if obj is None:
+            return None
         if isinstance(obj, CryptKey):
             return obj.context, obj
         return obj, None
@@ -297,6 +308,8 @@ class Bcrypt(api.ApiHandler):
         cbInput, cbIV, cbOutput = (n & 0xFFFFFFFF for n in (cbInput, cbIV, cbOutput))
 
         key = emu.get_crypt_manager().get_key(hKey)
+        if not key:
+            return ddk.STATUS_INVALID_HANDLE
         alg_ctx = key.context
         if not is_aes(alg_ctx) or key.chaining_mode not in ("ChainingModeCBC", "ChainingModeECB", "ChainingModeGCM"):
             return ddk.STATUS_NOT_SUPPORTED
@@ -368,7 +381,7 @@ class Bcrypt(api.ApiHandler):
         self.write_result_size(pcbResult, len(out))
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptDestroyKey", argc=1, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptDestroyKey", argc=1)
     def BCryptDestroyKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptDestroyKey(
@@ -376,10 +389,11 @@ class Bcrypt(api.ApiHandler):
         );
         """
         (hKey,) = argv
-        emu.get_crypt_manager().delete_key(hKey)
+        if not emu.get_crypt_manager().delete_key(hKey):
+            return ddk.STATUS_INVALID_HANDLE
         return ddk.STATUS_SUCCESS
 
-    @apihook("BCryptGenRandom", argc=4, fail=ddk.STATUS_INVALID_HANDLE)
+    @apihook("BCryptGenRandom", argc=4)
     def BCryptGenRandom(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS BCryptGenRandom(
@@ -394,8 +408,8 @@ class Bcrypt(api.ApiHandler):
         if dwFlags & BCRYPT_USE_SYSTEM_PREFERRED_RNG:
             if hAlgorithm:
                 return ddk.STATUS_INVALID_PARAMETER
-        else:
-            emu.get_crypt_manager().get_context(hAlgorithm)
+        elif not emu.get_crypt_manager().get_context(hAlgorithm):
+            return ddk.STATUS_INVALID_HANDLE
         cbBuffer &= 0xFFFFFFFF
         if not cbBuffer:
             return ddk.STATUS_SUCCESS

@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from speakeasy.winenv.defs.windows.windows import ERROR_INVALID_HANDLE
-
 if TYPE_CHECKING:
     from speakeasy.windows.objman import HandleAllocator
 
@@ -18,19 +16,6 @@ HANDLE_MASK = 0xFFFFFFFF
 # (HANDLE)-1 and (HANDLE)-2, as GetCurrentProcess and GetCurrentThread return them
 CURRENT_PROCESS_HANDLE = 0xFFFFFFFF
 CURRENT_THREAD_HANDLE = 0xFFFFFFFE
-
-
-class InvalidHandle(Exception):
-    """
-    A handler got a handle value that is not open, or that refers to an object of another type.
-
-    API dispatch catches it and fails the call with the Win32 error code in ``error``.
-    """
-
-    def __init__(self, handle: int, error: int = ERROR_INVALID_HANDLE):
-        super().__init__(f"invalid handle 0x{handle:x}")
-        self.handle: int = handle
-        self.error: int = error
 
 
 class HandleTable:
@@ -61,41 +46,38 @@ class HandleTable:
         return handle
 
     @overload
-    def get(self, handle: int) -> Any: ...
+    def get(self, handle: int) -> Any | None: ...
 
     @overload
-    def get(self, handle: int, *types: type[T]) -> T: ...
+    def get(self, handle: int, *types: type[T]) -> T | None: ...
 
-    def get(self, handle: int, *types: type) -> Any:
+    def get(self, handle: int, *types: type) -> Any | None:
         """
         Get the object of an open handle or a pseudo handle.
 
-        Raises:
-            InvalidHandle: if the handle is not open, or its object is not an instance of one of ``types``.
-                The error comes from the ``invalid_handle_error`` attribute of the first type, if it has one.
+        Return None if the handle is not open, or its object is not an instance of one of ``types``.
         """
         obj = self._pseudo(handle) if self._pseudo else None
         if obj is None:
             obj = self._objects.get(handle & HANDLE_MASK)
         if obj is None or (types and not isinstance(obj, types)):
-            error = getattr(types[0], "invalid_handle_error", ERROR_INVALID_HANDLE) if types else ERROR_INVALID_HANDLE
-            raise InvalidHandle(handle, error)
+            return None
         return obj
 
-    def close(self, handle: int) -> None:
+    def close(self, handle: int) -> bool:
         """
         Close a handle and release its reference. Closing a pseudo handle does nothing.
 
-        Raises:
-            InvalidHandle: if the handle is not open.
+        Return False if the handle is not open.
         """
         if self._pseudo and self._pseudo(handle) is not None:
-            return
+            return True
         obj = self._objects.pop(handle & HANDLE_MASK, None)
         if obj is None:
-            raise InvalidHandle(handle)
+            return False
         self._allocator.free_handle(handle & HANDLE_MASK)
         self._release(obj)
+        return True
 
     def __contains__(self, handle: int) -> bool:
         return (handle & HANDLE_MASK) in self._objects

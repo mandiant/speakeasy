@@ -53,7 +53,7 @@ def test_handler_ordinals_match_the_physical_exports():
             if manifest is None:
                 continue
             ordinals = {e.name: e.ordinal for e in manifest.exports if e.name}
-            for name, _, _, _, ordinal, _ in hooks:
+            for name, _, _, _, ordinal in hooks:
                 if ordinal and ordinals.get(name) != ordinal:
                     mismatches.append((handler.name, arch, name, ordinal, ordinals.get(name)))
     assert mismatches == []

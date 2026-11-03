@@ -368,7 +368,7 @@ def call_and_return(se: Speakeasy, dll: str, name: str, argv: list[int]) -> tupl
     """Call a handler, return to the caller, and give the result and the bytes popped from the stack."""
     emu = se.emu
     _, func_attrs = emu.get_api_handler(dll, name)
-    _, _, argc, conv, _, _ = func_attrs
+    _, _, argc, conv, _ = func_attrs
     esp = emu.reg_read(e_arch.X86_REG_ESP)
     rv, _ = call(se, dll, name, argv)
     emu.do_call_return(argc, 0x401000, rv, conv=conv)

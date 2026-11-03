@@ -20,6 +20,8 @@ from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 
 if TYPE_CHECKING:
+    from speakeasy.windows.fileman import File
+    from speakeasy.windows.regman import RegKey
     from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
@@ -173,30 +175,17 @@ class ApiHandler:
     """
 
     name = ""
-    # False for a module whose functions return a status code and do not set the last error
-    sets_last_error = True
 
     @staticmethod
     def apihook(
-        impname: str | None = None,
-        argc: int = 0,
-        conv: int = _arch.CALL_CONV_STDCALL,
-        ordinal: int | None = None,
-        fail: int | None = None,
+        impname: str | None = None, argc: int = 0, conv: int = _arch.CALL_CONV_STDCALL, ordinal: int | None = None
     ) -> Callable[[F], F]:
-        """
-        Mark a method as the handler of an API.
-
-        ``fail`` is the return value of the call when the handler raises InvalidHandle. Without it,
-        dispatch picks the value from the signature of the API.
-        """
-
         def apitemp(f: F) -> F:
             if not callable(f):
                 raise ApiEmuError(f"Invalid function type supplied: {str(f)}")
             if hasattr(f, "__apihook__"):
                 raise ApiEmuError(f"{f.__name__} has more than one apihook decorator")
-            f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal, fail)  # type: ignore[attr-defined]
+            f.__apihook__ = (impname or f.__name__, f, argc, conv, ordinal)  # type: ignore[attr-defined]
             return f
 
         return apitemp
@@ -213,7 +202,7 @@ class ApiHandler:
 
     def __init__(self, emu):
         super().__init__()
-        self.funcs: dict[str | int, tuple[str, Callable[..., Any], int, int, int | None, int | None]] = {}
+        self.funcs: dict[str | int, tuple[str, Callable[..., Any], int, int, int | None]] = {}
         self.data: dict[str, Callable[..., Any]] = {}
         self.emu: WindowsEmulator = emu
         arch = self.emu.get_arch()
@@ -233,10 +222,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                name, func, argc, conv, ordinal, fail = func_attrs
-                self.funcs[name] = (name, func, argc, conv, ordinal, fail)
+                name, func, argc, conv, ordinal = func_attrs
+                self.funcs[name] = (name, func, argc, conv, ordinal)
                 if ordinal:
-                    self.funcs[ordinal] = (name, func, argc, conv, ordinal, fail)
+                    self.funcs[ordinal] = (name, func, argc, conv, ordinal)
 
             elif data_attrs:
                 name, func = data_attrs
@@ -251,10 +240,10 @@ class ApiHandler:
             func_attrs = getattr(val, "__apihook__", None)
             data_attrs = getattr(val, "__datahook__", None)
             if func_attrs:
-                name, func, argc, conv, ordinal, fail = func_attrs
-                obj.funcs[name] = (name, func, argc, conv, ordinal, fail)
+                name, func, argc, conv, ordinal = func_attrs
+                obj.funcs[name] = (name, func, argc, conv, ordinal)
                 if ordinal:
-                    obj.funcs[ordinal] = (name, func, argc, conv, ordinal, fail)
+                    obj.funcs[ordinal] = (name, func, argc, conv, ordinal)
 
             elif data_attrs:
                 name, func = data_attrs
@@ -521,14 +510,9 @@ class ApiHandler:
     def file_get(self, handle):
         return self.emu.file_get(handle)
 
-    def get_file(self, handle):
-        """
-        Get the file of an open handle.
-
-        Raises:
-            InvalidHandle: if the handle is not open, or it does not refer to a file.
-        """
-        return self.emu.get_file_manager().get_file(handle)
+    def get_file(self, handle) -> File | None:
+        """Get the file of an open handle, or None if the handle is not open or does not refer to a file."""
+        return self.emu.fileman.get_file(handle)
 
     def does_file_exist(self, path):
         return self.emu.does_file_exist(path)
@@ -536,13 +520,8 @@ class ApiHandler:
     def reg_open_key(self, path, create=False):
         return self.emu.reg_open_key(path, create)
 
-    def get_reg_key(self, handle):
-        """
-        Get the key of a predefined key or an open key handle.
-
-        Raises:
-            InvalidHandle: if the handle is not a predefined key and does not refer to an open key.
-        """
+    def get_reg_key(self, handle) -> RegKey | None:
+        """Get the key of a predefined key or an open key handle, or None if the handle refers to no key."""
         return self.emu.regman.get_key(handle)
 
     def reg_get_subkeys(self, hkey):

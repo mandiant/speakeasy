@@ -48,9 +48,9 @@ class CryptContext:
     def get_key(self, hnd):
         return self.keys.get(hnd, None)
 
-    def delete_key(self, hnd):
+    def delete_key(self, hnd) -> bool:
         self.keys.pop(hnd & HANDLE_MASK)
-        self.handles.close(hnd)
+        return self.handles.close(hnd)
 
 
 class CryptoManager:
@@ -69,53 +69,38 @@ class CryptoManager:
     def crypt_open(self, cname=None, pname=None, ptype=None, flags=None):
         return self.handles.new_handle(CryptContext(self.handles, cname, pname, ptype, flags))
 
-    def crypt_close(self, hnd):
+    def crypt_close(self, hnd) -> bool:
         """
         Close a provider handle and the handles of its keys.
 
-        Raises:
-            InvalidHandle: if the handle does not refer to a provider.
+        Return False if the handle does not refer to a provider.
         """
         ctx = self.handles.get(hnd, CryptContext)
+        if ctx is None:
+            return False
         for key_hnd in list(ctx.keys):
             ctx.delete_key(key_hnd)
-        self.handles.close(hnd)
+        return self.handles.close(hnd)
 
-    def get_context(self, hnd) -> CryptContext:
-        """
-        Get the context of a provider handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to a provider.
-        """
+    def get_context(self, hnd) -> CryptContext | None:
+        """Get the context of a provider handle, else None."""
         return self.handles.get(hnd, CryptContext)
 
-    def get_key(self, hnd) -> CryptKey:
-        """
-        Get the key of a key handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to a key.
-        """
+    def get_key(self, hnd) -> CryptKey | None:
+        """Get the key of a key handle, else None."""
         return self.handles.get(hnd, CryptKey)
 
-    def delete_key(self, hnd):
-        """
-        Close a key handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to a key.
-        """
-        self.get_key(hnd).context.delete_key(hnd)
+    def delete_key(self, hnd) -> bool:
+        """Close a key handle. Return False if the handle does not refer to a key."""
+        key = self.get_key(hnd)
+        if key is None:
+            return False
+        return key.context.delete_key(hnd)
 
     def create_hash(self, hasher) -> int:
         return self.handles.new_handle(CryptHash(hasher))
 
     def get_hash(self, hnd):
-        """
-        Get the hashlib object of a hash handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to a hash.
-        """
-        return self.handles.get(hnd, CryptHash).hasher
+        """Get the hashlib object of a hash handle, else None."""
+        h = self.handles.get(hnd, CryptHash)
+        return None if h is None else h.hasher

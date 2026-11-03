@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy.errors import RegistryEmuError
-from speakeasy.windows.handles import HandleTable, InvalidHandle
+from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.enums import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
@@ -195,13 +195,8 @@ class RegistryManager:
             path = path.rstrip("\\")
         return path
 
-    def get_key(self, handle) -> RegKey:
-        """
-        Get the key of a predefined key or an open key handle.
-
-        Raises:
-            InvalidHandle: if the handle is not a predefined key and does not refer to an open key.
-        """
+    def get_key(self, handle) -> RegKey | None:
+        """Get the key of a predefined key or an open key handle, else None."""
         handle = regdefs.normalize_hkey(handle)
         key = self.predefined_keys.get(handle)
         if key:
@@ -210,23 +205,20 @@ class RegistryManager:
 
     def get_key_from_handle(self, handle):
         """Get the key of a predefined key or an open key handle, else None."""
-        try:
-            return self.get_key(handle)
-        except InvalidHandle:
-            return None
+        return self.get_key(handle)
 
-    def close_key(self, handle):
+    def close_key(self, handle) -> bool:
         """
         Close an open key handle. Closing a predefined key does nothing.
 
-        Raises:
-            InvalidHandle: if the handle is not a predefined key and does not refer to an open key.
+        Return False if the handle is not a predefined key and does not refer to an open key.
         """
         handle = regdefs.normalize_hkey(handle)
         if handle in self.predefined_keys:
-            return
-        self.get_handle_table().get(handle, RegKey)
-        self.get_handle_table().close(handle)
+            return True
+        if self.get_handle_table().get(handle, RegKey) is None:
+            return False
+        return self.get_handle_table().close(handle)
 
     def get_key_from_path(self, path):
         path = self.normalize_reg_path(path)

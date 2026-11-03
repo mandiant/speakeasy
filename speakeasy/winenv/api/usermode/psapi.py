@@ -23,13 +23,8 @@ class Psapi(api.ApiHandler):
         self.data = {}
         super().__get_hook_attrs__(self)
 
-    def _get_process(self, hProcess) -> objman.Process:
-        """
-        Get the process of a process handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to a process.
-        """
+    def _get_process(self, hProcess) -> objman.Process | None:
+        """Get the process of a process handle, else None."""
         return self.emu.get_handle_table().get(hProcess, objman.Process)
 
     def _get_process_module_bases(self, proc):
@@ -108,6 +103,9 @@ class Psapi(api.ApiHandler):
         """
         hProcess, lphModule, cb, lpcbNeeded = argv
         proc = self._get_process(hProcess)
+        if not proc:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         module_bases = self._get_process_module_bases(proc)
         ptr_size = self.get_ptr_size()
@@ -158,6 +156,9 @@ class Psapi(api.ApiHandler):
             return 0
 
         proc = self._get_process(hProcess)
+        if not proc:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         module_name = self._get_module_base_name(proc, hModule)
         if not module_name:
@@ -191,6 +192,9 @@ class Psapi(api.ApiHandler):
             return 0
 
         proc = self._get_process(hProcess)
+        if not proc:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
         module_path = self._get_module_file_name(proc, hModule)
         if not module_path:
@@ -224,9 +228,9 @@ class Psapi(api.ApiHandler):
             return 0
 
         proc = self._get_process(hProcess)
-        if not hModule:
+        if proc and not hModule:
             hModule = next(iter(self._get_process_module_bases(proc)), 0)
-        mod = emu.get_mod_from_addr(hModule)
+        mod = emu.get_mod_from_addr(hModule) if proc else None
         if not mod or mod.base != hModule:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0

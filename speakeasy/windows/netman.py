@@ -12,7 +12,6 @@ from urllib.parse import ParseResult, urlparse
 from speakeasy.errors import NetworkEmuError
 from speakeasy.windows.handles import HandleTable
 from speakeasy.winenv.defs.enums import INTERNET_FLAGS
-from speakeasy.winenv.defs.winsock.winsock import WSAENOTSOCK
 
 if TYPE_CHECKING:
     from speakeasy.config import DnsConfig, NetworkConfig
@@ -43,8 +42,6 @@ def normalize_response_path(path):
 
 class Socket:
     """Represents a Windows network socket."""
-
-    invalid_handle_error = WSAENOTSOCK
 
     def __init__(self, family, stype, protocol, flags):
         self.fd: int = 0
@@ -322,43 +319,28 @@ class NetworkManager:
     def new_wininet_inst(self, user_agent, access, proxy, bypass, flags):
         return WininetInstance(self.wininets, user_agent, access, proxy, bypass, flags)
 
-    def get_wininet(self, handle, cls: type[T]) -> T:
-        """
-        Get the WinInet object of an open handle.
-
-        Raises:
-            InvalidHandle: if the handle does not refer to an object of type ``cls``.
-        """
+    def get_wininet(self, handle, cls: type[T]) -> T | None:
+        """Get the WinInet object of an open handle, or None if the handle refers to no ``cls`` object."""
         return self.wininets.get(handle, cls)
 
-    def close_wininet_object(self, handle):
+    def close_wininet_object(self, handle) -> bool:
         """
         Close a WinInet handle and the open handles of the objects under it.
 
-        Raises:
-            InvalidHandle: if the handle is not an open WinInet handle.
+        Return False if the handle is not an open WinInet handle.
         """
         obj = self.get_wininet(handle, WininetComponent)
+        if obj is None:
+            return False
         for child in obj.children:
             if child.handle in self.wininets:
                 self.close_wininet_object(child.handle)
-        self.wininets.close(handle)
+        return self.wininets.close(handle)
 
-    def get_socket(self, fd) -> Socket:
-        """
-        Get the socket of an open socket handle.
-
-        Raises:
-            InvalidHandle: if the socket handle is not open, with the error WSAENOTSOCK.
-        """
+    def get_socket(self, fd) -> Socket | None:
+        """Get the socket of an open socket handle, else None."""
         return self.sockets.get(fd, Socket)
 
-    def close_socket(self, fd):
-        """
-        Close a socket handle.
-
-        Raises:
-            InvalidHandle: if the socket handle is not open, with the error WSAENOTSOCK.
-        """
-        self.sockets.get(fd, Socket)
-        self.sockets.close(fd)
+    def close_socket(self, fd) -> bool:
+        """Close a socket handle. Return False if the socket handle is not open."""
+        return self.sockets.close(fd)
