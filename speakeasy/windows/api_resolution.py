@@ -20,8 +20,8 @@ class HandlerImplementation:
     """
     The API has a handler.
 
-    For an import by ordinal, name is the handler name. Otherwise it is the name that
-    the guest called.
+    For an import by ordinal, ``name`` is the handler name. Otherwise it is the name
+    that the guest called.
     """
 
     module: ApiHandler
@@ -36,15 +36,15 @@ class UserHookImplementation:
     """
     Speakeasy has no handler for the API, but the user added hooks for it.
 
-    The user adds hooks with add_api_hook. The module and API names of a hook can have wildcards, so one
-    hook can match many APIs. The hook takes the place of the handler: it gives
-    the argument count and the calling convention, and its return value goes to
-    the guest. Only the last hook that was added runs, because there is no
-    handler for the hooks to call, and the hooks can give different argument
-    counts.
+    The user adds hooks with ``add_api_hook``. The module and API names of a hook can
+    have wildcards, so one hook can match many APIs. The hook takes the place of the
+    handler: it gives the argument count and the calling convention, and the emulator
+    gives its return value to the guest. The emulator runs only the hook that the user
+    added last, because there is no handler for the hooks to call, and the hooks can
+    give different argument counts.
 
-    If the API has a handler, the result is HandlerImplementation, and each
-    hook for the API can call the handler.
+    If the API has a handler, the result is ``HandlerImplementation``, and each hook
+    for the API can call the handler.
     """
 
     hooks: list[common.ApiHook]
@@ -63,7 +63,7 @@ class SignatureImplementation:
 
 @dataclass(frozen=True)
 class StubImplementation:
-    """The API is not known, and functions_always_exist is set."""
+    """The API is not known, and ``functions_always_exist`` is set."""
 
 
 @dataclass(frozen=True)
@@ -92,10 +92,8 @@ def get_handler_candidates(dll: str, name: str) -> Iterator[tuple[str, str]]:
     """
     Yield other (dll, name) pairs whose handler can run for dll!name, best first.
 
-    For example: the name without the A or W suffix, the name without the CRT
-    "_o_" prefix, the Zw name for an Nt name, ntoskrnl and msvcrt for ntdll, the
-    modules that have the handlers of an API set or DLL, advapi32 for kernel32
-    Reg functions, and psapi for kernel32 K32 functions.
+    For example: the name without the A or W suffix, the Zw name for an Nt name, or
+    the modules that implement an API set.
     """
     seen = {(dll.lower(), name)}
     for cand_dll, cand_name in _get_aliases(dll, name):
@@ -107,7 +105,7 @@ def get_handler_candidates(dll: str, name: str) -> Iterator[tuple[str, str]]:
 
 def _get_aliases(dll: str, name: str) -> Iterator[tuple[str, str]]:
     alias = ""
-    # Handle ANSI vs UNICODE functions
+    # One handler without the suffix can serve the A and the W variant
     if name.endswith(("A", "W")):
         alias = name[:-1]
 
@@ -115,7 +113,7 @@ def _get_aliases(dll: str, name: str) -> Iterator[tuple[str, str]]:
     if name.startswith("_o_"):
         alias = name[3:]
 
-    # Bridge ntdll funcs to ntoskrnl if supported
+    # ntdll uses the ntoskrnl handler of an API, if one exists
     if dll.lower().startswith("ntdll"):
         yield "ntoskrnl", name
         nt_alias = _get_nt_zw_alias(name) or alias
@@ -125,7 +123,7 @@ def _get_aliases(dll: str, name: str) -> Iterator[tuple[str, str]]:
         yield "msvcrt", name
         return
 
-    # Handle Zw*/Nt* function overlap
+    # One ntoskrnl handler serves both the Nt and the Zw name
     if dll.lower().startswith("ntoskrnl"):
         alias = _get_nt_zw_alias(name) or alias
 
