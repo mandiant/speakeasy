@@ -1,41 +1,40 @@
 # Report walkthrough
 
-Source of truth:
-- `speakeasy/report.py`
-- `speakeasy/profiler_events.py`
-- population logic in `speakeasy/profiler.py`, `speakeasy/windows/winemu.py`, `speakeasy/windows/win32.py` and `speakeasy/windows/kernel.py`
+The report models are in `speakeasy/report.py` and `speakeasy/profiler_events.py`. `speakeasy/profiler.py` builds the report from the data that the emulator records in `speakeasy/windows/winemu.py`, `win32.py` and `kernel.py`.
 
-`speakeasy/resources/report.schema.json` is the JSON schema of the report. It ships in the package. Run `just gen-report-schema` after a change to the report models. The models reject unknown keys.
+`speakeasy/resources/report.schema.json` is the JSON schema of the report, and the package includes it. After you change a report model, run `just gen-report-schema`. The models reject unknown keys.
 
 For the changes from the 1.x report, see [Migrating to 2.0](migrating-to-2.0.md#report-schema-600).
 
-The examples use JSONC for explanation. Remove comments for machine parsing.
+The examples on this page are JSONC: JSON with comments that explain the fields. Remove the comments before you parse an example as JSON.
 
-## How report fields are populated
+## Report fields
 
-A key is absent when Speakeasy did not collect its data, for example `coverage` when `analysis.coverage=false`. An empty list or object means that Speakeasy collected the data and found nothing.
+If Speakeasy did not collect the data of a key, the report leaves out the key, for example `coverage` when `analysis.coverage=false`. An empty list or object means that Speakeasy collected the data and found nothing.
 
-The report writes each machine word as a hex string with a `0x` prefix and lowercase digits: addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value as a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string.
+The report writes each machine word as a hex string with a `0x` prefix and lowercase digits. Machine words are addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage addresses. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value when it is a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number.
 
-- `report_version`: from `speakeasy.report.REPORT_VERSION`.
-- `emulation_total_runtime`: profiler start/stop wall-clock duration.
-- `timestamp`: profiler start time epoch seconds.
-- `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`), `image_base`: input metadata that the loader records. `path` is the host path of the input file. It is absent when the input came from bytes in memory.
-- `errors`: top-level session errors recorded by profiler. The loader adds an `invalid_image` error, with the defect in `context_summary`, when the entry point or the import directory of the input PE is outside the image, or when the raw data of a section is past the end of the file. Emulation then continues.
-- `strings`: present when string extraction is enabled (`analysis.strings=true`).
-- `data`: payloads that the report stores once, keyed by SHA-256. The `data_ref` fields refer to its keys.
-- `entry_points`: one per run (`Run` object) in execution order.
+`report_version` is the value of `speakeasy.report.REPORT_VERSION`. `timestamp` is the start time of the profiler in epoch seconds, and `emulation_total_runtime` is the wall-clock time from the start to the stop of the profiler in seconds. The other top-level fields are:
 
-Entry-point highlights:
-- `type` and `name`: the kind of code that the run executes, and a detail for that kind. The JSON report leaves out `name` when the kind has no detail (`None` in Python). See the table below.
-- `api_hash`: SHA-256 over unique API names, lowercased, first-seen order.
-- `events`: built by profiler recorders (`record_api_event`, `record_file_access_event`, `record_process_event`, `record_registry_access_event`, `record_dns_event`, `record_http_event`, `record_network_event`, `record_exception_event`).
-- `symbol_accesses`: symbol counters from memory tracing, present only if `analysis.memory_tracing=true`.
-- `dynamic_code_segments`: populated when dynamically mapped code executes.
-- `coverage`: executed instruction addresses as hex strings, present only if `analysis.coverage=true`.
-- `dropped_files`: populated from filesystem manager fully-written files.
-- `memory`: populated from run-end memory/module capture, with optional region payload refs when `snapshot_memory_regions=true`.
-- `error`: present when the run ended abnormally. `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
+- `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`) and `image_base`: the input metadata that the loader records. `path` is the host path of the input file. If the input came from bytes in memory, the report has no `path`.
+- `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks.
+- `strings`: the strings from the input file and from memory, only if `analysis.strings=true`.
+- `data`: the payloads that the report stores once, keyed by SHA-256. Each `data_ref` field holds a key of `data`.
+- `entry_points`: a list of the runs (`Run` objects), in the order that the runs started.
+
+Each entry point has these fields:
+
+- `api_hash`: the SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.
+- `events`: the events of the run, in order. The `record_*_event` methods of `Profiler` add them.
+- `symbol_accesses`: the read, write and execute counts of each symbol, only if `analysis.memory_tracing=true`.
+- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran.
+- `coverage`: the addresses of the instructions that ran, only if `analysis.coverage=true`.
+- `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run.
+- `memory`: in user mode, the memory regions and the modules at the end of the run. If `snapshot_memory_regions=true`, each region also has a `data_ref` to its contents.
+
+If the run ended abnormally, the entry point has an `error`. Its `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
+
+The `type` of an entry point is the kind of code that the run executes, and `name` is a detail for that kind. If the kind has no detail (`None` in Python), the JSON report leaves out `name`.
 
 | `type` | `name` |
 |---|---|
@@ -51,20 +50,16 @@ Entry-point highlights:
 | `driver_entry`, `driver_unload`, `driver_reinit` | none |
 | `irp` | IRP major function, for example `IRP_MJ_DEVICE_CONTROL` |
 
-The schema also has the type `callback`, which Speakeasy does not set.
+The schema also has the run type `callback` and the event type `module_load`. Speakeasy does not set them.
 
-An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value`,
-and `display`. When the signature database declares the function and its prototype consumes
-the same argument slots as the call, `args` has one entry per parameter, with the parameter
-name in `name` and `display` rendered from the declared type. Strings are decoded, enums and
-flags are symbolic, and struct pointers are expanded. Without a usable signature, `args` has
-one entry per argument slot, `name` is absent, and `display` is the hex value. `type` tells a
-consumer how to read `display`.
+## API arguments and handles
+
+An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value` and `display`. If the signature database declares the function, and its prototype uses the same argument slots as the call, `args` has an entry per parameter. Then `name` is the parameter name, and Speakeasy renders `display` from the declared type. It decodes strings, shows enum and flag values as names and expands struct pointers. Without a usable signature, `args` has one entry for each argument slot, with no `name`, and `display` is the hex value. `type` tells you how to read `display`.
 
 | Type | `display` |
 |---|---|
 | `int` | hex integer |
-| `ptr` | address in hex (also null, out-only, and unreadable pointers) |
+| `ptr` | address in hex (also null, out-only and unreadable pointers) |
 | `handle` | handle value in hex |
 | `str` | decoded string, without quotes |
 | `bool` | `TRUE` or `FALSE` |
@@ -76,34 +71,19 @@ consumer how to read `display`.
 | `float` | decimal number |
 | `text` | a value that a handler decoded itself |
 
-`value` holds the raw value the caller passed, as a hex string, so a consumer can match a flag
-or constant without parsing `display`. A parameter that uses two argument slots on x86 (a 64-bit integer,
-for example) has the combined value. For a call served by a handler, a value the handler
-decoded itself (such as the key path behind a registry handle) replaces the `display` of that
-parameter, and `value` still holds what the caller passed. An entry that a variadic handler
-adds, such as the formatted output of `printf`, has no `value`.
+`value` is the raw value that the caller passed, as a hex string. With it, you can match a flag or a constant without parsing `display`. If a parameter uses two argument slots on x86, for example a 64-bit integer, `value` has the combined value. If a handler serves the call and decodes a parameter itself, for example the key path of a registry handle, the decoded text replaces the `display` of that parameter. `value` still has what the caller passed. If a variadic handler adds an entry, such as the formatted output of `printf`, that entry has no `value`.
 
-A handle value refers to one object for the whole run. Speakeasy gives out the handles of all
-object types from one counter that starts at `0x80` and adds 4, and it does not use the value
-of a closed handle again. Thus a `handle` in an event identifies the file, key or other object
-that the call used.
+A handle value refers to one object for the whole emulation. Speakeasy gives out the handles of all object types from one counter, and it does not give out the value of a closed handle again. So a `handle` in an event identifies the file, key or other object that the call used.
 
-Every event carries `pos`, the position of the actor that performed the operation, so an
-event always sits in the timeline of the thread that caused it. Process-scoped events
-(`mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `mem_free`, `thread_create`,
-`thread_inject`, `process_create`) also carry the target process as a `pid` payload. That
-payload is omitted for purely local operations, so a populated `pid` means the operation
-crossed a process boundary. Thread events still report `tid` for the created or injected
-thread, even for a local create.
+Each event has `pos`, the position of the thread that did the operation, so the event is in the timeline of that thread. The events about a process, its memory or its threads (`mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `mem_free`, `thread_create`, `thread_inject` and `process_create`) also have the `pid` of the target process. If the target is the process of that thread, the event has no `pid`. So a `pid` in these events means that the operation crossed a process boundary. `thread_create` and `thread_inject` have the `tid` of the new thread, also when the thread is in the same process.
 
-## Report fields to recipe flags
+## Report fields and CLI flags
 
-- top-level `strings` is controlled by `--analysis-strings` / `--no-analysis-strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
-- `entry_points[*].coverage` is populated by `--analysis-coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
-- `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` are populated by `--analysis-memory-tracing` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
-- `entry_points[*].memory.layout[*].data_ref` is populated by `--snapshot-memory-regions` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
-- `entry_points[*].dropped_files[*].data_ref` resolves through the top-level `data` store; large files keep metadata only. Dropped-files archive export is still available via `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
-- report-wide binary payload deduplication lives in the top-level `data` mapping, keyed by SHA-256.
+- `--analysis-strings` and `--no-analysis-strings` control the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
+- `--analysis-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
+- `--analysis-memory-tracing` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
+- `--snapshot-memory-regions` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
+- `entry_points[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 
 ## Annotated report schema example
 
@@ -118,7 +98,7 @@ thread, even for a local create.
   // Emulation start timestamp (epoch seconds).
   "timestamp": 1760000000,
 
-  // Input metadata (may be null if unavailable in a custom flow).
+  // Input metadata. A key is absent when the value is unknown.
   "arch": "x86",
   "path": "/samples/payload.bin",
   "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
@@ -415,7 +395,7 @@ thread, even for a local create.
         }
       ],
 
-      // Symbol-level R/W/X counts, typically from memory tracing.
+      // Symbol-level R/W/X counts from memory tracing.
       "symbol_accesses": [
         {
           "symbol": "kernel32.LoadLibraryA",

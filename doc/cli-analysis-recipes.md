@@ -1,121 +1,92 @@
 # CLI analysis recipes
 
-This page focuses on practical flag combinations for common analysis outputs.
+Each recipe gives the flags for one kind of analysis output and a command that checks the output.
 
 <a id="recipe-memory-snapshots"></a>
 ## In-report memory snapshots (`--snapshot-memory-regions`)
-
-Command:
 
 ```bash
 speakeasy -t sample.exe --snapshot-memory-regions -o report.json
 ```
 
-Expected artifact:
-- `entry_points[*].memory.layout[*].data_ref` populated with SHA-256 refs
-- top-level `data` populated with `base64(zlib(raw_bytes))` entries
-
-Quick verification:
+The memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack and heap regions do not get one. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
 ```bash
 jq '.entry_points[].memory.layout[] | select(.data_ref != null) | .tag' report.json
 ```
 
-Tradeoff:
-- report size increases, but repeated payloads deduplicate across runs
+The report gets larger. Regions with the same bytes share one entry in `data`, also across runs.
 
 <a id="recipe-analysis-coverage"></a>
 ## Coverage collection (`--analysis-coverage`)
-
-Command:
 
 ```bash
 speakeasy -t sample.exe --analysis-coverage -o report.json
 ```
 
-Expected artifact:
-- `entry_points[*].coverage` contains executed instruction addresses
-
-Quick verification:
+`entry_points[*].coverage` has the addresses of the instructions that each run executed. To count them:
 
 ```bash
 jq '.entry_points[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
 ```
 
-Tradeoff:
-- extra tracing overhead increases runtime
+The emulator runs a hook for each instruction, so emulation is slower.
 
 <a id="recipe-memory-tracing"></a>
 ## Memory tracing (`--analysis-memory-tracing`)
-
-Command:
 
 ```bash
 speakeasy -t sample.exe --analysis-memory-tracing -o report.json
 ```
 
-Expected artifact:
-- per-region access counters in `memory.layout[*].accesses`
-- symbol access summaries in `symbol_accesses`
-
-Quick verification:
+The regions in `entry_points[*].memory.layout` that the run accessed get `accesses`, with the counts of reads, writes and executes. `entry_points[*].symbol_accesses` has the counts for each symbol. To count the symbols that each run accessed:
 
 ```bash
 jq '.entry_points[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
 ```
 
-Tradeoff:
-- substantial runtime impact on memory-heavy samples
+The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower.
 
 <a id="recipe-analysis-strings"></a>
 ## String extraction controls (`--analysis-strings` / `--no-analysis-strings`)
 
-Enable:
+String extraction is on by default, so `--analysis-strings` has an effect only when a `--config` file turns it off:
 
 ```bash
 speakeasy -t sample.exe --analysis-strings -o report.json
 ```
 
-Disable:
+`--no-analysis-strings` turns it off:
 
 ```bash
 speakeasy -t sample.exe --no-analysis-strings -o report.json
 ```
 
-Quick verification:
+The strings are in the top-level `strings` object. Without string extraction, the report has no `strings`:
 
 ```bash
 jq '.strings' report.json
 ```
 
-Tradeoff:
-- disabling strings reduces report size and post-processing time
+Without string extraction, the report is smaller and Speakeasy finishes sooner.
 
 <a id="recipe-dropped-files"></a>
 ## Dropped files archive (`--dropped-files-path`)
-
-Command:
 
 ```bash
 speakeasy -t sample.exe --dropped-files-path dropped.zip
 ```
 
-Expected artifact:
-- `dropped.zip` with files written during emulation and a manifest
-
-Quick verification:
+`dropped.zip` has the files that the sample wrote and `speakeasy_manifest.json`, which gives the emulated path, size and SHA-256 of each file. If the sample wrote no files, the CLI does not make the archive. To list the archive:
 
 ```bash
 unzip -l dropped.zip
 ```
 
-Tradeoff:
-- captures useful payload artifacts but adds archive creation overhead
-
 <a id="recipe-combined-triage"></a>
 ## Combined triage profile
 
-Command:
+This command collects all the outputs of this page in one run. `--max-run-time 30` limits each run to 30 seconds:
 
 ```bash
 speakeasy -t sample.exe \
@@ -126,8 +97,6 @@ speakeasy -t sample.exe \
   --dropped-files-path dropped.zip \
   -o report.json
 ```
-
-Use this profile when you want broad telemetry and artifact capture in one run.
 
 ## Related docs
 

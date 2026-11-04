@@ -1,10 +1,6 @@
 # Configuration walkthrough
 
-Source of truth:
-- `speakeasy/config.py`
-- behavior references in `speakeasy/windows/*.py`, `speakeasy/binemu.py`, and `speakeasy/winenv/api/*`
-
-The example below is JSONC (JSON with comments). Remove comment lines for machine parsing.
+`speakeasy/config.py` defines the config fields and their defaults. `speakeasy --dump-default-config` prints the default config. The example below shows the fields with comments. It is JSONC (JSON with comments), so remove the comments before you give it to Speakeasy.
 
 Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
 
@@ -14,33 +10,36 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   // other values, such as the 0.2 of Speakeasy 1.x configs. Leave it out to use "2.0".
   "config_version": "2.0",
 
-  // Emulation backend. Only "unicorn" is currently supported.
+  // Emulation engine. The only value is "unicorn".
   "emu_engine": "unicorn",
 
-  // Active execution cap in seconds for each run. 0 disables it.
-  // If exceeded, the run ends with a timeout error.
-  // Raise for slow/staged samples. Lower for quick triage.
+  // Limit of the execution time of each run, in seconds. 0 disables it.
+  // At the limit, the emulator ends the run with a timeout error.
+  // Increase it for slow samples. Decrease it for quick triage.
   "max_run_time": 60,
 
-  // Active execution cap in seconds across all runs of one run_module,
-  // run_shellcode, or call invocation. 0 disables it.
+  // Limit of the execution time of all runs of one run_module, run_shellcode,
+  // call or resume call, in seconds. 0 disables it.
+  // At the limit, the emulator ends the current run with a max_total_time error
+  // and cancels the other runs.
   "max_total_time": 0,
 
-  // Per-run API call cap. If exceeded, the run ends with a max_api_count error.
-  // Raise to allow very API-heavy behavior; lower to cut anti-analysis loops earlier.
+  // Limit of the API calls of each run. A run that makes more API calls ends
+  // with a max_api_count error. Decrease it to stop anti-analysis loops sooner.
   "max_api_calls": 10000,
 
-  // Instruction cap forwarded to the emulator.
-  // -1 means effectively unbounded from Speakeasy policy.
+  // Limit of the instructions of each run. -1 disables it.
+  // The emulator stops a run at the limit and records a max_instructions error.
   "max_instructions": -1,
 
-  // Override the stack size in bytes for all emulated threads.
-  // 0 (default) uses the PE header's SizeOfStackReserve or the built-in default (0x12000).
-  // Set to e.g. 0x100000 (1 MiB) for samples that allocate a large stack.
+  // Size in bytes of the stack that the emulator allocates for the input.
+  // 0 uses the stack size of the input: the SizeOfStackReserve of a PE, or
+  // the stack_commit argument of run_shellcode.
+  // Set it, for example to 0x100000 (1 MiB), for a sample that uses a large stack.
   "stack_size": 0,
 
-  // Seed of the random number generator behind RtlGenRandom, CryptGenRandom,
-  // BCryptGenRandom, ProcessPrng, CoCreateGuid and UuidCreate.
+  // Seed of the random number generator of the random APIs, such as
+  // RtlGenRandom and CoCreateGuid.
   // Runs with the same seed give the same random bytes and GUIDs to the sample.
   "random_seed": 0,
 
@@ -53,61 +52,64 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   "start_time": "2026-10-31T15:15:00Z",
 
   "analysis": {
-    // Enables per-region memory access counters and symbol access telemetry.
-    // Turn on for unpacking/PEB-walk/import-resolver analysis.
+    // Count the reads, writes and executes of each symbol, section and memory map
+    // in the report. Use it to examine unpackers, PEB walks and import resolvers.
     "memory_tracing": false,
 
-    // Enables static + in-memory string extraction in the report.
-    // Disable for speed when string data is not needed.
+    // If true, the report has the strings of the input file and of emulated memory.
+    // Set it to false to make the emulation faster when you do not need the strings.
     "strings": true,
 
-    // Enables instruction-address coverage collection per entry point.
-    // Useful for diffing runs and rough execution mapping.
+    // Record the address of each instruction that a run executes.
+    // Use it to compare runs or to see which code ran.
     "coverage": false
   },
 
-  // If true, frees do not immediately remove memory maps.
-  // Useful when you want to inspect post-free data artifacts.
+  // If true, the memory manager keeps a freed region mapped, so you can read
+  // the data that the sample freed.
   "keep_memory_on_free": false,
 
-  // If true, report memory regions include deduplicated snapshot refs in the top-level data store.
-  // This increases report size but keeps memory forensics self-contained.
+  // If true, the report has the contents of the memory regions at the end of each run.
+  // The report keeps each content one time in its top-level data store.
+  // The report is larger, but you do not need the emulator to examine the memory.
   "snapshot_memory_regions": false,
 
   "exceptions": {
-    // If true, emulate exception-handler dispatch (SEH/VEH-like paths, see exceptions.md).
-    // If false, faulting paths stop sooner and are easier to localize.
+    // If true, the emulator sends CPU exceptions to the VEH and SEH handlers of
+    // the guest (see exceptions.md). If false, a fault ends the run, so you can
+    // find the fault more easily.
     "dispatch_handlers": true
   },
 
   "os_ver": {
-    // OS family marker. Keep as "windows".
+    // The only value is "windows".
     "name": "windows",
 
-    // The version that the PEB, KUSER_SHARED_DATA and the version functions
-    // (GetVersionEx, RtlGetVersion, RtlGetNtVersionNumbers and others) give, and
-    // the values of HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion (6.1, 6.2,
-    // 6.3 and 10.0).
-    // registry.keys values for that key take precedence.
-    // Align these with the environment your sample expects.
+    // The version that the PEB, KUSER_SHARED_DATA and the version functions,
+    // such as GetVersionEx and RtlGetVersion, give. For 6.1, 6.2, 6.3 and 10.0,
+    // the emulator also sets the values of
+    // HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion.
+    // A value for that key in registry.keys replaces the value of the emulator.
+    // Set the version that your sample expects.
     "major": 6,
     "minor": 1,
 
-    // Build number used by version checks.
+    // Build number that the version functions give.
     "build": 7601
   },
 
-  // Current directory exposed to process APIs and relative path resolution.
+  // Current directory of the process. The emulator resolves relative paths from it.
   "current_dir": "C:\\Windows\\system32",
 
-  // Process command line exposed to query APIs.
+  // Command line of the process, for example for GetCommandLine.
   "command_line": "svchost.exe -k netsvcs",
 
-  // Environment variables visible to the emulated process.
-  // Change when malware reads env values for path decisions or anti-sandbox checks.
+  // Environment variables of the process. Change them when a sample selects
+  // paths or detects sandboxes from the environment.
   // Names are not case-sensitive, and the config stores them in lower case.
   // programfiles and commonprogramfiles also give the ProgramFilesDir and CommonFilesDir
-  // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion; registry.keys values take precedence.
+  // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion. A value for that
+  // key in registry.keys replaces the value of the environment.
   "env": {
     "comspec": "C:\\Windows\\system32\\cmd.exe",
     "systemroot": "C:\\Windows",
@@ -116,39 +118,40 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     "userprofile": "C:\\Users\\analyst"
   },
 
-  // Domain/workgroup identity used by account/network APIs.
-  // Set to match expected enterprise or non-domain environments.
+  // Domain or workgroup of the user, for example for LookupAccountName.
+  // Set it to match the domain that the sample expects.
   "domain": "LAB",
 
-  // Hostname returned by networking/system identity APIs.
+  // Host name, for example for GetComputerName.
   "hostname": "WIN7-LAB",
 
   "user": {
-    // Username used by account/profile APIs.
+    // User name, for example for GetUserName.
     "name": "analyst",
 
-    // Privilege context for is-admin checks.
+    // If true, the token of the user is elevated and has a high integrity level.
     "is_admin": true,
 
-    // Optional explicit SID. Set when SID-sensitive logic is present.
+    // SID of the user.
     "sid": "S-1-5-21-1111111111-2222222222-3333333333-1001"
   },
 
   "api_hammering": {
-    // Enables anti-API-hammering mitigation.
+    // If true, the emulator patches API hammering loops in x86 code.
     "enabled": false,
 
-    // Repeat count before mitigation patches trigger.
+    // When the guest calls one API from one call site this number of times,
+    // the emulator patches the call to return 0.
     "threshold": 2000,
 
-    // APIs exempt from mitigation. Use for hot APIs that are legitimately noisy.
+    // APIs that the emulator does not patch. An empty list uses a built-in list.
     "allow_list": [
       "kernel32.WriteFile",
       "kernel32.ReadFile"
     ]
   },
 
-  // Object-manager symbolic links, used by path/device resolution.
+  // Symbolic links of the object manager. The emulator uses them to resolve device paths.
   "symlinks": [
     {
       "name": "\\??\\C:",
@@ -160,7 +163,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     }
   ],
 
-  // Virtual drive metadata used by drive APIs.
+  // Drives that the drive APIs, such as GetLogicalDrives, give.
   "drives": [
     {
       "root_path": "C:\\",
@@ -177,55 +180,55 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   "filesystem": {
     "files": [
       {
-        // Mode discriminator. full_path = exact/wildcard path matching.
+        // full_path matches the full path of the file.
         "mode": "full_path",
 
-        // Emulated file path pattern to match (supports wildcard matching).
+        // Path in the emulated file system. It can have wildcards, such as *.
         "emu_path": "c:\\programdata\\seed\\config.bin",
 
-        // Host file to serve for reads.
-        // Use $ROOT$ for repo-relative assets in packaged configs.
+        // Host file that gives the content of the file.
+        // $ROOT$ is the directory of the installed speakeasy package.
         "path": "$ROOT$/resources/files/default.bin"
       },
       {
         "mode": "full_path",
         "emu_path": "c:\\programdata\\seed\\padding.bin",
 
-        // Synthetic content source when no host file is desired.
+        // Content that the emulator makes, in place of a host file.
         "byte_fill": {
-          // Byte to repeat for generated data.
+          // Byte that fills the content.
           "byte": "0x41",
-          // Generated size in bytes.
+          // Size of the content in bytes.
           "size": 512
         }
       },
       {
-        // by_ext = apply to all paths with this extension.
+        // by_ext matches all paths with this extension, if no full_path entry matches.
         "mode": "by_ext",
         "ext": "txt",
         "path": "$ROOT$/resources/files/default.bin"
       },
       {
-        // default = catch-all fallback if no full_path/by_ext matches.
+        // default matches all paths, if no full_path or by_ext entry matches.
         "mode": "default",
         "path": "$ROOT$/resources/files/default.bin"
       }
     ]
   },
 
-  // Optional registry seed data.
-  // Keep only keys/values that your sample reads to reduce maintenance.
+  // Registry keys and values that exist when emulation starts.
   "registry": {
     "keys": [
       {
         "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
         "values": [
           {
-            // Value name. Use "default" for unnamed default values.
+            // Value name. "default" is the unnamed default value.
             "name": "Updater",
-            // Registry type token consumed by registry emulation.
+            // Value type, such as REG_SZ, REG_DWORD or REG_MULTI_SZ.
             "type": "REG_SZ",
-            // Value payload as string form.
+            // Data as a string. REG_DWORD and REG_QWORD data is a number, such as "0x3".
+            // REG_MULTI_SZ data separates the strings with "\u0000".
             "data": "C:\\ProgramData\\updater.exe"
           }
         ]
@@ -235,22 +238,21 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   "network": {
     "dns": {
-      // A-record style domain -> IP mappings.
-      // Include "default" for fallback name lookups.
+      // IP address of each domain name. "default" gives the address of all other names.
       "names": {
         "default": "10.10.10.10",
         "example.org": "93.184.216.34"
       },
 
-      // TXT response handlers loaded from files.
+      // Host files that give the TXT record of a domain name.
       "txt": [
         {
-          // Domain-specific TXT mapping.
+          // TXT record of one domain name.
           "name": "bootstrap.example.org",
           "path": "$ROOT$/resources/web/default.bin"
         },
         {
-          // Fallback TXT response if no exact name matches.
+          // TXT record of all other names.
           "name": "default",
           "path": "$ROOT$/resources/web/default.bin"
         }
@@ -260,7 +262,8 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     "http": {
       "responses": [
         {
-          // Verb this response set applies to.
+          // HTTP verb of the requests that these files answer: GET, POST or HEAD.
+          // by_ext matches the extension of the URL path.
           "verb": "GET",
           "files": [
             {
@@ -287,7 +290,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     },
 
     "winsock": {
-      // Raw socket recv seed payloads. A default handler is typically sufficient.
+      // Data that recv gives on a socket. The emulator uses only the default entry.
       "responses": [
         {
           "mode": "default",
@@ -296,7 +299,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
       ]
     },
 
-    // Adapter inventory returned by networking APIs such as GetAdaptersInfo.
+    // Network adapters that APIs such as GetAdaptersInfo give.
     "adapters": [
       {
         "name": "{00000000-0000-0000-0000-000000000000}",
@@ -310,11 +313,13 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     ]
   },
 
-  // Process inventory visible to process enumeration APIs.
-  // Include one is_main_exe=true process for shellcode/DLL container use.
-  // Process enumeration gives the other entries in this order, then the main process.
-  // The container image loads at the first free base above 0x7D000000, not at its base_addr.
-  // The container process gets the session of that entry, but not its pid.
+  // Processes that the process enumeration APIs give, in this order, then the
+  // main process.
+  // The is_main_exe entry defines the container image, which is the main image
+  // of the process when the input is a DLL or shellcode (see architecture.md).
+  // The emulator ignores the base_addr of this entry and loads the container image
+  // at the first free base above 0x7D000000.
+  // The container process gets the session of the entry, but not its pid.
   "processes": [
     {
       "name": "System",
@@ -337,22 +342,23 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   ],
 
   "modules": {
-    // If true, loads of unknown modules create empty synthetic API modules
-    // instead of failing.
+    // If true, when the guest loads an unknown module, the emulator creates an
+    // empty synthetic API module. If false, the load fails.
     "modules_always_exist": false,
 
-    // If true, unresolved API imports that are in neither the handlers nor the
-    // bundled signature database resolve to dynamic entries that act as stubs
-    // (4 stdcall arguments, return value 1). Imports with a known signature are
-    // always emulated from it, see doc/api-handlers.md.
+    // If true, an API that has no handler and no entry in the signature database
+    // resolves to a stub. The stub takes 4 stdcall arguments and returns 1.
+    // An API with an entry in the signature database always uses that entry
+    // (see api-handlers.md).
     "functions_always_exist": false,
 
-    // Directories of native DLLs, by architecture. A module with a matching
-    // file name loads from the directory instead of as a synthetic API module.
+    // Directories of native DLLs, by architecture. If a directory has a file
+    // with the name of a module, the emulator loads that file in place of the
+    // synthetic API module.
     "module_directory_x86": null,
     "module_directory_x64": null,
 
-    // User-mode module inventory.
+    // User mode modules that the emulator loads at their base_addr.
     "user_modules": [
       {
         "name": "ntdll",
@@ -366,14 +372,15 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
       }
     ],
 
-    // Kernel/system module inventory.
+    // Kernel mode modules.
     "system_modules": [
       {
         "name": "ntoskrnl",
         "base_addr": "0x803D0000",
         "path": "C:\\Windows\\system32\\ntoskrnl.exe",
 
-        // Optional driver/device object declaration for kernel object namespace realism.
+        // Optional driver object and device objects of the module, in the
+        // object manager namespace.
         "driver": {
           "name": "\\Driver\\ntoskrnl",
           "devices": [
@@ -388,40 +395,22 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 }
 ```
 
-## CLI mapping and precedence
+## CLI flags
 
-CLI config overrides are generated from `SpeakeasyConfig` field definitions.
+The CLI has a flag for most config fields. `speakeasy/cli_config.py` makes the flags from the fields of `SpeakeasyConfig`. A flag joins the parts of the config path with `-` and replaces `_` with `-`, so `analysis.coverage` gives `--analysis-coverage`. The CLI leaves out a path part when the next part starts with the same word, so `modules.modules_always_exist` gives `--modules-always-exist` and `modules.module_directory_x86` gives `--module-directory-x86`.
 
-Mapping rules:
-- config path `a.b_c` maps to `--a-b-c`
-- a path part is left out when the next part starts with the same word, so `modules.modules_always_exist` maps to `--modules-always-exist` and `modules.module_directory_x86` maps to `--module-directory-x86`
-- booleans map to dual flags (`--flag` / `--no-flag`)
-- int flags take a decimal value or a hex value that starts with `0x`
-- `dict[str, str]` maps to repeatable `--flag KEY=VALUE`
-- `list[str]` maps to repeatable `--flag VALUE`
+A boolean field has two flags, such as `--analysis-strings` and `--no-analysis-strings`. An int flag takes a decimal value or a hex value that starts with `0x`. A list of strings takes one value for each flag, such as `--api-hammering-allow-list kernel32.WriteFile`, and the flag values replace the list. A mapping takes one `KEY=VALUE` for each flag, such as `--network-dns-names c2.example=203.0.113.10`, and each flag adds or replaces one key. A list of objects, such as `processes`, `filesystem.files` or `registry.keys`, has no flag, so set it in a config file.
 
-Examples:
-- `analysis.coverage` -> `--analysis-coverage`
-- `analysis.strings` -> `--analysis-strings` / `--no-analysis-strings`
-- `network.dns.names` -> `--network-dns-names c2.example=203.0.113.10`
-- `api_hammering.allow_list` -> `--api-hammering-allow-list kernel32.WriteFile`
+The CLI builds the config in this order, and each step changes the result of the step before it:
 
-Runtime precedence:
-1. built-in model defaults
-2. optional `--config` overlay
-3. explicit CLI flags
+1. the built-in defaults
+2. the `--config` file
+3. the `--volume` mounts, which add entries to `filesystem.files` (see [volumes](volumes.md))
+4. the config flags
 
-The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict:
-- a key that the file gives replaces the default value. This is also true for a mapping such as `env` or `network.dns.names`, and for a list
-- a key that the file leaves out gets its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.is_admin` at `true`
+The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict. A key that the file gives replaces the default value, also when the value is a mapping such as `env` or a list. A key that the file leaves out gets its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.is_admin` at `true`.
 
-`--volume` is a dedicated shortcut for filesystem mappings and is applied before schema-derived CLI overrides.
-
-Use `--dump-default-config` to emit the built-in default profile.
-
-Speakeasy does not currently ship named built-in config profiles beyond that default baseline. If you use `--config`, you are supplying your own overlay file.
-
-Complex nested structures remain config-file-only (for example `filesystem.files`, `registry.keys`, `processes`, `modules.user_modules`, `modules.system_modules`, and structured network response lists).
+Speakeasy has no named config profiles. To make a config file, start from the output of `--dump-default-config`.
 
 ## Operational notes
 

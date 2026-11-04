@@ -1,18 +1,10 @@
 # CLI environment overrides
 
-This page covers flags that shape the emulated host environment and behavior determinism.
+These flags set the identity of the emulated host, the process environment, DNS answers, module loading and API hammering mitigation. At the start of each emulation, Speakeasy logs the active config to stderr, so you can check the values in the log.
 
-## Host, user, and OS identity
+## Host, user and OS identity
 
-Primary flags:
-- `--hostname`
-- `--domain`
-- `--user-name`
-- `--user-is-admin` / `--no-user-is-admin`
-- `--user-sid`
-- `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`
-
-Example: enterprise-like identity profile
+The flags are `--hostname`, `--domain`, `--user-name`, `--user-is-admin` / `--no-user-is-admin`, `--user-sid`, `--os-ver-major`, `--os-ver-minor` and `--os-ver-build`. This example gives a workstation in a corporate domain, with a user that is not an administrator:
 
 ```bash
 speakeasy -t sample.exe \
@@ -27,7 +19,7 @@ speakeasy -t sample.exe \
   -v -o report.json 2> run.log
 ```
 
-Quick verification:
+To check the values:
 
 ```bash
 rg "(hostname|domain|user\.name|user\.sid|user\.is_admin|os_ver\.)" run.log
@@ -35,18 +27,11 @@ rg "(hostname|domain|user\.name|user\.sid|user\.is_admin|os_ver\.)" run.log
 
 ## Process context and environment variables
 
-Primary flags:
-- `--current-dir`
-- `--command-line`
-- `--env KEY=VALUE` (repeatable)
-
-Names are not case-sensitive, and the config stores them in lower case, so `--env TEMP=...` replaces the default `temp`.
-
-Example:
+The flags are `--current-dir`, `--command-line` and `--env KEY=VALUE`. `--env` is repeatable, and each value adds or replaces one variable. The config stores variable names in lower case, because Windows variable names are not case-sensitive. So `--env TEMP=...` replaces the default `temp`.
 
 ```bash
 speakeasy -t sample.exe \
-  --current-dir 'C:\\ProgramData\\Microsoft' \
+  --current-dir 'C:\ProgramData\Microsoft' \
   --command-line 'svchost.exe -k netsvcs -p' \
   --env TEMP=C:\\Windows\\Temp \
   --env APPDATA=C:\\Users\\jdoe\\AppData\\Roaming \
@@ -54,7 +39,7 @@ speakeasy -t sample.exe \
   -v -o report.json 2> run.log
 ```
 
-Quick verification:
+To check the values:
 
 ```bash
 rg "(current_dir|command_line|env =)" run.log
@@ -62,10 +47,7 @@ rg "(current_dir|command_line|env =)" run.log
 
 ## DNS override mappings
 
-Primary flag:
-- `--network-dns-names HOST=IP` (repeatable)
-
-Example: force known C2 host resolutions
+`--network-dns-names HOST=IP` sets the address that a DNS lookup gives for a host name. The flag is repeatable. This example gives addresses for two C2 hosts:
 
 ```bash
 speakeasy -t sample.exe \
@@ -74,7 +56,7 @@ speakeasy -t sample.exe \
   -o report.json
 ```
 
-Quick verification:
+Each lookup gives a `net_dns` event in the report:
 
 ```bash
 jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}' report.json
@@ -82,15 +64,13 @@ jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}'
 
 ## Module load policy and module directories
 
-Some samples (especially shellcode) parse PE export tables directly to resolve API pointers. When expected modules or exports are missing, these controls let you choose strict or permissive behavior.
+By default, `LoadLibrary` fails for a DLL that Speakeasy does not know. With `--modules-always-exist`, the emulator makes a synthetic module for the DLL.
 
-Primary flags:
-- `--modules-always-exist` / `--no-modules-always-exist`
-- `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
-- `--module-directory-x86`
-- `--module-directory-x64`
+By default, `GetProcAddress` fails for a function that Speakeasy does not know, and a call to such a function ends the run with an `unsupported_api` error. With `--modules-functions-always-exist`, `GetProcAddress` gives an address for the function, and a call to it returns 1.
 
-Example: relaxed unresolved-import policy with native DLL directories
+`--module-directory-x86` and `--module-directory-x64` give the directories of real x86 and x64 DLLs. The emulator loads a DLL from the directory of the input architecture in place of its synthetic API module.
+
+This example allows unknown modules and functions, and loads real DLLs from two directories:
 
 ```bash
 speakeasy -t sample.exe \
@@ -101,16 +81,11 @@ speakeasy -t sample.exe \
   -o report.json
 ```
 
-Use this when triaging samples that otherwise stop early on missing modules/APIs.
+Use these flags when a sample stops early because a module or a function is missing.
 
 ## API hammering controls
 
-Primary flags:
-- `--api-hammering-enabled` / `--no-api-hammering-enabled`
-- `--api-hammering-threshold`
-- `--api-hammering-allow-list VALUE` (repeatable)
-
-Example:
+Some samples call an API many times in a loop to make emulation slow. With `--api-hammering-enabled`, the emulator counts the calls to each API from each call site. When the count reaches `--api-hammering-threshold`, the emulator patches an x86 call site so that the call gives 0 and does not run the API. The emulator does not patch x64 code. `--api-hammering-allow-list` gives an API in the form `dll.name` that the emulator does not patch. The flag is repeatable, and its values replace the default allow list.
 
 ```bash
 speakeasy -t sample.exe \
@@ -121,7 +96,7 @@ speakeasy -t sample.exe \
   -o report.json
 ```
 
-This is useful when balancing anti-loop containment with legitimate hot API usage.
+Increase the threshold if the emulator patches calls that the sample needs.
 
 ## Related docs
 

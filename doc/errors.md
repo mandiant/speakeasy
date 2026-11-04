@@ -27,8 +27,8 @@ Each method that uses the emulator raises `SpeakeasyError` if no input is loaded
 | Method | Raises |
 |---|---|
 | `Speakeasy(...)` | `ConfigError` if the configuration is not valid, a volume is malformed or its host path does not exist, or `volumes` is set together with a `SpeakeasyConfig` |
-| `load_module` | `InputError` if neither `path` nor `data` is given, the file is missing, the input is not a valid PE, or its architecture is not x86 or x64; `NotSupportedError` for a .NET assembly |
-| `load_shellcode` | `InputError` if neither `fpath` nor `data` is given, the file is missing, or `arch` is not x86, x64 or amd64 |
+| `load_module` | `InputError` if neither `path` nor `data` is given, the file is missing, the input is not a valid PE or its architecture is not x86 or x64; `NotSupportedError` for a .NET assembly |
+| `load_shellcode` | `InputError` if neither `fpath` nor `data` is given, the file is missing or `arch` is not x86, x64 or amd64 |
 | `run_shellcode` | `SpeakeasyError` if the kernel mode emulator is loaded |
 | `disasm`, `mem_read`, `mem_write` | `SpeakeasyError` if the operation fails |
 | `mem_alloc` | `OutOfMemoryError` if no free range below the address limit can hold the block |

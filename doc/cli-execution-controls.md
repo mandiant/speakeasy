@@ -1,18 +1,19 @@
 # CLI execution controls
 
-This page covers runtime limits, execution mode, and debugging controls.
+This page tells you how to limit a run, select the execution mode and debug a run.
 
 ## Stopping conditions
 
-Primary flags:
-- `--max-run-time`: active execution cap in seconds per run (0 disables it)
-- `--max-total-time`: active execution cap in seconds across all runs (0, the default, disables it)
-- `--max-api-calls`: cap API calls per run
-- `--max-instructions`: cap executed instructions per run
+These flags stop a run:
 
-Use these together to bound long-running or looping samples.
+- `--max-run-time`: the active execution time of one run, in seconds. 0 disables the limit.
+- `--max-total-time`: the active execution time of all runs, in seconds. 0 disables the limit.
+- `--max-api-calls`: the number of API calls in one run.
+- `--max-instructions`: the number of instructions in one run.
 
-The CLI emulates in a child process. It stops that process after the larger of `--max-run-time` and `--max-total-time` and saves the report that the process gives within 5 seconds of the stop. When both are 0, the CLI does not stop the process.
+Use them together for samples that run for a long time or loop.
+
+The CLI emulates in a child process. It stops the child process after the larger of `--max-run-time` and `--max-total-time`. Then it saves the report that the child process sends in the next 5 seconds. When both limits are 0, the CLI does not stop the child process.
 
 `--max-run-time` and `--max-total-time` measure host time, so the point where they stop a run depends on the speed of the host. Two runs with the same limits can stop at different instructions and give different reports. For a repeatable report, set `--max-run-time 0` and stop the run with `--max-instructions` or `--max-api-calls`:
 
@@ -24,16 +25,17 @@ speakeasy -t sample.exe --max-run-time 0 --max-instructions 3000000 --max-api-ca
 
 ## Execution mode controls
 
-Primary flags:
-- `--raw`: emulate target as raw bytes
-- `--arch`: shellcode architecture (`x86`, `x64`, `amd64`), required with `--raw`
-- `--raw-offset`: raw-mode execution start offset (decimal, or hex with `0x`)
-- `--emulate-children`: emulate spawned child processes
-- `--no-mp`: run in current process instead of worker process
+These flags select what the emulator runs and where:
 
-With `--emulate-children`, a child process runs after the process that started it stops. All processes share one address space and the loaded DLLs. Before a child runs, the image, PEB and heap blocks of the process that ran before it are unmapped. The child gets its own PEB, with its image first in the loader list, and a new TEB. A child whose image base is used by other memory is skipped with a warning. The child gets a copy of the current directory and the environment variables of its parent, and it starts with no vectored exception handlers, no unhandled exception filter and no function tables. When the guest calls `CreateProcess` with a `lpCurrentDirectory`, the child starts in that directory instead. The API handlers keep one state for all processes, for example the process heap handle and the C runtime data.
+- `--raw`: emulate the input as raw bytes, for example shellcode.
+- `--arch`: the architecture of the shellcode (`x86`, `x64` or `amd64`). `--raw` needs it.
+- `--raw-offset`: the offset in the raw input where execution starts (decimal, or hex with `0x`).
+- `--emulate-children`: emulate the child processes that the sample starts.
+- `--no-mp`: emulate in the CLI process instead of a child process.
 
-Example: raw shellcode run with bounded execution
+With `--emulate-children`, a child process runs after the process that started it stops. All processes share one address space and the loaded DLLs. Before a child runs, the emulator unmaps the image, the PEB and the heap blocks of the process that ran before it. The child gets its own PEB, with its image first in the loader list, and a new TEB. If the child image cannot load, for example because other memory uses its base and it has no relocation data, the emulator skips the child and logs a warning. The child gets a copy of the current directory and the environment variables of its parent. If the guest gives `lpCurrentDirectory` to `CreateProcess`, the child starts in that directory. The child does not get the vectored exception handlers, the unhandled exception filter or the function tables of its parent. The API handlers keep one state for all processes, for example the process heap handle and the C runtime data.
+
+This command runs raw shellcode with limits:
 
 ```bash
 speakeasy -t shellcode.bin \
@@ -44,17 +46,14 @@ speakeasy -t shellcode.bin \
 
 ## Debugging controls
 
-Primary flags:
-- `--verbose`: DEBUG logging
-- `--gdb`: start GDB stub and pause before first instruction
-- `--gdb-host`: GDB stub bind host (default `127.0.0.1`)
-- `--gdb-port`: GDB stub port
+These flags control logging and the GDB stub:
 
-Notes:
-- `--gdb` implies `--no-mp` automatically.
-- Use `gdb` or `gdb-multiarch` to connect to `localhost:<port>`.
+- `--verbose`: log at the DEBUG level.
+- `--gdb`: start the GDB stub and pause before the first instruction.
+- `--gdb-host`: the address where the GDB stub listens.
+- `--gdb-port`: the port of the GDB stub.
 
-Example: debugger-first startup profile
+`--gdb` sets `--no-mp`. Connect `gdb` or `gdb-multiarch` to `localhost:<port>`. This command starts the stub and waits for the debugger:
 
 ```bash
 speakeasy -t sample.dll --gdb --gdb-port 1234 --verbose
@@ -62,7 +61,7 @@ speakeasy -t sample.dll --gdb --gdb-port 1234 --verbose
 
 ## Profiles
 
-### Anti-loop containment profile
+### Fast triage of looping samples
 
 ```bash
 speakeasy -t sample.exe \
@@ -73,9 +72,9 @@ speakeasy -t sample.exe \
   -o report.json
 ```
 
-Use this as a fast triage baseline for samples that often spin in loops.
+Use this profile first for samples that often loop.
 
-### Deep-debug profile
+### Debugging one run with full telemetry
 
 ```bash
 speakeasy -t sample.exe \
@@ -87,23 +86,11 @@ speakeasy -t sample.exe \
   -o report.json
 ```
 
-Use this when you want step control and richer telemetry during one run.
+Use this profile when you want to step through one run and get more data in the report.
 
 ## Performance and telemetry tuning
 
-Speakeasy is Python-based, so runtime is sensitive to telemetry scope and stop conditions.
-
-Practical tuning:
-
-- disable heavy collectors unless needed:
-  - `--no-analysis-memory-tracing`
-  - `--no-analysis-coverage`
-  - `--no-snapshot-memory-regions`
-- set hard stop limits for unstable or looping samples:
-  - `--max-run-time`
-  - `--max-api-calls`
-  - `--max-instructions`
-- run fast triage and deep telemetry as separate profiles
+Speakeasy is written in Python, so the data that it collects and the stop limits have a large effect on the run time. Memory tracing, coverage and memory region snapshots make a run slower and the report larger. They are off by default. If your config file enables them, `--no-analysis-memory-tracing`, `--no-analysis-coverage` and `--no-snapshot-memory-regions` disable them for one run. For samples that loop or crash, set `--max-run-time`, `--max-api-calls` and `--max-instructions`. Run fast triage and the full telemetry as two different runs.
 
 ## Related docs
 

@@ -1,12 +1,12 @@
 # Python library usage
 
-You can use Speakeasy as a Python library through the `speakeasy.Speakeasy` interface.
+To use Speakeasy from Python, create a `speakeasy.Speakeasy` object.
 
 ## Public interface
 
 The public interface is the names in `speakeasy.__all__`, and the methods of `Win32Emulator` and `WinKernelEmulator` (including the methods they inherit) whose names do not start with `_`. Speakeasy follows semantic versioning for this interface: only a major release removes a name or changes a signature in a way that breaks a caller. Import these names from `speakeasy`, for example `from speakeasy import Speakeasy, InputError`.
 
-All other modules, such as `speakeasy.windows.winemu` or `speakeasy.winenv.api`, are internal, and a minor release can change them. `speakeasy.defs` and `speakeasy.arch` stay available for the structures and constants of the Windows API, but they are internal too.
+All other modules, such as `speakeasy.windows.winemu` or `speakeasy.winenv.api`, are internal, and a minor release can change them. You can use `speakeasy.defs` and `speakeasy.arch` for the structures and constants of the Windows API, but they are internal too.
 
 The boolean parameters of the public methods are keyword-only, for example `se.run_module(module, all_entrypoints=True)` and `se.disasm(addr, size, fast=False)`.
 
@@ -39,16 +39,13 @@ report = se.get_report()
 se.shutdown()
 ```
 
-## Library options you may want
+## Options
 
-- pass `config=` to control environment and analysis
-- pass `argv=` to populate emulated process arguments
-- pass `volumes=` to mount host paths into emulated filesystem
-- pass `gdb_port=` to block for GDB attach before execution; `gdb_host=` controls the bind address and defaults to `127.0.0.1`
+The `Speakeasy` constructor takes these arguments. `config=` sets the emulated environment and the analysis options, as a dict or a `SpeakeasyConfig` (see [Configuration walkthrough](configuration.md)). `argv=` sets the arguments of the emulated program. `volumes=` mounts host paths into the emulated file system, and it requires a dict or no `config=`. With `gdb_port=`, the first run waits for a GDB client before it starts (see [GDB debugging reference](gdb.md)). `gdb_host=` sets the address on which the GDB server listens, and its default is `127.0.0.1`.
 
 ## Hooks
 
-Each `add_*_hook` method calls its callback with the emulator as the first argument. You can add a hook before or after `load_module`. The method returns a hook object, and `se.remove_hook(hook)` removes the hook. `speakeasy` has a `Protocol` for each callback type, for example `CodeHookCallback`.
+The emulator calls each hook callback with the emulator as the first argument. You can add a hook before or after `load_module`. Each `add_*_hook` method returns a hook object, and `se.remove_hook(hook)` removes the hook. `speakeasy` has a `Protocol` for each callback type, for example `CodeHookCallback`.
 
 | Method | Callback | Return value of the callback |
 |---|---|---|
@@ -64,7 +61,7 @@ Each `add_*_hook` method calls its callback with the emulator as the first argum
 | `add_in_instruction_hook(cb, begin, end)` | `cb(emu, port, size)` | the value that the IN instruction reads |
 | `add_syscall_instruction_hook(cb, begin, end)` | `cb(emu)` | not used |
 
-The SYSCALL hook fires for SYSCALL and SYSENTER. Only one IN hook runs for an instruction: the first hook that is enabled and covers the address. When `exceptions.dispatch_handlers` is set, the user mode emulator adds its own IN hook at the start of the first run. That hook raises a privileged instruction exception, as Windows does. An IN hook that you add before the run comes first, so it replaces the exception.
+The emulator calls a SYSCALL hook for SYSCALL and SYSENTER. For an IN instruction, the emulator calls only the first IN hook that is enabled and covers the address. When `exceptions.dispatch_handlers` is set, the user mode emulator adds its own IN hook at the start of the first run. That hook raises a privileged instruction exception, as Windows does. If you add an IN hook before the run, your hook comes first, so the exception does not occur.
 
 This code hook runs one time, then removes itself:
 
@@ -77,7 +74,7 @@ def on_first_instruction(emu, address, size):
 hook = se.add_code_hook(on_first_instruction)
 ```
 
-`se.add_api_hook(cb, "user32", "MessageBox*")` calls `cb(emu, api_name, func, params)` in place of the handler. `params` holds the raw argument slots, and `func(params)` runs the handler. After that call, `emu.get_api_args()` returns the arguments as the report shows them, with the values the handler decoded:
+After `se.add_api_hook(cb, "user32", "MessageBox*")`, the emulator calls `cb(emu, api_name, func, params)` in place of the handler. `params` holds the raw argument slots, and `func(params)` runs the handler. `func` is `None` when the API has no handler. After `func(params)`, `emu.get_api_args()` returns the arguments as the report shows them, with the values that the handler decoded:
 
 ```python
 def hook_messagebox(emu, api_name, func, params):
