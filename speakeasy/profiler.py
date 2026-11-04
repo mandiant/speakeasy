@@ -27,6 +27,7 @@ from speakeasy.profiler_events import (
     MemProtectEvent,
     MemReadEvent,
     MemWriteEvent,
+    ModuleLoadEvent,
     NetDnsEvent,
     NetHttpEvent,
     NetHttpProtocol,
@@ -603,6 +604,10 @@ class Profiler:
                 return
 
         run.events.append(event)
+
+    def record_module_load_event(self, run, pos: TracePosition, name, path, base, size):
+        """Record a module that the guest loads at run time."""
+        run.events.append(ModuleLoadEvent(pos=pos, name=name, path=path, base=base, size=size))
 
     def record_dyn_code_event(self, run, tag, base, size):
         """Record a dynamic code region that the guest runs. The profiler adds each base address once per run."""

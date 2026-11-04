@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy, common
+from speakeasy.profiler_events import MemFreeEvent, ModuleLoadEvent
 from speakeasy.windows import objman
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.codepage import CP_ACP, CP_UTF8
@@ -1292,3 +1293,30 @@ def test_is_processor_feature_present_agrees_with_cpuid_for_avx(
     assert run.error is None
     assert run.return_value & 0x2, "IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
     assert run.return_value & 0x4, "IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
+
+
+def test_virtual_free_records_a_mem_free_event(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    buf, _ = call(dll_emu, "kernel32", "VirtualAlloc", [0, 0x2000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
+    assert buf
+    rv, _ = call(dll_emu, "kernel32", "VirtualFree", [buf, 0, 0x8000])
+    assert rv
+    run = dll_emu.emu.curr_run
+    assert run is not None
+    frees = [e for e in run.events if isinstance(e, MemFreeEvent)]
+    assert [(e.base, e.size, e.pid) for e in frees] == [(buf, 0x2000, None)]
+
+
+def test_load_library_records_a_module_load_event(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    name = alloc(dll_emu, b"urlmon.dll\x00")
+    base, _ = call(dll_emu, "kernel32", "LoadLibraryA", [name])
+    assert base
+    run = dll_emu.emu.curr_run
+    assert run is not None
+    loads = [(e.name, e.base) for e in run.events if isinstance(e, ModuleLoadEvent)]
+    assert ("urlmon", base) in loads
+
+    # A second load of a loaded module maps nothing, so it adds no event.
+    call(dll_emu, "kernel32", "LoadLibraryA", [name])
+    assert [(e.name, e.base) for e in run.events if isinstance(e, ModuleLoadEvent)] == loads

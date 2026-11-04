@@ -3597,12 +3597,19 @@ class WindowsEmulator(BinaryEmulator):
                 logger.warning("failed to load %s: %s", name, error)
                 return 0
         self._add_module_to_current_peb(module)
+        new_modules = [m for m in self.modules if m not in original_modules]
+        # Each module that the load maps gets a module_load event, its dependencies included.
+        profiler = self.get_profiler()
+        if profiler and self.curr_run is not None:
+            pos = self.get_trace_position()
+            for mod in new_modules:
+                profiler.record_module_load_event(self.curr_run, pos, mod.name, mod.emu_path, mod.base, mod.image_size)
         frame = self._active_api_frame
         if frame is not None and not self.is_kernel_mode:
             # Keep the earliest snapshot for each process across reentrant loads.
             tracked = {process.id for process, _ in frame.peb_module_snapshot}
             frame.peb_module_snapshot.extend(item for item in original_peb_modules if item[0].id not in tracked)
-            frame.created_modules.extend(module for module in self.modules if module not in original_modules)
+            frame.created_modules.extend(new_modules)
             handler = self.api.load_api_handler("kernel32")
             for routine in self.module_loader.collect_initializers():
                 handler.setup_callback(routine.address, routine.args)

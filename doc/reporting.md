@@ -50,7 +50,9 @@ The `type` of an entry point is the kind of code that the run executes, and `nam
 | `driver_entry`, `driver_unload`, `driver_reinit` | none |
 | `irp` | IRP major function, for example `IRP_MJ_DEVICE_CONTROL` |
 
-The schema also has the run type `callback` and the event types `mem_free` and `module_load`. Speakeasy does not set them.
+The schema also has the run type `callback`. Speakeasy does not set it.
+
+`VirtualFree` adds a `mem_free` event. `LoadLibrary`, `LoadLibraryEx` and `LdrLoadDll` add a `module_load` event for each module that the load maps, the dependencies of the module included. A module that the config preloads, or that is already loaded, gets no event.
 
 ## API arguments and handles
 
@@ -220,18 +222,17 @@ Each event has `pos`, the position of the thread that did the operation, so the 
         {
           "pos": {"tick": 70, "tid": 2000, "pid": 1337, "pc": "0x40103c"},
           "event": "mem_free",
-          "path": "C:\\Windows\\System32\\notepad.exe",
+          "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x10000000",
-          "size": 4096,
-          "pid": 4242
+          "size": 4096
         },
         {
           "pos": {"tick": 80, "tid": 2000, "pid": 1337, "pc": "0x401046"},
           "event": "module_load",
-          "name": "wininet.dll",
-          "path": "C:\\Windows\\System32\\wininet.dll",
-          "base": "0x7bc00000",
-          "size": 106496
+          "name": "urlmon",
+          "path": "C:\\Windows\\system32\\urlmon.dll",
+          "base": "0x6f000000",
+          "size": 94208
         },
         {
           // Local thread creation keeps the new tid but carries no pid payload.

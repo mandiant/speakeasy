@@ -1781,6 +1781,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if m.base == lpAddress:
                 m.free = True
                 emu.clear_guard_pages(m.base, dwSize or m.size)
+                proc = emu.get_current_process()
+                if proc:
+                    self.record_process_event(proc, EventType.MEM_FREE, base=lpAddress, size=dwSize or m.size)
                 rv = True
                 break
 
