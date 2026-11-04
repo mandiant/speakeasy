@@ -9,8 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from speakeasy.cli import get_wall_limit, wait_for_child
-from speakeasy.config import SpeakeasyConfig
+from speakeasy.cli import wait_for_child
 from speakeasy.version import __version__
 from tests.pe_builder import build_pe
 
@@ -87,16 +86,6 @@ def test_cli_writes_the_report_of_a_failed_run_to_stdout_and_exits_zero(tmp_path
     entry_point = json.loads(result.stdout)["entry_points"][0]
     assert entry_point["error"]["type"] == "invalid_instruction"
     assert entry_point["error"]["pc"] == entry_point["start_address"]
-
-
-@pytest.mark.parametrize(
-    ("max_run_time", "max_total_time", "wall_limit"),
-    [(60, 0, 60), (0, 30, 30), (10, 30, 30), (0, 0, 0)],
-)
-def test_the_cli_stops_the_child_after_the_larger_time_limit(max_run_time, max_total_time, wall_limit):
-    config = SpeakeasyConfig(max_run_time=max_run_time, max_total_time=max_total_time)
-
-    assert get_wall_limit(config) == wall_limit
 
 
 def spinning_threads(base, iat):

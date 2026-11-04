@@ -13,7 +13,7 @@ These flags stop a run:
 
 Use them together for samples that run for a long time or loop.
 
-The CLI emulates in a child process. It stops the child process after the larger of `--max-run-time` and `--max-total-time`. Then it saves the report that the child process sends in the next 5 seconds. When both limits are 0, the CLI does not stop the child process.
+The CLI emulates in a child process. It stops the child process after `--max-total-time`, in case the process hangs in Python code. Then it saves the report that the child process sends in the next 5 seconds. `--max-run-time` applies to each run and gives no bound for all runs, so when `--max-total-time` is 0, the CLI does not stop the child process.
 
 `--max-run-time` and `--max-total-time` measure host time, so the point where they stop a run depends on the speed of the host. Two runs with the same limits can stop at different instructions and give different reports. For a repeatable report, set `--max-run-time 0` and stop the run with `--max-instructions` or `--max-api-calls`:
 
