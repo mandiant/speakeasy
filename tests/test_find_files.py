@@ -64,3 +64,11 @@ def test_case_insensitive(fm):
     results_upper = {name for name, _ in fm.find_matching_entries("C:\\WINDOWS\\*")}
     results_lower = {name for name, _ in fm.find_matching_entries("c:\\windows\\*")}
     assert results_upper == results_lower
+
+
+@pytest.mark.parametrize("ext", ["EXE", ".exe"])
+def test_by_ext_entry_matches_regardless_of_case_and_dot(ext):
+    fm = make_file_manager([{"mode": "by_ext", "ext": ext, "byte_fill": {"byte": "0x41", "size": 4}}])
+    entry = fm.get_emu_file("c:\\temp\\a.exe")
+    assert entry is not None
+    assert entry.mode == "by_ext"
