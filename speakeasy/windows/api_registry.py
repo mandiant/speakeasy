@@ -1,4 +1,4 @@
-"""Session-local ownership of public API entries and private dispatch traps."""
+"""The API registry: the export entries of the loaded modules, and the API tokens of the synthetic exports."""
 
 from __future__ import annotations
 
@@ -20,8 +20,7 @@ MODULE_EXTENSIONS = (".dll", ".exe", ".sys", ".drv", ".ocx", ".cpl")
 
 
 def module_name(value: str) -> str:
-    # Strip only image extensions so that repeated normalization keeps dotted
-    # module names such as windows.storage intact.
+    # Strip only image extensions, so that a second call keeps a dotted name such as windows.storage.
     name = ntpath.basename(value).lower()
     root, extension = ntpath.splitext(name)
     return root if extension in MODULE_EXTENSIONS else name
@@ -89,7 +88,7 @@ class ApiRegistry:
         return self.trap_base + offset
 
     def unregister_module(self, module: RuntimeModule) -> None:
-        """Discard an unsuccessful load without reusing published trap tokens."""
+        """Remove the entries of a module that failed to load. The emulator never uses their tokens again."""
         addresses = [address for address, entry in self.entries.items() if entry.module is module]
         for address in addresses:
             entry = self.entries.pop(address)
@@ -148,7 +147,7 @@ class ApiRegistry:
         if arena is None or offset + API_SLOT_SIZE > arena.virtual_size:
             raise WindowsEmuError(f"dynamic API arena exhausted for {module.name}")
         slot = module.base + arena.virtual_address + offset
-        # Never overwrite guest patches or restore guest-changed page protections.
+        # Do not write over a guest patch, and do not restore a protection that the guest changed.
         perms = next(
             (p for start, end, p in self.emu.get_mem_regions() if start <= slot and slot + API_SLOT_SIZE <= end + 1), 0
         )
@@ -182,7 +181,7 @@ class ApiRegistry:
         entry = self.entries.get(address)
         if entry is not None:
             return entry.symbol
-        # Interior lookup is for presentation only; it never controls dispatch.
+        # A name for an address inside a slot is only for display. Dispatch uses only the token.
         index = bisect_right(self._addresses, address) - 1
         if index >= 0:
             start = self._addresses[index]
