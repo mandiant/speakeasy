@@ -84,27 +84,6 @@ def get_tsc_offset_location(mode):
     return exception + 16 if tsc >= 1 << 62 else None
 
 
-class ToggleableHook:
-    """
-    Hold the ctypes callback of a hook that ``hook_add`` added through the C API.
-
-    The reference keeps the callback alive while Unicorn can call it. The engine does not read ``enabled``.
-    The ``Hook`` objects in ``common`` check their own flag.
-    """
-
-    def __init__(self, cb):
-        self.cb: ct._CFunctionType = cb
-        self.enabled: bool = False
-
-    def enable(self):
-        if self.enabled:
-            return
-        self.enabled = True
-
-    def disable(self):
-        self.enabled = False
-
-
 class EmuEngine:
     """Wrap a Unicorn instance for the emulator."""
 
@@ -112,7 +91,9 @@ class EmuEngine:
         self.name: str = "unicorn"
         self.emu: uc.Uc | None = None
         self.mode: int | None = None
-        self._callbacks: dict[int, ToggleableHook] = {}
+        # The ctypes callbacks of the hooks that hook_add added through the C API, by hook ID. The
+        # references keep the callbacks alive while Unicorn can call them.
+        self._callbacks: dict[int, ct._CFunctionType] = {}
         self.timer: StartTimer = StartTimer(self.stop)
 
         self.regs: dict[int, int] = {
@@ -387,22 +368,9 @@ class EmuEngine:
         if rv != uc.UC_ERR_OK:
             raise uc.UcError(rv)
 
-        th = ToggleableHook(cb)
-        self._callbacks.update({hook_id.value: th})
+        self._callbacks[hook_id.value] = cb
 
         return hook_id.value
-
-    def hook_enable(self, hook_handle):
-        """Set the ``enabled`` flag of a hook that ``hook_add`` added through the C API."""
-        hook = self._callbacks.get(hook_handle)
-        if hook:
-            return hook.enable()
-
-    def hook_disable(self, hook_handle):
-        """Clear the ``enabled`` flag of a hook that ``hook_add`` added through the C API."""
-        hook = self._callbacks.get(hook_handle)
-        if hook:
-            return hook.disable()
 
     def hook_remove(self, hid):
         assert self.emu is not None

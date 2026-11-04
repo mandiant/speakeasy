@@ -96,14 +96,11 @@ class Hook:
 
     def enable(self):
         self.enabled = True
-        if self.added:
-            self.emu_eng.hook_enable(self.handle)
 
     def disable(self):
-        # A hook that is not added yet has no engine. It keeps the flag, and add() does not change it.
+        # The code that calls the callback checks the flag, so a disabled hook does not run.
+        # add() does not change the flag.
         self.enabled = False
-        if self.added:
-            self.emu_eng.hook_disable(self.handle)
 
     def remove(self):
         """Remove the hook from the engine, so that the engine does not call it again."""
