@@ -291,13 +291,13 @@ class WinKernelEmulator(WindowsEmulator):
                 next_dev = self.get_object_from_addr(drv.object.DeviceObject)
                 while next_dev:
                     if next_dev.object.NextDevice:
-                        next_dev = self.get_object_from_addr(drv.object.NextDevice)
+                        next_dev = self.get_object_from_addr(next_dev.object.NextDevice)
                     else:
                         next_dev.object.NextDevice = dev.address
                         next_dev.write_back()
                         break
 
-        drv.devices.append(dev)
+            drv.devices.append(dev)
 
         dev.object.Characteristics = chars
         dev.object.DeviceType = devtype

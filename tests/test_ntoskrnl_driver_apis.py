@@ -16,7 +16,7 @@ from speakeasy.profiler import Run
 from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
-from tests.handler_harness import alloc, call
+from tests.handler_harness import alloc, call, get_kernel_emu
 from tests.test_ntoskrnl_handlers import CDECL, STDCALL, call_x86
 
 SOFTWARE_KEY = "\\Registry\\Machine\\Software\\Contoso"
@@ -349,3 +349,43 @@ def test_feature_registrations_return_a_handle(
     hnd = _read_ptr(driver64_emu, out)
     assert hnd
     assert call(driver64_emu, "ntoskrnl", unregister, [hnd])[0] == ddk.STATUS_SUCCESS
+
+
+def _create_device(se: Speakeasy, name: str, driver: int, secure: bool = False) -> tuple[int, int]:
+    """Call IoCreateDevice or IoCreateDeviceSecure and return the status and the device object address."""
+    out = alloc(se, b"\x00" * _ptr_size(se))
+    devname = _unicode_string(se, name)
+    if secure:
+        argv = [driver, 0, devname, 0x22, 0, 0, 0, 0, out]
+        rv, _ = call(se, "ntoskrnl", "IoCreateDeviceSecure", argv)
+    else:
+        rv, _ = call(se, "ntoskrnl", "IoCreateDevice", [driver, 0, devname, 0x22, 0, 0, out])
+    return rv, _read_ptr(se, out)
+
+
+def test_io_create_device_links_each_device_of_a_driver(any_driver_emu: Speakeasy) -> None:
+    se = any_driver_emu
+    emu = get_kernel_emu(se)
+    drv = emu.drivers[-1]
+    devices = []
+    for i in range(4):
+        rv, dev = _create_device(se, rf"\Device\Test{i}", drv.address)
+        assert rv == ddk.STATUS_SUCCESS
+        devices.append(dev)
+
+    drv.read_back()
+    chain = []
+    addr = drv.object.DeviceObject
+    while addr:
+        chain.append(addr)
+        dev_obj = emu.get_object_from_addr(addr)
+        dev_obj.read_back()
+        addr = dev_obj.object.NextDevice
+    assert chain[-4:] == devices
+
+
+@pytest.mark.parametrize("secure", [False, True])
+def test_io_create_device_rejects_an_unknown_driver_object(any_driver_emu: Speakeasy, secure: bool) -> None:
+    rv, dev = _create_device(any_driver_emu, r"\Device\Test", 0x1234, secure)
+    assert rv == ddk.STATUS_INVALID_PARAMETER
+    assert dev == 0
