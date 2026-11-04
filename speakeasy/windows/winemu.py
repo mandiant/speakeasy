@@ -1332,7 +1332,7 @@ class WindowsEmulator(BinaryEmulator):
         self._execute_current_run(addr, timeout=timeout, count=count)
 
     @execution_scope
-    def start(self, addr=None, size=None):
+    def start(self) -> None:
         """Add the runs of the startup initializers, then run all runs in the queue."""
         total_budget = self._execution_budget
         assert total_budget is not None
