@@ -1,17 +1,16 @@
 """
-x86 exception dispatch, after ntdll's RtlDispatchException and RtlUnwind.
+x86 exception dispatch, modeled on RtlDispatchException and RtlUnwind of ntdll.
 
-Handlers come from the chain of EXCEPTION_REGISTRATION_RECORDs at fs:[0].
+The emulator gets the handlers from the chain of EXCEPTION_REGISTRATION_RECORDs at fs:[0].
 
-The entry points are dispatch_fault, for CPU exceptions, and the API handlers
-raise_exception, rtl_unwind, and the MSVC language handlers except_handler3 and
-except_handler4_common. These are generator handlers (see guest_callbacks.py).
-What x64 shares is in seh.py.
+dispatch_fault dispatches CPU exceptions. The API handlers, such as raise_exception, rtl_unwind
+and the MSVC language handlers, are generator handlers (see guest_callbacks.py). seh.py has the
+code that x86 and x64 share.
 
-MSVC frames (_except_handler3 and the SEH4 of _except_handler4_common) extend the
-registration record with a scope table and a try level, and keep the frame's
-saved esp and exception pointers next to it. Filters and __finally blocks run
-with the frame's ebp; an __except block is entered with the frame's ebp and esp.
+MSVC frames (_except_handler3, and the SEH4 frames of _except_handler4_common) add a scope table
+and a try level to the registration record. The saved esp and the exception pointers of the frame
+are just below the record. Filters and __finally blocks run with the ebp of the frame. An __except
+block runs with the ebp and esp of the frame.
 
 See http://www.openrce.org/articles/full_view/21
 """
@@ -36,15 +35,23 @@ if TYPE_CHECKING:
 
 END_OF_CHAIN = 0xFFFFFFFF
 
-# An MSVC frame, by offset from its registration record of next, handler, scope
-# table and try level, which is at ebp - 0x10
+# An MSVC frame. The offsets are from the registration record, which is at ebp - 0x10.
+#
+#   struct CPPEH_RECORD {
+#       DWORD SavedEsp;                         // -0x08
+#       PEXCEPTION_POINTERS ExceptionPointers;  // -0x04
+#       PVOID Next;                             // 0x00
+#       PVOID ExceptionHandler;                 // 0x04
+#       PVOID ScopeTable;                       // 0x08
+#       DWORD TryLevel;                         // 0x0c
+#   };
 SAVED_ESP = -0x08
 EXCEPTION_POINTERS = -0x04
 SCOPE_TABLE = 0x08
 TRY_LEVEL = 0x0C
 FRAME_POINTER = 0x10
 
-# Try levels out of every scope
+# Try levels outside of all scopes
 TRYLEVEL_NONE_SEH3 = 0xFFFFFFFF  # -1
 TRYLEVEL_NONE_SEH4 = 0xFFFFFFFE  # -2
 # SEH4 scope tables start with GS and EH cookie offsets
@@ -70,7 +77,7 @@ def registrations(emu) -> Iterator[tuple[int, int, int]]:
     """
     Yield the registration, next registration and handler of each record on the chain at fs:[0].
 
-    A record that cannot be read ends the chain, as one outside the stack does on Windows.
+    The walk ends at a record that the emulator cannot read, as Windows ends it at a record outside the stack.
     """
     registration = exception_list(emu)
     for _ in range(seh.MAX_FRAMES):
@@ -106,10 +113,10 @@ def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
 
 def call_handler(emu, handler: int, record: int, registration: int, context: int, dispatcher_context: int) -> GuestCall:
     """
-    Build a call of an exception handler from a frame like the one ExecuteHandler2 leaves at EBP.
+    Build a call of an exception handler, with EBP at a frame like the one that ExecuteHandler2 leaves.
 
-    The frame has the saved EBP, a return address, then the arguments, which some
-    handlers, such as Borland C++'s, read through EBP.
+    The frame has the saved EBP, a return address, then the arguments. Some handlers, such as the
+    Borland C++ handlers, read the arguments through EBP.
     """
     args = (record, registration, context, dispatcher_context)
     frame = guest_callbacks.alloca(emu, struct.pack("<6I", emu.reg_read(_arch.X86_REG_EBP), 0, *args))
@@ -144,7 +151,7 @@ def unwind_registrations(emu, target_frame: int, record: int = 0) -> Generator[G
     dispatcher_context = guest_callbacks.alloca(emu, bytes(4))
 
     for registration, next_registration, handler in registrations(emu):
-        # Registrations are in stack order: one above the target means it is not on the chain
+        # Registrations are in stack order, so a registration above the target shows that the target is not on the chain
         if registration == target_frame or target_frame and registration > target_frame:
             break
         yield call_handler(emu, handler, record, registration, context, dispatcher_context)
@@ -241,7 +248,11 @@ def except_handler3(emu, record: int, registration: int, context: int, dispatche
 def except_handler4_common(
     emu, cookie: int, check_cookie: int, record: int, registration: int, context: int, dispatcher: int
 ) -> GeneratorHandler:
-    """_except_handler4_common: SEH4, whose scope table is encoded with the security cookie. Cookies are not checked."""
+    """
+    _except_handler4_common: SEH4 XORs the scope table pointer with the security cookie.
+
+    The emulator does not check the cookies.
+    """
     scope_table = _u32(emu, registration + SCOPE_TABLE) ^ _u32(emu, cookie)
     frame = MsvcFrame(emu, registration, scope_table, SEH4_SCOPE_TABLE_HEADER, TRYLEVEL_NONE_SEH4)
     return (yield from msvc_handler(emu, frame, record, context))
