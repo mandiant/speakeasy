@@ -1537,22 +1537,22 @@ class WindowsEmulator(BinaryEmulator):
         return self.fileman.get_dropped_files()
 
     def set_hooks(self):
-        """Reserves memory that will be used to handle events that occur during emulation."""
+        """Add the hooks in the hook lists to Unicorn."""
         super().set_hooks()
 
     def get_processes(self):
-        """Get the processes that exist in the emulation space."""
+        """Get the process list. It does not include the child processes."""
         return self.processes
 
     def kill_process(self, proc):
-        """Terminate a process (i.e. remove it from the known process list)."""
+        """Remove proc from the process list."""
         try:
             self.processes.remove(proc)
         except ValueError:
             pass
 
     def get_current_thread(self):
-        """Get the current thread that is emulating."""
+        """Get the current thread."""
         return self.curr_thread
 
     def set_last_error(self, code):
@@ -1566,7 +1566,7 @@ class WindowsEmulator(BinaryEmulator):
             return self.curr_thread.last_error
 
     def heap_alloc(self, size, heap="None"):
-        """Allocate a memory chunk and add it to the "heap"."""
+        """Map a block for a heap, and record it in the heap allocations. Return 0 if there is no free memory."""
         try:
             addr = self.mem_map(size, base=None, tag=f"api.heap.{heap}")
         except OutOfMemoryError:
@@ -1593,11 +1593,11 @@ class WindowsEmulator(BinaryEmulator):
         raise WindowsEmuError("process exit needs user mode")
 
     def get_current_process(self):
-        """Get the current process that is emulating."""
+        """Get the current process."""
         return self.curr_process
 
     def set_current_process(self, process):
-        """Set the current process that is emulating."""
+        """Set the current process."""
         self.curr_process = process
 
     def set_current_thread(self, thread):
@@ -1613,9 +1613,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _setup_gdt(self, arch):
         """
-        Set up the GDT so we can access segment registers correctly.
+        Map the GDT and the TEB segment, and load the segment registers.
 
-        The setup differs depending on architecture.
+        The guest reads the TEB through FS on x86 and through GS on x64.
         """
         GDT_SIZE = 0x1000
         SEG_SIZE = 0x1000
@@ -1625,10 +1625,7 @@ class WindowsEmulator(BinaryEmulator):
         gs_addr = 0
         gdt_addr = None
 
-        # For a detailed explaination of whats happening here, see:
-        # https://wiki.osdev.org/Global_Descriptor_Table
-        # We need to init the GDT so that shellcode can accurately access
-        # segment registers which is needed for TEB access in user mode
+        # The format of a descriptor: https://wiki.osdev.org/Global_Descriptor_Table
 
         def _make_entry(index, base, access, limit=0xFFFFF000):
             access = access | (winemu.GDT_ACCESS_BITS.PresentBit | winemu.GDT_ACCESS_BITS.DirectionConformingBit)
@@ -1647,7 +1644,7 @@ class WindowsEmulator(BinaryEmulator):
             return flags | (index << 3)
 
         # x86 user mode uses the selectors of native 32-bit Windows: CS 0x1B, DS and ES 0x23, FS 0x3B.
-        # SS stays a ring 0 selector because Unicorn runs the guest at CPL 0 and rejects an RPL 3 SS.
+        # SS is a ring 0 selector, because Unicorn runs the guest at CPL 0 and rejects an RPL 3 SS.
         native_x86 = arch == _arch.ARCH_X86 and not self.is_kernel_mode
         data_index, code_index, fs_index = (4, 3, 7) if native_x86 else (16, 17, 19)
 
@@ -1677,7 +1674,7 @@ class WindowsEmulator(BinaryEmulator):
 
         teb_addr = None if self.is_kernel_mode else winemu.TEB_ADDRESS
         if arch == _arch.ARCH_X86:
-            # FS segment needed for PEB access at fs:[0x30]
+            # The guest reads the TEB through FS, for example the PEB pointer at fs:[0x30]
             fs_addr, fs_size = self.get_valid_ranges(SEG_SIZE, addr=teb_addr)
             self.mem_map(fs_size, base=fs_addr, tag="emu.segment.fs")
 
@@ -1688,7 +1685,7 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(_arch.X86_REG_FS, selector)
 
         elif arch == _arch.ARCH_AMD64:
-            # GS Segment needed for PEB access at gs:[0x60]
+            # The guest reads the TEB through GS, for example the PEB pointer at gs:[0x60]
             gs_addr, gs_size = self.get_valid_ranges(SEG_SIZE, addr=teb_addr)
             self.mem_map(gs_size, base=gs_addr, tag="emu.segment.gs")
 
@@ -1704,7 +1701,7 @@ class WindowsEmulator(BinaryEmulator):
         return fs_addr, gs_addr
 
     def init_peb(self, user_mods, proc=None):
-        """Initialize the Process Environment Block."""
+        """Initialize the PEB of proc or of the current process. For the current process, write the PEB pointer."""
         p = proc
         if not p:
             p = self.curr_process
@@ -1714,7 +1711,7 @@ class WindowsEmulator(BinaryEmulator):
         return p.peb
 
     def init_teb(self, thread, peb):
-        """Initialize the Thread Information Block."""
+        """Initialize the TEB of thread at the base of the FS or GS segment."""
         if self.get_arch() == _arch.ARCH_X86:
             thread.init_teb(self.fs_addr, peb.address)
         elif self.get_arch() == _arch.ARCH_AMD64:
@@ -1722,9 +1719,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def init_tls(self, thread):
         """
-        Initialize implicit thread local storage.
+        Copy the static TLS data of the module of the current run to thread.
 
-        Meant to be called after init_teb.
+        Call this after init_teb.
         """
         run = self.curr_run
         if run is None:
@@ -1750,9 +1747,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def read_tls_template(self, tls_dirp: int) -> bytes:
         """
-        Return the initial TLS data of a module, from its IMAGE_TLS_DIRECTORY.
+        Get the static TLS data of a module from its IMAGE_TLS_DIRECTORY at tls_dirp.
 
-        Set the TLS index of the module to 0. A directory with an invalid range gives an empty template.
+        Set the TLS index of the module to 0. A directory with an invalid or too large range gives empty data.
         """
         ptrsz = self.get_ptr_size()
         fmt = "<4QI" if ptrsz == 8 else "<5I"
@@ -1799,14 +1796,11 @@ class WindowsEmulator(BinaryEmulator):
 
     def ensure_pe_import_hooks(self, base_addr):
         """
-        Bind imports of an injected mapped PE using the public API registry.
+        Bind the imports of a PE that the guest mapped itself, for example by process hollowing.
 
-        Bind each valid IAT slot independently and skip invalid slots.
-        A zero OriginalFirstThunk may reuse an already bound IAT; recorded
-        bindings preserve idempotence without interpreting code addresses as RVAs.
-
-        Intended for PEs injected via WriteProcessMemory (process hollowing)
-        that bypass the normal module loader.
+        Bind each valid IAT slot, and skip the invalid slots. If OriginalFirstThunk is zero, the IAT can have
+        addresses that this method bound in an earlier call. The emulator records its bindings, so that it skips
+        these slots and does not read their addresses as RVAs.
         """
         ptr_size = self.get_ptr_size()
         import_errors = (ValueError, struct.error, uc.UcError, WindowsEmuError)
@@ -1824,8 +1818,8 @@ class WindowsEmulator(BinaryEmulator):
                 if bindings.get(slot.iat) == slot.current:
                     continue
                 if slot.iat in bindings and (not slot.has_ilt or slot.current != slot.thunk):
-                    # The guest changed an entry that we bound. Keep the guest's value,
-                    # unless the guest wrote back the original value from the ILT.
+                    # The guest changed an entry that the emulator bound. Keep the value of
+                    # the guest, unless the guest wrote back the original value from the ILT.
                     continue
                 if slot.is_bound_externally:
                     continue
@@ -1887,8 +1881,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Load an image and its dependencies.
 
-        Set is_input for the input image. The input image is the first module in modules, and only the input image
-        allocates the stack.
+        Set is_input for the input image. The input image is the first module in modules, and the emulator
+        allocates the stack only for the input image.
         """
         return self.module_loader.load_image(image, base, is_input=is_input)
 
@@ -1899,7 +1893,8 @@ class WindowsEmulator(BinaryEmulator):
         An image with preferred base 0 loads at any free address.
 
         Raises:
-            ValueError: if the image must move, but it has no relocation data.
+            ValueError: if the image cannot move to the free base, for example because it has no relocation data.
+            WindowsEmuError: if the machine is not initialized, or the image does not match the machine.
         """
         if not self.arch:
             raise WindowsEmuError("the machine is not initialized: call init_machine before loading images")
@@ -1970,13 +1965,13 @@ class WindowsEmulator(BinaryEmulator):
                 end = (mod.base + section.virtual_address + section.virtual_size + self.page_size - 1) & ~(
                     self.page_size - 1
                 )
-                # PE sections can be smaller than a page and multiple sections can share one page.
-                # Merge permissions per page so a later tiny read-only section does not clobber
-                # earlier writable/executable permissions already required on that same page.
+                # Sections can be smaller than a page, and two sections can share a page. Merge the
+                # permissions of each page, so that a small read-only section does not remove the
+                # write or execute permission of an earlier section on the same page.
                 for page in range(start, end, self.page_size):
                     page_perms[page] = page_perms.get(page, 0) | section.perms
-            # Each unicorn mem_protect call splits a region, and the cost grows with the region
-            # count, so protect runs of contiguous same-permission pages with one call each.
+            # Each mem_protect call of Unicorn splits a region, and the cost of a call grows with the
+            # number of regions. So protect each range of adjacent pages with equal perms in one call.
             for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
                 self.mem_protect(start, length, perms)
 
@@ -2090,9 +2085,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def create_process(self, path=None, cmdline=None, image=None, *, child=False, cd=""):
         """
-        Create a process object that will exist in the emulator.
+        Create a process with one thread for the program in path, or in cmdline if path is empty.
 
-        An empty cd gives the process the current directory of the current process.
+        Add the process to child_processes if child is set, else to processes. An empty cd gives the process the
+        current directory of the current process.
 
         Raises:
             IsADirectoryError: if the program path is a directory.
@@ -2132,7 +2128,6 @@ class WindowsEmulator(BinaryEmulator):
         if cd:
             p.cd = cd
 
-        # Create a thread object for the new process
         t = om.new_object(objman.Thread)
         t.process = p
 
@@ -2167,7 +2162,12 @@ class WindowsEmulator(BinaryEmulator):
         return p
 
     def create_thread(self, addr, ctx, proc_obj, name=None, *, is_suspended=False):
-        """Create a thread object that will exist in the emulator."""
+        """
+        Create a thread of proc_obj and a run that starts at addr.
+
+        Add the run to the queue, or to the suspended runs if is_suspended is set. Return the handle and the thread,
+        or (0, None) if the queue has max_runs runs.
+        """
         om = self.get_object_manager("thread creation")
 
         if len(self.run_queue) >= self.max_runs:
@@ -2192,11 +2192,10 @@ class WindowsEmulator(BinaryEmulator):
             thread.suspend_count = 1
             self.suspended_runs.append(run)
 
-        # Returns handle
         return hnd, thread
 
     def resume_thread(self, thread):
-        """Resume a previously suspended thread."""
+        """Move the suspended run of thread to the queue. Return False if thread has no suspended run."""
         for r in self.suspended_runs:
             if r.thread == thread:
                 _run = self.suspended_runs.pop(self.suspended_runs.index(r))
@@ -2209,12 +2208,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def add_callback(self, mod_name, func_name):
         """
-        Adds a callback to the emulation callback list.
+        Get the address of an entry for the handler mod_name!func_name in the speakeasy_callbacks module.
 
-        A "callback" in this context refers to a function that is not imported statically or dynamically.
-
-        For example, a pointer that is set in a function table
-        (e.g. PsSetCreateProcessNotifyRoutine).
+        The guest calls such a function through a pointer that a handler wrote, for example in a function table or a
+        vtable, not through an import.
         """
         module = self.get_mod_by_name("speakeasy_callbacks")
         if module is None:
