@@ -14,7 +14,7 @@ If Speakeasy did not collect the data of a key, the report leaves out the key, f
 
 The report writes each machine word as a hex string with a `0x` prefix and lowercase digits. Machine words are addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage addresses. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value when it is a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number.
 
-`report_version` is the value of `speakeasy.report.REPORT_VERSION`. `timestamp` is the start time of the profiler in epoch seconds, and `emulation_total_runtime` is the wall-clock time from the start to the stop of the profiler in seconds. The other top-level fields are:
+`report_version` is the value of `speakeasy.report.REPORT_VERSION`. `timestamp` is the Unix time in seconds of the first start of the run queue, and `emulation_total_runtime` is the wall-clock time in seconds from that start to the end of the emulation. A `call()` after `run_module()` and each child process with `--emulate-children` start the run queue again, and the time to the last end counts. The other top-level fields are:
 
 - `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`) and `image_base`: the input metadata that the loader records. `path` is the host path of the input file. If the input came from bytes in memory, the report has no `path`.
 - `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks.
@@ -92,10 +92,10 @@ Each event has `pos`, the position of the thread that did the operation, so the 
   // Report format version.
   "report_version": "6.0.0",
 
-  // Wall-clock seconds from the last start of the run queue to the end.
+  // Wall-clock seconds from the first start of the run queue to the end.
   "emulation_total_runtime": 1.234,
 
-  // Unix time in seconds of the last start of the run queue.
+  // Unix time in seconds of the first start of the run queue.
   "timestamp": 1760000000,
 
   // Input metadata. A key is absent when the value is unknown.

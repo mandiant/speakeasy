@@ -1391,7 +1391,7 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_fault_stop = None
 
         if self.profiler:
-            self.profiler.set_start_time()
+            self.profiler.start_clock()
 
         while True:
             try:

@@ -171,13 +171,13 @@ class Profiler:
         super().__init__()
 
         self.analysis: AnalysisConfig = analysis or AnalysisConfig()
-        self.start_time: float = 0
+        self.start_time: float = time.time()
         self.strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
         self.decoded_strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
         self.last_data: list[int] = [0, 0]
         self.last_event: AnyEvent | dict[str, Any] = {}
         self.last_event_run: Run | None = None
-        self.set_start_time()
+        self.clock_started: bool = False
         self.runtime: float = 0
         self.meta: dict[str, Any] = {}
         self.runs: list[Run] = []
@@ -187,16 +187,22 @@ class Profiler:
         """Set the metadata of the input, such as the path and the SHA-256, for the report."""
         self.meta = meta
 
-    def set_start_time(self):
-        """Set the start time of the report clock to now."""
-        self.start_time = time.time()
+    def start_clock(self):
+        """
+        Start the report clock, if it is not started.
+
+        The emulator calls this on each start of the run queue, so the clock starts at the first start.
+        """
+        if not self.clock_started:
+            self.start_time = time.time()
+            self.clock_started = True
 
     def get_run_time(self):
-        """Get the number of seconds since the last call of ``set_start_time``."""
+        """Get the number of seconds since the start of the report clock."""
         return time.time() - self.start_time
 
     def stop_run_clock(self):
-        """Save the time since the last call of ``set_start_time`` as the runtime of the report."""
+        """Save the time since the start of the report clock as the runtime of the report."""
         self.runtime = self.get_run_time()
 
     def add_run(self, run: Run) -> None:

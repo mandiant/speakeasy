@@ -358,3 +358,22 @@ def test_api_log_and_event_keep_the_64_bits_of_an_x86_double_return(caplog: pyte
     events = [event for event in entry.events if event.event == "api"]
     assert [(event.api_name, event.return_value) for event in events] == [("msvcrt.floor", 0xC008000000000000)]
     assert "-> 0xc008000000000000" in caplog.text
+
+
+def test_report_clock_covers_every_start_of_the_run_queue():
+    data, _ = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")]), imports=TICK)
+    with Speakeasy(config=configured()) as se:
+
+        def tick(emu, name, original, args):
+            time.sleep(0.3)
+            return 7
+
+        se.add_api_hook(tick, "kernel32", "GetTickCount", argc=0)
+        module = se.load_module(data=data)
+        before = time.time()
+        se.run_module(module)
+        se.call(module.base + 0x1000)
+        report = se.get_report()
+
+    assert int(before) <= report.timestamp <= int(before) + 1
+    assert report.emulation_total_runtime >= 0.6

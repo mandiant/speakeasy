@@ -465,11 +465,11 @@ class Report(BaseModel):
     )
     emulation_total_runtime: float = Field(
         description=(
-            "Wall-clock time in seconds, rounded to milliseconds, from the last start of the run queue "
+            "Wall-clock time in seconds, rounded to milliseconds, from the first start of the run queue "
             "to the end of the emulation."
         )
     )
-    timestamp: int = Field(description="Unix time in seconds of the last start of the run queue.")
+    timestamp: int = Field(description="Unix time in seconds of the first start of the run queue.")
     arch: Arch | None = Field(
         default=None,
         description="Architecture of the input.",

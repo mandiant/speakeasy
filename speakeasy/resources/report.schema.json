@@ -3054,12 +3054,12 @@
       "type": "string"
     },
     "emulation_total_runtime": {
-      "description": "Wall-clock time in seconds, rounded to milliseconds, from the last start of the run queue to the end of the emulation.",
+      "description": "Wall-clock time in seconds, rounded to milliseconds, from the first start of the run queue to the end of the emulation.",
       "title": "Emulation Total Runtime",
       "type": "number"
     },
     "timestamp": {
-      "description": "Unix time in seconds of the last start of the run queue.",
+      "description": "Unix time in seconds of the first start of the run queue.",
       "title": "Timestamp",
       "type": "integer"
     },
