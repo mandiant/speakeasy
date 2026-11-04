@@ -23,7 +23,7 @@ class GuiObject:
 
 
 class Session(GuiObject):
-    """Represents a windows Session."""
+    """Represents a Windows session."""
 
     def __init__(self, handles: HandleTable, windows: dict[int | str, Window], sess_id):
         super().__init__(handles)
@@ -54,7 +54,7 @@ class Station(GuiObject):
 
 class Desktop(GuiObject):
     """
-    Represents a Desktop object.
+    Represents a desktop.
 
     The windows of all desktops are in the one window store of the session manager. The desktop
     window is not in the store, because EnumWindows does not give it.
@@ -108,11 +108,10 @@ class WindowClass(GuiObject):
 
 class SessionManager:
     """
-    The session manager for the emulator.
+    Keep the sessions, window stations, desktops, windows and window classes of the emulator.
 
-    It manages things like desktops, windows, and session isolation. USER objects, such as
-    windows, desktops and window classes, belong to the session on Windows, not to a process,
-    so their handles are in a table of the manager.
+    USER objects, such as windows, desktops and window classes, belong to the session on Windows, not
+    to a process, so their handles are in a table of the manager.
     """
 
     def __init__(self, config, allocator: HandleAllocator):
@@ -127,18 +126,11 @@ class SessionManager:
         self.config: Any = config
         self.dev_ctx: int = allocator.allocate_handle()
 
-        # create a session 0
         self.curr_session = Session(self.handles, self.windows, sess_id=0)
-
-        # create WinSta0
         self.curr_station = self.curr_session.new_station(name="WinSta0")
-
-        # Create a desktop
         self.curr_station.new_desktop("Winlogon")
         default = self.curr_station.new_desktop("Default")
         self.curr_station.new_desktop("Disconnect")
-
-        # For now lets default to the Default desktop
         self.curr_desktop = default
 
     def create_window_class(self, class_obj, class_name=None):
