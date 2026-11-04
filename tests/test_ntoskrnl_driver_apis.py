@@ -389,3 +389,28 @@ def test_io_create_device_rejects_an_unknown_driver_object(any_driver_emu: Speak
     rv, dev = _create_device(any_driver_emu, r"\Device\Test", 0x1234, secure)
     assert rv == ddk.STATUS_INVALID_PARAMETER
     assert dev == 0
+
+
+def test_api_call_from_zw_allocate_virtual_memory_records_dynamic_code(any_driver_emu: Speakeasy) -> None:
+    se = any_driver_emu
+    emu = get_kernel_emu(se)
+    pbase = alloc(se, b"\x00" * _ptr_size(se))
+    psize = alloc(se, _ptr(se, 0x1000))
+    current_process = (1 << 8 * _ptr_size(se)) - 1
+    rv, _ = call(se, "ntoskrnl", "ZwAllocateVirtualMemory", [current_process, pbase, 0, psize, 0x3000, 0x40])
+    assert rv == ddk.STATUS_SUCCESS
+    base = _read_ptr(se, pbase)
+
+    # Enter the buffer past the code hook on its first bytes, and call an API from there.
+    api = emu.get_proc("ntoskrnl", "KeGetCurrentIrql")
+    if _ptr_size(se) == 4:
+        code = b"\xb8" + struct.pack("<I", api) + b"\xff\xd0\xc3"  # mov eax, api; call eax; ret
+    else:
+        # sub rsp, 0x28; mov rax, api; call rax; add rsp, 0x28; ret
+        code = b"\x48\x83\xec\x28\x48\xb8" + struct.pack("<Q", api) + b"\xff\xd0\x48\x83\xc4\x28\xc3"
+    se.mem_write(base + 0x20, code)
+    se.call(base + 0x20)
+
+    entry = se.get_report().entry_points[-1]
+    assert entry.error is None
+    assert [seg.base for seg in entry.dynamic_code_segments] == [base]
