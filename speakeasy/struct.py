@@ -8,14 +8,14 @@ from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 
 class EmuStructException(Exception):
-    """Container class for struct exceptions."""
+    """``create_struct`` raises this exception when it cannot construct a nested struct."""
 
 
 class Enum:
     """
-    Basic Python object that serves as a C style enum.
+    A C-style enum, with the constants as attributes.
 
-    It supports arbitrary attribute access for dynamic enum-style constants.
+    ``__setattr__`` and ``__getattr__`` let mypy accept any attribute name.
     """
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -26,20 +26,20 @@ class Enum:
 
 
 class PtrMeta(type):
-    """Metaclass for pointer types."""
+    """Metaclass that makes ``Ptr * n`` declare an array of ``n`` pointers."""
 
     def __mul__(self, mult):
         return tuple((self, mult))
 
 
 class Ptr(metaclass=PtrMeta):
-    """Generic object that identifies pointer variables, which expand to the ``ptr_size`` passed to ``__init__``."""
+    """A pointer field type. ``create_struct`` gives the field the width of ``ptr_size``."""
 
     _points_to_ = None
 
 
 class CMeta(type):
-    """Metaclass that hooks ``__call__`` and keeps ``__dict__`` ordered on all Python versions."""
+    """Metaclass that builds the ctypes struct after ``__init__``, and makes ``Struct * n`` declare an array."""
 
     @classmethod
     def __prepare__(metacls, name: str, bases: tuple[type, ...], /, **kwds: Any) -> MutableMapping[str, object]:
@@ -87,14 +87,11 @@ class EmuStruct(metaclass=CMeta):
     (``self.Apc = KAPC(ptr_size).get_cstruct()``), and mypy gives these fields their ctypes type.
     """
 
-    # Save the unique types we create here
-    # This is necessary since the ctypes metaclass won't allow us
-    # to assign structures even if the types are identical on the surface.
-    # ctypes will test the id (address) of the type to make sure they match
-    # upon assignment. Otherwise we will hit spurious TypeErrors.
+    # ctypes compares struct types by identity when it assigns a struct to a field, so two types with the
+    # same layout are not compatible. ``__struct_factory`` caches each type and reuses it for the same name and layout.
     __types__: dict[tuple, type] = {}
 
-    # The fields that each class declares at class level, resolved at its first instance
+    # The cache of ``get_declared_fields``, by class.
     __declared__: dict[type, list[tuple[str, Any]]] = {}
 
     class FilteredStruct(ct.Structure):
@@ -102,7 +99,7 @@ class EmuStruct(metaclass=CMeta):
             return hash(repr(self))
 
     def __init__(self, ptr_size=0, pack=0):
-        # Set __dict__ directly here to avoid __getattribute__ loops
+        # ``__setattr__`` raises AttributeError until ``__struct__`` exists, so write ``__dict__`` directly.
         self.__dict__["__pack__"] = pack
         self.__dict__["__struct__"] = None
         self.__dict__["__fields__"] = []
@@ -116,8 +113,8 @@ class EmuStruct(metaclass=CMeta):
         Get the fields of the class-level declarations, with the fields of the base classes first.
 
         A field is ``Annotated`` with its type (``x: Annotated[int, ct.c_uint32]``), or is a nested struct
-        (``x: UNICODE_STRING``). The annotations are resolved at the first instance, so a field can name a
-        struct that the module defines later.
+        (``x: UNICODE_STRING``). This method resolves the annotations at the first instance, so a field can
+        name a struct that the module defines later.
         """
         fields = EmuStruct.__declared__.get(cls)
         if fields is None:
@@ -134,9 +131,9 @@ class EmuStruct(metaclass=CMeta):
         """
         Add fields at the end of the struct, in the order of the arguments.
 
-        ``__init__`` calls it for the fields whose ctypes type depends on ``ptr_size`` or on a constructor
-        parameter, and for the fields that come after them. A nested struct field also has a class-level
-        declaration, which puts it with the declared fields, so this method moves it to the end.
+        The ``__init__`` of a subclass calls this method for the fields whose ctypes type depends on ``ptr_size``
+        or on a constructor parameter, and for the fields that come after them. If a field is also in the
+        declared fields, for example a nested struct, this method moves the field to the end.
         """
         for name, ctype in fields.items():
             self.__dict__.pop(name, None)
@@ -149,12 +146,13 @@ class EmuStruct(metaclass=CMeta):
 
     def create_struct(self):
         """
-        Walk each attribute and build the ctypes structure.
+        Build the ctypes struct from the field attributes in ``__dict__``.
 
-        ``ctypes.Structure`` uses a metaclass, so this method builds ``_fields_`` dynamically through a factory.
+        ctypes reads ``_fields_`` when it creates the class, so this method collects the fields first, and then
+        ``__struct_factory`` creates the class.
 
         Raises:
-            EmuStructException: if a nested structure cannot be built.
+            EmuStructException: if the constructor of a nested struct does not accept ``ptr_size``.
         """
         if self.__struct__:
             return
@@ -188,17 +186,12 @@ class EmuStruct(metaclass=CMeta):
                 continue
             try:
                 if self._is_ctype(obj):
-                    # Simply append ctypes since they will be handled
-                    # automatically
                     self.__fields__.append((d, obj))
                 elif issubclass(obj, Ptr):
-                    # Expand pointers to the required width
                     self.__fields__.append((d, self.get_ptr_field()))
 
                 elif issubclass(obj, EmuStruct):
-                    # Allow nesting of this class which we are calling a
-                    # "filter class". That is, when fields are accessed in the
-                    # underlying ctypes struct, we pass the getattr/setattr through
+                    # ``__getattribute__`` returns the nested EmuStruct from ``__filtermap__``, not its ctypes struct.
                     if obj.__name__ != self.__class__.__name__:
                         try:
                             filt = obj(self.__ptrsize__, self.__pack__)
@@ -216,7 +209,7 @@ class EmuStruct(metaclass=CMeta):
         self.__init_struct()
 
     def get_ptr_field(self):
-        """Get ctypes value for the required pointer size."""
+        """Get the ctypes type for a pointer of ``ptr_size``."""
         if self.__ptrsize__ == 4:
             return ct.c_uint32
         if self.__ptrsize__ == 8:
@@ -224,7 +217,11 @@ class EmuStruct(metaclass=CMeta):
         return ct.c_void_p
 
     def get_pack(self):
-        """Get the required structure pack (defaults to pointer size)."""
+        """
+        Get ``pack`` if it is set, else twice ``ptr_size``, else 1.
+
+        MSVC packs structs to 8 bytes on x86 and to 16 bytes on x64 by default.
+        """
         if self.__pack__:
             return self.__pack__
         if self.__ptrsize__:
@@ -232,7 +229,7 @@ class EmuStruct(metaclass=CMeta):
         return 1
 
     def _link_cstructs(self, obj):
-        """Link nested ctypes structures together so that the buffer API can convert them to bytes."""
+        """Copy the ctypes struct of each nested EmuStruct into its field of the parent ctypes struct."""
         for fname, subobj in obj.__filtermap__.items():
             if isinstance(subobj, list):
                 x = getattr(obj.__struct__, fname)
@@ -246,7 +243,7 @@ class EmuStruct(metaclass=CMeta):
                 setattr(obj.__struct__, fname, subobj.__struct__)
 
     def get_bytes(self):
-        """Convert the structure to bytes and respecting endianness."""
+        """Get the bytes of the struct, with the current values of the nested structs."""
         self._link_cstructs(self)
 
         struct = self.__struct__
@@ -273,7 +270,7 @@ class EmuStruct(metaclass=CMeta):
                 self._deep_cast(subobj, bytez, field_offset)
 
     def cast(self, bytez):
-        """Convert a bytes object to the C structure by "casting" them."""
+        """Set the struct and its nested structs from ``bytez``."""
         self._deep_cast(self, bytez, 0)
         return self
 
@@ -281,7 +278,7 @@ class EmuStruct(metaclass=CMeta):
         return self.__struct__.__class__
 
     def __struct_factory(self, name):
-        """Factory used to generate ctypes structures using the ctypes metaclass."""
+        """Get the ctypes struct type for ``__fields__``, from ``__types__`` if the layout is already there."""
         _type_name = f"ct{name}{self.__ptrsize__}"
         key = (_type_name, self.get_pack(), tuple(self.__fields__))
         _type = EmuStruct.__types__.get(key)
@@ -299,7 +296,11 @@ class EmuStruct(metaclass=CMeta):
         return self.__struct__
 
     def __setattr__(self, name, value):
-        """Hook ``setattr`` to handle access to the underlying ctypes structure."""
+        """
+        Write the ctypes struct field if ``name`` is a field, else set a Python attribute.
+
+        A bytes value overwrites the start of an array field.
+        """
         struct = self.__struct__
         if struct:
             fields = struct._fields_
@@ -314,7 +315,11 @@ class EmuStruct(metaclass=CMeta):
         super().__setattr__(name, value)
 
     def __getattribute__(self, name):
-        """Hook ``getattribute`` to handle access to the underlying ctypes structure."""
+        """
+        Read the ctypes struct field if ``name`` is a field.
+
+        For a nested struct or an array of structs, return the EmuStruct or the list in ``__filtermap__``.
+        """
         try:
             struct = super().__getattribute__("__struct__")
             if struct:
