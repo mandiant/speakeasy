@@ -1,65 +1,37 @@
 # Help and troubleshooting
 
-Use this page when you are blocked and need the fastest path to the right documentation.
+This page tells you which page to read for a problem.
 
-## First step: route to the right page
+## Where to look
 
-- Unsure where to look: start at the [documentation index](index.md)
-- Installation/runtime setup: [install.md](install.md)
-- CLI flags and invocation rules: [cli-reference.md](cli-reference.md)
-- Environment shaping and determinism: [cli-environment-overrides.md](cli-environment-overrides.md)
-- Runtime controls and stop conditions: [cli-execution-controls.md](cli-execution-controls.md)
-- Report schema and field semantics: [reporting.md](reporting.md)
+- All pages: [documentation index](index.md)
+- Overview and quick start: [project README](../README.md)
+- Installation: [install.md](install.md)
+- CLI flags: [cli-reference.md](cli-reference.md)
+- The emulated environment and repeatable runs: [cli-environment-overrides.md](cli-environment-overrides.md)
+- Limits and stop conditions: [cli-execution-controls.md](cli-execution-controls.md)
+- Report fields: [reporting.md](reporting.md)
 - Interactive debugging: [gdb.md](gdb.md)
 
 ## Common issues
 
-### Unsupported API errors
+If the log shows `Unsupported API: <module>.<name>` and the report has an `unsupported_api` error, the sample called an API that has no handler and no signature. [limitations.md](limitations.md) tells you why the run stops, and [api-handlers.md](api-handlers.md) tells you how to add a handler.
 
-Symptom:
-- `Unsupported API: <module>.<name>` in the log, and an `unsupported_api` error in the report
+If the sample exits too early or takes a path that you do not expect, it can need a file, a registry key or another part of the environment. Read [configuration.md](configuration.md) and [cli-environment-overrides.md](cli-environment-overrides.md).
 
-Read:
-- [limitations.md](limitations.md)
-- [api-handlers.md](api-handlers.md)
+If a run is too slow or the report is too large, read [cli-analysis-recipes.md](cli-analysis-recipes.md) and [performance and telemetry tuning](cli-execution-controls.md#performance-and-telemetry-tuning).
 
-### Sample exits too early or behaves differently than expected
+To step through the code of a sample, read [gdb.md](gdb.md). To give host files to the sample, read [volumes.md](volumes.md) and [cli-reference.md](cli-reference.md).
 
-Check:
-- [configuration.md](configuration.md)
-- [cli-environment-overrides.md](cli-environment-overrides.md)
+## Before you open an issue
 
-### Run is too slow or produces very large artifacts
+Include these items, so that others can reproduce the problem:
 
-Check:
-- [cli-analysis-recipes.md](cli-analysis-recipes.md)
-- [cli-execution-controls.md](cli-execution-controls.md)
-- [cli-execution-controls.md#performance-and-telemetry-tuning](cli-execution-controls.md#performance-and-telemetry-tuning)
+- the Speakeasy version (`speakeasy --version`) and how you installed it
+- the full command line
+- the config file, if you used one
+- the type of the input (`exe`, `dll`, `sys` or raw shellcode)
+- the `--verbose` log near the failure
+- the `errors` and `entry_points[*].error` fields of the report
 
-### Need to step through execution interactively
-
-Check:
-- [gdb.md](gdb.md)
-
-### Need mounted files in emulated filesystem
-
-Check:
-- [volumes.md](volumes.md)
-- [cli-reference.md](cli-reference.md)
-
-## Before opening an issue
-
-Include the following so others can reproduce quickly:
-
-- Speakeasy version (`speakeasy --version`) and install method
-- full command line used
-- config overlay (if any)
-- target type (`exe`, `dll`, `sys`, raw shellcode)
-- `--verbose` log excerpt around failure
-- report excerpt (`errors`, `entry_points[*].error`)
-
-## Need more help
-
-- Documentation hub: [index.md](index.md)
-- Project landing page: [../README.md](../README.md)
-- Issue tracker: [github.com/mandiant/speakeasy/issues](https://github.com/mandiant/speakeasy/issues)
+Report issues in the [issue tracker](https://github.com/mandiant/speakeasy/issues).

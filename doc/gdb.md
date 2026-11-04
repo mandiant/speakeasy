@@ -1,10 +1,8 @@
 # GDB Debugging
 
-Speakeasy supports interactive debugging of emulated binaries via the GDB Remote Serial Protocol. When enabled, the emulator pauses before the first instruction and waits for a GDB client to connect. You can then set breakpoints, inspect registers and memory, single-step, and continue execution — all through a standard GDB interface.
+Speakeasy has a GDB server for the GDB Remote Serial Protocol (RSP). With the server on, the emulator stops before the first instruction and waits for a GDB client. In the client, you can set breakpoints, read and write registers and memory, step and continue.
 
-Synthesized Windows API pointers returned by `GetProcAddress`, bound imports, and export-table walks refer to mapped executable entries. Set a breakpoint directly on that pointer; stepping executes its public bytes before handler dispatch. See [Unified Windows API addresses](unified-api-addresses.md) for entry layouts, dynamic-only symbols and unsupported-call stops.
-
----
+`GetProcAddress`, the IAT and the export table give the address of a Windows API as the address of code in the DLL image. You can set a breakpoint on this address. When you step into the API, the guest runs this code before the emulator calls the Python handler. See [Unified Windows API addresses](unified-api-addresses.md) for the layout of this code.
 
 ## Quick Start
 
@@ -14,7 +12,7 @@ Synthesized Windows API pointers returned by `GetProcAddress`, bound imports, an
 speakeasy -t sample.exe --gdb
 ```
 
-This starts the GDB server on the default port (1234). Speakeasy will print a message and block until a GDB client connects:
+The GDB server listens on port 1234. Speakeasy logs this message and waits until a GDB client connects:
 
 ```
 Native GDB server listening on 127.0.0.1:1234, waiting for connection...
@@ -26,21 +24,19 @@ To use a different port:
 speakeasy -t sample.exe --gdb --gdb-port 9999
 ```
 
-The server binds to loopback by default. To allow a debugger on another machine to connect, explicitly choose a bind address:
+The server listens on loopback. To let a debugger on a different machine connect, give a bind address:
 
 ```console
 speakeasy -t sample.exe --gdb --gdb-host 0.0.0.0 --gdb-port 9999
 ```
 
-> **Warning:** GDB RSP has no authentication and permits target memory and register modification. Only use a non-loopback `--gdb-host` on a trusted network or behind an appropriate firewall/tunnel.
->
-> `--gdb` automatically enables `--no-mp` because the server must remain attached to the same Unicorn instance.
+RSP has no authentication, and a client can change the memory and registers of the target. Use a `--gdb-host` other than loopback only on a trusted network, or behind a firewall or a tunnel. Speakeasy logs a warning for such a host. With `--gdb`, the CLI also sets `--no-mp`.
 
 ### 2. Connect with GDB
 
-In another terminal, connect using `gdb-multiarch` (or your platform's GDB):
+In a different terminal, connect with `gdb-multiarch` or the GDB of your platform.
 
-**For a 32-bit x86 binary:**
+For a 32-bit x86 binary:
 
 ```console
 $ gdb-multiarch
@@ -48,7 +44,7 @@ $ gdb-multiarch
 (gdb) target remote localhost:1234
 ```
 
-**For a 64-bit x86-64 binary:**
+For a 64-bit x86-64 binary:
 
 ```console
 $ gdb-multiarch
@@ -56,11 +52,11 @@ $ gdb-multiarch
 (gdb) target remote localhost:1234
 ```
 
-Once connected, GDB will show the current stop position. From here you can debug normally.
+GDB then shows the address where the emulator stopped.
 
 ### 3. Debug
 
-Standard GDB commands work:
+Use the usual GDB commands:
 
 ```
 (gdb) info registers
@@ -70,8 +66,6 @@ Standard GDB commands work:
 (gdb) stepi
 (gdb) x/32xb $esp
 ```
-
----
 
 ## Examples
 
@@ -119,22 +113,18 @@ $ gdb-multiarch
 (gdb) continue
 ```
 
----
-
 ## Using with IDA Pro
 
-IDA Pro's built-in GDB debugger can connect to the speakeasy GDB stub:
+The Remote GDB debugger of IDA Pro can connect to the Speakeasy GDB server:
 
 1. Start speakeasy with `--gdb`
 2. In IDA, go to **Debugger > Select debugger > Remote GDB debugger**
-3. Set **Hostname** to `localhost` and **Port** to `1234` (or your chosen port)
+3. Set **Hostname** to `localhost` and **Port** to `1234` (or your port)
 4. Click **Debugger > Attach to process** or **Start process**
-
----
 
 ## Programmatic Usage
 
-The GDB server can also be enabled when using speakeasy as a library:
+To start the GDB server from the library, give `gdb_port` to `Speakeasy`:
 
 ```python
 import speakeasy
@@ -145,49 +135,44 @@ module = se.load_module("sample.dll")
 se.run_module(module)
 ```
 
----
-
 ## How It Works
 
-Speakeasy implements the all-stop GDB Remote Serial Protocol directly. The server provides register and memory access, software and hardware breakpoints, watchpoints, single-step, asynchronous Ctrl-C pause, and the Windows process metadata used by IDA:
+Speakeasy implements the all-stop mode of RSP itself. A reader thread reads the RSP packets from the socket. When it gets Ctrl-C, it stops Unicorn. Breakpoint and watchpoint hooks record the stop reason and stop Unicorn. The emulator thread handles the packets only after Unicorn stops.
 
-- `qXfer:libraries:read` returns all mapped Speakeasy PE modules; mapping one while the target runs (for example through `LoadLibrary`) halts it with the `library` stop reason so the client re-reads the list
-- `qXfer:exec-file:read` returns the emulated executable path
-- `qXfer:threads:read`, `qfThreadInfo`, and `qGetTIBAddr` describe the active emulated thread
-- `qXfer:features:read` reports a register layout matching the emulated architecture
-- `qXfer:memory-map:read` reports Unicorn's mapped memory regions
-- `vCont`, legacy resume packets, register/memory writes, detach, and process exit are supported
-- when the last run ends without a fault, the server halts the target with a `T05` stop reply before it sends `W00`, even if an earlier run faulted. The client can then read the final memory, for example to dump an unpacked image after `ExitProcess`. When the last run faults, the server sends `X0b` after the fault stop.
+The server gives the Windows process data that IDA uses:
 
-A socket reader handles RSP framing and can stop Unicorn asynchronously when it receives Ctrl-C. Breakpoint and watchpoint hooks only record a stop reason and stop Unicorn; protocol processing happens after `emu_start()` returns, rather than from inside a Unicorn callback.
+- `qXfer:libraries:read` gives all mapped PE modules. When a module maps or unmaps while the target runs, for example in `LoadLibrary`, the server stops the target with the `library` stop reason. The client then reads the list again.
+- `qXfer:exec-file:read` gives the path of the module of the current run.
+- `qXfer:threads:read` and `qfThreadInfo` give the active thread, and `qGetTIBAddr` gives the address of its TEB.
+- `qXfer:features:read` gives the registers of the emulated architecture.
+- `qXfer:memory-map:read` gives the mapped memory regions of Unicorn.
 
----
+When the last run ends without a fault, the server stops the target with a `T05` stop reply, and then sends `W00`. This is also true when an earlier run faulted. So the client can read the final memory, for example to dump an unpacked image after `ExitProcess`. When the last run faults, the server sends `X0b` after the fault stop.
 
 ## Supported protocol subset
 
-The server implements the all-stop RSP subset exercised by GDB and IDA:
+The server implements the all-stop RSP subset that GDB and IDA use:
 
 | Area | Packets |
 |---|---|
 | Transport | checksums, ACK/NACK retransmission, `QStartNoAckMode`, binary escaping, raw Ctrl-C |
 | Target discovery | `qSupported`, `qXfer:features:read`, `qXfer:memory-map:read` |
 | Windows metadata | `qXfer:libraries:read`, `qXfer:exec-file:read`, `qXfer:threads:read`, `qGetTIBAddr` |
-| Thread selection | `qC`, `qfThreadInfo`, `qsThreadInfo`, `H`, `T` for the synthetic active thread |
+| Thread selection | `qC`, `qfThreadInfo`, `qsThreadInfo`, `H`, `T` for the one active thread |
 | Registers | `g`, `G`, `p`, `P` |
 | Memory | `m`, `M`, `X` |
-| Breakpoints | `Z0`/`z0`, `Z1`/`z1`, and read/write/access watchpoints |
-| Execution | `c`, `s`, `C`, `S` (the signal is ignored), `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
-| Lifecycle | `D`, `k`, a final `T05` stop before exit, and `Wxx` exit replies |
+| Breakpoints | `Z0`/`z0`, `Z1`/`z1` and the read, write and access watchpoints (`Z2` to `Z4`) |
+| Execution | `c`, `s`, `C`, `S` (the server ignores the signal), `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
+| Lifecycle | `D`, `k`, `vKill`, a final `T05` stop before exit and `Wxx` exit replies |
 
-Unsupported optional packets receive an empty response as required by RSP. Non-stop mode, multiprocess mode, reverse execution, and remote file I/O are not advertised.
+The server sends an empty reply to an optional packet that it does not support, as RSP requires. The server does not implement non-stop mode, multiprocess mode, reverse execution or remote file I/O.
 
 ## Limitations
 
-- one debugger client can connect to a Speakeasy instance
-- Speakeasy models Windows thread objects but executes one Unicorn CPU context at a time; the server therefore presents the currently active execution context as one synthetic GDB thread
-- breakpoints persist across runs: Speakeasy executes multiple runs (for example TLS callbacks, the module entry point, and exports)
-- modules stay mapped for the life of the emulation, so the server reports library loads but never unloads
-- reverse execution, non-stop mode, and multiprocess RSP are not implemented
+- One debugger client can connect to a Speakeasy instance.
+- Speakeasy has Windows thread objects, but Unicorn runs one CPU context at a time. The server shows the active context as one GDB thread.
+- The server keeps breakpoints across runs. A run is one call into guest code, such as a TLS callback, the entry point or an export.
+- `FreeLibrary` does not unmap a module, so the library list does not change after it.
 
 ## Related docs
 

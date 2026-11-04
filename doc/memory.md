@@ -1,36 +1,22 @@
 # Memory management
 
-Speakeasy layers a memory manager on top of the emulator engine and tracks each mapped region with tags and metadata that can be exported in reports.
+The Speakeasy memory manager wraps the memory functions of the CPU engine. It gives each mapped region a tag, and the report can include the regions with their tags.
 
-## Memory tagging
+## Memory tags
 
-Each allocation is tagged with this namespace format:
+A tag starts with the origin, then names the object and ends with the base address, for example `api.VirtualAlloc.0x450000` or `emu.stack.0x1200000`. The origin `emu` marks memory that the emulator maps, such as images, stacks and system structures. The origin `api` marks memory that an API handler allocates, for example for `VirtualAlloc`.
 
-`<origin>.<object_type>.<object_name>.<base_address>`
+## Keeping freed memory
 
-Typical origins:
+Set `keep_memory_on_free` (or `--keep-memory-on-free`) to keep a region mapped after the sample frees it. Use this option when a sample frees a buffer soon after it writes the buffer, and you want to examine the buffer.
 
-- `emu`: memory mapped by emulator internals (images, stacks, core runtime structures)
-- `api`: memory allocated via API handlers (for example `VirtualAlloc` paths)
+## Memory snapshots
 
-## Memory freezing
-
-Set `keep_memory_on_free` (or `--keep-memory-on-free`) to keep mappings after free operations. This is useful when samples allocate, populate, and free buffers quickly but you still need to inspect resulting artifacts.
-
-## Memory acquisition mode
-
-In-report snapshots:
-
-- `--snapshot-memory-regions` stores region payload refs in the report
-- resolve those refs through the top-level `data` section, which stores `base64(zlib(raw_bytes))` keyed by SHA-256
-
-This keeps memory snapshots self-contained while deduplicating repeated regions across runs.
+With `--snapshot-memory-regions`, the report includes the content of each memory region at the end of a run. Each region in the report has a `data_ref`, which is a SHA-256 key in the top-level `data` section. The `data` section keeps the bytes as `base64(zlib(raw_bytes))`. The report keeps one copy of bytes that repeat across regions or runs, and it does not need other files.
 
 ## Memory tracing
 
-Set `analysis.memory_tracing` (or `--analysis-memory-tracing`) to track per-region read/write/execute counters and symbol access summaries.
-
-This adds overhead, especially on memory-heavy samples.
+Set `analysis.memory_tracing` (or `--analysis-memory-tracing`) to count the reads, writes and executes of each region and to record the accesses to symbols. Memory tracing makes the run slower, mostly for samples that access much memory.
 
 ## Related docs
 

@@ -1,17 +1,12 @@
 # Mounting host files with --volume
 
-The `-V` / `--volume` flag maps host files or directories into the emulated Windows filesystem. The interface is this flag and the `volumes` parameter of `Speakeasy`. The functions in `speakeasy.volumes` are internal, and a minor release can change them (see [Public interface](library.md#public-interface)).
+The `-V` / `--volume` flag maps host files or directories into the emulated Windows file system. The `volumes` parameter of `Speakeasy` does the same in Python. The functions in `speakeasy.volumes` are internal, and a minor release can change them (see [Public interface](library.md#public-interface)).
 
-Format:
-
-- `host_path:guest_path`
-- repeat `-V` to provide multiple mappings
-
-Both paths can start with a drive letter, for example `C:\samples\mal.exe:D:\staging\mal.exe`. The separator is the first `:` that is not part of a drive letter.
+A volume has the format `host_path:guest_path`. Repeat `-V` for more than one volume. Both paths can start with a drive letter, for example `C:\samples\mal.exe:D:\staging\mal.exe`. The separator is the first `:` that is not part of a drive letter.
 
 ## Mount a directory recursively
 
-A directory mount maps each file below the host directory, at any depth, to the same relative path below the guest path. With `-V /tmp/vol_demo:c:\appdata`, the emulated filesystem has these files:
+A directory mount maps each file below the host directory, at any depth, to the same relative path below the guest path. With `-V /tmp/vol_demo:c:\appdata`, the emulated file system has these files:
 
 ```text
 c:\appdata\configs\settings.ini  <-  /tmp/vol_demo/configs/settings.ini
@@ -32,7 +27,7 @@ Mount one directory:
 speakeasy -t malware.exe -V /data/samples:c:\windows\temp
 ```
 
-Mount multiple paths:
+Mount more than one path:
 
 ```console
 speakeasy -t malware.exe \
@@ -40,7 +35,7 @@ speakeasy -t malware.exe \
   -V /data/payload.dll:c:\windows\system32\payload.dll
 ```
 
-## Programmatic usage
+## Python example
 
 ```python
 import speakeasy
@@ -55,10 +50,11 @@ module = se.load_module("malware.exe")
 se.run_module(module)
 ```
 
-## Notes
+## How Speakeasy applies volumes
 
-- Volume entries are injected as filesystem `full_path` rules.
-- When loading from a host file path, Speakeasy can also auto-mount immediate sibling files from the target directory into the emulated current directory.
+Speakeasy adds a `full_path` file entry to the config for each mounted file. It puts these entries before the file entries of the config, so a volume file wins over a config entry for the same path.
+
+When `load_module` loads the input from a host path, Speakeasy also maps each file in the directory of the input into the emulated current directory. It does not map the subdirectories.
 
 ## Related docs
 
@@ -66,5 +62,5 @@ se.run_module(module)
 - [Documentation index](index.md)
 - [CLI reference](cli-reference.md)
 - [Configuration walkthrough](configuration.md)
-- [Speakeasy 2 walkthrough outline](speakeasy2-walkthrough.md)
+- [What's new in 2.0](speakeasy2-walkthrough.md)
 - [Help and troubleshooting](help.md)

@@ -1,12 +1,12 @@
 # Migrating to 2.0
 
-This page is for code and scripts that use Speakeasy as a Python library or from the command line, and move from 1.x to 2.0. Each section names a change to the interface and gives the code or command to change.
+This page tells you how to move code and scripts from Speakeasy 1.x to 2.0. It covers the Python library and the command line. Each section names a change to the interface and tells you what to change in your code or command.
 
 ## Report schema 6.0.0
 
 The report of 2.0 has `report_version` `6.0.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
 
-In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, `sym_accesses` has a new name, and `dynamic_code_segments` and `dropped_files` stay.
+In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. `dynamic_code_segments` and `dropped_files` do not change.
 
 Before:
 
@@ -102,7 +102,7 @@ These keys take one value from a fixed set. The schema lists them:
 | none | `compression` of a `data` entry | `zlib` |
 | none | `encoding` of a `data` entry | `base64` |
 
-`ep_type` was one string with the kind of run and a detail. In 2.0, `type` holds the kind and `name` holds the detail. The JSON report leaves out `name` when the run has no detail.
+In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `type` holds the kind and `name` holds the detail. The JSON report leaves out `name` when the run has no detail.
 
 | 1.x `ep_type` | 2.0 `type` | 2.0 `name` |
 |---|---|---|
@@ -129,7 +129,7 @@ The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_jso
 
 ## Exceptions
 
-The exceptions in `speakeasy.errors` now have a tree with `InputError`, `ConfigError`, `EmulationError` and `EngineError` below `SpeakeasyError`. See [Python exceptions](errors.md).
+The exceptions in `speakeasy.errors` form a tree. `SpeakeasyError` is the root, and `InputError`, `ConfigError`, `EmulationError` and `EngineError` are its subclasses. See [Python exceptions](errors.md).
 
 Two classes have new names:
 
@@ -140,7 +140,7 @@ Two classes have new names:
 
 The old names are aliases of the new classes for one release, so `except EmuException` still works. Change it to the new name.
 
-The `Speakeasy` constructor, `load_module` and `load_shellcode` check their arguments, and do not let exceptions of other packages go to the caller.
+The `Speakeasy` constructor, `load_module` and `load_shellcode` check their arguments. They convert the exceptions of other packages to `InputError` or `ConfigError`:
 
 | Call | 1.x | 2.0 |
 |---|---|---|
@@ -154,7 +154,7 @@ The `Speakeasy` constructor, `load_module` and `load_shellcode` check their argu
 | `Speakeasy(volumes=...)` with a malformed volume | `ValueError` | `ConfigError` |
 | `Speakeasy(volumes=...)` with a missing host path | `FileNotFoundError` | `ConfigError` |
 
-`load_shellcode` now takes the architecture name in any case, so `"X64"` works.
+`load_shellcode` accepts the architecture name in upper or lower case, for example `"X64"`.
 
 Before:
 
@@ -220,19 +220,19 @@ These changes can break your code:
   | `get_registry_key(handle, path)` | `reg_get_key(handle, path)` |
   | `get_memory_dumps()`, `create_file_archive()` | none, keep a reference to the `Speakeasy` object |
 
-  `Speakeasy.mem_read` and `Speakeasy.mem_write` raise `SpeakeasyError` when the access fails. The emulator methods do not change the exception.
+  `Speakeasy.mem_read` and `Speakeasy.mem_write` raise `SpeakeasyError` when the access fails. The emulator methods raise `unicorn.UcError`.
 - A dynamic code callback gets `(emu, region)`. In 1.x it got only `region`.
 - `remove_code_hook` is removed. Use `remove_hook`.
 - `add_IN_instruction_hook` and `add_SYSCALL_instruction_hook` are now `add_in_instruction_hook` and `add_syscall_instruction_hook`. The old names give a `DeprecationWarning` for one release.
 - The IN hook now calls its callback with `(emu, port, size)`, and the IN instruction reads the return value. In 1.x the callback did not run. The SYSCALL hook now fires for SYSCALL and SYSENTER. In 1.x it fired only for SYSENTER. Both hooks now use `begin` and `end`.
 
-Code that uses the internals of hooks also changes. The emulator `add_*_hook` methods do not take the `emu` argument. `Speakeasy` does not have the `api_hooks`, `code_hooks` and other lists of hooks that wait for the load, and `pending_hooks` holds them in the order that you added them. The `Hook` classes in `speakeasy.common` do not take `se_obj` and `emu_eng`, and the `se_obj` attribute is now `emu`.
+Code that uses the internals of hooks also changes. The emulator `add_*_hook` methods do not take the `emu` argument. `Speakeasy` keeps the hooks that you add before the load in one list, `pending_hooks`, in the order that you add them. It has no `api_hooks`, `code_hooks` or other list for each hook type. The `Hook` classes in `speakeasy.common` do not take `se_obj` and `emu_eng`, and the `se_obj` attribute is now `emu`.
 
 ## Public interface and keyword-only flags
 
 `speakeasy.__all__` lists the public names, and [Python library usage](library.md#public-interface) tells which methods are public. Import the public names from `speakeasy`. The exceptions, `SpeakeasyConfig`, `Report` and the report models, `Hook` and the hook callback types are all available there.
 
-`speakeasy` does not export `_PeParser` now. It is internal. Import it from `speakeasy.windows.common` if you must use it, but a minor release can change it.
+`speakeasy` does not export `_PeParser`. It is internal. If you must use it, import it from `speakeasy.windows.common`. A minor release can change it.
 
 The boolean parameters of the public methods of `Speakeasy`, `Win32Emulator` and `WinKernelEmulator`, and the parameters after them, are keyword-only. A call that gives them by position raises `TypeError`. In this table, a method without a class name is a method of both emulators:
 
@@ -282,7 +282,7 @@ se.run_module(module, all_entrypoints=True, emulate_children=False)
 
 ## Command line
 
-Many flags have new names, and some short flags are removed. The CLI does not accept the 1.x names or an abbreviation of a flag, so an old flag is an argument error, and the CLI exits 2.
+Many flags have new names, and some short flags are removed. The CLI rejects the 1.x names and abbreviated flags with an argument error and exit status 2.
 
 | 1.x | 2.0 |
 |---|---|

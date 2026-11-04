@@ -1,39 +1,30 @@
 # Limitations
 
-Speakeasy does not delegate API calls, object management, or I/O to a real Windows kernel. Those behaviors are modeled by the emulator, so unsupported paths or environment mismatches can stop execution early.
+Speakeasy does not send API calls, object operations or I/O to a real Windows kernel. The emulator models them, so an API without a model or a difference in the environment can stop execution early. Exceptions reach the handlers of the sample, with the limits in [Exception dispatch](exceptions.md).
 
 ## Unimplemented APIs
 
-Samples call APIs with assumptions about arguments, return values, side effects, and stack behavior. Speakeasy has hand-written handlers for a curated subset of the Windows API; everything else is handled in one of two ways.
+A sample expects a specific argument layout, return value, side effects and stack cleanup from each API that it calls. Speakeasy has handlers for a part of the Windows API. For the other APIs, Speakeasy uses one of the two methods below.
 
 ### Documented APIs without a handler
 
-If the import is declared in the bundled Win32 API signature database (generated from Microsoft's win32metadata, see [Adding API handlers](api-handlers.md)), Speakeasy emulates it from the declaration alone:
+If the bundled signature database declares the import (see [Adding API handlers](api-handlers.md)), Speakeasy emulates the call from the declaration:
 
-- the correct number of argument slots is consumed and, for stdcall on x86, cleaned up
-- the call is traced with parameter names and decoded strings/booleans, e.g. `kernel32.MoveFileExW(lpExistingFileName: "C:\old.txt", lpNewFileName: "C:\new.txt", dwFlags: 0x1)`
-- a type-appropriate success value is returned (`TRUE`, `S_OK`, a fresh handle, ...)
+- It reads the correct number of argument slots and, for stdcall on x86, removes them from the stack.
+- It logs the call with parameter names and decoded strings and booleans, for example `kernel32.MoveFileExW(lpExistingFileName: "C:\old.txt", lpNewFileName: "C:\new.txt", dwFlags: 0x1)`.
+- It returns a success value for the return type (`TRUE`, `S_OK`, a new handle, ...).
 
-What the fallback does **not** do: it has no real side effects. `Out`-only pointer parameters are zero-filled for as many bytes as the prototype declares (the pointed-to scalar or struct, a buffer sized by a sibling count parameter, or just the terminator of an unsized string), so a sample that reads them back sees empty strings, NULL handles and zero counts rather than stale stack contents; but no genuine data is ever produced. A run continues after a call to an API that has a declaration but no handler. Treat calls in the trace that have parameter names (`name: value`) as unimplemented stubs when interpreting a report.
+The call has no real side effects. Speakeasy writes zeros to each `Out`-only pointer parameter, for the size that the prototype declares: the scalar or struct that the pointer points to, a buffer with the size of a related count parameter, or only the terminator of a string without a size. So a sample that reads these parameters gets empty strings, NULL handles and zero counts, and not old stack data. But it never gets real data. The run continues after the call. The report does not mark these calls, and handler calls also have parameter names. To find them, use `--verbose`: the log has a `no handler for <module>.<name>` line for each of these calls.
 
 ### Unknown APIs
 
-If neither a handler nor a signature exists (the C runtime, third-party DLLs, natives that neither win32metadata nor phnt declares), the current run stops and records an error.
-
-Expected error pattern:
+If the API has no handler and no signature, the current run stops with an error. Examples are a C runtime function without a handler, a function of a third-party DLL or a native function that neither win32metadata nor phnt declares. The run also stops when the signature has a form that the emulator cannot call, for example a variadic function. The log shows:
 
 - `Unsupported API: <module_name>.<api_name>`
 
-Why execution stops:
+The emulator does not know the argument count or the calling convention of an unknown API. If the run continued, the stack could be wrong and the report could have incorrect data.
 
-- for unknown APIs, argument count/calling convention cannot be trusted
-- continuing may corrupt stack state and generate misleading report data
-
-Queued runs (for example additional entry points) can still execute. `modules.functions_always_exist` forces these calls through as 4-argument stdcall stubs returning 1.
-
-## Exceptions
-
-Exceptions reach the sample's own handlers, with the limits listed in [Exception dispatch](exceptions.md).
+The runs in the queue, for example other entry points, still run. With `modules.functions_always_exist`, Speakeasy emulates a call to an API without a declaration as a stdcall function with 4 arguments that returns 1.
 
 ## Threads
 
@@ -43,13 +34,11 @@ Threads do not run at the same time. Each thread is a run in the run queue, and 
 
 The ANSI code page is 1252 and the OEM code page is 437. Speakeasy reads and writes `A` strings in code page 1252, so each byte is one character. A character that is not in code page 1252 becomes `?`. For some of these characters Windows uses a best-fit mapping (`ā` to `a`), but Speakeasy does not. `GetCPInfo`, `MultiByteToWideChar` and `WideCharToMultiByte` also support `CP_UTF8` and code page 437, and fail with `ERROR_INVALID_PARAMETER` for other code pages. `IsValidCodePage` returns `TRUE` only for 437, 1252 and 65001. The C runtime uses the C locale, so `mbstowcs` and `wcstombs` map each byte to the wide character with the same value.
 
-`lstrcmp`, `lstrcmpi` and `CompareString` approximate the linguistic sort of Windows: they compare the strings without case first, and when these are equal, lower case sorts before upper case. Punctuation and symbols sort by their code values, without the Windows weights. The case-insensitive C runtime functions, such as `_stricmp`, fold only `A` to `Z`.
+`lstrcmp`, `lstrcmpi` and `CompareString` approximate the linguistic sort of Windows. They compare the strings without case first, and when these are equal, lower case sorts before upper case. Punctuation and symbols sort by their code values, without the Windows weights. The case-insensitive C runtime functions, such as `_stricmp`, fold only `A` to `Z`.
 
 ## Environmental requirements
 
-A sample may expect files, registry keys, network responses, loaded modules, or runtime structures that are not present in the active profile. These misses can look like anti-analysis behavior even when the issue is configuration drift.
-
-Use config and CLI overrides to model the expected environment before concluding a sample is unsupported.
+A sample can expect files, registry keys, network responses, loaded modules or system structures that the config does not have. When one is missing, the sample can act as if it found an analysis environment, but the cause is the config. Before you decide that Speakeasy does not support a sample, add the missing items with the config file and the CLI overrides.
 
 ## Repeatable runs
 

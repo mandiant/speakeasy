@@ -2,17 +2,13 @@
 
 ## Invocation and required input
 
-Basic emulation invocation:
+To emulate a sample, give its path with `--target`:
 
 ```bash
 speakeasy --target <path-to-sample> [flags]
 ```
 
-Rules:
-- `--target` is required for emulation runs.
-- `--dump-default-config` and `--version` are the only modes that do not require `--target`.
-
-Default config dump:
+An emulation run needs `--target`. Only `--dump-default-config` and `--version` run without it. `--dump-default-config` prints the default config:
 
 ```bash
 speakeasy --dump-default-config > default-config.json
@@ -20,31 +16,28 @@ speakeasy --dump-default-config > default-config.json
 
 ## Runtime-only flags
 
-These flags are not generated from the config schema.
+These flags do not come from the config schema.
 
 - `-t, --target`: input file to emulate
-- `-o, --output`: output report JSON path. Without it, the CLI writes the report to stdout
-- `--argv`: argv values for the emulated process (quoted string, parsed with shell rules). For an EXE they replace `command_line`, and the process command line is the quoted program path followed by these values
-- `-c, --config`: JSON config overlay file
-- `--dump-default-config`: print built-in default config and exit
-- `--raw`: treat input as raw bytes/shellcode
-- `--raw-offset`: raw execution start offset
+- `-o, --output`: path of the report JSON. Without it, the CLI writes the report to stdout
+- `--argv`: arguments of the emulated process, as one quoted string that the CLI splits with shell rules. For an EXE, they replace `command_line`, and the process command line is the quoted program path followed by these arguments
+- `-c, --config`: JSON config file that changes the defaults
+- `--dump-default-config`: print the default config as JSON and exit
+- `--raw`: emulate the input as raw bytes, such as shellcode
+- `--raw-offset`: offset in the raw input where emulation starts
 - `--entry-point`: RVA where a PE starts, in place of its entry point
-- `--arch`: shellcode architecture (`x86`, `x64` or `amd64`, in any case). `--raw` needs it; other modes ignore it
-- `--dropped-files-path`: dropped-files archive output path
-- `-k, --emulate-children`: emulate child processes spawned by the sample
-- `--no-mp`: run in current process instead of worker process
+- `--arch`: shellcode architecture (`x86`, `x64` or `amd64`, in any case). `--raw` needs it, and other modes ignore it
+- `--dropped-files-path`: path of the dropped-files archive
+- `-k, --emulate-children`: after the input finishes, emulate the processes that it created with the CreateProcess APIs
+- `--no-mp`: run the emulation in the CLI process instead of a child process
 - `-v, --verbose`: DEBUG logging
-- `--gdb`: enable GDB stub and pause before first instruction
-- `--gdb-host`: GDB stub bind host (default `127.0.0.1`)
-- `--gdb-port`: GDB stub port (default `1234`)
-- `-V, --volume`: host_path:guest_path mapping (repeatable)
+- `--gdb`: start a GDB server and stop before the first instruction. See [GDB debugging](gdb.md)
+- `--gdb-host`: address where the GDB server listens (default `127.0.0.1`)
+- `--gdb-port`: port of the GDB server (default `1234`)
+- `-V, --volume`: `host_path:guest_path` mapping (repeatable). See [Volumes](volumes.md)
 - `--version`: print the speakeasy version and exit
 
-Notes:
-- `--gdb` implies `--no-mp`; Speakeasy enables this automatically.
-- `--raw-offset` and `--entry-point` take a decimal number, or a hex number with `0x`: `--raw-offset 32` and `--raw-offset 0x20` are the same.
-- option abbreviations are disabled; pass full flag names.
+With `--gdb`, the CLI also sets `--no-mp`. `--raw-offset`, `--entry-point` and the integer config flags take a decimal number, or a hex number with `0x`, so `--raw-offset 32` and `--raw-offset 0x20` are the same. The CLI does not accept abbreviated flag names.
 
 ## Output and exit status
 
@@ -54,72 +47,34 @@ The CLI writes the report JSON to the `--output` file, or to stdout without `--o
 speakeasy --target sample.exe | jq '.entry_points[].error'
 ```
 
-The CLI exits 0 when it writes a report, also when an entry point in the report has an `error`, for example an invalid instruction or a timeout. A batch script reads `error` in each entry point to see that emulation stopped early. The CLI exits 1 when it cannot make a report, for example because the loader rejects the input, and writes the error message to stderr. When an error stops the emulation outside an entry point, the CLI writes the report that it has and also exits 1. An argument error, for example `--raw` without `--arch` or a `--volume` host path that does not exist, gives exit status 2.
+The CLI exits 0 when it writes a report. This is also true when an entry point in the report has an `error`, for example an invalid instruction or a timeout. To find the runs that stopped early, read `error` in each entry point. The CLI exits 1 when it cannot make a report, for example because the loader rejects the input. It then writes the error message to stderr. If an error stops the emulation outside an entry point, the CLI still gives the partial report and exits 1. An argument error gives exit status 2, for example `--raw` without `--arch`, or a `--volume` host path that does not exist.
 
-## Schema-derived config flags
+## Config flags
 
-Most scalar/toggle/list/mapping fields in `SpeakeasyConfig` are exposed as CLI flags.
+The CLI makes a flag for each config field with a boolean, number, string, string list or string-to-string mapping value. The [config-file-only fields](#config-file-only-fields) have no flag. `speakeasy --help` shows the description and the default of each flag.
 
-Naming rules:
-- config path `a.b_c` maps to `--a-b-c`
-- booleans use dual form: `--flag` and `--no-flag`
-- dict mappings use repeatable `KEY=VALUE`
-- list values use repeatable `VALUE`
+The CLI makes the flag name from the config path. `analysis.memory_tracing` gives `--analysis-memory-tracing`. If a path part starts with the same word as the part before it, the CLI uses that word one time: `modules.modules_always_exist` gives `--modules-always-exist`. A boolean field has two flags, such as `--analysis-coverage` and `--no-analysis-coverage`.
 
-### Current schema-derived flags (complete list)
+A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to the mapping or replaces its value, and the other keys of the mapping do not change. A list flag takes one `VALUE` and is repeatable. The values replace the whole list.
 
-Boolean toggles:
-- `--analysis-memory-tracing` / `--no-analysis-memory-tracing`
-- `--analysis-strings` / `--no-analysis-strings`
-- `--analysis-coverage` / `--no-analysis-coverage`
-- `--keep-memory-on-free` / `--no-keep-memory-on-free`
-- `--snapshot-memory-regions` / `--no-snapshot-memory-regions`
-- `--exceptions-dispatch-handlers` / `--no-exceptions-dispatch-handlers`
-- `--user-is-admin` / `--no-user-is-admin`
-- `--api-hammering-enabled` / `--no-api-hammering-enabled`
-- `--modules-always-exist` / `--no-modules-always-exist`
-- `--modules-functions-always-exist` / `--no-modules-functions-always-exist`
+Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form.
 
-Scalars:
-- `--max-run-time`
-- `--max-total-time`
-- `--max-api-calls`
-- `--max-instructions`
-- `--stack-size`
-- `--random-seed`
-- `--start-time`
-- `--os-ver-major`
-- `--os-ver-minor`
-- `--os-ver-build`
-- `--current-dir`
-- `--command-line`
-- `--domain`
-- `--hostname`
-- `--user-name`
-- `--user-sid`
-- `--api-hammering-threshold`
-- `--module-directory-x86`
-- `--module-directory-x64`
+Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--api-hammering-threshold`, `--module-directory-x86` and `--module-directory-x64`.
 
-Mappings/lists:
-- `--env KEY=VALUE` (repeatable)
-- `--network-dns-names KEY=VALUE` (repeatable)
-- `--api-hammering-allow-list VALUE` (repeatable)
+Mapping flags: `--env KEY=VALUE` and `--network-dns-names KEY=VALUE`. List flag: `--api-hammering-allow-list VALUE`.
 
 ## Config precedence
 
-Active runtime config is built in this order:
-1. built-in defaults (`SpeakeasyConfig`)
-2. optional `--config` JSON overlay
-3. explicit CLI overrides
+The CLI builds the config of a run in this order:
 
-The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict:
-- a key that the file gives replaces the default value. This is also true for a mapping such as `env` or `network.dns.names`, and for a list
-- a key that the file leaves out gets its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.is_admin` at `true`
+1. the defaults of `SpeakeasyConfig`
+2. the `--config` file
+3. the `--volume` mappings
+4. the config flags
 
-Speakeasy does not currently ship named built-in config profiles beyond the default baseline.
+The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict. A key in the file replaces the default value. This is also true for a mapping such as `env` or `network.dns.names`, and for a list. A key that the file leaves out keeps its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.is_admin` at `true`.
 
-Conflict example:
+In this example, the flags change two values of the config file:
 
 ```bash
 speakeasy --target sample.exe \
@@ -129,37 +84,35 @@ speakeasy --target sample.exe \
   --output report.json
 ```
 
-If `profile.json` sets `max_run_time=120` and `analysis.strings=true`, effective runtime values are `max_run_time=20` and `analysis.strings=false`.
+If `profile.json` sets `max_run_time` to 120 and `analysis.strings` to `true`, the run uses `max_run_time` 20 and `analysis.strings` `false`.
 
-## Unsupported complex fields on CLI
+## Config-file-only fields
 
-The following fields are config-file-only:
-- schema/meta: `config_version`, `emu_engine`, `os_ver.name`
-- object lists and nested structures:
-  - `symlinks`, `drives`
-  - `filesystem.files`
-  - `registry.keys`
-  - `network.adapters`, `network.dns.txt`, `network.http.responses`, `network.winsock.responses`
-  - `processes`
-  - `modules.user_modules`, `modules.system_modules`
+These fields hold nested objects or lists of objects, or describe the config itself. They have no flag, so set them in a `--config` file:
 
-Rationale: these are nested or large structures and are not ergonomic as CLI arguments.
+- `config_version`, `emu_engine`, `os_ver.name`
+- `symlinks`, `drives`
+- `filesystem.files`
+- `registry.keys`
+- `network.adapters`, `network.dns.txt`, `network.http.responses`, `network.winsock.responses`
+- `processes`
+- `modules.user_modules`, `modules.system_modules`
 
-## Concrete examples
+## Examples
 
-Simple PE run:
+Run a PE:
 
 ```bash
 speakeasy --target sample.exe --output report.json
 ```
 
-Raw shellcode run:
+Run raw shellcode:
 
 ```bash
 speakeasy --target shellcode.bin --raw --arch x86 --raw-offset 0x20 --output report.json
 ```
 
-Memory snapshots and dropped-files archive:
+Save memory snapshots in the report and write the dropped-files archive:
 
 ```bash
 speakeasy --target sample.exe --snapshot-memory-regions --dropped-files-path dropped.zip --output report.json
