@@ -611,10 +611,11 @@ class Speakeasy:
 
     def add_dyn_code_hook(self, cb: DynCodeHookCallback) -> common.DynCodeHook:
         """
-        Set a callback to fire when dynamically generated or copied code runs.
+        Set a callback to fire when the guest runs code in memory that ``VirtualAlloc`` or a similar API allocated.
 
-        The emulator calls ``cb(emu, region)`` with the ``MemMap`` of the code.
-        The return value is not used.
+        The hook fires the first time that the start of the region runs, and each time that code
+        in the region calls an API. The emulator calls ``cb(emu, region)`` with the ``MemMap`` of
+        the code. The return value is not used.
 
         Args:
             cb: Python function to call.
