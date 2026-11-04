@@ -1,11 +1,8 @@
 """
-Thread contexts: the sections of a CONTEXT that ContextFlags selects, and access.
+Thread contexts of both architectures, and the sections of a CONTEXT that ContextFlags selects.
 
-The module gives access to a context of either architecture.
-
-GetThreadContext and SetThreadContext copy only the sections the caller asks
-for; the debug registers in particular belong to the thread, not the CPU,
-since Unicorn does not implement them.
+GetThreadContext and SetThreadContext copy only the sections that the caller asks for.
+Unicorn has no debug registers, so the emulator keeps them on the thread.
 """
 
 import speakeasy.winenv.arch as _arch
@@ -113,7 +110,7 @@ def set_control(ctx, ip: int, sp: int) -> None:
 
 
 def register_state(ctx) -> dict[str, int]:
-    """The general purpose registers of ctx, named like the emulator's register state."""
+    """Get the general purpose registers of ctx, with the names of the register state of the emulator."""
     if is_amd64(ctx):
         names = ("Rsp", "Rbp", "Rip", "Rsi", "Rdi", "Rax", "Rbx", "Rcx", "Rdx") + tuple(f"R{i}" for i in range(8, 16))
     else:
