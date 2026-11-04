@@ -70,7 +70,7 @@ class StopReason:
 @dataclass(frozen=True)
 class RegisterInfo:
     name: str
-    unicorn_id: int | None
+    unicorn_id: int
     size: int
     group: str = ""
 
@@ -600,7 +600,7 @@ class GdbServer:
     # Registers and memory
 
     def _make_registers(self) -> list[RegisterInfo]:
-        definitions: list[tuple[str, int | None, int] | tuple[str, int | None, int, str]]
+        definitions: list[tuple[str, int, int] | tuple[str, int, int, str]]
         if self.emu.get_arch() == arch.ARCH_AMD64:
             definitions = [
                 ("rax", ux.UC_X86_REG_RAX, 8),
@@ -640,18 +640,16 @@ class GdbServer:
             )
         )
         definitions.extend((f"st{i}", getattr(ux, f"UC_X86_REG_FP{i}"), 10, "float") for i in range(8))
-        # The server gives 0 for the x87 segment selectors and the operand offset, and ignores a write
-        # to them. These registers keep their slots in the GDB i386 register layout.
         definitions.extend(
             (name, reg, 4, "float")
             for name, reg in (
                 ("fctrl", ux.UC_X86_REG_FPCW),
                 ("fstat", ux.UC_X86_REG_FPSW),
                 ("ftag", ux.UC_X86_REG_FPTAG),
-                ("fiseg", None),
+                ("fiseg", ux.UC_X86_REG_FCS),
                 ("fioff", ux.UC_X86_REG_FIP),
-                ("foseg", None),
-                ("fooff", None),
+                ("foseg", ux.UC_X86_REG_FDS),
+                ("fooff", ux.UC_X86_REG_FDP),
                 ("fop", ux.UC_X86_REG_FOP),
             )
         )
@@ -666,8 +664,6 @@ class GdbServer:
 
     def _read_register_value(self, index: int) -> bytes:
         register = self._registers[index]
-        if register.unicorn_id is None:
-            return bytes(register.size)
         value = self._uc.reg_read(register.unicorn_id)
         if register.name.startswith("st"):
             mantissa, exponent = value
@@ -698,8 +694,6 @@ class GdbServer:
             self._reply(b"E01")
 
     def _write_register_value(self, register: RegisterInfo, value: bytes) -> None:
-        if register.unicorn_id is None:
-            return
         if register.name.startswith("st"):
             mantissa = int.from_bytes(value[:8], "little")
             exponent = int.from_bytes(value[8:], "little")

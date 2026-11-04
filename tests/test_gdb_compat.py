@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from xml.etree import ElementTree
 
 from unicorn import UC_ARCH_X86, UC_MODE_64, Uc
+from unicorn.x86_const import UC_X86_REG_DS
 
 from speakeasy.gdb import _PACKET_SIZE, GdbServer, ResumeAction, StopReason, _rsp_escape, _rsp_packet
 from speakeasy.winenv import arch
@@ -398,3 +399,22 @@ def test_x87_instruction_offset_above_4gb_fits_its_slot():
     fioff = next(i for i, register in enumerate(server._registers) if register.name == "fioff")
 
     assert server._read_register_value(fioff) == (0x80001000).to_bytes(4, "little")
+
+
+def test_x87_operand_pointer_and_segments_come_from_the_cpu_state():
+    emulator = DummyEmulator()
+    uc = Uc(UC_ARCH_X86, UC_MODE_64)
+    uc.mem_map(0x1000, 0x2000)
+    uc.mem_write(0x1000, b"\xd9\x04\x25\x00\x20\x00\x00")  # fld dword [0x2000]
+    uc.reg_write(UC_X86_REG_DS, 0x2B)
+    uc.emu_start(0x1000, 0x1007)
+    emulator.emu_eng = SimpleNamespace(emu=uc)
+    server = GdbServer(emulator, 0, "127.0.0.1")
+    index = {register.name: i for i, register in enumerate(server._registers)}
+
+    assert server._read_register_value(index["foseg"]) == (0x2B).to_bytes(4, "little")
+    assert server._read_register_value(index["fooff"]) == (0x2000).to_bytes(4, "little")
+
+    for name, value in (("fiseg", 0x33), ("foseg", 0x53), ("fooff", 0x3000)):
+        server._write_register_value(server._registers[index[name]], value.to_bytes(4, "little"))
+        assert server._read_register_value(index[name]) == value.to_bytes(4, "little")
