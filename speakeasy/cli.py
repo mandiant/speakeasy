@@ -145,15 +145,6 @@ def wait_for_child(q: mp.Queue[ChildResult], p: mp.Process, evt, wall_limit) -> 
     return result
 
 
-def get_wall_limit(config: SpeakeasyConfig) -> float:
-    """
-    Get the number of seconds after which the CLI stops the emulation process, or 0 for no limit.
-
-    The emulator applies both limits itself. The CLI limit stops a process that hangs in Python code.
-    """
-    return max(config.max_run_time, config.max_total_time)
-
-
 def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_specs) -> str | None:
     target = args.target
     output = args.output
@@ -190,7 +181,10 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         parser.error(f"Invalid active configuration: {err}")
 
     active_cfg = validated.model_dump(mode="python")
-    wall_limit = get_wall_limit(validated)
+    # The CLI limit stops a child process that hangs in Python code, so it must not stop the child before the
+    # emulator limits do. max_run_time applies to each run and the queue can hold any number of runs, so only
+    # max_total_time bounds all runs. When it is 0, the CLI does not stop the child.
+    wall_limit = validated.max_total_time
 
     if target and not os.path.isfile(target):
         parser.error(f"Target file not found: {target}")

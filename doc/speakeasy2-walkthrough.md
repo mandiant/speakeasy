@@ -233,7 +233,7 @@ In one terminal, run `speakeasy -t sample.dll --gdb --gdb-port 1234` and wait fo
 
 ## Time limits across runs
 
-`max_run_time` limits the active time of each run. `max_total_time` limits the active time of all runs of one call, such as `run_module`. Retry loops and waits in the run queue cannot make emulation run longer than these limits. The CLI also stops the emulation process after the larger of the two limits. See [CLI execution controls](cli-execution-controls.md).
+`max_run_time` limits the active time of each run. `max_total_time` limits the active time of all runs of one call, such as `run_module`. Retry loops and waits in the run queue cannot make emulation run longer than these limits. The CLI also stops the emulation process after `max_total_time`, if it is not 0. See [CLI execution controls](cli-execution-controls.md).
 
 ## Related docs
 

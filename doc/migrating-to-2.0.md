@@ -324,6 +324,6 @@ These changes can also break a script:
 
 - `--raw` without `--arch` is an argument error, and the CLI exits 2. `--arch` takes only `x86`, `x64` or `amd64`.
 - Without `-o`, the CLI writes the report JSON to stdout. In 1.x it wrote no report.
-- With `--max-run-time 0`, the CLI stops the emulation process after `--max-total-time`. In 1.x, `--timeout 0` did not stop the process.
+- The CLI stops the emulation process after `--max-total-time`. `--max-run-time` applies to each run, so it does not stop the process. In 1.x, `--timeout 0` did not stop the process.
 
 [CLI reference](cli-reference.md#output-and-exit-status) gives the exit status of each result.
