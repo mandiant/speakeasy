@@ -1031,9 +1031,9 @@ class WindowsEmulator(BinaryEmulator):
         self, address: int, limits: RunLimits, origin_run: Run, debugger: GdbServer | None, stepping: bool
     ) -> bool:
         """
-        Run guest code in Unicorn from address until it stops, and raise the CPU exception of a `hlt` that ran.
+        Run guest code in Unicorn from address until it stops, and raise the CPU exception of a ``hlt`` that ran.
 
-        Get False if a fault stops the debugger.
+        Return False if a fault stops the debugger.
 
         Raises:
             uc.UcError: if Unicorn fails and no native exit explains the failure.
@@ -1046,15 +1046,14 @@ class WindowsEmulator(BinaryEmulator):
                 registers = self.get_register_state()
                 counted = (limits.remaining, origin_run.budget_instructions, origin_run.instr_cnt)
                 if limits.budget <= 0:
-                    # No accounting hook records the instruction of the step,
-                    # which is the one at its start address.
+                    # There is no accounting hook, so record the instruction of the step here.
                     limits.last_executed = address
             self.emu_eng.start(address, timeout=native_timeout, count=native_count)
             if stepping and self._step_had_no_effect(registers, debugger):
-                # Unicorn translates a store into the page of its own code
-                # again and runs it again, which uses up a count of 1. The
-                # second start counts the instruction as a run without a
-                # debugger does, so the first start must not count it.
+                # When an instruction writes to the page of its own code, Unicorn
+                # translates the page again and runs the instruction again. This
+                # uses up the count of 1. Undo the counts of the first start, so
+                # that the second start counts the instruction once.
                 limits.remaining, origin_run.budget_instructions, origin_run.instr_cnt = counted
                 self.emu_eng.start(address, timeout=native_timeout, count=2)
         except uc.UcError as exc:
@@ -1082,7 +1081,7 @@ class WindowsEmulator(BinaryEmulator):
         return bool(exc.errno == uc.UC_ERR_FETCH_UNMAPPED)
 
     def _record_exit(self, native_exit: NativeExit) -> None:
-        """Record native_exit and stop Unicorn. If an exit is already recorded, it stays."""
+        """Record native_exit and stop Unicorn. If an exit is already recorded, keep that exit."""
         if self._native_exit is None:
             self._native_exit = native_exit
         self.emu_eng.stop()
@@ -1105,7 +1104,7 @@ class WindowsEmulator(BinaryEmulator):
         return None
 
     def _add_accounting_hook(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None):
-        """Add a code hook that counts each instruction against the instruction limit and stops the engine at it."""
+        """Add a code hook that counts each instruction and stops Unicorn at the instruction limit."""
 
         def account_instruction(_emu, address, _size):
             if debugger is not None and debugger.has_pending_stop():
@@ -1149,8 +1148,8 @@ class WindowsEmulator(BinaryEmulator):
                     if not self.is_run_complete and origin_run.error is None:
                         origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
                 elif prepared is not None:
-                    # Completing the run already prepared the next one. It
-                    # did not execute and must not appear as a started run.
+                    # on_run_complete prepared the next run. If that run did not
+                    # execute, remove it from the list of runs.
                     self._cancel_execution_runs(prepared)
                     if prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
                         self.runs[:] = [run for run in self.runs if run is not prepared]
@@ -1165,7 +1164,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Handle the native exit.
 
-        Get False if the run loop must return, because the debugger stops, a limit is reached, or the run ended.
+        Return False if the run loop must return, because the debugger stops, a limit is reached, or the run ended.
         """
         native_exit = self._native_exit
         match native_exit:
@@ -1201,12 +1200,12 @@ class WindowsEmulator(BinaryEmulator):
         self, entry: ApiEntry, limits: RunLimits, origin_run: Run, debugger: GdbServer | None
     ) -> bool:
         """
-        Run the handler of the API whose trap the guest reached, and end the run if the handler completed it.
+        Call the handler of the API that the guest called, and end the run if the handler completed it.
 
-        Get False if the call of the run loop must return, because the debugger stops at an API with no handler, a
-        fault stops the debugger, or the total execution time ran out.
+        Return False if the call of the run loop must return, because the debugger stops at an API with no
+        implementation, a fault stops the debugger, or the total execution time ran out.
         """
-        # A missing ABI remains a suspended call under the debugger.
+        # With a debugger, an API without an implementation stops the debugger at the API, and the run continues.
         if debugger is not None and isinstance(
             self.resolve_api_implementation(entry.dll, entry.name), api_resolution.UnsupportedImplementation
         ):
@@ -1230,7 +1229,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Stop origin_run after Unicorn stopped with no native exit.
 
-        If a limit is reached, stop at the limit. Otherwise, end the run with an engine_stopped error, if the run is
+        If a limit is reached, stop at the limit. Otherwise, end the run with an ``engine_stopped`` error, if the run is
         not complete and no debugger is attached.
         """
         reached = limits.get_reached_limit()
@@ -1259,8 +1258,7 @@ class WindowsEmulator(BinaryEmulator):
             logger.error("* Total execution time of %d sec(s) reached.", limits.total_budget.limit)
             limits.total_budget.exhausted = True
             self._cancel_execution_runs()
-            # A limit that expires while a fault is completing keeps the fault as
-            # the run's error.
+            # If the run already has an error, such as a fault, keep that error.
             if self.curr_run is origin_run and origin_run.error is None:
                 origin_run.error = ErrorInfo(type=ErrorType(kind), pc=self.get_pc())
         else:
@@ -1285,11 +1283,11 @@ class WindowsEmulator(BinaryEmulator):
         if isinstance(native_exit, SuspendedApiCall):
             entry = native_exit.entry
             if address not in (entry.address, entry.trap):
-                # A debugger register edit abandons the suspended dispatch.
+                # The debugger changed PC, so the guest does not call the API.
                 self._native_exit = None
             elif self._get_suspended_api_call(entry) != native_exit:
-                # Patches and frame edits while stopped must execute the revised
-                # public bytes instead of bypassing them through a retained trap.
+                # The debugger changed the stack or the code of the API. Run the
+                # code of the API again, so that the changes take effect.
                 self._native_exit = None
                 address = entry.address
                 self.set_pc(address)
@@ -1307,7 +1305,11 @@ class WindowsEmulator(BinaryEmulator):
         return stop
 
     def _cancel_execution_runs(self, prepared=None):
-        """Cancel unexecuted work without leaving DLL attachments initializing."""
+        """
+        Remove the runs in the queue, the suspended runs and the run ``prepared``.
+
+        Clear the ``INITIALIZING`` state of the DllMain and TLS callbacks of these runs.
+        """
         canceled = [*self.run_queue, *self.suspended_runs]
         if prepared is not None:
             canceled.append(prepared)
@@ -1319,10 +1321,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def resume(self, addr, count=-1) -> None:
         """
-        Resume emulation directly at an address.
+        Continue the current run at addr, without the GDB server.
 
-        This low-level API bypasses the GDB command loop; callers that enable
-        GDB should drive execution through :meth:`start` instead.
+        With the GDB server, use ``start``.
         """
         if self.curr_run is None:
             self.curr_run = Run()
@@ -1332,7 +1333,7 @@ class WindowsEmulator(BinaryEmulator):
 
     @execution_scope
     def start(self, addr=None, size=None):
-        """Begin emulation executing each run in the specified run queue."""
+        """Add the runs of the startup initializers, then run all runs in the queue."""
         total_budget = self._execution_budget
         assert total_budget is not None
         if total_budget.exhausted:
@@ -1349,8 +1350,8 @@ class WindowsEmulator(BinaryEmulator):
         self.set_hooks()
         self._unmap_reserved_range()
 
-        # Initialize run context/register state before exposing the target to GDB,
-        # so the first stop reports a meaningful PC/SP/etc.
+        # Prepare the first run before the GDB server starts, so that the first
+        # stop shows the registers of the run.
         self._prepare_run_context(run)
 
         completed = True
@@ -1377,7 +1378,11 @@ class WindowsEmulator(BinaryEmulator):
         debugger: GdbServer | None = None,
         debug_action: ResumeAction = ResumeAction(),
     ) -> bool:
-        """Execute prepared runs, optionally under control of an active GDB session."""
+        """
+        Run the current run and the runs in the queue, with or without a GDB session.
+
+        Return False if the user or the exit event stopped the emulation.
+        """
         total_budget = self._execution_budget
         assert total_budget is not None
         detached_resume_addr: int | None = None
@@ -1466,8 +1471,8 @@ class WindowsEmulator(BinaryEmulator):
                 terminal_signal = GDB_SIGSEGV
 
                 if debugger is not None:
-                    # Ensure a pending Ctrl-C cannot be lost, then report the
-                    # target fault while its register state is still available.
+                    # finish_run keeps a pending Ctrl-C. Then report the fault
+                    # while the registers of the fault are available.
                     debugger.finish_run(debug_action)
                     debug_action = debugger.command_loop(
                         StopReason(signal=terminal_signal, kind="exception", address=self.get_pc())
@@ -1489,8 +1494,8 @@ class WindowsEmulator(BinaryEmulator):
             if terminal_signal:
                 debugger.notify_signal(terminal_signal)
             else:
-                # Stop once more while memory is still mapped, so the client
-                # can inspect the final state before the exit reply.
+                # Stop once more while the memory is mapped, so that the client
+                # can read the final state before the exit reply.
                 debug_action = debugger.command_loop(StopReason(kind="exit"))
                 if debug_action.kill:
                     return True
@@ -1502,7 +1507,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def _end_at_total_budget(self, debugger: GdbServer | None = None) -> None:
         """
-        Cancel the runs that are left and end the emulation, because the total budget is spent.
+        Cancel the runs that are left and end the emulation, because the total time limit is reached.
 
         Args:
             debugger: the GDB session to send the exit reply to, if the client still waits for one.
@@ -2444,21 +2449,22 @@ class WindowsEmulator(BinaryEmulator):
         return False
 
     def _step_had_no_effect(self, registers, debugger):
-        """Get whether a single step stopped before its instruction with nothing pending."""
+        """Get whether a single step did not change the registers, and no stop or exit is pending."""
         if debugger.has_pending_stop() or self._native_exit is not None:
             return False
         return self._pending_fault_stop is None and self.get_register_state() == registers
 
     def _stopped_at_hlt(self, deadline, last_executed, counted, debugger):
         """
-        Unicorn ends emulation without an error after `hlt`, which user mode cannot execute.
+        Get whether Unicorn stopped because the guest ran ``hlt``, which user mode cannot run.
 
-        Unicorn also stops that way for other reasons, so only report a `hlt` that surely ran: the last instruction
-        the accounting hook saw or a debugger step ran, or with nothing else that stops the engine.
+        Unicorn stops without an error after ``hlt``, and also for other reasons. So report a ``hlt`` only if it ran:
+        it is the last instruction that the accounting hook counted or that a debugger step ran, or nothing else
+        stopped Unicorn.
 
-        Nothing better reports `hlt`: Unicorn hooks only `in`, `out`, `syscall`, `sysenter`
-        and `cpuid` among x86 instructions, `hlt` raises no interrupt, and a code hook on
-        every instruction would slow all emulation down.
+        Unicorn has no better way to report ``hlt``. Of the x86 instructions, Unicorn hooks only ``in``, ``out``,
+        ``syscall``, ``sysenter`` and ``cpuid``. ``hlt`` raises no interrupt, and a code hook on each instruction
+        makes all emulation slower.
         """
         if self.is_kernel_mode or not self.config.exceptions.dispatch_handlers:
             return False
