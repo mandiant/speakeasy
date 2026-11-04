@@ -1,9 +1,9 @@
 """
 x64 table-based unwinding: RtlLookupFunctionEntry and RtlVirtualUnwind.
 
-These operate on guest memory through a ``read(address, size) -> bytes``
-callable and on a CONTEXT64 struct that is unwound in place, so they serve
-both the exception dispatcher and the API handlers of the same name.
+The functions read guest memory through a ``read(address, size) -> bytes``
+callable and unwind a CONTEXT64 in place. The exception dispatcher and the API
+handlers of the same name both use them.
 
 See https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64
 """
@@ -76,15 +76,14 @@ def read_runtime_function(read: Reader, image_base: int, address: int) -> Runtim
 @dataclass(frozen=True)
 class FunctionTable:
     """
-    A table of RUNTIME_FUNCTIONs registered at runtime, for code outside loaded images.
+    A table of RUNTIME_FUNCTIONs that the sample adds at runtime, for code outside loaded images.
 
-    The table comes from RtlAddFunctionTable, or with a callback from
-    RtlInstallFunctionTableCallback.
+    RtlAddFunctionTable adds a table, and RtlInstallFunctionTableCallback adds a callback table.
     """
 
     identifier: int  # the table's address, or the callback table's identifier
     base: int
-    begin: int  # the addresses it covers
+    begin: int  # the address range of the table
     end: int
     count: int = 0
     callback: int = 0
@@ -94,7 +93,8 @@ def read_function_table(read: Reader, address: int, count: int) -> Iterator[tupl
     """
     Yield the (begin, end, unwind info) RVAs of a table of RUNTIME_FUNCTIONs.
 
-    The function reads a page at a time, so that a wrong count fails where the table runs out of memory.
+    The function reads about one page of entries at a time. So a count that is too large fails at the first unmapped
+    page, and the function does not try to read a very large range.
     """
     per_page = 0x1000 // 12
     for first in range(0, count, per_page):
@@ -102,7 +102,7 @@ def read_function_table(read: Reader, address: int, count: int) -> Iterator[tupl
 
 
 def search_function_table(read: Reader, table: FunctionTable, pc: int) -> RuntimeFunction | None:
-    """Find pc in a registered table, whose entries need not be sorted."""
+    """Find pc in a table that the sample added. The entries can be in any order, so the search is linear."""
     for i, (begin, end, _) in enumerate(read_function_table(read, table.identifier, table.count)):
         if begin <= pc - table.base < end:
             return read_runtime_function(read, table.base, table.identifier + 12 * i)
@@ -150,7 +150,7 @@ class UnwindInfo:
 
 
 def _slots(op: int, info: int) -> int:
-    """Number of 16-bit slots taken by an unwind code."""
+    """Get the number of 16-bit slots that an unwind code uses."""
     if op == UWOP_ALLOC_LARGE:
         return 3 if info else 2
     return {UWOP_SAVE_NONVOL: 2, UWOP_SAVE_NONVOL_FAR: 3, UWOP_SAVE_XMM128: 2, UWOP_SAVE_XMM128_FAR: 3}.get(op, 1)
@@ -174,12 +174,16 @@ class UnwindError(Exception):
     """Unwind data that cannot be followed."""
 
 
-# Chained unwind infos followed before the data is taken as corrupt
+# Maximum length of a chain of unwind infos, because corrupt data can loop
 MAX_CHAIN = 32
 
 
 def _prolog_offset(fn: RuntimeFunction, pc: int) -> int:
-    """The offset of pc into fn, unsigned: pc before fn, in a fragment of it, is past its prolog."""
+    """
+    Get the offset of pc into fn as an unsigned value.
+
+    If pc is in a fragment of fn at a lower address than fn, the offset is very large, so pc is past the prolog.
+    """
     return (pc - fn.image_base - fn.begin) & 0xFFFFFFFF
 
 
@@ -199,15 +203,17 @@ def _establisher_frame(info: UnwindInfo, offset: int, ctx) -> int:
 
 def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type: int = 0) -> FrameInfo:
     """
-    Unwind one frame: ctx is updated in place to the caller's state.
+    Unwind one frame: update ctx in place to the state of the caller.
 
-    Returns the establisher frame and, when the frame has a handler of
-    ``handler_type`` (UNW_FLAG_EHANDLER or UNW_FLAG_UHANDLER), the handler,
-    which a fragment of a function shares with the function's primary entry
-    at the end of its chain.
+    Return the establisher frame, and the handler of ``handler_type`` (UNW_FLAG_EHANDLER or
+    UNW_FLAG_UHANDLER) if the frame has one. A fragment of a function uses the handler of the
+    primary entry at the end of its chain.
 
-    Not handled: a pc inside an epilogue, which Windows unwinds by simulating
-    the remaining epilogue instructions.
+    A pc in an epilogue unwinds as a pc in the body. Windows simulates the rest of the epilogue
+    instead.
+
+    Raises:
+        UnwindError: if the chain of unwind infos is too long.
     """
     base = fn.image_base
     info = read_unwind_info(read, base + fn.unwind_info)
@@ -217,7 +223,7 @@ def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type
     for _ in range(MAX_CHAIN):
         offset = _prolog_offset(fn, pc)
         for c in info.codes:
-            if c.prolog_offset > offset:  # in the prolog, before this code's instruction ran
+            if c.prolog_offset > offset:  # pc is in the prolog, before the instruction of this code
                 continue
             if c.op == UWOP_PUSH_NONVOL:
                 setattr(ctx, GPRS[c.info], _u64(read, ctx.Rsp))
@@ -257,6 +263,6 @@ def virtual_unwind(read: Reader, fn: RuntimeFunction, pc: int, ctx, handler_type
 
 
 def unwind_leaf(read: Reader, ctx) -> None:
-    """A function without unwind data is a leaf: its return address is at rsp."""
+    """Unwind a leaf function, which has no unwind data and has its return address at rsp."""
     ctx.Rip = _u64(read, ctx.Rsp)
     ctx.Rsp += 8
