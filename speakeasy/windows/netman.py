@@ -90,7 +90,7 @@ class Socket:
 
 
 class WininetComponent:
-    """Base class used for WinInet connections."""
+    """Base class for the WinInet handle objects: instance, session and request."""
 
     def __init__(self, handles):
         super().__init__()
@@ -103,12 +103,12 @@ class WininetComponent:
 
 
 class WininetRequest(WininetComponent):
-    """WinInet request object."""
+    """Represents a WinInet request."""
 
     def __init__(self, handles, session, verb, objname, ver, ref, accepts, flags, ctx):
         super().__init__(handles)
 
-        # The WiniNet APIs default to a HTTP "GET" if no verb is specified
+        # WinInet uses GET when the caller gives no verb.
         self.verb: str
         if not verb:
             self.verb = "get"
@@ -180,7 +180,15 @@ class WininetRequest(WininetComponent):
         return size
 
     def get_response(self):
-        """Check the configuration file for a handler for the current WinInet request."""
+        """
+        Get the response data from the HTTP config.
+
+        A ``by_ext`` entry for the verb that matches the URL extension gives the data, else the
+        ``default`` entry. With no entry, the response has no data.
+
+        Raises:
+            NetworkEmuError: if the config has no HTTP responses.
+        """
         cfg = self.get_instance().config
 
         if self.response:
@@ -264,7 +272,7 @@ class WininetInstance(WininetComponent):
 
 class NetworkManager:
     """
-    Class that manages network connections during emulation.
+    Keep the sockets and WinInet objects, and record the network events.
 
     Sockets and WinInet objects are not kernel objects, so their handles are in tables of the
     manager and not in the process handle table. Each WinInet level (instance, session and
@@ -309,15 +317,13 @@ class NetworkManager:
 
         names = self.dns.names
 
-        # Do we have an IP for this name?
         if domain.lower() not in names.keys():
-            # use the default IP (if any)
             return names.get("default")
 
         return names.get(domain.lower())
 
     def get_dns_txt(self, domain):
-        """Return a configured DNS TXT record (if any)."""
+        """Get the data of the configured TXT record of a domain, or of the default record, or None."""
 
         def _read_txt_data(txt):
             path = txt.path
