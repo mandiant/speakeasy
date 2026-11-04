@@ -40,7 +40,7 @@ def hammer_loop(indirect: bool):
     return text
 
 
-@pytest.mark.parametrize("indirect", [False], ids=["call_mem"])
+@pytest.mark.parametrize("indirect", [False, True], ids=["call_mem", "call_reg"])
 def test_a_patched_cdecl_call_site_keeps_the_caller_code(indirect: bool) -> None:
     config = get_default_config_dict()
     config["api_hammering"] = {"enabled": True, "threshold": THRESHOLD}
