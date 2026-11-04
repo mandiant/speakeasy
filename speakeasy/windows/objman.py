@@ -70,7 +70,7 @@ class Console:
 
 
 class KernelObject:
-    """Base class for Kernel objects managed by the object manager."""
+    """Base class for the kernel objects of the object manager."""
 
     def __init__(self, emu: WindowsEmulator):
         self.emu: WindowsEmulator = emu
@@ -112,7 +112,7 @@ class KernelObject:
 
 
 class Driver(KernelObject):
-    """Class that represents DRIVER_OBJECTs created by the Windows kernel."""
+    """Represents a DRIVER_OBJECT."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -129,7 +129,7 @@ class Driver(KernelObject):
         self.object = self.nt_types.DRIVER_OBJECT(emu.get_ptr_size())
 
     def create_reg_path(self, name):
-        """Create the service path in the registry for the created driver."""
+        """Write the registry service path of the driver to guest memory as a UNICODE_STRING."""
         self.reg_path = "\\Registry\\Machine\\System\\CurrentControlSet\\Services\\%s\x00" % (name)  # noqa
         buf = self.reg_path.encode("utf-16le")
         self.reg_path = self.reg_path.strip("\x00")
@@ -172,12 +172,10 @@ class Driver(KernelObject):
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
-        # Set the dll full name
         ldte.object.FullDllName.Length = len(dllname)
         ldte.object.FullDllName.MaximumLength = len(dllname)
         ldte.object.FullDllName.Buffer = name_addr
 
-        # Set the dll base name
         dllname = ntpath.basename(mod_name).encode("utf-16le")
         ldte.object.BaseDllName.Length = len(dllname)
         ldte.object.BaseDllName.MaximumLength = len(dllname)
@@ -220,7 +218,6 @@ class Driver(KernelObject):
         if not pe and not self.name:
             name = "none"
 
-        # Allocate the driver object
         addr = self.emu.mem_map(drvobj.Size + len(us), tag=f"emu.object.{name}")
 
         drvobj.DriverName.Length = len(us)
@@ -253,7 +250,7 @@ class Driver(KernelObject):
 
 
 class Device(KernelObject):
-    """Represents a DEVICE_OBJECT created by the windows kernel."""
+    """Represents a DEVICE_OBJECT."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -269,7 +266,7 @@ class Device(KernelObject):
 
 
 class FileObject(KernelObject):
-    """Represents a FILE_OBJECT created by the windows kernel."""
+    """Represents a FILE_OBJECT."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -288,12 +285,12 @@ class IoStackLocation(KernelObject):
         super().__init__(emu=emu)
 
         self.object = self.nt_types.IO_STACK_LOCATION(emu.get_ptr_size())
-        # Allocate two stack locations for now to handle IoGetNextIrpStackLocation calls
+        # Map two stack locations, so that IoGetNextIrpStackLocation gets mapped memory.
         self.address = emu.mem_map(self.sizeof() * 2, tag=self.get_mem_tag())
 
 
 class Irp(KernelObject):
-    """I/O request packet used when performing device input/output."""
+    """Represents an IRP, the I/O request packet that a driver gets for a device request."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -317,7 +314,7 @@ class Irp(KernelObject):
 
 
 class Thread(KernelObject):
-    """Represents a Windows ETHREAD object that describes an OS level thread."""
+    """Represents an ETHREAD."""
 
     def __init__(self, emu, stack_base=0, stack_commit=0):
         super().__init__(emu=emu)
@@ -408,13 +405,13 @@ class Token(KernelObject):
 
 
 class Process(KernelObject):
-    """An EPROCESS object used by the Windows kernel to represent a process."""
+    """Represents an EPROCESS."""
 
     def __init__(
         self, emu, pe=None, user_modules=None, name="", path="", cmdline="", base=0, session=0, fixed_peb=True
     ):
         super().__init__(emu=emu)
-        # TODO: For now just allocate a blank opaque struct for an EPROCESS
+        # Make ActiveProcessLinks an empty list. ntoskrnl.EPROCESS gives the offsets.
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xE0000000)
         if emu.get_arch() == _arch.ARCH_X86:
@@ -444,7 +441,7 @@ class Process(KernelObject):
         self.is_modified: bool = False
         self.veh_handlers: list[int] = []
         self.unhandled_exception_filter: int = 0
-        # Unwind data registered at runtime for code outside loaded images
+        # RtlAddFunctionTable and RtlInstallFunctionTableCallback add unwind data for code outside the images.
         self.function_tables: list[unwind.FunctionTable] = []
         # As on Windows, a new process gets a copy of the current directory and environment of its parent. The
         # first process gets them from the config.
@@ -456,7 +453,6 @@ class Process(KernelObject):
         self.stdout: int = (0xF000) + 2
         self.stderr: int = (0xF000) + 3
 
-        # Initialize the process PEB
         self.peb: PEB = PEB(emu=emu, fixed=fixed_peb)
         self.peb_ldr_data: PebLdrData = PebLdrData(self.emu)
         self.is_peb_active: bool = False
@@ -491,7 +487,7 @@ class Process(KernelObject):
         self.peb.write_back()
 
     def get_session_manager(self) -> SessionManager:
-        # only the user-mode emulator has sessions, and only it creates console processes and reads desktop names
+        # Only the user mode emulator has sessions. Only it creates console processes and reads desktop names.
         return cast("Win32Emulator", self.emu).get_session_manager()
 
     def alloc_console(self):
@@ -536,8 +532,8 @@ class Process(KernelObject):
         self._peb_modules.clear()
 
     def add_module_to_peb(self, module):
-        # One loader entry per mapped image in this process. _peb_modules
-        # indexes membership by base; ldr_entries keeps load order.
+        # The process has one loader entry for each mapped image. _peb_modules finds a module by its base, and
+        # ldr_entries keeps the load order.
         if module.base in self._peb_modules:
             self._sync_peb_module_links()
             return
@@ -550,12 +546,10 @@ class Process(KernelObject):
         name_addr = ldte.address + ldte.sizeof()
         self.emu.mem_write(name_addr, dllname)
 
-        # Set the dll full name
         ldte.object.FullDllName.Length = len(dllname) - 2
         ldte.object.FullDllName.MaximumLength = len(dllname)
         ldte.object.FullDllName.Buffer = name_addr
 
-        # Set the dll base name
         dllname = (ntpath.basename(module.emu_path) + "\x00").encode("utf-16le")
 
         ldte.object.BaseDllName.Length = len(dllname) - 2
@@ -568,17 +562,16 @@ class Process(KernelObject):
         self._sync_peb_module_links()
 
     def remove_module_from_peb(self, module):
-        """Detach a mapped image during loader rollback without freeing memory."""
+        """Remove the loader entry of a module when the loader undoes a load. The module memory is not freed."""
         if module.base not in self._peb_modules:
             return
-        # Update the list in place so external references and surviving loader
-        # entry objects retain their identity and order.
+        # Change the list in place, because other code keeps a reference to it.
         self.ldr_entries[:] = [entry for entry in self.ldr_entries if entry.object.DllBase != module.base]
         del self._peb_modules[module.base]
         self._sync_peb_module_links()
 
     def _sync_peb_module_links(self):
-        """Link each loader ring through its own PEB_LDR_DATA sentinel."""
+        """Link the entries of each loader list into a ring through the list head in PEB_LDR_DATA."""
         pld = self.peb_ldr_data
         main_base = self.pe.base if self.pe is not None else self.base
         lists = (
@@ -594,7 +587,7 @@ class Process(KernelObject):
                 link = getattr(entry.object, link_field)
                 node = entry.address + getattr(entry.object.get_cstruct(), link_field).offset
                 if link_field == "InInitializationOrderLinks" and module.base == main_base and module.is_exe():
-                    # The main executable is not a member of the initialization ring.
+                    # Windows does not put the main executable in the initialization order list.
                     link.Flink = link.Blink = node
                     continue
                 entries.append((node, link))
@@ -613,8 +606,8 @@ class Process(KernelObject):
         self.peb.write_back()
 
     def init_peb(self, modules):
-        # Repeated initialization extends the existing membership without
-        # reallocating entries or losing modules attached dynamically.
+        # A second call adds only the new modules. It keeps the existing loader entries, also the entries of the
+        # modules that the guest loaded.
         for mod in modules:
             self.add_module_to_peb(mod)
         self._sync_peb_module_links()
@@ -688,8 +681,7 @@ class PEB(KernelObject):
     """
     Represents the process environment block.
 
-    This structure contains a large amount of fields that are used internally by Windows.
-    Shellcode may parse this structure in order to resolve exported functions.
+    Shellcode often walks the loader lists of the PEB to find modules and their exports.
     """
 
     def __init__(self, emu, address=None, fixed=True):
@@ -705,11 +697,7 @@ class PEB(KernelObject):
 
 
 class TEB(KernelObject):
-    """
-    Represents the thread environment block.
-
-    This structure contains a large amount of fields that are used internally by Windows.
-    """
+    """Represents the thread environment block."""
 
     def __init__(self, emu, address=0):
         super().__init__(emu=emu)
@@ -744,10 +732,10 @@ class LdrDataTableEntry(KernelObject):
 
 class IDT(KernelObject):
     """
-    Represents the Interrupt descriptor table.
+    Represents the interrupt descriptor table.
 
-    This is currently a dummy structure and
-    only exists to detect if samples read or write to it.
+    The kernel emulator loads the table address into IDTR, so a sample can find and read the table. The
+    descriptors point into the kernel image. The emulator does not send interrupts through them.
     """
 
     emu: WinKernelEmulator
@@ -783,19 +771,19 @@ class IDT(KernelObject):
 
 
 class Event(KernelObject):
-    """Describes event objects used by Windows for synchronization."""
+    """Represents a KEVENT."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
         self.object = self.nt_types.KEVENT(emu.get_ptr_size())
         self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag())
-        # Events whose state no handler tracks stay signaled, so waits on them return.
+        # A new event is signaled, so a wait on an event that no handler sets or resets returns at once.
         self.signaled: bool = True
         self.manual_reset: bool = True
 
 
 class Mutant(KernelObject):
-    """Describes mutant objects used by Windows for synchronization."""
+    """Represents a KMUTANT."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -804,7 +792,7 @@ class Mutant(KernelObject):
 
 
 class Semaphore(KernelObject):
-    """Describes semaphore objects used by Windows for synchronization."""
+    """Represents a KSEMAPHORE."""
 
     def __init__(self, emu):
         super().__init__(emu=emu)
@@ -813,7 +801,7 @@ class Semaphore(KernelObject):
 
 
 class ObjectManager:
-    """Class that manages kernel objects during emulation."""
+    """Keep the kernel objects and the symbolic links of the emulator."""
 
     def __init__(self, emu: WindowsEmulator):
         super().__init__()
@@ -847,7 +835,7 @@ class ObjectManager:
             self.objects.pop(addr)
 
     def dec_ref(self, obj):
-        """Dereferece an object and remove it from the object manager when its reference count is 0."""
+        """Decrement the reference count of an object, and remove the object when the count is 0."""
         if hasattr(obj, "ref_cnt"):
             obj.ref_cnt -= 1
             if obj.ref_cnt <= 0:
