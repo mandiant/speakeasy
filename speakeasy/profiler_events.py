@@ -10,7 +10,7 @@ class EventType(str, Enum):
     """
     Event type discriminators, as they appear in the ``event`` field of a report event.
 
-    Use ``StrEnum`` when the minimum Python version is 3.11.
+    The class uses ``str, Enum`` because ``StrEnum`` needs Python 3.11.
     """
 
     API = "api"
@@ -54,65 +54,28 @@ class StackEntry(BaseModel):
 
 
 class TracePosition(BaseModel):
-    """
-    Locates where an event occurred in execution time and context.
-
-    Every emitted event carries this structure so consumers can reconstruct
-    chronology and thread/process ownership.
-
-    Use ``tick`` ordering for timeline reconstruction and ``pc`` for direct
-    disassembly alignment.
-    """
+    """Position of an event: the instruction count, the thread, the process and the pc."""
 
     model_config = ConfigDict(extra="forbid")
 
     tick: int = Field(
-        description=(
-            "Instruction-count tick at the time of the event.\n\n"
-            "Use this as the primary event ordering key within a run."
-        )
+        description="Instruction count of the run at the time of the event. The events of a run are in tick order."
     )
-    tid: int = Field(
-        description=(
-            "Thread identifier active when the event was emitted.\n\n"
-            "Correlate this with thread creation/injection activity."
-        )
-    )
-    pid: int = Field(
-        description=(
-            "Process identifier active when the event was emitted.\n\n"
-            "Use this to separate behavior across process boundaries."
-        )
-    )
+    tid: int = Field(description="ID of the thread that did the operation.")
+    pid: int = Field(description="ID of the process that did the operation.")
     pc: HexIntOptional = Field(
         default=None,
-        description=(
-            "Program counter at event emission time, when available.\n\n"
-            "Some synthetic events may omit this if no precise PC context exists."
-        ),
+        description="Address of the instruction that did the operation. For an API event, the address of the call.",
     )
 
 
 class Event(BaseModel):
-    """
-    Base class shared by all report event records.
-
-    Concrete event types extend this with event-specific payload fields.
-
-    Consumers should discriminate event payloads using the ``event`` field.
-    """
+    """Base class of the report events. The ``event`` field gives the event type."""
 
     model_config = ConfigDict(extra="forbid")
 
-    pos: TracePosition = Field(
-        description=(
-            "Execution position metadata for this event.\n\n"
-            "Used to align event payloads with timeline and execution context."
-        )
-    )
-    event: EventType = Field(
-        description=("Event type discriminator.\n\nDetermines which concrete payload schema applies.")
-    )
+    pos: TracePosition = Field(description="Position of the thread that did the operation.")
+    event: EventType = Field(description="Type of the event. The type sets which other fields the event has.")
 
 
 class ApiArgType(str, Enum):
@@ -166,299 +129,202 @@ class ApiArg(BaseModel):
 
 class ApiEvent(Event):
     """
-    Records one intercepted API invocation.
+    One call to an API.
 
-    API events are emitted by import-call handlers and represent core behavioral
-    telemetry for most runs.
-
-    Use these entries to understand control flow and argument-level intent.
+    The profiler leaves out a call that repeats the API, pc, shown arguments and return value of
+    one of the last 3 events of the run.
     """
 
-    event: Literal[EventType.API] = Field(default=EventType.API, description="Discriminator for API call events.")
-    api_name: str = Field(
-        description=(
-            "Resolved API name in ``module.function`` form.\n\n"
-            "Used for behavior signatures, clustering, and family comparison."
-        )
-    )
+    event: Literal[EventType.API] = Field(default=EventType.API, description="Event type of an API call.")
+    api_name: str = Field(description="API name in ``module.function`` form, such as ``kernel32.CreateFileA``.")
     args: list[ApiArg] = Field(
         description=(
-            "Arguments of the call. With a usable API signature there is one entry per parameter; "
-            "otherwise one entry per argument slot, plus any entries a variadic handler adds."
+            "Arguments of the call. With a usable API signature, one entry for each parameter. "
+            "Else, one entry for each argument slot. A variadic handler can add entries."
         )
     )
     return_value: HexIntOptional = Field(
         default=None,
-        description=(
-            "Return value of the API call, when available.\n\n"
-            "Use this to identify failure codes and branch-driving outcomes."
-        ),
+        description="Return value of the API, when the handler gives one.",
     )
 
 
 class ProcessCreateEvent(Event):
-    """
-    Records creation of a child process context.
-
-    Emitted when process-creation APIs are invoked and accepted by emulation.
-
-    These events indicate lateral execution or staged payload spawning.
-    """
+    """A process that the guest creates, such as with ``CreateProcess`` or ``ShellExecute``."""
 
     event: Literal[EventType.PROCESS_CREATE] = Field(
         default=EventType.PROCESS_CREATE,
-        description="Discriminator for process creation events.",
+        description="Event type of a process creation.",
     )
-    path: str = Field(
-        description=(
-            "Target process image path.\n\nRepresents the emulated executable location requested by the sample."
-        )
-    )
-    command_line: str = Field(
-        description=(
-            "Command line used for process creation.\n\nUse this to recover execution parameters and staged arguments."
-        )
-    )
+    path: str = Field(description="Emulated path of the image of the new process.")
+    command_line: str = Field(description="Command line of the new process.")
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) creates this process; the target may differ."
-        ),
+        description="ID of the new process.",
     )
 
 
 class MemAllocEvent(Event):
-    """
-    Records remote or explicit process memory allocation activity.
-
-    Emitted by memory allocation APIs that target process virtual memory.
-
-    Commonly seen in injection and unpacking workflows.
-    """
+    """Memory that the guest allocates with ``VirtualAlloc`` or ``VirtualAllocEx``."""
 
     event: Literal[EventType.MEM_ALLOC] = Field(
-        default=EventType.MEM_ALLOC, description="Discriminator for memory allocation events."
+        default=EventType.MEM_ALLOC, description="Event type of a memory allocation."
     )
-    path: str = Field(description="Target process path associated with the allocation event.")
-    base: HexInt = Field(description="Allocated base address.")
-    size: int = Field(description="Allocation size in bytes.")
+    path: str = Field(description="Image path of the target process.")
+    base: HexInt = Field(description="Base address of the allocation.")
+    size: int = Field(description="Size that the caller asked for, in bytes.")
     protect: list[str] | None = Field(
         default=None,
         description="Names of the requested page protection flags, such as ``PAGE_READWRITE``.",
     )
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) allocates in this process; NULL when the "
-            "target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
 
 
 class MemWriteEvent(Event):
     """
-    Records writes into process memory.
+    Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``.
 
-    Emitted for API-mediated memory writes and may merge adjacent writes in the
-    profiler for compactness.
-
-    Use with thread/process events to identify code injection flows.
+    The profiler merges a write into the last process event when that event is a write that ends
+    at the start of the new write.
     """
 
     event: Literal[EventType.MEM_WRITE] = Field(
-        default=EventType.MEM_WRITE, description="Discriminator for memory write events."
+        default=EventType.MEM_WRITE, description="Event type of a memory write."
     )
-    path: str = Field(description="Target process path associated with the write event.")
-    base: HexInt = Field(description="Write start address.")
+    path: str = Field(description="Image path of the target process.")
+    base: HexInt = Field(description="Start address of the write.")
     size: int = Field(description="Number of bytes written.")
     data_ref: str | None = Field(
         default=None,
-        description=("Reference into the top-level report ``data`` store for the captured write preview bytes."),
+        description="Key in the top-level ``data`` of the first bytes of the write.",
     )
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) writes into this process; NULL when the "
-            "target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
 
 
 class MemReadEvent(Event):
     """
-    Records reads from process memory.
+    Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``.
 
-    Emitted for API-mediated memory reads and may merge adjacent reads in the
-    profiler for compactness.
-
-    Useful for identifying memory scraping or credential theft behavior.
+    The profiler merges a read into the last process event when that event is a read that ends at
+    the start of the new read.
     """
 
-    event: Literal[EventType.MEM_READ] = Field(
-        default=EventType.MEM_READ, description="Discriminator for memory read events."
-    )
-    path: str = Field(description="Target process path associated with the read event.")
-    base: HexInt = Field(description="Read start address.")
+    event: Literal[EventType.MEM_READ] = Field(default=EventType.MEM_READ, description="Event type of a memory read.")
+    path: str = Field(description="Image path of the target process.")
+    base: HexInt = Field(description="Start address of the read.")
     size: int = Field(description="Number of bytes read.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the captured read preview bytes.",
+        description="Key in the top-level ``data`` of the first bytes of the read.",
     )
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) reads from this process; NULL when the "
-            "target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
 
 
 class MemProtectEvent(Event):
-    """
-    Records memory protection changes.
-
-    Emitted for API paths that alter page permissions in process memory.
-
-    This is a key indicator for RWX transitions and shellcode staging.
-    """
+    """A change of page protection with ``VirtualProtectEx``."""
 
     event: Literal[EventType.MEM_PROTECT] = Field(
         default=EventType.MEM_PROTECT,
-        description="Discriminator for memory protection change events.",
+        description="Event type of a page protection change.",
     )
-    path: str = Field(description="Target process path associated with the protection change.")
-    base: HexInt = Field(description="Protection-change base address.")
-    size: int = Field(description="Protection-change size in bytes.")
+    path: str = Field(description="Image path of the target process.")
+    base: HexInt = Field(description="Base address of the range.")
+    size: int = Field(description="Size of the range in bytes.")
     protect: list[str] | None = Field(
         default=None,
         description="Names of the new page protection flags, such as ``PAGE_EXECUTE_READ``.",
     )
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) changes protection in this process; NULL when "
-            "the target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
 
 
 class MemFreeEvent(Event):
-    """
-    Records memory free/decommit operations.
+    """Memory that the guest frees."""
 
-    Emitted when memory free APIs are invoked against process regions.
-
-    Use this to track lifecycle of allocation artifacts.
-    """
-
-    event: Literal[EventType.MEM_FREE] = Field(
-        default=EventType.MEM_FREE, description="Discriminator for memory free events."
-    )
-    path: str = Field(description="Target process path associated with the free event.")
-    base: HexInt = Field(description="Freed region base address.")
-    size: int = Field(description="Freed region size in bytes.")
+    event: Literal[EventType.MEM_FREE] = Field(default=EventType.MEM_FREE, description="Event type of a memory free.")
+    path: str = Field(description="Image path of the target process.")
+    base: HexInt = Field(description="Base address of the freed region.")
+    size: int = Field(description="Size of the freed region in bytes.")
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) frees memory in this process; NULL when the "
-            "target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
 
 
 class ModuleLoadEvent(Event):
-    """
-    Records dynamic module loading activity.
-
-    Emitted when module load operations map additional images during runtime.
-
-    Useful for dependency discovery and staged import behavior.
-    """
+    """A module that the guest loads at run time."""
 
     event: Literal[EventType.MODULE_LOAD] = Field(
-        default=EventType.MODULE_LOAD, description="Discriminator for module load events."
+        default=EventType.MODULE_LOAD, description="Event type of a module load."
     )
-    name: str = Field(description="Loaded module name.")
-    path: str = Field(description="Loaded module path in emulated filesystem space.")
-    base: HexInt = Field(description="Module base address.")
-    size: int = Field(description="Mapped module size in bytes.")
+    name: str = Field(description="Name of the module.")
+    path: str = Field(description="Emulated path of the module.")
+    base: HexInt = Field(description="Base address of the module.")
+    size: int = Field(description="Size of the module image in bytes.")
 
 
 class ThreadCreateEvent(Event):
-    """
-    Records thread creation in a process context.
-
-    Emitted for thread creation APIs and often accompanies process injection
-    workflows.
-
-    Combine with memory-write and start-address analysis for attribution.
-    """
+    """A thread that the guest creates in its own process."""
 
     event: Literal[EventType.THREAD_CREATE] = Field(
         default=EventType.THREAD_CREATE,
-        description="Discriminator for thread creation events.",
+        description="Event type of a thread creation.",
     )
-    path: str = Field(description="Target process path where the thread is created.")
-    start_address: HexInt = Field(description="Thread start address.")
-    param: HexInt = Field(description="Thread parameter pointer or value.")
+    path: str = Field(description="Image path of the target process.")
+    start_address: HexInt = Field(description="Start address of the thread.")
+    param: HexInt = Field(description="Parameter that the thread routine gets.")
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier.\n\nThe actor (event pos) creates the thread in this process; NULL when "
-            "the target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
     tid: int | None = Field(
         default=None,
-        description="Target thread identifier of the newly created thread, when known.",
+        description="ID of the new thread.",
     )
 
 
 class ThreadInjectEvent(Event):
-    """
-    Records thread injection activity into another process.
-
-    Emitted for injection-oriented thread APIs.
-
-    Treat these as high-signal indicators of code injection behavior.
-    """
+    """A thread that the guest creates in another process, such as with ``CreateRemoteThread``."""
 
     event: Literal[EventType.THREAD_INJECT] = Field(
         default=EventType.THREAD_INJECT,
-        description="Discriminator for thread injection events.",
+        description="Event type of a thread injection.",
     )
-    path: str = Field(description="Target process path receiving the injected thread.")
-    start_address: HexInt = Field(description="Injected thread start address.")
-    param: HexInt = Field(description="Injected thread parameter pointer or value.")
+    path: str = Field(description="Image path of the target process.")
+    start_address: HexInt = Field(description="Start address of the thread.")
+    param: HexInt = Field(description="Parameter that the thread routine gets.")
     pid: int | None = Field(
         default=None,
-        description=(
-            "Target process identifier receiving the injected thread.\n\nNULL when the target is the actor itself."
-        ),
+        description="ID of the target process. Absent when the target is the process in ``pos``.",
     )
     tid: int | None = Field(
         default=None,
-        description="Target thread identifier of the injected thread, when known.",
+        description="ID of the new thread.",
     )
 
 
 class FileCreateEvent(Event):
-    """
-    Records file creation/open-with-create semantics.
-
-    Emitted when file APIs request creation semantics for a path.
-
-    Use with follow-up write events to track dropped artifacts.
-    """
+    """A file that the guest creates, or opens with a disposition that can create the file."""
 
     event: Literal[EventType.FILE_CREATE] = Field(
-        default=EventType.FILE_CREATE, description="Discriminator for file create events."
+        default=EventType.FILE_CREATE, description="Event type of a file creation."
     )
-    path: str = Field(description="File path targeted by creation request.")
-    handle: HexIntOptional = Field(default=None, description="Assigned file handle, when available.")
+    path: str = Field(description="Emulated path of the file.")
+    handle: HexIntOptional = Field(default=None, description="File handle that the API returns.")
     open_flags: list[str] | None = Field(
         default=None,
-        description="Creation/open disposition flags supplied by the API call.",
+        description="Names of the disposition flags of the call, such as ``CREATE_ALWAYS``.",
     )
     access_flags: list[str] | None = Field(
         default=None,
@@ -467,22 +333,14 @@ class FileCreateEvent(Event):
 
 
 class FileOpenEvent(Event):
-    """
-    Records file open operations without explicit create intent.
+    """A file that the guest opens without a create disposition."""
 
-    Emitted for open-style file API calls.
-
-    Use to reconstruct file-read dependency chains.
-    """
-
-    event: Literal[EventType.FILE_OPEN] = Field(
-        default=EventType.FILE_OPEN, description="Discriminator for file open events."
-    )
-    path: str = Field(description="File path targeted by open request.")
-    handle: HexIntOptional = Field(default=None, description="Assigned file handle, when available.")
+    event: Literal[EventType.FILE_OPEN] = Field(default=EventType.FILE_OPEN, description="Event type of a file open.")
+    path: str = Field(description="Emulated path of the file.")
+    handle: HexIntOptional = Field(default=None, description="File handle that the API returns.")
     open_flags: list[str] | None = Field(
         default=None,
-        description="Open disposition flags supplied by the API call.",
+        description="Names of the disposition flags of the call, such as ``OPEN_EXISTING``.",
     )
     access_flags: list[str] | None = Field(
         default=None,
@@ -492,117 +350,87 @@ class FileOpenEvent(Event):
 
 class FileReadEvent(Event):
     """
-    Records reads from a file handle.
+    Data that the guest reads from a file.
 
-    Emitted when file-read APIs pull bytes from emulated files.
-
-    Useful for identifying configuration ingestion and payload loading.
+    The profiler merges all reads of one path in a run into one event.
     """
 
-    event: Literal[EventType.FILE_READ] = Field(
-        default=EventType.FILE_READ, description="Discriminator for file read events."
-    )
-    path: str = Field(description="File path associated with the read operation.")
-    handle: HexIntOptional = Field(default=None, description="File handle used by the read operation.")
-    size: int | None = Field(default=None, description="Number of bytes requested/read.")
+    event: Literal[EventType.FILE_READ] = Field(default=EventType.FILE_READ, description="Event type of a file read.")
+    path: str = Field(description="Emulated path of the file.")
+    handle: HexIntOptional = Field(default=None, description="File handle of the first read.")
+    size: int | None = Field(default=None, description="Total number of bytes that the guest read.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the captured file bytes.",
+        description="Key in the top-level ``data`` of the first bytes that the guest read.",
     )
     buffer: HexIntOptional = Field(
         default=None,
-        description="Destination buffer pointer.",
+        description="Address of the buffer of the first read.",
     )
 
 
 class FileWriteEvent(Event):
     """
-    Records writes to a file handle.
+    Data that the guest writes to a file.
 
-    Emitted when file-write APIs append or overwrite emulated file data.
-
-    Combine with dropped-file summaries to recover persisted payloads.
+    The profiler merges all writes to one path in a run into one event.
     """
 
     event: Literal[EventType.FILE_WRITE] = Field(
-        default=EventType.FILE_WRITE, description="Discriminator for file write events."
+        default=EventType.FILE_WRITE, description="Event type of a file write."
     )
-    path: str = Field(description="File path associated with the write operation.")
-    handle: HexIntOptional = Field(default=None, description="File handle used by the write operation.")
-    size: int | None = Field(default=None, description="Number of bytes written.")
+    path: str = Field(description="Emulated path of the file.")
+    handle: HexIntOptional = Field(default=None, description="File handle of the first write.")
+    size: int | None = Field(default=None, description="Total number of bytes that the guest wrote.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the captured file bytes.",
+        description="Key in the top-level ``data`` of the first bytes that the guest wrote.",
     )
     buffer: HexIntOptional = Field(
         default=None,
-        description="Source buffer pointer.",
+        description="Address of the buffer of the first write.",
     )
 
 
 class FileDeleteEvent(Event):
-    """
-    Records file deletion.
-
-    Emitted when file APIs delete a file.
-
-    Use with file create events to track files that a sample removes after use.
-    """
+    """A file that the guest deletes."""
 
     event: Literal[EventType.FILE_DELETE] = Field(
-        default=EventType.FILE_DELETE, description="Discriminator for file delete events."
+        default=EventType.FILE_DELETE, description="Event type of a file deletion."
     )
-    path: str = Field(description="File path targeted by the delete request.")
+    path: str = Field(description="Emulated path of the file.")
 
 
 class DirectoryCreateEvent(Event):
-    """
-    Records directory creation.
-
-    Emitted when file APIs create a directory.
-
-    Use with file create events to track where a sample drops files.
-    """
+    """A directory that the guest creates."""
 
     event: Literal[EventType.DIRECTORY_CREATE] = Field(
-        default=EventType.DIRECTORY_CREATE, description="Discriminator for directory create events."
+        default=EventType.DIRECTORY_CREATE, description="Event type of a directory creation."
     )
-    path: str = Field(description="Directory path targeted by the create request.")
+    path: str = Field(description="Emulated path of the directory.")
 
 
 class DirectoryDeleteEvent(Event):
-    """
-    Records directory removal.
-
-    Emitted when file APIs remove a directory.
-
-    Use with directory create events to track staging directories.
-    """
+    """A directory that the guest deletes."""
 
     event: Literal[EventType.DIRECTORY_DELETE] = Field(
-        default=EventType.DIRECTORY_DELETE, description="Discriminator for directory delete events."
+        default=EventType.DIRECTORY_DELETE, description="Event type of a directory deletion."
     )
-    path: str = Field(description="Directory path targeted by the remove request.")
+    path: str = Field(description="Emulated path of the directory.")
 
 
 class RegOpenKeyEvent(Event):
-    """
-    Records registry key open operations.
-
-    Emitted when registry APIs open existing keys.
-
-    Use these to identify configuration and persistence probing paths.
-    """
+    """A registry key that the guest opens."""
 
     event: Literal[EventType.REG_OPEN_KEY] = Field(
         default=EventType.REG_OPEN_KEY,
-        description="Discriminator for registry key open events.",
+        description="Event type of a registry key open.",
     )
-    path: str = Field(description="Registry key path targeted by the open operation.")
+    path: str = Field(description="Path of the key.")
     handle: HexIntOptional = Field(default=None, description="Registry handle returned for the key, when available.")
     open_flags: list[str] | None = Field(
         default=None,
-        description="Open/disposition flags associated with the operation.",
+        description="Names of the open flags of the call.",
     )
     access_flags: list[str] | None = Field(
         default=None,
@@ -611,23 +439,17 @@ class RegOpenKeyEvent(Event):
 
 
 class RegCreateKeyEvent(Event):
-    """
-    Records registry key creation operations.
-
-    Emitted when registry APIs create new keys.
-
-    Strong signal for persistence and installation behavior.
-    """
+    """A registry key that the guest creates or opens with a create API, such as ``RegCreateKeyEx``."""
 
     event: Literal[EventType.REG_CREATE_KEY] = Field(
         default=EventType.REG_CREATE_KEY,
-        description="Discriminator for registry key create events.",
+        description="Event type of a registry key creation.",
     )
-    path: str = Field(description="Registry key path targeted by the create operation.")
+    path: str = Field(description="Path of the key.")
     handle: HexIntOptional = Field(default=None, description="Registry handle returned for the key, when available.")
     open_flags: list[str] | None = Field(
         default=None,
-        description="Create/open disposition flags associated with the operation.",
+        description="Names of the disposition flags of the call.",
     )
     access_flags: list[str] | None = Field(
         default=None,
@@ -636,119 +458,87 @@ class RegCreateKeyEvent(Event):
 
 
 class RegReadValueEvent(Event):
-    """
-    Records registry value read operations.
-
-    Emitted when value-query APIs request data from a key.
-
-    Use this to identify configuration keys and anti-analysis checks.
-    """
+    """A registry value that the guest reads."""
 
     event: Literal[EventType.REG_READ_VALUE] = Field(
         default=EventType.REG_READ_VALUE,
-        description="Discriminator for registry value read events.",
+        description="Event type of a registry value read.",
     )
-    path: str = Field(description="Registry key path containing the queried value.")
-    handle: HexIntOptional = Field(default=None, description="Registry key handle used for the read, when available.")
-    value_name: str | None = Field(default=None, description="Registry value name requested by the API call.")
-    size: int | None = Field(default=None, description="Requested/returned value size in bytes.")
+    path: str = Field(description="Path of the key that has the value.")
+    handle: HexIntOptional = Field(default=None, description="Key handle of the call.")
+    value_name: str | None = Field(default=None, description="Name of the value.")
+    size: int | None = Field(default=None, description="Size of the value data in bytes.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the captured registry value bytes.",
+        description="Key in the top-level ``data`` of the first bytes of the value data.",
     )
-    buffer: HexIntOptional = Field(default=None, description="Destination buffer pointer.")
+    buffer: HexIntOptional = Field(default=None, description="Address of the output buffer.")
 
 
 class RegWriteValueEvent(Event):
-    """
-    Records registry value write operations.
-
-    Emitted when APIs set or overwrite a registry value.
-
-    Use this to capture persistence and configuration mutations.
-    """
+    """A registry value that the guest writes."""
 
     event: Literal[EventType.REG_WRITE_VALUE] = Field(
         default=EventType.REG_WRITE_VALUE,
-        description="Discriminator for registry value write events.",
+        description="Event type of a registry value write.",
     )
-    path: str = Field(description="Registry key path containing the written value.")
-    handle: HexIntOptional = Field(default=None, description="Registry key handle used for the write, when available.")
-    value_name: str | None = Field(default=None, description="Registry value name written by the API call.")
-    size: int | None = Field(default=None, description="Written value size in bytes.")
+    path: str = Field(description="Path of the key that has the value.")
+    handle: HexIntOptional = Field(default=None, description="Key handle of the call.")
+    value_name: str | None = Field(default=None, description="Name of the value.")
+    size: int | None = Field(default=None, description="Size of the value data in bytes.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the written registry value bytes.",
+        description="Key in the top-level ``data`` of the first bytes of the value data.",
     )
-    buffer: HexIntOptional = Field(default=None, description="Source buffer pointer.")
+    buffer: HexIntOptional = Field(default=None, description="Address of the input buffer.")
 
 
 class RegListSubkeysEvent(Event):
-    """
-    Records enumeration of registry subkeys.
-
-    Emitted when APIs list child keys beneath a registry path.
-
-    Helps reveal discovery behavior for installed software and services.
-    """
+    """A registry key whose subkeys the guest lists."""
 
     event: Literal[EventType.REG_LIST_SUBKEYS] = Field(
         default=EventType.REG_LIST_SUBKEYS,
-        description="Discriminator for registry subkey enumeration events.",
+        description="Event type of a subkey list.",
     )
-    path: str = Field(description="Registry key path being enumerated.")
-    handle: HexIntOptional = Field(default=None, description="Registry handle used for enumeration, when available.")
+    path: str = Field(description="Path of the key.")
+    handle: HexIntOptional = Field(default=None, description="Key handle of the call.")
 
 
 class RegDeleteKeyEvent(Event):
-    """
-    Records registry key deletion.
-
-    Emitted when registry APIs delete a key.
-
-    Use this to track persistence cleanup and anti-forensics behavior.
-    """
+    """A registry key that the guest deletes."""
 
     event: Literal[EventType.REG_DELETE_KEY] = Field(
         default=EventType.REG_DELETE_KEY,
-        description="Discriminator for registry key delete events.",
+        description="Event type of a registry key deletion.",
     )
-    path: str = Field(description="Registry key path targeted by the delete operation.")
-    handle: HexIntOptional = Field(default=None, description="Registry handle used for the delete, when available.")
+    path: str = Field(description="Path of the key.")
+    handle: HexIntOptional = Field(default=None, description="Key handle of the call.")
 
 
 class RegDeleteValueEvent(Event):
-    """
-    Records registry value deletion.
-
-    Emitted when registry APIs delete a value from a key.
-
-    Use this to track persistence cleanup and anti-forensics behavior.
-    """
+    """A registry value that the guest deletes."""
 
     event: Literal[EventType.REG_DELETE_VALUE] = Field(
         default=EventType.REG_DELETE_VALUE,
-        description="Discriminator for registry value delete events.",
+        description="Event type of a registry value deletion.",
     )
-    path: str = Field(description="Registry key path containing the deleted value.")
-    handle: HexIntOptional = Field(default=None, description="Registry key handle used for the delete, when available.")
-    value_name: str | None = Field(default=None, description="Registry value name deleted by the API call.")
+    path: str = Field(description="Path of the key that had the value.")
+    handle: HexIntOptional = Field(default=None, description="Key handle of the call.")
+    value_name: str | None = Field(default=None, description="Name of the value.")
 
 
 class NetDnsEvent(Event):
     """
-    Records DNS name resolution activity.
+    A host name that the guest looks up.
 
-    Emitted when DNS APIs request host resolution or related lookups.
-
-    Use for C2 endpoint discovery and fallback behavior analysis.
+    The profiler adds one event for each query and response in a run.
     """
 
-    event: Literal[EventType.NET_DNS] = Field(default=EventType.NET_DNS, description="Discriminator for DNS events.")
-    query: str = Field(description="Queried domain or hostname.")
+    event: Literal[EventType.NET_DNS] = Field(default=EventType.NET_DNS, description="Event type of a DNS lookup.")
+    query: str = Field(description="Host name of the lookup.")
     response: str | None = Field(
         default=None,
-        description="Resolved IP response, when a mapping was available.",
+        description="IP address from ``network.dns.names`` in the config. Absent when the config has no address.",
     )
 
 
@@ -779,72 +569,56 @@ class NetHttpProtocol(str, Enum):
 
 
 class NetTrafficEvent(Event):
-    """
-    Records non-HTTP network traffic and socket-level activity.
-
-    Emitted for connect/bind/send/recv style network events.
-
-    Use this for protocol flow reconstruction outside HTTP abstractions.
-    """
+    """A socket operation of the guest: connect, bind, accept, send or receive."""
 
     event: Literal[EventType.NET_TRAFFIC] = Field(
-        default=EventType.NET_TRAFFIC, description="Discriminator for socket traffic events."
+        default=EventType.NET_TRAFFIC, description="Event type of a socket operation."
     )
-    server: str = Field(description="Remote endpoint hostname or IP address.")
-    port: int = Field(description="Remote endpoint port number.")
+    server: str = Field(description="Host name or IP address of the socket peer.")
+    port: int = Field(description="Port of the socket peer.")
     proto: NetTrafficProtocol = Field(
         description="Protocol of the socket type: ``tcp``, ``udp``, ``raw``, or ``unknown`` for another socket type."
     )
-    type: NetTrafficType | None = Field(default=None, description="Socket operation that produced the event.")
+    type: NetTrafficType | None = Field(default=None, description="Socket operation of the event.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the captured traffic payload bytes.",
+        description="Key in the top-level ``data`` of the first bytes that the guest sent or received.",
     )
-    method: str | None = Field(default=None, description="Source API path or method that produced the event.")
+    method: str | None = Field(default=None, description="Name of the operation, such as ``winsock.connect``.")
 
 
 class NetHttpEvent(Event):
     """
-    Records HTTP request telemetry.
+    An HTTP request that the guest sends with WinINet or WinHTTP.
 
-    Emitted by WinInet/WinHTTP handlers when requests are issued.
-
-    Use these records to inspect request metadata and transmitted body content.
+    The profiler adds one event for each server, port, protocol and headers in a run.
     """
 
-    event: Literal[EventType.NET_HTTP] = Field(default=EventType.NET_HTTP, description="Discriminator for HTTP events.")
-    server: str = Field(description="HTTP server hostname or address.")
-    port: int = Field(description="HTTP server port.")
+    event: Literal[EventType.NET_HTTP] = Field(default=EventType.NET_HTTP, description="Event type of an HTTP request.")
+    server: str = Field(description="Host name or address of the server.")
+    port: int = Field(description="Port of the server.")
     proto: NetHttpProtocol = Field(description="``http``, or ``https`` for a secure request.")
-    headers: str | None = Field(default=None, description="Serialized HTTP request headers, when available.")
+    headers: str | None = Field(default=None, description="Headers of the request, as text.")
     data_ref: str | None = Field(
         default=None,
-        description="Reference into the top-level report ``data`` store for the captured HTTP body bytes.",
+        description="Key in the top-level ``data`` of the first bytes of the request body.",
     )
 
 
 class ExceptionEvent(Event):
-    """
-    Records handled exception dispatch activity.
+    """An exception that the emulator sends to a guest handler."""
 
-    Emitted when exception handling telemetry is captured during execution.
-
-    Use this to understand exception-driven control flow and anti-analysis logic.
-    """
-
-    event: Literal[EventType.EXCEPTION] = Field(
-        default=EventType.EXCEPTION, description="Discriminator for exception events."
-    )
-    instruction: str = Field(description="Instruction text associated with the exception.")
+    event: Literal[EventType.EXCEPTION] = Field(default=EventType.EXCEPTION, description="Event type of an exception.")
+    instruction: str = Field(description="Disassembly of the instruction at the exception address.")
     exception_code: HexInt = Field(description="Exception code, such as ``0xc0000005``.")
-    handler_address: HexInt = Field(description="Address of the selected exception handler.")
-    registers: dict[str, HexInt] = Field(description="Register snapshot captured at exception time.")
+    handler_address: HexInt = Field(description="Address of the handler that gets the exception.")
+    registers: dict[str, HexInt] = Field(description="Register values at the time of the exception.")
     address: HexIntOptional = Field(
         default=None, description="Memory address that caused an access violation or a guard page violation."
     )
     pc_module: str | None = Field(default=None, description="Name of the module that contains the faulting PC.")
     pc_offset: int | None = Field(default=None, description="Offset of the faulting PC from the base of ``pc_module``.")
-    stack: list[StackEntry] | None = Field(default=None, description="Stack slots at exception time.")
+    stack: list[StackEntry] | None = Field(default=None, description="Stack slots at the time of the exception.")
 
 
 AnyEvent = Annotated[

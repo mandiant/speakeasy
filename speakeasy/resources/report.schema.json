@@ -79,26 +79,26 @@
     },
     "ApiEvent": {
       "additionalProperties": false,
-      "description": "Records one intercepted API invocation.\n\nAPI events are emitted by import-call handlers and represent core behavioral\ntelemetry for most runs.\n\nUse these entries to understand control flow and argument-level intent.",
+      "description": "One call to an API.\n\nThe profiler leaves out a call that repeats the API, pc, shown arguments and return value of\none of the last 3 events of the run.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "api",
           "default": "api",
-          "description": "Discriminator for API call events.",
+          "description": "Event type of an API call.",
           "title": "Event",
           "type": "string"
         },
         "api_name": {
-          "description": "Resolved API name in ``module.function`` form.\n\nUsed for behavior signatures, clustering, and family comparison.",
+          "description": "API name in ``module.function`` form, such as ``kernel32.CreateFileA``.",
           "title": "Api Name",
           "type": "string"
         },
         "args": {
-          "description": "Arguments of the call. With a usable API signature there is one entry per parameter; otherwise one entry per argument slot, plus any entries a variadic handler adds.",
+          "description": "Arguments of the call. With a usable API signature, one entry for each parameter. Else, one entry for each argument slot. A variadic handler can add entries.",
           "items": {
             "$ref": "#/$defs/ApiArg"
           },
@@ -116,7 +116,7 @@
             }
           ],
           "default": null,
-          "description": "Return value of the API call, when available.\n\nUse this to identify failure codes and branch-driving outcomes.",
+          "description": "Return value of the API, when the handler gives one.",
           "title": "Return Value"
         }
       },
@@ -187,21 +187,21 @@
     },
     "DirectoryCreateEvent": {
       "additionalProperties": false,
-      "description": "Records directory creation.\n\nEmitted when file APIs create a directory.\n\nUse with file create events to track where a sample drops files.",
+      "description": "A directory that the guest creates.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "directory_create",
           "default": "directory_create",
-          "description": "Discriminator for directory create events.",
+          "description": "Event type of a directory creation.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Directory path targeted by the create request.",
+          "description": "Emulated path of the directory.",
           "title": "Path",
           "type": "string"
         }
@@ -215,21 +215,21 @@
     },
     "DirectoryDeleteEvent": {
       "additionalProperties": false,
-      "description": "Records directory removal.\n\nEmitted when file APIs remove a directory.\n\nUse with directory create events to track staging directories.",
+      "description": "A directory that the guest deletes.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "directory_delete",
           "default": "directory_delete",
-          "description": "Discriminator for directory delete events.",
+          "description": "Event type of a directory deletion.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Directory path targeted by the remove request.",
+          "description": "Emulated path of the directory.",
           "title": "Path",
           "type": "string"
         }
@@ -939,21 +939,21 @@
     },
     "ExceptionEvent": {
       "additionalProperties": false,
-      "description": "Records handled exception dispatch activity.\n\nEmitted when exception handling telemetry is captured during execution.\n\nUse this to understand exception-driven control flow and anti-analysis logic.",
+      "description": "An exception that the emulator sends to a guest handler.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "exception",
           "default": "exception",
-          "description": "Discriminator for exception events.",
+          "description": "Event type of an exception.",
           "title": "Event",
           "type": "string"
         },
         "instruction": {
-          "description": "Instruction text associated with the exception.",
+          "description": "Disassembly of the instruction at the exception address.",
           "title": "Instruction",
           "type": "string"
         },
@@ -964,7 +964,7 @@
           "type": "string"
         },
         "handler_address": {
-          "description": "Address of the selected exception handler.",
+          "description": "Address of the handler that gets the exception.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Handler Address",
           "type": "string"
@@ -974,7 +974,7 @@
             "pattern": "^0x[0-9a-f]+$",
             "type": "string"
           },
-          "description": "Register snapshot captured at exception time.",
+          "description": "Register values at the time of the exception.",
           "title": "Registers",
           "type": "object"
         },
@@ -1031,7 +1031,7 @@
             }
           ],
           "default": null,
-          "description": "Stack slots at exception time.",
+          "description": "Stack slots at the time of the exception.",
           "title": "Stack"
         }
       },
@@ -1047,21 +1047,21 @@
     },
     "FileCreateEvent": {
       "additionalProperties": false,
-      "description": "Records file creation/open-with-create semantics.\n\nEmitted when file APIs request creation semantics for a path.\n\nUse with follow-up write events to track dropped artifacts.",
+      "description": "A file that the guest creates, or opens with a disposition that can create the file.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "file_create",
           "default": "file_create",
-          "description": "Discriminator for file create events.",
+          "description": "Event type of a file creation.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "File path targeted by creation request.",
+          "description": "Emulated path of the file.",
           "title": "Path",
           "type": "string"
         },
@@ -1076,7 +1076,7 @@
             }
           ],
           "default": null,
-          "description": "Assigned file handle, when available.",
+          "description": "File handle that the API returns.",
           "title": "Handle"
         },
         "open_flags": {
@@ -1092,7 +1092,7 @@
             }
           ],
           "default": null,
-          "description": "Creation/open disposition flags supplied by the API call.",
+          "description": "Names of the disposition flags of the call, such as ``CREATE_ALWAYS``.",
           "title": "Open Flags"
         },
         "access_flags": {
@@ -1121,21 +1121,21 @@
     },
     "FileDeleteEvent": {
       "additionalProperties": false,
-      "description": "Records file deletion.\n\nEmitted when file APIs delete a file.\n\nUse with file create events to track files that a sample removes after use.",
+      "description": "A file that the guest deletes.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "file_delete",
           "default": "file_delete",
-          "description": "Discriminator for file delete events.",
+          "description": "Event type of a file deletion.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "File path targeted by the delete request.",
+          "description": "Emulated path of the file.",
           "title": "Path",
           "type": "string"
         }
@@ -1149,21 +1149,21 @@
     },
     "FileOpenEvent": {
       "additionalProperties": false,
-      "description": "Records file open operations without explicit create intent.\n\nEmitted for open-style file API calls.\n\nUse to reconstruct file-read dependency chains.",
+      "description": "A file that the guest opens without a create disposition.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "file_open",
           "default": "file_open",
-          "description": "Discriminator for file open events.",
+          "description": "Event type of a file open.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "File path targeted by open request.",
+          "description": "Emulated path of the file.",
           "title": "Path",
           "type": "string"
         },
@@ -1178,7 +1178,7 @@
             }
           ],
           "default": null,
-          "description": "Assigned file handle, when available.",
+          "description": "File handle that the API returns.",
           "title": "Handle"
         },
         "open_flags": {
@@ -1194,7 +1194,7 @@
             }
           ],
           "default": null,
-          "description": "Open disposition flags supplied by the API call.",
+          "description": "Names of the disposition flags of the call, such as ``OPEN_EXISTING``.",
           "title": "Open Flags"
         },
         "access_flags": {
@@ -1223,21 +1223,21 @@
     },
     "FileReadEvent": {
       "additionalProperties": false,
-      "description": "Records reads from a file handle.\n\nEmitted when file-read APIs pull bytes from emulated files.\n\nUseful for identifying configuration ingestion and payload loading.",
+      "description": "Data that the guest reads from a file.\n\nThe profiler merges all reads of one path in a run into one event.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "file_read",
           "default": "file_read",
-          "description": "Discriminator for file read events.",
+          "description": "Event type of a file read.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "File path associated with the read operation.",
+          "description": "Emulated path of the file.",
           "title": "Path",
           "type": "string"
         },
@@ -1252,7 +1252,7 @@
             }
           ],
           "default": null,
-          "description": "File handle used by the read operation.",
+          "description": "File handle of the first read.",
           "title": "Handle"
         },
         "size": {
@@ -1265,7 +1265,7 @@
             }
           ],
           "default": null,
-          "description": "Number of bytes requested/read.",
+          "description": "Total number of bytes that the guest read.",
           "title": "Size"
         },
         "data_ref": {
@@ -1278,7 +1278,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured file bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes that the guest read.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -1292,7 +1292,7 @@
             }
           ],
           "default": null,
-          "description": "Destination buffer pointer.",
+          "description": "Address of the buffer of the first read.",
           "title": "Buffer"
         }
       },
@@ -1316,21 +1316,21 @@
     },
     "FileWriteEvent": {
       "additionalProperties": false,
-      "description": "Records writes to a file handle.\n\nEmitted when file-write APIs append or overwrite emulated file data.\n\nCombine with dropped-file summaries to recover persisted payloads.",
+      "description": "Data that the guest writes to a file.\n\nThe profiler merges all writes to one path in a run into one event.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "file_write",
           "default": "file_write",
-          "description": "Discriminator for file write events.",
+          "description": "Event type of a file write.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "File path associated with the write operation.",
+          "description": "Emulated path of the file.",
           "title": "Path",
           "type": "string"
         },
@@ -1345,7 +1345,7 @@
             }
           ],
           "default": null,
-          "description": "File handle used by the write operation.",
+          "description": "File handle of the first write.",
           "title": "Handle"
         },
         "size": {
@@ -1358,7 +1358,7 @@
             }
           ],
           "default": null,
-          "description": "Number of bytes written.",
+          "description": "Total number of bytes that the guest wrote.",
           "title": "Size"
         },
         "data_ref": {
@@ -1371,7 +1371,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured file bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes that the guest wrote.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -1385,7 +1385,7 @@
             }
           ],
           "default": null,
-          "description": "Source buffer pointer.",
+          "description": "Address of the buffer of the first write.",
           "title": "Buffer"
         }
       },
@@ -1441,32 +1441,32 @@
     },
     "MemAllocEvent": {
       "additionalProperties": false,
-      "description": "Records remote or explicit process memory allocation activity.\n\nEmitted by memory allocation APIs that target process virtual memory.\n\nCommonly seen in injection and unpacking workflows.",
+      "description": "Memory that the guest allocates with ``VirtualAlloc`` or ``VirtualAllocEx``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "mem_alloc",
           "default": "mem_alloc",
-          "description": "Discriminator for memory allocation events.",
+          "description": "Event type of a memory allocation.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path associated with the allocation event.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Allocated base address.",
+          "description": "Base address of the allocation.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Allocation size in bytes.",
+          "description": "Size that the caller asked for, in bytes.",
           "title": "Size",
           "type": "integer"
         },
@@ -1496,7 +1496,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) allocates in this process; NULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         }
       },
@@ -1511,32 +1511,32 @@
     },
     "MemFreeEvent": {
       "additionalProperties": false,
-      "description": "Records memory free/decommit operations.\n\nEmitted when memory free APIs are invoked against process regions.\n\nUse this to track lifecycle of allocation artifacts.",
+      "description": "Memory that the guest frees.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "mem_free",
           "default": "mem_free",
-          "description": "Discriminator for memory free events.",
+          "description": "Event type of a memory free.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path associated with the free event.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Freed region base address.",
+          "description": "Base address of the freed region.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Freed region size in bytes.",
+          "description": "Size of the freed region in bytes.",
           "title": "Size",
           "type": "integer"
         },
@@ -1550,7 +1550,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) frees memory in this process; NULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         }
       },
@@ -1565,32 +1565,32 @@
     },
     "MemProtectEvent": {
       "additionalProperties": false,
-      "description": "Records memory protection changes.\n\nEmitted for API paths that alter page permissions in process memory.\n\nThis is a key indicator for RWX transitions and shellcode staging.",
+      "description": "A change of page protection with ``VirtualProtectEx``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "mem_protect",
           "default": "mem_protect",
-          "description": "Discriminator for memory protection change events.",
+          "description": "Event type of a page protection change.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path associated with the protection change.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Protection-change base address.",
+          "description": "Base address of the range.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Protection-change size in bytes.",
+          "description": "Size of the range in bytes.",
           "title": "Size",
           "type": "integer"
         },
@@ -1620,7 +1620,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) changes protection in this process; NULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         }
       },
@@ -1635,26 +1635,26 @@
     },
     "MemReadEvent": {
       "additionalProperties": false,
-      "description": "Records reads from process memory.\n\nEmitted for API-mediated memory reads and may merge adjacent reads in the\nprofiler for compactness.\n\nUseful for identifying memory scraping or credential theft behavior.",
+      "description": "Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``.\n\nThe profiler merges a read into the last process event when that event is a read that ends at\nthe start of the new read.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "mem_read",
           "default": "mem_read",
-          "description": "Discriminator for memory read events.",
+          "description": "Event type of a memory read.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path associated with the read event.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Read start address.",
+          "description": "Start address of the read.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
@@ -1674,7 +1674,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured read preview bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes of the read.",
           "title": "Data Ref"
         },
         "pid": {
@@ -1687,7 +1687,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) reads from this process; NULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         }
       },
@@ -1702,26 +1702,26 @@
     },
     "MemWriteEvent": {
       "additionalProperties": false,
-      "description": "Records writes into process memory.\n\nEmitted for API-mediated memory writes and may merge adjacent writes in the\nprofiler for compactness.\n\nUse with thread/process events to identify code injection flows.",
+      "description": "Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``.\n\nThe profiler merges a write into the last process event when that event is a write that ends\nat the start of the new write.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "mem_write",
           "default": "mem_write",
-          "description": "Discriminator for memory write events.",
+          "description": "Event type of a memory write.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path associated with the write event.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Write start address.",
+          "description": "Start address of the write.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
@@ -1741,7 +1741,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured write preview bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes of the write.",
           "title": "Data Ref"
         },
         "pid": {
@@ -1754,7 +1754,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) writes into this process; NULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         }
       },
@@ -1887,37 +1887,37 @@
     },
     "ModuleLoadEvent": {
       "additionalProperties": false,
-      "description": "Records dynamic module loading activity.\n\nEmitted when module load operations map additional images during runtime.\n\nUseful for dependency discovery and staged import behavior.",
+      "description": "A module that the guest loads at run time.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "module_load",
           "default": "module_load",
-          "description": "Discriminator for module load events.",
+          "description": "Event type of a module load.",
           "title": "Event",
           "type": "string"
         },
         "name": {
-          "description": "Loaded module name.",
+          "description": "Name of the module.",
           "title": "Name",
           "type": "string"
         },
         "path": {
-          "description": "Loaded module path in emulated filesystem space.",
+          "description": "Emulated path of the module.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Module base address.",
+          "description": "Base address of the module.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Mapped module size in bytes.",
+          "description": "Size of the module image in bytes.",
           "title": "Size",
           "type": "integer"
         }
@@ -1969,21 +1969,21 @@
     },
     "NetDnsEvent": {
       "additionalProperties": false,
-      "description": "Records DNS name resolution activity.\n\nEmitted when DNS APIs request host resolution or related lookups.\n\nUse for C2 endpoint discovery and fallback behavior analysis.",
+      "description": "A host name that the guest looks up.\n\nThe profiler adds one event for each query and response in a run.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "net_dns",
           "default": "net_dns",
-          "description": "Discriminator for DNS events.",
+          "description": "Event type of a DNS lookup.",
           "title": "Event",
           "type": "string"
         },
         "query": {
-          "description": "Queried domain or hostname.",
+          "description": "Host name of the lookup.",
           "title": "Query",
           "type": "string"
         },
@@ -1997,7 +1997,7 @@
             }
           ],
           "default": null,
-          "description": "Resolved IP response, when a mapping was available.",
+          "description": "IP address from ``network.dns.names`` in the config. Absent when the config has no address.",
           "title": "Response"
         }
       },
@@ -2010,26 +2010,26 @@
     },
     "NetHttpEvent": {
       "additionalProperties": false,
-      "description": "Records HTTP request telemetry.\n\nEmitted by WinInet/WinHTTP handlers when requests are issued.\n\nUse these records to inspect request metadata and transmitted body content.",
+      "description": "An HTTP request that the guest sends with WinINet or WinHTTP.\n\nThe profiler adds one event for each server, port, protocol and headers in a run.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "net_http",
           "default": "net_http",
-          "description": "Discriminator for HTTP events.",
+          "description": "Event type of an HTTP request.",
           "title": "Event",
           "type": "string"
         },
         "server": {
-          "description": "HTTP server hostname or address.",
+          "description": "Host name or address of the server.",
           "title": "Server",
           "type": "string"
         },
         "port": {
-          "description": "HTTP server port.",
+          "description": "Port of the server.",
           "title": "Port",
           "type": "integer"
         },
@@ -2047,7 +2047,7 @@
             }
           ],
           "default": null,
-          "description": "Serialized HTTP request headers, when available.",
+          "description": "Headers of the request, as text.",
           "title": "Headers"
         },
         "data_ref": {
@@ -2060,7 +2060,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured HTTP body bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes of the request body.",
           "title": "Data Ref"
         }
       },
@@ -2084,26 +2084,26 @@
     },
     "NetTrafficEvent": {
       "additionalProperties": false,
-      "description": "Records non-HTTP network traffic and socket-level activity.\n\nEmitted for connect/bind/send/recv style network events.\n\nUse this for protocol flow reconstruction outside HTTP abstractions.",
+      "description": "A socket operation of the guest: connect, bind, accept, send or receive.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "net_traffic",
           "default": "net_traffic",
-          "description": "Discriminator for socket traffic events.",
+          "description": "Event type of a socket operation.",
           "title": "Event",
           "type": "string"
         },
         "server": {
-          "description": "Remote endpoint hostname or IP address.",
+          "description": "Host name or IP address of the socket peer.",
           "title": "Server",
           "type": "string"
         },
         "port": {
-          "description": "Remote endpoint port number.",
+          "description": "Port of the socket peer.",
           "title": "Port",
           "type": "integer"
         },
@@ -2121,7 +2121,7 @@
             }
           ],
           "default": null,
-          "description": "Socket operation that produced the event."
+          "description": "Socket operation of the event."
         },
         "data_ref": {
           "anyOf": [
@@ -2133,7 +2133,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured traffic payload bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes that the guest sent or received.",
           "title": "Data Ref"
         },
         "method": {
@@ -2146,7 +2146,7 @@
             }
           ],
           "default": null,
-          "description": "Source API path or method that produced the event.",
+          "description": "Name of the operation, such as ``winsock.connect``.",
           "title": "Method"
         }
       },
@@ -2184,26 +2184,26 @@
     },
     "ProcessCreateEvent": {
       "additionalProperties": false,
-      "description": "Records creation of a child process context.\n\nEmitted when process-creation APIs are invoked and accepted by emulation.\n\nThese events indicate lateral execution or staged payload spawning.",
+      "description": "A process that the guest creates, such as with ``CreateProcess`` or ``ShellExecute``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "process_create",
           "default": "process_create",
-          "description": "Discriminator for process creation events.",
+          "description": "Event type of a process creation.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process image path.\n\nRepresents the emulated executable location requested by the sample.",
+          "description": "Emulated path of the image of the new process.",
           "title": "Path",
           "type": "string"
         },
         "command_line": {
-          "description": "Command line used for process creation.\n\nUse this to recover execution parameters and staged arguments.",
+          "description": "Command line of the new process.",
           "title": "Command Line",
           "type": "string"
         },
@@ -2217,7 +2217,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) creates this process; the target may differ.",
+          "description": "ID of the new process.",
           "title": "Pid"
         }
       },
@@ -2231,21 +2231,21 @@
     },
     "RegCreateKeyEvent": {
       "additionalProperties": false,
-      "description": "Records registry key creation operations.\n\nEmitted when registry APIs create new keys.\n\nStrong signal for persistence and installation behavior.",
+      "description": "A registry key that the guest creates or opens with a create API, such as ``RegCreateKeyEx``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_create_key",
           "default": "reg_create_key",
-          "description": "Discriminator for registry key create events.",
+          "description": "Event type of a registry key creation.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path targeted by the create operation.",
+          "description": "Path of the key.",
           "title": "Path",
           "type": "string"
         },
@@ -2276,7 +2276,7 @@
             }
           ],
           "default": null,
-          "description": "Create/open disposition flags associated with the operation.",
+          "description": "Names of the disposition flags of the call.",
           "title": "Open Flags"
         },
         "access_flags": {
@@ -2305,21 +2305,21 @@
     },
     "RegDeleteKeyEvent": {
       "additionalProperties": false,
-      "description": "Records registry key deletion.\n\nEmitted when registry APIs delete a key.\n\nUse this to track persistence cleanup and anti-forensics behavior.",
+      "description": "A registry key that the guest deletes.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_delete_key",
           "default": "reg_delete_key",
-          "description": "Discriminator for registry key delete events.",
+          "description": "Event type of a registry key deletion.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path targeted by the delete operation.",
+          "description": "Path of the key.",
           "title": "Path",
           "type": "string"
         },
@@ -2334,7 +2334,7 @@
             }
           ],
           "default": null,
-          "description": "Registry handle used for the delete, when available.",
+          "description": "Key handle of the call.",
           "title": "Handle"
         }
       },
@@ -2347,21 +2347,21 @@
     },
     "RegDeleteValueEvent": {
       "additionalProperties": false,
-      "description": "Records registry value deletion.\n\nEmitted when registry APIs delete a value from a key.\n\nUse this to track persistence cleanup and anti-forensics behavior.",
+      "description": "A registry value that the guest deletes.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_delete_value",
           "default": "reg_delete_value",
-          "description": "Discriminator for registry value delete events.",
+          "description": "Event type of a registry value deletion.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path containing the deleted value.",
+          "description": "Path of the key that had the value.",
           "title": "Path",
           "type": "string"
         },
@@ -2376,7 +2376,7 @@
             }
           ],
           "default": null,
-          "description": "Registry key handle used for the delete, when available.",
+          "description": "Key handle of the call.",
           "title": "Handle"
         },
         "value_name": {
@@ -2389,7 +2389,7 @@
             }
           ],
           "default": null,
-          "description": "Registry value name deleted by the API call.",
+          "description": "Name of the value.",
           "title": "Value Name"
         }
       },
@@ -2402,21 +2402,21 @@
     },
     "RegListSubkeysEvent": {
       "additionalProperties": false,
-      "description": "Records enumeration of registry subkeys.\n\nEmitted when APIs list child keys beneath a registry path.\n\nHelps reveal discovery behavior for installed software and services.",
+      "description": "A registry key whose subkeys the guest lists.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_list_subkeys",
           "default": "reg_list_subkeys",
-          "description": "Discriminator for registry subkey enumeration events.",
+          "description": "Event type of a subkey list.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path being enumerated.",
+          "description": "Path of the key.",
           "title": "Path",
           "type": "string"
         },
@@ -2431,7 +2431,7 @@
             }
           ],
           "default": null,
-          "description": "Registry handle used for enumeration, when available.",
+          "description": "Key handle of the call.",
           "title": "Handle"
         }
       },
@@ -2444,21 +2444,21 @@
     },
     "RegOpenKeyEvent": {
       "additionalProperties": false,
-      "description": "Records registry key open operations.\n\nEmitted when registry APIs open existing keys.\n\nUse these to identify configuration and persistence probing paths.",
+      "description": "A registry key that the guest opens.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_open_key",
           "default": "reg_open_key",
-          "description": "Discriminator for registry key open events.",
+          "description": "Event type of a registry key open.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path targeted by the open operation.",
+          "description": "Path of the key.",
           "title": "Path",
           "type": "string"
         },
@@ -2489,7 +2489,7 @@
             }
           ],
           "default": null,
-          "description": "Open/disposition flags associated with the operation.",
+          "description": "Names of the open flags of the call.",
           "title": "Open Flags"
         },
         "access_flags": {
@@ -2518,21 +2518,21 @@
     },
     "RegReadValueEvent": {
       "additionalProperties": false,
-      "description": "Records registry value read operations.\n\nEmitted when value-query APIs request data from a key.\n\nUse this to identify configuration keys and anti-analysis checks.",
+      "description": "A registry value that the guest reads.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_read_value",
           "default": "reg_read_value",
-          "description": "Discriminator for registry value read events.",
+          "description": "Event type of a registry value read.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path containing the queried value.",
+          "description": "Path of the key that has the value.",
           "title": "Path",
           "type": "string"
         },
@@ -2547,7 +2547,7 @@
             }
           ],
           "default": null,
-          "description": "Registry key handle used for the read, when available.",
+          "description": "Key handle of the call.",
           "title": "Handle"
         },
         "value_name": {
@@ -2560,7 +2560,7 @@
             }
           ],
           "default": null,
-          "description": "Registry value name requested by the API call.",
+          "description": "Name of the value.",
           "title": "Value Name"
         },
         "size": {
@@ -2573,7 +2573,7 @@
             }
           ],
           "default": null,
-          "description": "Requested/returned value size in bytes.",
+          "description": "Size of the value data in bytes.",
           "title": "Size"
         },
         "data_ref": {
@@ -2586,7 +2586,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the captured registry value bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes of the value data.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -2600,7 +2600,7 @@
             }
           ],
           "default": null,
-          "description": "Destination buffer pointer.",
+          "description": "Address of the output buffer.",
           "title": "Buffer"
         }
       },
@@ -2613,21 +2613,21 @@
     },
     "RegWriteValueEvent": {
       "additionalProperties": false,
-      "description": "Records registry value write operations.\n\nEmitted when APIs set or overwrite a registry value.\n\nUse this to capture persistence and configuration mutations.",
+      "description": "A registry value that the guest writes.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "reg_write_value",
           "default": "reg_write_value",
-          "description": "Discriminator for registry value write events.",
+          "description": "Event type of a registry value write.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Registry key path containing the written value.",
+          "description": "Path of the key that has the value.",
           "title": "Path",
           "type": "string"
         },
@@ -2642,7 +2642,7 @@
             }
           ],
           "default": null,
-          "description": "Registry key handle used for the write, when available.",
+          "description": "Key handle of the call.",
           "title": "Handle"
         },
         "value_name": {
@@ -2655,7 +2655,7 @@
             }
           ],
           "default": null,
-          "description": "Registry value name written by the API call.",
+          "description": "Name of the value.",
           "title": "Value Name"
         },
         "size": {
@@ -2668,7 +2668,7 @@
             }
           ],
           "default": null,
-          "description": "Written value size in bytes.",
+          "description": "Size of the value data in bytes.",
           "title": "Size"
         },
         "data_ref": {
@@ -2681,7 +2681,7 @@
             }
           ],
           "default": null,
-          "description": "Reference into the top-level report ``data`` store for the written registry value bytes.",
+          "description": "Key in the top-level ``data`` of the first bytes of the value data.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -2695,7 +2695,7 @@
             }
           ],
           "default": null,
-          "description": "Source buffer pointer.",
+          "description": "Address of the input buffer.",
           "title": "Buffer"
         }
       },
@@ -2867,32 +2867,32 @@
     },
     "ThreadCreateEvent": {
       "additionalProperties": false,
-      "description": "Records thread creation in a process context.\n\nEmitted for thread creation APIs and often accompanies process injection\nworkflows.\n\nCombine with memory-write and start-address analysis for attribution.",
+      "description": "A thread that the guest creates in its own process.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "thread_create",
           "default": "thread_create",
-          "description": "Discriminator for thread creation events.",
+          "description": "Event type of a thread creation.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path where the thread is created.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "start_address": {
-          "description": "Thread start address.",
+          "description": "Start address of the thread.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Start Address",
           "type": "string"
         },
         "param": {
-          "description": "Thread parameter pointer or value.",
+          "description": "Parameter that the thread routine gets.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Param",
           "type": "string"
@@ -2907,7 +2907,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier.\n\nThe actor (event pos) creates the thread in this process; NULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         },
         "tid": {
@@ -2920,7 +2920,7 @@
             }
           ],
           "default": null,
-          "description": "Target thread identifier of the newly created thread, when known.",
+          "description": "ID of the new thread.",
           "title": "Tid"
         }
       },
@@ -2935,32 +2935,32 @@
     },
     "ThreadInjectEvent": {
       "additionalProperties": false,
-      "description": "Records thread injection activity into another process.\n\nEmitted for injection-oriented thread APIs.\n\nTreat these as high-signal indicators of code injection behavior.",
+      "description": "A thread that the guest creates in another process, such as with ``CreateRemoteThread``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Execution position metadata for this event.\n\nUsed to align event payloads with timeline and execution context."
+          "description": "Position of the thread that did the operation."
         },
         "event": {
           "const": "thread_inject",
           "default": "thread_inject",
-          "description": "Discriminator for thread injection events.",
+          "description": "Event type of a thread injection.",
           "title": "Event",
           "type": "string"
         },
         "path": {
-          "description": "Target process path receiving the injected thread.",
+          "description": "Image path of the target process.",
           "title": "Path",
           "type": "string"
         },
         "start_address": {
-          "description": "Injected thread start address.",
+          "description": "Start address of the thread.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Start Address",
           "type": "string"
         },
         "param": {
-          "description": "Injected thread parameter pointer or value.",
+          "description": "Parameter that the thread routine gets.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Param",
           "type": "string"
@@ -2975,7 +2975,7 @@
             }
           ],
           "default": null,
-          "description": "Target process identifier receiving the injected thread.\n\nNULL when the target is the actor itself.",
+          "description": "ID of the target process. Absent when the target is the process in ``pos``.",
           "title": "Pid"
         },
         "tid": {
@@ -2988,7 +2988,7 @@
             }
           ],
           "default": null,
-          "description": "Target thread identifier of the injected thread, when known.",
+          "description": "ID of the new thread.",
           "title": "Tid"
         }
       },
@@ -3003,20 +3003,20 @@
     },
     "TracePosition": {
       "additionalProperties": false,
-      "description": "Locates where an event occurred in execution time and context.\n\nEvery emitted event carries this structure so consumers can reconstruct\nchronology and thread/process ownership.\n\nUse ``tick`` ordering for timeline reconstruction and ``pc`` for direct\ndisassembly alignment.",
+      "description": "Position of an event: the instruction count, the thread, the process and the pc.",
       "properties": {
         "tick": {
-          "description": "Instruction-count tick at the time of the event.\n\nUse this as the primary event ordering key within a run.",
+          "description": "Instruction count of the run at the time of the event. The events of a run are in tick order.",
           "title": "Tick",
           "type": "integer"
         },
         "tid": {
-          "description": "Thread identifier active when the event was emitted.\n\nCorrelate this with thread creation/injection activity.",
+          "description": "ID of the thread that did the operation.",
           "title": "Tid",
           "type": "integer"
         },
         "pid": {
-          "description": "Process identifier active when the event was emitted.\n\nUse this to separate behavior across process boundaries.",
+          "description": "ID of the process that did the operation.",
           "title": "Pid",
           "type": "integer"
         },
@@ -3031,7 +3031,7 @@
             }
           ],
           "default": null,
-          "description": "Program counter at event emission time, when available.\n\nSome synthetic events may omit this if no precise PC context exists.",
+          "description": "Address of the instruction that did the operation. For an API event, the address of the call.",
           "title": "Pc"
         }
       },
