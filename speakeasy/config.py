@@ -291,15 +291,23 @@ _Size = Annotated[int, BeforeValidator(_parse_config_int)]
 class AnalysisConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    memory_tracing: bool = Field(default=False, description="Enable memory access tracing in reports.")
-    strings: bool = Field(default=True, description="Extract strings from input and emulated memory.")
-    coverage: bool = Field(default=False, description="Collect executed instruction addresses per run.")
+    memory_tracing: bool = Field(
+        default=False,
+        description="Count the reads, writes and executes of each symbol, section and memory map for the report.",
+    )
+    strings: bool = Field(
+        default=True, description="Add the strings of the input and of emulated memory to the report."
+    )
+    coverage: bool = Field(default=False, description="Record the address of each instruction that a run executes.")
 
 
 class ExceptionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    dispatch_handlers: bool = Field(default=True, description="Dispatch configured exception handlers during faults.")
+    dispatch_handlers: bool = Field(
+        default=True,
+        description="Send CPU exceptions to the VEH and SEH handlers of the guest. If false, a fault ends the run.",
+    )
 
 
 class OsVersionConfig(BaseModel):
@@ -314,17 +322,21 @@ class OsVersionConfig(BaseModel):
 class UserConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str = Field(default="speakeasy_user", description="Username exposed to account and profile APIs.")
-    is_admin: bool = Field(default=True, description="Expose elevated privileges to admin checks.")
+    name: str = Field(default="speakeasy_user", description="User name, for example for GetUserName.")
+    is_admin: bool = Field(default=True, description="If true, the token of the user is elevated.")
     sid: str = Field(default="S-1-5-21-1111111111-2222222222-3333333333-1001", description="SID of the emulated user.")
 
 
 class ApiHammeringConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    enabled: bool = Field(default=False, description="Enable API hammering mitigation.")
-    threshold: int = Field(default=2000, description="Repetition threshold that triggers mitigation.")
-    allow_list: list[str] = Field(default_factory=list, description="API names exempt from mitigation.")
+    enabled: bool = Field(default=False, description="Patch API hammering loops in x86 code.")
+    threshold: int = Field(
+        default=2000, description="Number of calls to one API from one call site before the emulator patches the call."
+    )
+    allow_list: list[str] = Field(
+        default_factory=list, description="APIs that the emulator does not patch. An empty list uses a built-in list."
+    )
 
 
 class SymlinkConfig(BaseModel):
@@ -337,42 +349,46 @@ class SymlinkConfig(BaseModel):
 class DriveConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    root_path: str | None = Field(default=None, description="Drive root path returned by drive APIs.")
-    drive_type: str | None = Field(default=None, description="Drive type token used by drive APIs.")
-    volume_guid_path: str | None = Field(default=None, description="Volume GUID path mapped to this drive.")
+    root_path: str | None = Field(default=None, description="Root path of the drive, such as C:\\.")
+    drive_type: str | None = Field(default=None, description="Drive type, such as DRIVE_FIXED.")
+    volume_guid_path: str | None = Field(default=None, description="Volume GUID path of the drive.")
 
 
 class ByteFillConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    byte: str = Field(description="Byte value used to synthesize file content.")
-    size: _Size = Field(description="Number of bytes to synthesize.")
+    byte: str = Field(description="Byte that fills the content, in hex, such as 0x41.")
+    size: _Size = Field(description="Size of the content in bytes.")
+
+
+_HOST_PATH_DESCRIPTION = "Host file that gives the data. $ROOT$ is the directory of the speakeasy package."
+_BYTE_FILL_DESCRIPTION = "Data that the emulator makes, in place of a host file."
 
 
 class FileEntryFullPath(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["full_path"] = Field(description="File entry matcher mode.")
-    emu_path: str = Field(description="Emulated path pattern matched by this entry.")
-    path: str | None = Field(default=None, description="Host file path served for matched reads.")
-    byte_fill: ByteFillConfig | None = Field(default=None, description="Synthetic content source for matched reads.")
+    mode: Literal["full_path"] = Field(description="full_path matches the full path.")
+    emu_path: str = Field(description="Path that this entry matches. It can have wildcards, such as *.")
+    path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
+    byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
 
 
 class FileEntryByExt(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["by_ext"] = Field(description="File entry matcher mode.")
-    ext: str = Field(description="File extension matched by this entry.")
-    path: str | None = Field(default=None, description="Host file path served for matched reads.")
-    byte_fill: ByteFillConfig | None = Field(default=None, description="Synthetic content source for matched reads.")
+    mode: Literal["by_ext"] = Field(description="by_ext matches all paths with the extension ext.")
+    ext: str = Field(description="File extension that this entry matches, without the dot, such as exe.")
+    path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
+    byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
 
 
 class FileEntryDefault(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: Literal["default"] = Field(description="File entry matcher mode.")
-    path: str | None = Field(default=None, description="Fallback host file path served for reads.")
-    byte_fill: ByteFillConfig | None = Field(default=None, description="Fallback synthetic content source.")
+    mode: Literal["default"] = Field(description="default matches all paths that no other entry matches.")
+    path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
+    byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
 
 
 FileEntry = Annotated[
@@ -387,16 +403,16 @@ class FilesystemConfig(BaseModel):
 
     files: list[FileEntry] = Field(
         default_factory=lambda: [_FILE_ENTRY.validate_python(item) for item in _DEFAULT_FILES],
-        description="Filesystem response mapping rules.",
+        description="Entries that give the content of the files in the emulated file system.",
     )
 
 
 class RegistryValueConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str = Field(description="Registry value name.")
-    type: str = Field(description="Registry type token.")
-    data: str = Field(description="Registry value payload.")
+    name: str = Field(description="Value name. default is the unnamed default value.")
+    type: str = Field(description="Value type, such as REG_SZ, REG_DWORD or REG_MULTI_SZ.")
+    data: str = Field(description="Value data as a string. REG_DWORD and REG_QWORD data is a number, such as 0x3.")
 
 
 class RegistryKeyConfig(BaseModel):
@@ -411,26 +427,29 @@ class RegistryConfig(BaseModel):
 
     keys: list[RegistryKeyConfig] = Field(
         default_factory=lambda: [RegistryKeyConfig.model_validate(item) for item in _DEFAULT_REGISTRY_KEYS],
-        description="Seed registry key definitions.",
+        description="Registry keys and values that exist when emulation starts.",
     )
 
 
 class DnsTxtConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str | None = Field(default=None, description="Domain name for this TXT response mapping.")
-    path: str | None = Field(default=None, description="Host file path used as TXT response payload.")
+    name: str | None = Field(
+        default=None, description="Domain name of this TXT record. default gives the TXT record of all other names."
+    )
+    path: str | None = Field(default=None, description="Host file that gives the TXT record.")
 
 
 class DnsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     names: dict[str, str] = Field(
-        default_factory=lambda: dict(_DEFAULT_DNS_NAMES), description="Domain-to-IP mappings used by DNS lookups."
+        default_factory=lambda: dict(_DEFAULT_DNS_NAMES),
+        description="IP address of each domain name. default gives the address of all other names.",
     )
     txt: list[DnsTxtConfig] = Field(
         default_factory=lambda: [DnsTxtConfig.model_validate(item) for item in _DEFAULT_DNS_TXT],
-        description="TXT response mapping entries.",
+        description="Host files that give the TXT records.",
     )
 
 
@@ -438,9 +457,12 @@ class HttpResponseConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     verb: Literal["GET", "POST", "HEAD"] | None = Field(
-        default=None, description="HTTP verb matched by this response set."
+        default=None, description="HTTP verb of the requests that these files answer."
     )
-    files: list[FileEntry] = Field(default_factory=list, description="File mapping rules for this HTTP response set.")
+    files: list[FileEntry] = Field(
+        default_factory=list,
+        description="Files that give the response data. by_ext matches the extension of the URL path.",
+    )
 
 
 class HttpConfig(BaseModel):
@@ -448,7 +470,7 @@ class HttpConfig(BaseModel):
 
     responses: list[HttpResponseConfig] = Field(
         default_factory=lambda: [HttpResponseConfig.model_validate(item) for item in _DEFAULT_HTTP_RESPONSES],
-        description="HTTP response mapping entries.",
+        description="Files that give the HTTP response data, by verb.",
     )
 
 
@@ -457,7 +479,7 @@ class WinsockConfig(BaseModel):
 
     responses: list[FileEntry] = Field(
         default_factory=lambda: [_FILE_ENTRY.validate_python(item) for item in _DEFAULT_WINSOCK_RESPONSES],
-        description="Winsock receive response mapping entries.",
+        description="Data that recv gives on a socket. The emulator uses only the default entry.",
     )
 
 
@@ -470,7 +492,7 @@ class NetworkAdapterConfig(BaseModel):
     type: str | None = Field(default=None, description="Adapter media type.")
     ip_address: str | None = Field(default=None, description="Adapter IPv4 address.")
     subnet_mask: str | None = Field(default=None, description="Adapter subnet mask.")
-    dhcp_enabled: bool | None = Field(default=None, description="Whether DHCP is enabled for this adapter.")
+    dhcp_enabled: bool | None = Field(default=None, description="If true, the adapter uses DHCP.")
 
 
 class NetworkConfig(BaseModel):
@@ -481,7 +503,7 @@ class NetworkConfig(BaseModel):
     winsock: WinsockConfig | None = Field(default_factory=WinsockConfig, description="Winsock emulation settings.")
     adapters: list[NetworkAdapterConfig] = Field(
         default_factory=lambda: [NetworkAdapterConfig.model_validate(item) for item in _DEFAULT_ADAPTERS],
-        description="Network adapters returned by APIs.",
+        description="Network adapters that APIs such as GetAdaptersInfo give.",
     )
 
 
@@ -489,12 +511,15 @@ class ProcessConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(description="Process name.")
-    base_addr: _Address = Field(description="Process image base address.")
-    path: str = Field(description="Process executable path.")
-    pid: int | None = Field(default=None, description="Optional process identifier.")
-    command_line: str | None = Field(default=None, description="Optional process command line.")
-    is_main_exe: bool | None = Field(default=None, description="Whether this process is the main executable container.")
-    session: int | None = Field(default=None, description="Optional session identifier.")
+    base_addr: _Address = Field(description="Base address of the process image.")
+    path: str = Field(description="Path of the process image.")
+    pid: int | None = Field(default=None, description="Process ID.")
+    command_line: str | None = Field(default=None, description="Command line of the process.")
+    is_main_exe: bool | None = Field(
+        default=None,
+        description="If true, this entry gives the container process, in which a DLL or shellcode input runs.",
+    )
+    session: int | None = Field(default=None, description="Session ID of the process.")
 
 
 class DeviceConfig(BaseModel):
@@ -507,13 +532,13 @@ class DriverConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(description="Driver object name.")
-    devices: list[DeviceConfig] = Field(default_factory=list, description="Device objects exposed by this driver.")
+    devices: list[DeviceConfig] = Field(default_factory=list, description="Device objects of the driver.")
 
 
 class UserModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str = Field(description="User-mode module short name.")
+    name: str = Field(description="Module name without the extension.")
     base_addr: _Address = Field(description="Module base address.")
     path: str = Field(description="Module path.")
 
@@ -521,32 +546,36 @@ class UserModuleConfig(BaseModel):
 class SystemModuleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    name: str = Field(description="System module short name.")
+    name: str = Field(description="Module name without the extension.")
     base_addr: _Address = Field(description="Module base address.")
     path: str = Field(description="Module path.")
-    driver: DriverConfig | None = Field(default=None, description="Optional driver and device object metadata.")
+    driver: DriverConfig | None = Field(default=None, description="Driver object and device objects of the module.")
 
 
 class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     modules_always_exist: bool = Field(
-        default=False, description="Synthesize unknown modules instead of failing loads."
+        default=False,
+        description="If true, the emulator loads an unknown module as an empty API module.",
     )
-    functions_always_exist: bool = Field(default=False, description="Treat unresolved imports as existing stubs.")
+    functions_always_exist: bool = Field(
+        default=False,
+        description="If true, an API without a handler or a declaration resolves to a stub that returns 1.",
+    )
     module_directory_x86: str | None = Field(
-        default=None, description="Directory of x86 DLLs to load instead of synthetic API modules."
+        default=None, description="Directory of x86 DLLs that the emulator loads in place of the synthetic API modules."
     )
     module_directory_x64: str | None = Field(
-        default=None, description="Directory of x64 DLLs to load instead of synthetic API modules."
+        default=None, description="Directory of x64 DLLs that the emulator loads in place of the synthetic API modules."
     )
     user_modules: list[UserModuleConfig] = Field(
         default_factory=lambda: [UserModuleConfig.model_validate(item) for item in _DEFAULT_USER_MODULES],
-        description="Configured user-mode module inventory.",
+        description="User-mode modules that the emulator loads at their base addresses.",
     )
     system_modules: list[SystemModuleConfig] = Field(
         default_factory=lambda: [SystemModuleConfig.model_validate(item) for item in _DEFAULT_SYSTEM_MODULES],
-        description="Configured kernel/system module inventory.",
+        description="Kernel-mode modules.",
     )
 
 
@@ -567,26 +596,32 @@ class SpeakeasyConfig(BaseModel):
         return {name.lower(): value for name, value in v.items()}
 
     config_version: Literal["2.0"] = Field(default="2.0", description="Configuration schema version.")
-    emu_engine: Literal["unicorn"] = Field(default="unicorn", description="Emulation backend identifier.")
+    emu_engine: Literal["unicorn"] = Field(
+        default="unicorn", description="Emulation engine. The only value is unicorn."
+    )
     max_run_time: float = Field(
         default=60,
-        description="Maximum active execution seconds per run. 0 disables this cap.",
+        description="Limit of the execution time of each run, in seconds. 0 disables the limit.",
     )
     max_total_time: float = Field(
         default=0,
         ge=0,
         allow_inf_nan=False,
-        description="Maximum active execution seconds per public invocation, across all runs. 0 disables this cap.",
+        description="Limit of the execution time of all runs in one call of run_module, run_shellcode, call or resume,"
+        " in seconds. 0 disables the limit.",
     )
-    max_api_calls: int = Field(default=10000, description="Maximum API calls per run.")
-    max_instructions: int = Field(default=-1, description="Maximum instructions to execute per run.")
+    max_api_calls: int = Field(default=10000, description="Limit of the API calls of each run.")
+    max_instructions: int = Field(
+        default=-1, description="Limit of the instructions of each run. 0 or less disables the limit."
+    )
     stack_size: _Size = Field(
         default=0,
-        description="Override stack size in bytes. 0 uses the PE header value or the built-in default (0x12000).",
+        description="Size of the stack of the input in bytes. 0 uses max(SizeOfStackReserve, 0x12000) for a PE,"
+        " and the stack_commit argument of run_shellcode (default 0x4000) for shellcode.",
     )
     random_seed: int = Field(
         default=0,
-        description="Seed of the random number generator that gives random bytes and GUIDs to emulated code.",
+        description="Seed of the random number generator that gives random bytes and GUIDs to the guest.",
     )
     start_time: str = Field(
         default="2026-10-31T15:15:00Z",
@@ -595,41 +630,41 @@ class SpeakeasyConfig(BaseModel):
     )
     analysis: AnalysisConfig = Field(
         default_factory=AnalysisConfig,
-        description="Analysis and telemetry collection settings.",
+        description="Data that the report collects.",
     )
     keep_memory_on_free: bool = Field(
         default=False,
-        description="Retain freed memory maps for post-free inspection.",
+        description="If true, the memory manager keeps a freed region mapped, so that its data can be read.",
     )
     snapshot_memory_regions: bool = Field(
         default=False,
-        description="Include run-end memory region snapshots in the report data store.",
+        description="If true, the report has the contents of the memory regions at the end of each run.",
     )
     exceptions: ExceptionsConfig = Field(
         default_factory=ExceptionsConfig,
-        description="Exception dispatch behavior.",
+        description="Exception dispatch settings.",
     )
     os_ver: OsVersionConfig = Field(
         default_factory=OsVersionConfig,
-        description="OS version values exposed to emulated code.",
+        description="Windows version that the PEB and the version APIs give.",
     )
     current_dir: str = Field(
         default="C:\\Windows\\system32",
-        description="Current working directory for emulated process APIs.",
+        description="Current directory of the process.",
     )
     command_line: str = Field(
         default="svchost.exe myarg1 myarg2",
-        description="Command line exposed to emulated process APIs.",
+        description="Command line of the process, for example for GetCommandLine.",
     )
     env: dict[str, str] = Field(
         default_factory=lambda: dict(_DEFAULT_ENV),
-        description="Environment variables visible to the emulated process.",
+        description="Environment variables of the process. Names are not case-sensitive.",
     )
-    domain: str | None = Field(default="speakeasy_domain", description="Domain or workgroup identity.")
-    hostname: str = Field(default="speakeasy_host", description="Hostname exposed to emulated system APIs.")
+    domain: str | None = Field(default="speakeasy_domain", description="Domain or workgroup of the user.")
+    hostname: str = Field(default="speakeasy_host", description="Host name, for example for GetComputerName.")
     user: UserConfig = Field(
         default_factory=UserConfig,
-        description="Primary emulated user account.",
+        description="User account of the process.",
     )
     api_hammering: ApiHammeringConfig | None = Field(
         default_factory=ApiHammeringConfig,
@@ -641,15 +676,15 @@ class SpeakeasyConfig(BaseModel):
     )
     drives: list[DriveConfig] = Field(
         default_factory=lambda: [DriveConfig.model_validate(item) for item in _DEFAULT_DRIVES],
-        description="Virtual drive metadata.",
+        description="Drives that the drive APIs, such as GetLogicalDrives, give.",
     )
     filesystem: FilesystemConfig = Field(
         default_factory=FilesystemConfig,
-        description="Filesystem mapping rules.",
+        description="Content of the files in the emulated file system.",
     )
     registry: RegistryConfig | None = Field(
         default_factory=RegistryConfig,
-        description="Registry key and value seed data.",
+        description="Registry keys and values that exist when emulation starts.",
     )
     network: NetworkConfig = Field(
         default_factory=NetworkConfig,
@@ -657,11 +692,11 @@ class SpeakeasyConfig(BaseModel):
     )
     processes: list[ProcessConfig] = Field(
         default_factory=lambda: [ProcessConfig.model_validate(item) for item in _DEFAULT_PROCESSES],
-        description="Process inventory visible to enumeration APIs.",
+        description="Processes that the process enumeration APIs give, and the container process.",
     )
     modules: ModulesConfig = Field(
         default_factory=ModulesConfig,
-        description="Module loading and inventory settings.",
+        description="Module loading settings and module lists.",
     )
 
 
