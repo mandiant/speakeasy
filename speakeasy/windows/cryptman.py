@@ -27,7 +27,7 @@ class CryptHash:
 
 
 class CryptContext:
-    """Represents crypto context used by crypto functions."""
+    """Represents a cryptographic provider context and its keys."""
 
     def __init__(self, handles, cname, pname, ptype, flags):
         self.handles: HandleTable = handles
@@ -55,7 +55,7 @@ class CryptContext:
 
 class CryptoManager:
     """
-    Manages the emulation of crypto functions.
+    Keep the provider contexts, keys and hashes of the CryptoAPI handlers.
 
     Providers, keys and hashes are not kernel objects, so their handles are in a table of the
     manager and not in the process handle table, and CloseHandle does not close them.
