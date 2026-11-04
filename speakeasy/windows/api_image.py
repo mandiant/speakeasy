@@ -1,8 +1,8 @@
 """
-Deterministic, mapped PE images for synthetic API modules.
+The PE images of the synthetic API modules.
 
-Raw section offsets equal RVAs, so the regions also form a parseable PE file.
-The registry patches the faulting public entries after allocating private traps.
+The raw offset of each section is equal to its RVA, so the regions are also a valid PE file.
+The API registry writes the entry code of each function export when it gives the export an API token.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ class ApiExportSpec:
 
 
 def encode_api_stub(arch: int, entry_address: int, trap_address: int) -> bytes:
-    """Encode a stack/flags-neutral jump from a public entry to its private trap."""
+    """Encode the entry code that jumps to the API token. The code does not change the stack or the flags."""
     if arch == _arch.ARCH_X86:
-        # Inline hooks match the Windows prologue; pop ebp undoes it before the jump.
+        # Inline hooks look for the Windows hot-patch prologue. pop ebp undoes it before the jump.
         return b"\x8b\xff\x55\x8b\xec\x5d\xe9" + struct.pack("<I", (trap_address - entry_address - 11) & 0xFFFFFFFF)
     return b"\x66\x90\xff\x25\x00\x00\x00\x00" + struct.pack("<Q", trap_address)
 
@@ -61,12 +61,17 @@ def build_api_image(
     exports: list[ApiExportSpec],
 ) -> LoadedImage:
     """
-    Build a valid PE with sparse EAT ordinals and independently sorted names.
+    Build a valid PE image with the given exports.
 
-    base is the preferred base. The image has no absolute addresses, so it can load at any base.
-    Explicit ordinal aliases share a target. Unknown ordinals use the lowest
-    available positive value in byte-sorted name order. Export spans are bounded
-    by the WORD indices in the export name ordinal table.
+    ``base`` is the preferred base. The image has no absolute addresses, so it can load at any base.
+    Exports with the same explicit ordinal share one EAT entry. An export without an
+    ordinal gets the lowest free ordinal, in the byte order of the names. The EAT can
+    have gaps between the ordinals.
+
+    Raises:
+        ValueError: if a name is not ASCII, the exports do not fit the WORD indices of the
+            export directory, two exports with one ordinal are different, or the image
+            does not fit the address space.
     """
     _ascii_string(name, "module name")
     specs = sorted(exports, key=lambda e: (e.name is None, (e.name or "").encode("ascii"), e.ordinal or 0))
@@ -257,7 +262,8 @@ class ApiModuleLoader:
             if handler is None:
                 continue
             for key, func in handler.funcs.items():
-                # Handlers register each ordinal under its name as well.
+                # Handlers register each ordinal under its name too. ntdll exports only the Nt and Zw
+                # handlers of ntoskrnl.
                 if isinstance(key, int) or (handler is nt_handler and not key.startswith(("Nt", "Zw"))):
                     continue
                 handler_ordinals[key] = func[4]
@@ -269,10 +275,10 @@ class ApiModuleLoader:
 
         manifest = get_export_manifest(self._name.lower(), arch_name)
         if manifest is not None:
-            # The physical table owns names and ordinals. Handler-only names
-            # follow the highest physical ordinal so that they never take an
-            # ordinal that the real module leaves unused. A handler name whose
-            # A or W variant is physical only serves dispatch of that variant.
+            # The manifest defines the names and ordinals. A handler name that is not in the
+            # manifest gets an ordinal after the highest manifest ordinal, so that it does not
+            # take an ordinal that the real module does not use. If the manifest has the A or W
+            # variant of a handler name, the emulator uses the handler name only to find the handler.
             exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in manifest.exports]
             physical = {e.name for e in manifest.exports}
             next_ordinal = max((e.ordinal for e in manifest.exports), default=0) + 1
@@ -281,13 +287,13 @@ class ApiModuleLoader:
                 exports.append(ApiExportSpec(name, next_ordinal, kind(name)))
                 next_ordinal += 1
         else:
-            # The catalog owns surface membership. Permissive lookup serves
-            # ABI reuse and must never determine exported names.
+            # The declarations of this DLL and the handlers give the export names. A declaration
+            # of the name in a different DLL can give the arguments of a call, but not an export.
             specs = {name: ApiExportSpec(name) for name in self._signature_db.get_functions(self._name, arch_name)}
             specs.update({name: ApiExportSpec(name, ordinal) for name, ordinal in handler_ordinals.items()})
             if self._name == "ntoskrnl":
-                # The kernel exports native services under both prefixes, and
-                # dispatch folds each pair onto one handler.
+                # ntoskrnl exports the system services with the Nt and the Zw prefix, and one
+                # handler serves both names.
                 for name in list(handler_ordinals):
                     if name.startswith(("Nt", "Zw")):
                         alias = ("Zw" if name.startswith("Nt") else "Nt") + name[2:]
@@ -298,9 +304,8 @@ class ApiModuleLoader:
         try:
             image_name.encode("ascii")
         except UnicodeEncodeError:
-            # The PE export-directory label need not be the loaded filename.
-            # Keep that label ASCII while retaining the actual Unicode module
-            # identity in the registry, loader lists and emulated path.
+            # The name in the export directory can differ from the module name. Use an ASCII
+            # name there, and keep the real name for the registry, the loader lists and the path.
             image_name = "speakeasy"
         image = build_api_image(
             name=image_name,
