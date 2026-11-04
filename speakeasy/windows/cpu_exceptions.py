@@ -1,12 +1,12 @@
 """
 CPU exceptions as Windows reports them to user mode.
 
-Unicorn reports interrupts, invalid instructions and IN/OUT with its own
-conventions for where the program counter points. This module turns each of
-those into the exception code, ExceptionAddress, parameters and context
-instruction pointer that a Windows exception handler would see, following
-Wine's implementation, which reproduces the quirks that anti-debugging code
-depends on (dlls/ntdll/unix/signal_x86_64.c).
+Unicorn reports interrupts, invalid instructions and IN/OUT with its own rules
+for where the program counter points. This module converts each of these events
+to the exception code, ExceptionAddress, parameters and context instruction
+pointer that a Windows exception handler sees. The conversion follows Wine
+(dlls/ntdll/unix/signal_x86_64.c), which copies the quirks that anti-debugging
+code uses.
 """
 
 from dataclasses import dataclass
@@ -17,19 +17,19 @@ from speakeasy.winenv.defs.nt import ddk
 STATUS_GUARD_PAGE_VIOLATION = 0x80000001
 STATUS_ASSERTION_FAILURE = 0xC0000420
 
-# Interrupt gates user mode may use; any other `int n` is a general protection fault
+# Interrupt gates that user mode can use. Any other `int n` is a general protection fault.
 INT_BREAKPOINT = 0x03
 INT_ASSERTION = 0x2C
 INT_DEBUG_SERVICE = 0x2D
 
-# Gates that are system calls rather than exceptions, which emulation does not implement:
-# __fastfail and KiSystemService, and on x86 KiGetTickCount and KiCallbackReturn
+# Gates for system calls, which the emulator does not send to exception handlers: 0x29 is
+# __fastfail and 0x2e is KiSystemService, and on x86 0x2a is KiGetTickCount and 0x2b is KiCallbackReturn
 SYSTEM_GATES = {_arch.ARCH_AMD64: (0x29, 0x2E), _arch.ARCH_X86: (0x29, 0x2A, 0x2B, 0x2E)}
 
 # The first parameter of an access violation
 ACCESS_CODES = {"read": 0, "write": 1, "fetch": 8}
 
-# With these debug service codes in rax, `int 2d` does nothing when no debugger is attached
+# With these debug service codes in rax, `int 2d` raises no exception when no debugger is attached
 DEBUG_SERVICE_NO_EXCEPTION = (1, 3, 4, 5)
 
 
@@ -45,12 +45,12 @@ def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: 
     """
     Get the exception for an interrupt that Unicorn reports.
 
-    pc is the program counter, which is past an ``int n`` instruction or at a faulting
-    instruction. code_bytes are the two bytes before it. trap_flag tells a single step
+    pc is the program counter, which is after an ``int n`` instruction or at a faulting
+    instruction. code_bytes are the two bytes before pc. trap_flag tells a single step
     from ``int 1``.
 
-    Returns None when Windows raises no exception: then execution continues at the
-    returned exception-less pc, see skip_debug_service.
+    Return None when Windows raises no exception. Then execution continues at
+    ``skip_debug_service(pc)``.
     """
     if intno == 0:  # divide error: pc is at the faulting instruction
         return CpuException(ddk.STATUS_INTEGER_DIVIDE_BY_ZERO, pc, pc)
@@ -60,7 +60,7 @@ def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: 
         # trap flag: pc is after the stepped instruction
         return CpuException(ddk.STATUS_SINGLE_STEP, pc, pc)
     if intno == INT_BREAKPOINT:
-        # The kernel backs up one byte: onto `int3`, or into the middle of `int 3`
+        # The kernel moves the address back one byte: to `int3`, or into the middle of `int 3`
         return CpuException(ddk.STATUS_BREAKPOINT, pc - 1, pc - 1, (0,))
     if intno == INT_DEBUG_SERVICE:
         if rax in DEBUG_SERVICE_NO_EXCEPTION:
@@ -76,7 +76,7 @@ def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: 
 
 
 def skip_debug_service(pc: int) -> int:
-    """Where execution continues after an `int 2d` that raises no exception."""
+    """Get the address where execution continues after an ``int 2d`` that raises no exception."""
     return pc + 1
 
 
@@ -85,7 +85,7 @@ def general_protection(pc: int) -> CpuException:
 
 
 def from_invalid_instruction(pc: int, code_bytes: bytes) -> CpuException:
-    """The exception for an instruction at pc that Unicorn cannot execute."""
+    """Get the exception for an instruction at pc that Unicorn cannot execute."""
     if code_bytes[:1] == b"\xf1":  # icebp: a debug trap after the instruction
         return CpuException(ddk.STATUS_SINGLE_STEP, pc + 1, pc + 1)
     return CpuException(ddk.STATUS_ILLEGAL_INSTRUCTION, pc, pc)
@@ -98,5 +98,5 @@ def privileged_instruction(pc: int) -> CpuException:
 def memory_fault(
     pc: int, address: int, access_type: str | None, code: int = ddk.STATUS_ACCESS_VIOLATION
 ) -> CpuException:
-    """An access violation, or a guard page violation, at address by the instruction at pc."""
+    """Get the access violation, or the guard page violation, of an access to address by the instruction at pc."""
     return CpuException(code, pc, pc, (ACCESS_CODES.get(access_type or "", 0), address))
