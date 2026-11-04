@@ -6,12 +6,7 @@ from speakeasy.winenv.defs.nt import ddk
 
 
 class IoManager:
-    """
-    Direct IO requests to a module handler.
-
-    For example, if a user mode application sends an ioctl to a device, this class can
-    handle it.
-    """
+    """Send device I/O control requests to the emulated kernel module of the device driver."""
 
     def __init__(self):
         super().__init__()
@@ -21,11 +16,9 @@ class IoManager:
         rv = ddk.STATUS_INVALID_DEVICE_REQUEST
         outbuf = b""
 
-        # Get parent driver for you
         drv = dev.driver
         bn = drv.get_basename()
 
-        # Find the emulated kernel module (if any)
         mods = [m for m in self.emu_kmods if bn == m.get_mod_name()]
         if not mods:
             rv = ddk.STATUS_INVALID_DEVICE_REQUEST
