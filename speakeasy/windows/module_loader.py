@@ -25,9 +25,9 @@ class ModuleLoader:
     its PEB by default, and the DLLs whose DllMain and TLS callbacks must run. The class
     records the result of each callback.
 
-    WindowsEmulator._load_image maps one image, and the emulator keeps the module
-    list. If a load fails, or a DllMain returns FALSE, this class removes what the
-    load added.
+    ``WindowsEmulator._load_image`` maps one image, and the emulator keeps the module
+    list. If a load fails, or an initializer fails in ``LoadLibrary``, this class
+    removes what the load added.
     """
 
     def __init__(self, emu: WindowsEmulator) -> None:
