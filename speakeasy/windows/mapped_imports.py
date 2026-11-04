@@ -97,8 +97,9 @@ def get_import_slots(read: Reader, base: int, ptr_size: int) -> Iterator[ImportS
 
     Yield nothing if the memory at base is not a PE image for this pointer size,
     or if the image has no imports. Check each RVA against SizeOfImage, and limit
-    the number of descriptors and thunks to read. Skip a descriptor or a thunk table
-    that cannot be read, and log a warning.
+    the number of descriptors and thunks to read. Stop at a descriptor that cannot
+    be read. Skip a descriptor without a valid DLL name, and the rest of a thunk
+    table that cannot be read. Log a warning for each of these.
 
     Raises:
         ValueError: if the headers cannot be read or the import directory is outside the image.
@@ -156,7 +157,7 @@ def get_import_slots(read: Reader, base: int, ptr_size: int) -> Iterator[ImportS
                     break
                 current = int.from_bytes(image.read_rva(iat, ptr_size), "little")
             except _PARSE_ERRORS as error:
-                # The rest of this table cannot be read safely. The other descriptors do not depend on it.
+                # Skip the rest of this thunk table. The other descriptors do not depend on it.
                 logger.warning("skipping injected PE import table %s at %#x: %s", dll_name, base, error)
                 break
             yield ImportSlot(image, dll_name, base + iat, thunk, current, bool(ilt_rva), ptr_size)
