@@ -3433,10 +3433,6 @@ class WindowsEmulator(BinaryEmulator):
 
     def _handle_invalid_read(self, emu, address, size, value):
         """Handle a read from unmapped memory."""
-        mod = self.get_mod_from_addr(address)
-        if mod:
-            return True
-
         if winemu.EMU_RESERVED <= address < winemu.EMU_RESERVED_END:
             return self._complete_reserved_access(address, size, "read")
 
