@@ -3,8 +3,8 @@ Encode and decode 1-byte guest strings with the code page that the guest sees.
 
 ``GetACP`` returns 1252, so ANSI strings use Windows-1252. Python's ``cp1252`` codec has no mapping
 for 0x81, 0x8D, 0x8F, 0x90 and 0x9D. Windows maps them to the C1 controls with the same value, so
-the table here does too. Then each byte decodes to one character, and a decode then an encode gives
-the same bytes.
+``DECODING_TABLE`` does too. With this table, each byte decodes to one character, and an encode of the
+decoded text gives the same bytes.
 """
 
 import codecs
@@ -37,7 +37,7 @@ def encode_ansi(text: str) -> bytes:
 
 def get_codec(code_page: int) -> str | None:
     """
-    Get the Python codec for a code page that the conversion functions take.
+    Get the Python codec for a code page argument of ``MultiByteToWideChar`` or ``WideCharToMultiByte``.
 
     Return None for the ANSI code page, which uses ``decode_ansi`` and ``encode_ansi``.
 
