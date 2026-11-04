@@ -19,7 +19,7 @@ from speakeasy.winenv.defs.nt import ddk
 
 
 class WinKernelEmulator(WindowsEmulator):
-    """Class used to emulate Windows drivers."""
+    """Emulate a Windows driver in kernel mode."""
 
     ssdt_ptr: int
 
@@ -100,7 +100,7 @@ class WinKernelEmulator(WindowsEmulator):
         return rtmod
 
     def pool_alloc(self, pooltype, size, tag="None"):
-        """Allocate memory in the emulated "pool"."""
+        """Map a pool allocation in the System process, and tag it with the pool type and ``tag``."""
         if pooltype == ddk.POOL_TYPE.NonPagedPool:
             pt = "NonPagedPool"
         elif pooltype == ddk.POOL_TYPE.PagedPool:
@@ -150,21 +150,20 @@ class WinKernelEmulator(WindowsEmulator):
                 p.path = proc.path
             p.image = ntpath.basename(p.path)
 
-            # Create an initial thread for each process
             t = objman.Thread(self)
             self.add_object(t)
             t.process = p
             p.threads.append(t)
             self.processes.append(p)
 
-        # The SYSTEM process should be the starting context
+        # The System process is the current process at start.
         sp = [p for p in self.processes if p.name.lower() == "system"]
         if sp:
             sp = sp[0]
             self.set_current_process(sp)
 
     def alloc_peb(self, proc):
-        """Allocate PEB and related substructures for a given process."""
+        """Map the loader data of the PEB of a process if it is not mapped, and return the PEB."""
         ldr = proc.peb_ldr_data
         if not ldr.address:
             size = ldr.sizeof()
@@ -174,17 +173,17 @@ class WinKernelEmulator(WindowsEmulator):
         return proc.peb
 
     def get_process_peb(self, process):
-        """Retrieve the PEB for the supplied process."""
+        """Get the PEB of a process, with the loaded modules in its loader lists."""
         self.alloc_peb(process)
         process.init_peb(self.get_peb_modules())
         return process.peb
 
     def set_current_process(self, process):
-        """Set the current process context."""
+        """Set the current process."""
         self.curr_process = process
 
     def get_current_process(self):
-        """Get the current process context."""
+        """Get the current process."""
         self.get_object_manager("kernel current-process resolution")
         return self.curr_process
 
@@ -202,19 +201,22 @@ class WinKernelEmulator(WindowsEmulator):
         return self
 
     def run_module(self, module, *, all_entrypoints=False, entry_point=None) -> None:
-        """Begin emulation fo a previously loaded kernel module."""
+        """
+        Add a DriverEntry run for a loaded driver, and run the queue.
+
+        If ``all_entrypoints`` is true, the emulator also runs the exports, the IRP handlers and the unload
+        routine of the driver.
+        """
         self.all_entrypoints = all_entrypoints
 
         # Create the service key for the driver
         drv = self.create_driver_object(pe=module)
         svc_key = self.regman.create_key(drv.reg_path)
-        # Create the values for the service key
         svc_key.create_value("ImagePath", REG_VALUE_TYPE.REG_EXPAND_SZ, module.emu_path)
         svc_key.create_value("Type", REG_VALUE_TYPE.REG_DWORD, 0x1)  # SERVICE_KERNEL_DRIVER
         svc_key.create_value("Start", REG_VALUE_TYPE.REG_DWORD, 0x3)  # SERVICE_DEMAND_START
         svc_key.create_value("ErrorControl", REG_VALUE_TYPE.REG_DWORD, 0x1)  # SERVICE_ERROR_NORMAL
 
-        # Create the parameters subkey
         self.regman.create_key(drv.reg_path + "\\Parameters")
 
         if entry_point is not None:
@@ -231,8 +233,8 @@ class WinKernelEmulator(WindowsEmulator):
             self.add_run(run)
 
         if self.all_entrypoints:
-            # Only emulate a subset of all the exported functions
-            # There are some modules (such as the windows kernel) with thousands of exports
+            # Limit the number of export runs, because some modules, such as the Windows kernel, have
+            # thousands of exports.
             exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
 
             if exports:
@@ -242,16 +244,16 @@ class WinKernelEmulator(WindowsEmulator):
                     run.type = EntryPointType.EXPORT
                     run.name = exp.name or None
                     run.start_addr = exp.address
-                    # Here we set dummy args to pass into the export function
+                    # Each export gets the same placeholder arguments.
                     run.args = args
-                    # Store these runs and only queue them before the unload routine
-                    # this is because some exports may not be ready to be called yet
+                    # The export runs wait in delayed_runs until the run queue is empty after DriverEntry,
+                    # because an export can depend on the state that DriverEntry sets up.
                     self.delayed_runs.append(run)
 
         self.start()
 
     def create_device_object(self, name="", drv=0, ext_size=0, devtype=0, chars=0, tag=""):
-        """Create a device object to use for kernel emulation."""
+        """Create a device object and add it to the device list of ``drv``."""
         dev = objman.Device(self)
 
         alloc_size = ext_size + dev.sizeof()
@@ -291,7 +293,6 @@ class WinKernelEmulator(WindowsEmulator):
                     if next_dev.object.NextDevice:
                         next_dev = self.get_object_from_addr(drv.object.NextDevice)
                     else:
-                        # This is the last in the list, add our new device
                         next_dev.object.NextDevice = dev.address
                         next_dev.write_back()
                         break
@@ -312,7 +313,7 @@ class WinKernelEmulator(WindowsEmulator):
         self.get_object_manager("symlink creation").add_symlink(symlink, devname)
 
     def _call_driver_dispatch(self, func, dev_addr, irp_addr):
-        """Call a WDM driver dispatch function with a supplied IRP."""
+        """Set the arguments and the pc for a call to a dispatch function with an IRP."""
         stk_ptr = self.get_stack_ptr()
         self.set_func_args(stk_ptr, self.return_hook, dev_addr, irp_addr, conv=_arch.CALL_CONV_STDCALL)
         self.set_pc(func)
@@ -322,7 +323,6 @@ class WinKernelEmulator(WindowsEmulator):
         return objman.Irp(emu=self)
 
     def irp_mj_create(self, func, dev):
-        # Generate an IRP for the create request
         irp = self.new_irp()
 
         self._call_driver_dispatch(func, dev.address, irp.address)
@@ -365,7 +365,7 @@ class WinKernelEmulator(WindowsEmulator):
         return irp
 
     def driver_unload(self, drv):
-        """Call the unload routine for a driver."""
+        """Add a run for the unload routine of a driver. If there is none, or it ran, end the emulation."""
         if not drv.on_unload or drv.unload_called:
             self.on_emu_complete()
             return
@@ -390,19 +390,18 @@ class WinKernelEmulator(WindowsEmulator):
         if self.curr_run is not None and self.curr_run.type is not None:
             self.curr_run.return_value = self.get_return_val()
 
-        # Check if theres anything in the run queue
         if len(self.run_queue):
             return
 
         if not self.all_entrypoints:
             return
 
-        # TODO right now just use the first device object that was created
+        # TODO: send the IRPs to each device, not only the first device.
         dev = None
         if len(drv.devices):
             dev = drv.devices[0]
 
-        # Run any remaining IRP handlers
+        # Find the first IRP major function that has no run yet.
         for hdlr, major, irp_name in (
             (self.irp_mj_create, ddk.IRP_MJ_CREATE, "IRP_MJ_CREATE"),
             (self.irp_mj_dev_io, ddk.IRP_MJ_DEVICE_CONTROL, "IRP_MJ_DEVICE_CONTROL"),
@@ -411,7 +410,6 @@ class WinKernelEmulator(WindowsEmulator):
             (self.irp_mj_close, ddk.IRP_MJ_CLOSE, "IRP_MJ_CLOSE"),
             (self.irp_mj_cleanup, ddk.IRP_MJ_CLEANUP, "IRP_MJ_CLEANUP"),
         ):
-            # Did we run this mj func yet?
             if not any(r.type == EntryPointType.IRP and r.name == irp_name for r in self.runs):
                 func_handler = hdlr
                 func_addr = int(drv.mj_funcs[major])
@@ -425,7 +423,7 @@ class WinKernelEmulator(WindowsEmulator):
             self.delayed_runs = []
 
         if not func_addr or not dev or func_handler is None:
-            # We are done here, call the unload routine
+            # No IRP handler is left, so run the unload routine.
             self.driver_unload(drv)
             return
 
@@ -448,7 +446,6 @@ class WinKernelEmulator(WindowsEmulator):
             if drv.pe == self.curr_mod:
                 self.next_driver_func(drv)
 
-        # Dispatch the next run
         return self._prepare_next_run()
 
     def on_emu_complete(self):
@@ -466,7 +463,7 @@ class WinKernelEmulator(WindowsEmulator):
         self.stop()
 
     def set_hooks(self):
-        """Set the emulator callbacks."""
+        """Add the hooks of the kernel emulator, then the tracing, coverage and debug hooks."""
         super().set_hooks()
 
         if not self.has_builtin_hooks:
@@ -481,12 +478,16 @@ class WinKernelEmulator(WindowsEmulator):
 
     def get_kernel_base(self):
         """Get the base address of the kernel image (ntoskrnl.exe)."""
-        # Get kernel base address
         kern = self.get_kernel_mod()
         return kern.base
 
     def get_kernel_mod(self):
-        """Get the kernel image module."""
+        """
+        Get the module of the kernel image.
+
+        Raises:
+            KernelEmuError: if ``ntoskrnl`` is not loaded.
+        """
         mod = self.get_mod_by_name("ntoskrnl")
         if mod:
             return mod
@@ -499,10 +500,10 @@ class WinKernelEmulator(WindowsEmulator):
         idt = objman.IDT(self)
         idt.init_descriptors()
 
-        # selector, base, limit, flags
+        # Unicorn takes the IDTR as (selector, base, limit, flags).
         self.reg_write(_arch.X86_REG_IDTR, (0, idt.object.Descriptors, idt.object.Limit, 0))
 
-        # Setup the SSDT
+        # Set up the SSDT.
         ssdt = self.ktypes.SSDT(self.get_ptr_size())
         size = self.get_ptr_size() * 256
 
@@ -517,7 +518,7 @@ class WinKernelEmulator(WindowsEmulator):
             self.get_object_manager("symlink creation").add_symlink(sl.name, sl.target)
 
     def setup_msrs(self):
-        """Setup machine specific registers for kernel emulation."""
+        """On x64, map a ``KiSystemCall64`` stub next to the kernel and point the LSTAR MSR to it."""
         km = self.get_kernel_mod()
 
         if self.get_arch() == _arch.ARCH_AMD64 and km.image_size > 0:
