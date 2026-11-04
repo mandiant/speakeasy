@@ -1,11 +1,11 @@
 """
 Exception dispatch code that x64 (seh64.py) and x86 (seh32.py) share.
 
-This is exception records, the vectored handlers that run before frame-based handlers, reporting,
-and the entry points for CPU exceptions and RaiseException, which take the
-architecture's dispatcher.
+This module has the exception records, the vectored handlers that run before frame-based handlers,
+the report of each exception, and the entry points for CPU exceptions and RaiseException. The entry
+points get the dispatcher of the architecture as an argument.
 
-The functions here are generator handlers (see guest_callbacks.py).
+The dispatch functions are generator handlers (see guest_callbacks.py).
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ TRAP_FLAG = 0x100
 # Exceptions whose parameters are the access type and the address
 MEMORY_FAULTS = (ddk.STATUS_ACCESS_VIOLATION, STATUS_GUARD_PAGE_VIOLATION)
 
-# Frames, registrations or scopes walked before a chain is taken as corrupt
+# Maximum steps of a walk over frames, registrations or scopes, because a corrupt chain can loop
 MAX_FRAMES = 4096
 
 ACCESS_TYPES = {code: name for name, code in ACCESS_CODES.items()}
@@ -52,7 +52,7 @@ Dispatcher = Callable[..., GeneratorHandler]
 class UnhandledException(guest_callbacks.CallbackError):
     def __init__(self, code: int, address: int, information=()):
         if code == ddk.STATUS_ACCESS_VIOLATION and len(information) >= 2 and information[0] in ACCESS_TYPES:
-            # The error of the fault, as when no handler sees it
+            # Use the error of the fault, the same as when no handler gets the exception
             access_type = ACCESS_TYPES[information[0]]
             super().__init__(ErrorType(f"invalid_{access_type}"), information[1], access_type, pc=address)
         else:
@@ -132,7 +132,12 @@ class Dispatch:
         return False
 
     def resume(self) -> Resume:
-        """Continue at the context, which handlers may have changed."""
+        """
+        Continue at the context, which handlers can change.
+
+        Raises:
+            UnhandledException: if the exception is not continuable.
+        """
         if self.flags & EXCEPTION_NONCONTINUABLE:
             raise UnhandledException(STATUS_NONCONTINUABLE_EXCEPTION, self.address)
         return resume_at(self.emu, read_context(self.emu, self.context))
@@ -141,8 +146,11 @@ class Dispatch:
         """
         Offer an exception that no frame takes to the top-level filter.
 
-        The filter is the one that SetUnhandledExceptionFilter sets. It Windows calls from the outermost frame of
-        the thread, and continue if it says so. Otherwise the exception is unhandled.
+        The sample sets the filter with SetUnhandledExceptionFilter. Windows calls the filter from the outermost frame
+        of the thread. If the filter returns EXCEPTION_CONTINUE_EXECUTION, execution continues at the context.
+
+        Raises:
+            UnhandledException: if there is no filter, or the filter does not continue execution.
         """
         top_level_filter = self.emu.get_unhandled_exception_handler()
         if top_level_filter:
@@ -157,11 +165,11 @@ def dispatch_fault(
     emu, exception: CpuException, dispatch_exception: Dispatcher, error: guest_callbacks.CallbackError | None = None
 ) -> bool:
     """
-    Dispatch a CPU exception like KiUserExceptionDispatcher, on the stack of the faulting thread.
+    Dispatch a CPU exception as KiUserExceptionDispatcher does, on the stack of the faulting thread.
 
-    Return ``False`` when no handler takes it.
-
-    error is how the run ends when no handler takes it, by default an UnhandledException.
+    Return ``False`` if the dispatch fails before it calls a guest handler, for example when the thread has no
+    handlers. If the dispatch calls a handler and then no handler takes the exception, the run ends later with
+    ``error``, or with an UnhandledException when ``error`` is ``None``.
     """
     ctx = emu.get_thread_context()
     thread_context.set_control(ctx, exception.pc, thread_context.stack_pointer(ctx))
@@ -193,10 +201,10 @@ def dispatch_fault(
 
 def raise_exception(emu, code: int, flags: int, params, dispatch_exception: Dispatcher) -> GeneratorHandler:
     """
-    RaiseException: dispatch an exception raised by the caller of the API.
+    RaiseException: dispatch an exception at the caller of the API.
 
-    Windows ends the process when no handler takes the exception. Here RaiseException
-    returns instead, so that emulation goes on, unless the exception is not continuable.
+    Windows ends the process when no handler takes the exception. The emulator returns 0 from
+    RaiseException instead, so emulation continues. A non-continuable exception still ends the run.
     """
     try:
         return (yield from raise_in_caller(emu, code, flags, params, dispatch_exception))
@@ -216,7 +224,7 @@ def raise_in_caller(emu, code: int, flags: int, params, dispatch_exception: Disp
 
 
 def rtl_raise_exception(emu, record: int, dispatch_exception: Dispatcher) -> GeneratorHandler:
-    """RtlRaiseException: dispatch the caller's record, raised at the caller."""
+    """RtlRaiseException: set the address in the record of the caller to the caller, then dispatch the record."""
     ctx = guest_callbacks.caller_context(emu)
     offset = windefs.EXCEPTION_RECORD(emu.get_ptr_size()).get_cstruct().ExceptionAddress.offset
     emu.write_ptr(record + offset, thread_context.instruction_pointer(ctx))
@@ -224,7 +232,7 @@ def rtl_raise_exception(emu, record: int, dispatch_exception: Dispatcher) -> Gen
 
 
 def capture_context(emu, address: int) -> None:
-    """RtlCaptureContext: the context of the caller, with CONTEXT_FULL (and segments on x64)."""
+    """RtlCaptureContext: write the context of the caller to address, with CONTEXT_FULL, and CONTEXT_SEGMENTS on x64."""
     context = guest_callbacks.caller_context(emu)
     if thread_context.is_amd64(context):
         context.ContextFlags = thread_context.CONTEXT_FULL_AMD64 | thread_context.CONTEXT_SEGMENTS
