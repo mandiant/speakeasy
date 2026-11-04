@@ -22,14 +22,14 @@ class Fold(enum.Enum):
 
 
 def fold_upper(c: str) -> str:
-    # Windows folds each UTF-16 code unit to one code unit, so "ß" and the characters
-    # outside the BMP stay the same.
+    # Windows folds each UTF-16 code unit to one code unit, so it does not change "ß" or a character
+    # outside the BMP.
     upper = c.upper()
     return upper if len(upper) == 1 and ord(c) < 0x10000 else c
 
 
-# RtlUpperChar folds a byte in the ANSI code page. A byte whose upper case is not in the code page
-# stays the same.
+# RtlUpperChar folds a byte in the ANSI code page. If the upper case of a byte is not in the code page,
+# RtlUpperChar does not change the byte.
 ANSI_UPPER_TABLE = bytes(
     DECODING_TABLE.index(u) if (u := fold_upper(c)) in DECODING_TABLE else b for b, c in enumerate(DECODING_TABLE)
 )
