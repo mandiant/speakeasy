@@ -553,7 +553,7 @@ class WindowsEmulator(BinaryEmulator):
         return self.fileman.pipe_open(path, mode, num_instances, out_size, in_size)
 
     def does_file_exist(self, path):
-        """Test if a file handler for a specified emulated file exists."""
+        """Get whether the emulated file at path exists."""
         return self.fileman.does_file_exist(path)
 
     def file_create_mapping(self, hfile, name, size, prot):
@@ -601,7 +601,7 @@ class WindowsEmulator(BinaryEmulator):
         return self._io_manager.dev_ioctl(arch, dev, ioctl, inbuf)
 
     def reg_open_key(self, path, *, create=False):
-        """Open or create a registry key in the emulation space."""
+        """Open a key of the emulated registry. If create is set, create the key if it does not exist."""
         return self.regman.open_key(path, create)
 
     def reg_get_subkeys(self, hkey):
@@ -721,7 +721,7 @@ class WindowsEmulator(BinaryEmulator):
             )
 
     def _unmap_reserved_range(self):
-        """Unmap reserved memory space so we can handle events (e.g. import APIs, entry point returns, etc.)."""
+        """Unmap the reserved range, so that a return to the return hook or the exit hook faults."""
         if not self.is_reserved_range_unmapped:
             self.mem_unmap(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
             self.is_reserved_range_unmapped = True
@@ -738,9 +738,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_valid_ranges(self, size, addr=None):
         """
-        Keep allocations out of the reserved emulator range.
+        Get a free range for an allocation outside the reserved range.
 
-        The range stays unmapped so that a return to the return hook faults.
+        The emulator keeps the reserved range unmapped, so that a return to the return hook faults.
         """
         base, total = super().get_valid_ranges(size, addr=addr)
         if base < winemu.EMU_RESERVED_END and base + total > winemu.EMU_RESERVED:
@@ -752,7 +752,11 @@ class WindowsEmulator(BinaryEmulator):
         self.run_queue.append(run)
 
     def _prepare_next_run(self):
-        """Execute the next run from the emulation queue."""
+        """
+        Finish the current run, and prepare the next run from the queue.
+
+        Return the prepared run. If the queue is empty, complete the emulation and return None.
+        """
         self._finish_run_initializers(self.curr_run)
         self._native_exit = None
         try:
@@ -772,9 +776,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _queue_startup_initializers(self):
         """
-        Add a run for each initializer of the guest DLLs that the process loaded at start.
+        Add a run for each DllMain and TLS callback of the DLLs that the process loaded at start.
 
-        These runs go before the first run in the queue.
+        Put these runs before the first run in the queue.
         """
         if self.is_kernel_mode or not self.run_queue:
             return
@@ -826,7 +830,7 @@ class WindowsEmulator(BinaryEmulator):
         ]
 
     def call(self, addr, params=None) -> None:
-        """Start emulating at the specified address."""
+        """Add a run that starts at addr. If the queue is empty, start the emulation."""
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
@@ -843,7 +847,7 @@ class WindowsEmulator(BinaryEmulator):
             self.add_run(run)
 
     def _prepare_run_context(self, run):
-        """Prepare CPU and memory state for the given run without starting emulation."""
+        """Set the registers, the stack, the process and the thread for run. Do not start Unicorn."""
         logger.info("* exec: %s", run.get_label())
 
         self.curr_run = run
@@ -871,9 +875,7 @@ class WindowsEmulator(BinaryEmulator):
 
         self.curr_run.stack = MemAccess(base=stk_map.base, size=stk_map.size)
 
-        # Set the process context if possible
         if run.process_context:
-            # Init a new peb if the process context changed:
             if run.process_context != self.get_current_process():
                 self.alloc_peb(run.process_context)
             self.set_current_process(run.process_context)
@@ -889,7 +891,6 @@ class WindowsEmulator(BinaryEmulator):
             self.set_current_thread(thread)
 
         if not self.is_kernel_mode:
-            # Reset the TIB data
             thread = self.get_current_thread()
             if thread:
                 thread.exit_code = None
@@ -908,23 +909,24 @@ class WindowsEmulator(BinaryEmulator):
         return run
 
     def mem_cast(self, obj, addr):
-        """Turn bytes from an emulated memory pointer into an object."""
+        """Read a structure of the type of obj from guest memory at addr."""
         size = obj.sizeof()
         struct_bytes = self.mem_read(addr, size)
         return self.cast(obj, struct_bytes)
 
     def setup_user_shared_data(self):
-        """Setup the shared user data section that is often used to share data between user mode and kernel mode."""
+        """Map KUSER_SHARED_DATA at its user mode address and its kernel mode address, and write its data."""
         aliases = []
         if self.get_arch() == _arch.ARCH_X86:
             aliases.append(0xFFDF0000)
         elif self.get_arch() == _arch.ARCH_AMD64:
             aliases.append(0xFFFFF78000000000)
 
+        # On x64, Unicorn truncates the address of a guest memory access to 52 bits, so a read from the kernel
+        # address goes to the truncated address. Map the page there too.
         mirrors = {a & self._X64_EXEC_ADDR_MASK for a in aliases if a & self._X64_EXEC_ADDR_MASK != a}
 
-        # This is a read-only address for KUSER_SHARED_DATA,
-        # and this is the same address for 32-bit and 64-bit.
+        # The user mode address is the same on x86 and x64.
         bases = [0x7FFE0000] + aliases + list(mirrors)
 
         kuser_tag = "emu.struct.KUSER_SHARED_DATA"
@@ -933,9 +935,8 @@ class WindowsEmulator(BinaryEmulator):
         for base in bases:
             mm = self.get_address_map(base)
             if mm and not (mm.tag or "").startswith(kuser_tag):
-                # Another mapping already owns this alias: leave it completely
-                # alone rather than colliding with it while mapping (which
-                # breaks every kernel-mode load) or stomping its contents here.
+                # Another mapping uses this address. A second map fails and stops the kernel mode load, and
+                # a write changes the data of the other mapping.
                 continue
             if not mm:
                 self.mem_map(self.page_size, base=base, tag=kuser_tag)
