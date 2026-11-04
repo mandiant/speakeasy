@@ -1,8 +1,8 @@
 """
-Exception and unwind APIs that ntdll implements and kernel32 forwards to it.
+Exception and unwind APIs that ntdll implements and kernel32 forwards to ntdll.
 
-ExceptionApis is a mixin of the kernel32 and ntdll API handlers. Most of these
-APIs exist only on x64, where exceptions are dispatched from unwind data.
+The kernel32 and ntdll API handlers both inherit ExceptionApis. Most of these
+APIs exist only on x64, where the exception dispatch uses the unwind data.
 """
 
 from __future__ import annotations
