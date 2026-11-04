@@ -67,7 +67,7 @@ def normalize_response_path(path):
 
 
 class MapView:
-    """Represents a shared memory view."""
+    """Represents a view of a file mapping in guest memory."""
 
     def __init__(self, base, offset, size, protect, process=None):
         self.base: int = base
@@ -192,7 +192,7 @@ class File:
         self.pos = 0
 
     def handle_file_data(self):
-        """Get the data to return from a read request, based on the emulation config."""
+        """Get the initial data of the file from its config entry: a host file, a byte fill, or no data."""
         if not self.config:
             return io.BytesIO(b"")
 
@@ -231,7 +231,7 @@ class NullDevice(File):
 
 
 class Pipe(File):
-    """Emulated named pipe objects."""
+    """Represents a named pipe."""
 
     def __init__(self, name, mode, num_instances, out_size, in_size, config=None):
         super().__init__(path=name, config=config)
@@ -243,17 +243,14 @@ class Pipe(File):
 
 
 class FileManager:
-    """Manages file system activity during emulation."""
+    """Keep the emulated files, mappings and directories, and record the file events."""
 
     def __init__(self, config, emu):
         super().__init__()
-        # A view keeps its mapping after the last handle to the mapping closes
+        # The file manager never removes a mapping, because a view keeps its mapping after the last handle closes.
         self.mappings: list[FileMap] = []
 
-        # top level config
         self.config: SpeakeasyConfig = config
-
-        # "files" key of config
         self.file_config: FilesystemConfig = self.config.filesystem
         self.emu: Any = emu
 
@@ -261,7 +258,7 @@ class FileManager:
 
         self.emulated_binname: str = shlex.split(cmdline)[0] if cmdline else ""
 
-        # First file in this list seems to always be the module itself
+        # When the input is a PE, load_module adds it as the first file.
         self.files: list[File] = []
         self.deleted_paths: set[str] = set()
         self.created_dirs: set[str] = set()
@@ -403,7 +400,7 @@ class FileManager:
         return proc is not None and (proc.path or "").lower() == self.files[0].path.lower()
 
     def add_existing_file(self, path, data):
-        """Register an existing file that the emulation space already includes, with its data."""
+        """Add a file with its data, for example the input module."""
         f = File(path, data=data)
         self.files.append(f)
         return f
@@ -520,8 +517,7 @@ class FileManager:
         if get_path_key(path) in self.deleted_paths:
             return None
 
-        # Does this file exist in our emulation environment
-        # See if we have a handler for this exact file
+        # A full_path entry matches first, then a configured module, then a by_ext entry, then the default entry.
         for f in self.file_config.files:
             if f.mode == "full_path":
                 if fnmatch.fnmatch(path.lower(), f.emu_path.lower()):
@@ -532,7 +528,6 @@ class FileManager:
         if any(m.path == path for m in modules.user_modules) or any(m.path == path for m in modules.system_modules):
             return FileEntryFullPath(mode="full_path", emu_path=path)
 
-        # If no full path handler exists, do we have an extension handler?
         for f in self.file_config.files:
             path_ext = ntpath.splitext(path)[-1:][0].strip(".")
             if path_ext:
@@ -540,7 +535,6 @@ class FileManager:
                     if path_ext.lower() == f.ext:
                         return f
 
-        # Finally, do we have a catch-all default handler?
         for f in self.file_config.files:
             if f.mode == "default":
                 return f
@@ -666,8 +660,7 @@ class FileManager:
         else:
             f = self.get_file_from_path(path)
             if f:
-                # Deep-copy this file so we can have separate file
-                # offset pointers
+                # The new file object shares the data, but has its own file pointer.
                 f = f.duplicate()
             else:
                 f = self.get_file_by_path(path)
