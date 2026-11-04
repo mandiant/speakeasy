@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class DriveManager:
-    """Manages the emulation of Windows drives. Currently assumes one volume per drive."""
+    """Keep the drives of the config. Each drive has one volume."""
 
     def __init__(self, config: list[DriveConfig] | None = None):
         super().__init__()
