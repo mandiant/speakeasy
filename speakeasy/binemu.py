@@ -89,7 +89,6 @@ MODULE_LEVEL = tuple[dict[str, API_LEVEL], WILDCARD_FLAG]
 HookT = TypeVar("HookT", bound=common.Hook)
 
 
-# Generic emulator class for binary code
 class BinaryEmulator(MemoryManager, ABC):
     """
     Base class for emulating binaries.
@@ -111,17 +110,17 @@ class BinaryEmulator(MemoryManager, ABC):
 
     @abstractmethod
     def _unmap_reserved_range(self) -> None:
-        """Unmap the reserved memory range. Subclasses must implement."""
+        """Unmap the reserved range, which holds the API tokens and the return hooks."""
         ...
 
     @abstractmethod
     def on_emu_complete(self) -> None:
-        """Called when emulation completes. Subclasses must implement."""
+        """Finish the emulation after the last run."""
         ...
 
     @abstractmethod
     def get_current_run(self) -> Any:
-        """Get the current run context. Subclasses must implement."""
+        """Get the current run."""
         ...
 
     def __init__(self, config):
@@ -138,19 +137,24 @@ class BinaryEmulator(MemoryManager, ABC):
         self.runtime: float = 0
 
     def get_profiler(self) -> Profiler:
-        """Get the current event profiler object (if any)."""
+        """Get the profiler, which records the report events."""
         return self.profiler
 
     def get_report(self) -> Report:
-        """Get the emulation report for all runs that were executed."""
+        """Get the report of the runs."""
         return self.profiler.get_report()
 
     def get_json_report(self) -> str:
-        """Get the emulation report for all runs that were executed formatted as a JSON string."""
+        """Get the report of the runs as a JSON string."""
         return self.profiler.get_json_report()
 
     def _parse_config(self, config: SpeakeasyConfig):
-        """Parse the config to be used for emulation."""
+        """
+        Store the config and create the engine that it names.
+
+        Raises:
+            CpuError: if the config names an engine that is not supported.
+        """
         self.config = config
 
         _eng = config.emu_engine
@@ -187,13 +191,13 @@ class BinaryEmulator(MemoryManager, ABC):
         return obj.get_bytes()
 
     def stop(self) -> None:
-        """Stop emulation completely."""
+        """Stop the engine and the run clock."""
         self.emu_eng.stop()
         if self.profiler:
             self.profiler.stop_run_clock()
 
     def start(self, addr, size):
-        """Begin emulation."""
+        """Add the hooks and start the engine at ``addr``. An engine error ends the emulation."""
         self.set_hooks()
         self._unmap_reserved_range()
         if self.profiler:
@@ -240,7 +244,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return value
 
     def set_hooks(self):
-        """Set instruction level hooks."""
+        """Add the code, memory and interrupt hooks that the engine does not have yet."""
         for ht in (
             common.HOOK_CODE,
             common.HOOK_MEM_READ,
@@ -276,7 +280,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return self._cs_disasm(mem, addr, fast=fast)
 
     def get_register_state(self) -> dict[str, int]:
-        """Get the current state of registers from the emulator."""
+        """Get the general-purpose registers and the instruction pointer by name."""
         regs = {}
         if self.get_arch() == e_arch.ARCH_X86:
             for name, reg in (
@@ -320,19 +324,14 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def set_func_args(self, stack_addr, ret_addr, *args, conv, home_space=True):
         """
-        Set the arguments before an emulated function call.
+        Set the arguments of a function call, then push ``ret_addr`` and set the stack pointer.
 
-        Lays out ``args`` according to ``conv`` and the current architecture,
-        writes ``ret_addr`` at the top of the resulting stack frame, and
-        updates the stack pointer register.
-
-        On x86 fastcall the first two arguments go into ECX and EDX. On x64
-        the first four go into RCX, RDX, R8 and R9. The remaining arguments
-        go onto the stack. On x64 a 32-byte shadow (home) space is
-        reserved above the return address when ``home_space`` is ``True``.
+        On x86 fastcall, the first two arguments go in ECX and EDX. On x64, the first four go
+        in RCX, RDX, R8 and R9. The other arguments go on the stack. On x64, if ``home_space``
+        is true, the method also reserves the 32-byte home space above the return address.
 
         Args:
-            stack_addr: Base address of the stack region.
+            stack_addr: Stack pointer before the call.
             ret_addr: Return address to place on the stack.
             *args: Argument values to pass to the callee.
             conv: Calling convention (for example, ``CALL_CONV_STDCALL``).
@@ -377,7 +376,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.reg_write(sp_reg, curr_sp)
 
     def get_func_argv(self, callconv, argc):
-        """Get the arguments for a function given the supplied calling convention."""
+        """Read the arguments of a function at its entry, for a calling convention."""
         argv = []
         ptr_size = self.get_ptr_size()
         arch = self.get_arch()
@@ -417,7 +416,7 @@ class BinaryEmulator(MemoryManager, ABC):
         else:
             raise CpuError("Unsupported architecture")
 
-        # Skip past the saved ret addr
+        # Skip the return address
         sp += ptr_size
         for _ in range(nargs):
             ptr = self.mem_read(sp, ptr_size)
@@ -427,7 +426,11 @@ class BinaryEmulator(MemoryManager, ABC):
         return argv
 
     def do_call_return(self, argc, ret_addr=None, ret_value=None, conv=None):
-        """Set the emulation state after a call has completed."""
+        """
+        Return from a call: set the pc to ``ret_addr`` and the return register to ``ret_value``.
+
+        If ``conv`` makes the callee remove its stack arguments, also remove them.
+        """
         if self.get_arch() == e_arch.ARCH_X86:
             sp = e_arch.X86_REG_ESP
             pc = e_arch.X86_REG_EIP
@@ -453,9 +456,8 @@ class BinaryEmulator(MemoryManager, ABC):
             else:
                 self.reg_write(rr, ret_value)
 
-        # Cleanup the stack
         if conv in (e_arch.CALL_CONV_CDECL, e_arch.CALL_CONV_FLOAT):
-            # If cdecl, the emu engine will clean the stack
+            # The caller removes the arguments.
             pass
         elif conv == e_arch.CALL_CONV_FASTCALL:
             if self.get_arch() == e_arch.ARCH_X86:
@@ -487,7 +489,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return int.from_bytes(self.mem_read(sp, self.ptr_size), "little")
 
     def set_ret_address(self, addr) -> None:
-        """Set the return address on the stack."""
+        """Write ``addr`` at the top of the stack."""
         sp = self.get_stack_ptr()
         self.mem_write(sp, addr.to_bytes(self.get_ptr_size(), "little"))
 
@@ -611,7 +613,12 @@ class BinaryEmulator(MemoryManager, ABC):
         self.reg_write(e_arch.X86_REG_MXCSR, 0x1F80)
 
     def reset_stack(self, base) -> tuple[int, int]:
-        """Reset stack to the supplied base address."""
+        """
+        Set the stack pointer and the frame pointer below ``base``, with room for stack arguments.
+
+        Returns:
+            A tuple of the stack base and the stack pointer.
+        """
         arch = self.get_arch()
         ptr = base
 
@@ -621,7 +628,8 @@ class BinaryEmulator(MemoryManager, ABC):
             self.reg_write(e_arch.X86_REG_ESP, ptr)
             self.reg_write(e_arch.X86_REG_EBP, ptr)
         elif arch == e_arch.ARCH_AMD64:
-            # Save room for stack arguments beyond the ones a run supplies; an odd count keeps rsp % 16
+            # Save room for stack arguments beyond the ones a run supplies. An odd count makes rsp + 8
+            # 16-byte aligned, as at the entry of a function.
             ptr -= self.ptr_size * 65
             self.reg_write(e_arch.AMD64_REG_RSP, ptr)
             self.reg_write(e_arch.AMD64_REG_RBP, ptr)
@@ -630,12 +638,11 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def alloc_stack(self, size):
         """Allocate memory to use for the program stack."""
-        # Allocate memory for our stack
-        # Stack grows down
         chunk = self.get_valid_ranges(size, addr=0x1200000)
         addr, block_size = chunk
         self.mem_map(block_size, base=addr, tag="emu.stack", perms=common.PERM_MEM_RW)
 
+        # The stack grows down, so its base is the end of the map.
         base = addr + block_size
         self.mem_reserve(size, base=base)
 
@@ -644,7 +651,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return base, ptr
 
     def clean_stack_args(self, argc):
-        """Adjust the stack for arguments that were supplied."""
+        """Remove ``argc`` arguments from the stack on x86. On x64, the caller removes them."""
         ptr_size = self.get_ptr_size()
         arch = self.get_arch()
 
@@ -699,7 +706,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return text.replace("\x00", "")
 
     def mem_string_len(self, address, width=1):
-        """Get the length of a string from emulated memory."""
+        """Get the length in characters of a null-terminated string in emulated memory."""
         slen = -1
         char = b"\xff"
 
@@ -710,7 +717,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return slen
 
     def get_ansi_strings(self, data, min_len=4):
-        """Get all ansi strings from a supplied memory blob."""
+        """Get the offset and the text of each ANSI string in a buffer."""
         astrs = []
         pat = b"[\x20-\x7f]{%d,}" % (min_len)
         res = re.compile(pat)
@@ -723,7 +730,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return astrs
 
     def get_unicode_strings(self, data, min_len=4):
-        """Get all unicode strings from a supplied memory blob."""
+        """Get the offset and the text of each UTF-16LE string in a buffer."""
         wstrs = []
         pat = b"(?:[\x20-\x7f]\x00){%d,}" % (min_len)
         res = re.compile(pat)
@@ -749,7 +756,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Write string data to an emulated memory address.
 
-        Appends a terminating zero byte if the string does not end with one.
+        Appends a null character if the string does not end with one.
 
         Raises:
             ValueError: if ``width`` is not 1 or 2.
@@ -819,7 +826,7 @@ class BinaryEmulator(MemoryManager, ABC):
             raise CpuError("Unsupported architecture")
 
     def get_module_from_addr(self, addr):
-        """If the supplied address belongs to a module, return it."""
+        """Get the module that contains an address, or ``None``."""
         for mod in self.modules:
             base = mod.base
             size = mod.image_size
@@ -828,7 +835,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return None
 
     def get_api_hooks(self, mod_name, func_name) -> list[common.ApiHook]:
-        """If an API hook has been set, return it here."""
+        """Get the enabled API hooks whose module and API names or wildcard patterns match."""
         mod_name = mod_name.lower()
         func_name = func_name.lower()
         try:
@@ -860,11 +867,13 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Bind a hook to this emulator and add it.
 
-        When multiple hooks are registered for the same event, they run in
-        FIFO order (first registered, first called). All hooks in the chain run,
-        and the return value of the last hook is used. This order applies to all
-        hook types in Speakeasy. An IN instruction is the exception: only the first
-        IN hook that is enabled and covers the address runs.
+        The hooks of one type run in the order that the caller added them, and all of them run,
+        with these exceptions:
+
+        - An invalid memory hook that returns ``False`` stops the hooks after it.
+        - An invalid instruction hook that returns ``True`` stops the hooks after it.
+        - For an IN instruction, only the first IN hook that is enabled and covers the address runs.
+        - For an API that has no handler, only the API hook that the caller added last runs.
 
         Raises:
             ValueError: if the engine rejects the hook, for example an instruction hook on an
@@ -926,17 +935,14 @@ class BinaryEmulator(MemoryManager, ABC):
 
         api_dictionary = ({api_name: [hook]}, wildcard_api)
         if not _hooks:
-            # First addition
             obj = ({module: api_dictionary}, wildcard_module)
         else:
             module_dict, previous_wildcard_module = _hooks
             try:
                 api_dict, previous_wildcard_api = module_dict[module]
             except KeyError:
-                # The module asked is not present, so we just add the api dictionary
                 module_dict[module] = api_dictionary
             else:
-                # The module asked is present, so we can just add the hook
                 api_dict.setdefault(api_name, []).append(hook)
                 module_dict[module] = (api_dict, previous_wildcard_api | wildcard_api)
             obj = (module_dict, previous_wildcard_module | wildcard_module)
@@ -947,7 +953,7 @@ class BinaryEmulator(MemoryManager, ABC):
         return self.add_hook(common.ApiHook(cb, module, api_name, argc, call_conv))
 
     def add_code_hook(self, cb: CodeHookCallback, begin=1, end=0) -> common.CodeHook:
-        """Add a hook that will fire for every CPU instruction."""
+        """Add a hook that fires for each instruction from ``begin`` to ``end``."""
         return self.add_hook(common.CodeHook(cb, begin, end))
 
     def _fire_dyn_code_hooks(self, addr):
@@ -963,7 +969,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 h.cb(h.emu, mm)
 
     def _set_dyn_code_hook(self, addr, size):
-        """Set the top level dispatch hook for dynamic code execution."""
+        """Add a code hook on the start of a new region, which fires the dynamic code hooks one time."""
         max_hook_size = 0x10
         if size > max_hook_size:
             size = max_hook_size
@@ -978,26 +984,30 @@ class BinaryEmulator(MemoryManager, ABC):
         hook_ref[0] = self.add_code_hook(cb=_dynamic_code_cb, begin=addr, end=addr + size)
 
     def add_dyn_code_hook(self, cb: DynCodeHookCallback) -> common.DynCodeHook:
-        """Add a hook that will fire when dynamically generated/copied code is executed."""
+        """Add a hook that fires when the guest runs code in memory that ``VirtualAlloc`` or a similar API allocated."""
         return self.add_hook(common.DynCodeHook(cb))
 
     def add_mem_read_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.ReadMemHook:
-        """Add a hook that will fire for memory reads."""
+        """Add a hook that fires when the guest reads mapped memory."""
         return self.add_hook(common.ReadMemHook(cb, begin, end))
 
     def add_mem_write_hook(self, cb: MemAccessHookCallback, begin=1, end=0) -> common.WriteMemHook:
-        """Add a hook that will fire for memory writes."""
+        """Add a hook that fires when the guest writes mapped memory."""
         return self.add_hook(common.WriteMemHook(cb, begin, end))
 
     def add_mem_map_hook(self, cb: MemMapHookCallback, begin=1, end=0) -> common.MapMemHook:
-        """Add a hook that will fire for memory maps."""
+        """Add a hook that fires when the emulator maps memory."""
         return self.add_hook(common.MapMemHook(cb, begin, end))
 
     def _intercept_api_trap(self, access, address, size):
         return False
 
     def _hook_mem_invalid_dispatch(self, emu, access, address, size, value):
-        """This handler will dispatch other invalid memory hooks."""
+        """
+        Call the invalid memory hooks, unless the access is an API call.
+
+        A hook that returns ``False`` stops the hooks after it.
+        """
         if self._intercept_api_trap(access, address, size):
             return False
         hl = self.hooks.get(common.HOOK_MEM_INVALID, [])
@@ -1011,18 +1021,18 @@ class BinaryEmulator(MemoryManager, ABC):
         return rv
 
     def add_mem_invalid_hook(self, cb: MemAccessHookCallback) -> common.InvalidMemHook:
-        """Add a hook that will fire for invalid memory access."""
+        """Add a hook that fires when the guest accesses unmapped or protected memory."""
         return self.add_hook(common.InvalidMemHook(cb))
 
     def add_interrupt_hook(self, cb: InterruptHookCallback) -> common.InterruptHook:
-        """Add a hook that will fire for software interrupts."""
+        """Add a hook that fires for interrupts and CPU exceptions."""
         return self.add_hook(common.InterruptHook(cb))
 
     def add_instruction_hook(
         self, cb: InHookCallback | OutHookCallback | SyscallHookCallback, begin=1, end=0, *, insn: int
     ) -> common.InstructionHook:
         """
-        Add a hook that will fire for an IN, OUT, SYSCALL, or SYSENTER instruction.
+        Add a hook that fires for an IN, OUT, SYSCALL, or SYSENTER instruction.
 
         Raises:
             ValueError: if the engine does not support hooks on ``insn``.
@@ -1038,5 +1048,5 @@ class BinaryEmulator(MemoryManager, ABC):
         return 0
 
     def add_invalid_instruction_hook(self, cb: InvalidInstructionHookCallback) -> common.InvalidInstructionHook:
-        """Add a hook that will fire for invalid instructions."""
+        """Add a hook that fires when the guest runs an invalid instruction."""
         return self.add_hook(common.InvalidInstructionHook(cb))
