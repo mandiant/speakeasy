@@ -2339,6 +2339,11 @@ class WindowsEmulator(BinaryEmulator):
         return self.resolve_export(module, func_name, allow_dynamic=True)
 
     def _intercept_api_trap(self, access, address, size):
+        """
+        Record the native exit of a fetch from a return address or an API token, and fault other token accesses.
+
+        Return True if the access is one of these, so that the other hooks for invalid memory do not run.
+        """
         if self.emu_eng.mem_access.get(access) == common.INVALID_MEM_EXEC:
             if address in (self.return_hook, self.exit_hook) and self.curr_run:
                 self._record_exit(RunReturn())
@@ -2368,7 +2373,7 @@ class WindowsEmulator(BinaryEmulator):
         return False
 
     def raise_cpu_exception(self, exception, error_type: ErrorType, **details):
-        """From a Unicorn hook: stop Unicorn. The run loop then sends the exception to the guest."""
+        """From a Unicorn hook: record the exception as a native exit and stop Unicorn. Then the run loop sends it."""
         self._record_exit(RaisedCpuException(exception, error_type, **details))
 
     def _dispatch_cpu_exception(self, raised: RaisedCpuException) -> None:
@@ -2400,11 +2405,11 @@ class WindowsEmulator(BinaryEmulator):
 
     def _raise_api_fault(self, frame, access_type, address):
         """
-        Raise an access violation in the caller of an API whose handler touched an invalid guest pointer.
+        Raise an access violation in the caller of an API, because the handler of the API accessed a bad pointer.
 
-        The access violation is the one the API's own code would raise.
+        On Windows, the code of the API raises this access violation.
 
-        Return False when no handler looks at it.
+        Return False if the dispatch fails before it calls guest code.
         """
         params = (cpu_exceptions.ACCESS_CODES[access_type], address)
         try:
@@ -2417,7 +2422,7 @@ class WindowsEmulator(BinaryEmulator):
         return True
 
     def set_guard_pages(self, address, size, perms):
-        """Map pages without access until their first access, which restores perms and raises an exception."""
+        """Remove all access from the pages. The first access restores perms and raises a guard page exception."""
         base = address & ~(self.page_size - 1)
         end = (address + size + self.page_size - 1) & ~(self.page_size - 1)
         for page in range(base, end, self.page_size):
@@ -2513,12 +2518,12 @@ class WindowsEmulator(BinaryEmulator):
         return SuspendedApiCall(entry, sp, return_address, code)
 
     def _handle_invalid_fetch(self, emu, address, size, value):
-        """Called when an attempt to emulate an instruction from an invalid address."""
+        """Handle a fetch from unmapped memory."""
         if address == self.return_hook or address == self.exit_hook:
             self._map_reserved_range()
             return True
 
-        # The rest of an instruction that crosses into the next page; the run already ends at its start
+        # The fetch is the rest of an instruction that crosses into the next page. The fault at its start ends the run.
         if isinstance(self._native_exit, FaultReturn) or self._pending_fault_stop is not None:
             return False
 
@@ -2549,7 +2554,7 @@ class WindowsEmulator(BinaryEmulator):
         return None
 
     def _find_nearby_regions(self, addr: int, count: int = 2) -> list[RegionInfo]:
-        """Return up to `count` nearest memory regions to an unmapped address."""
+        """Return up to ``count`` memory regions nearest to an unmapped address."""
         maps = self.get_mem_maps()
         if not maps:
             return []
@@ -2578,10 +2583,9 @@ class WindowsEmulator(BinaryEmulator):
         nearby_regions: list[RegionInfo] | None,
     ) -> str:
         """
-        Build a human-readable one-line triage summary.
+        Build a one-line summary of an error for the report.
 
-        Examples::
-
+        Examples:
             read of unmapped 0x12345678 from sample.exe+0x8d14; nearest: heap [0x12340000-0x12340fff]
             write of 0x401500 from sample.exe+0x2000; in .text [0x401000-0x405fff]
             fetch at 0xdeadbeef from pc=0xdeadbeef
@@ -2614,11 +2618,11 @@ class WindowsEmulator(BinaryEmulator):
         message: str | None = None,
     ) -> ErrorInfo:
         """
-        Collect emulator state information in the event of an error.
+        Get the state of the emulator for an error.
 
-        For an error at an API trap, give the API name and its return address
-        as the address, because the trap holds no instruction to show.
-        For an internal_error, give the text of the Python exception as message.
+        For an error at an API call, give the API name, and the return address
+        as address, because the token has no instruction to show.
+        For an ``internal_error``, give the text of the Python exception as message.
         """
         run = self.get_current_run()
         pc = self.get_pc()
@@ -3293,7 +3297,7 @@ class WindowsEmulator(BinaryEmulator):
         return True
 
     def get_symbol_from_address(self, address) -> str | None:
-        """If the supplied address is related to a known symbol, look it up here."""
+        """Get the symbol at address as "dll.name", or None."""
         symbol = self.api_registry.symbol(address)
         if symbol is not None:
             return symbol
@@ -3304,10 +3308,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_symbols(self) -> dict[int, tuple[str, str]]:
         """
-        Snapshot public addresses as legacy (dll, name) tuples.
+        Get a copy of the symbols as {address: (dll, name)}.
 
-        Registry entries take precedence over auxiliary labels at the same address.
-        Forwarder strings and private dispatch tokens are not public symbols.
+        If two symbols have the same address, the API registry entry wins.
+        The result does not include forwarder strings or API tokens.
         """
         symbols = {
             address: value
@@ -3325,7 +3329,7 @@ class WindowsEmulator(BinaryEmulator):
         return symbols
 
     def get_api_symbols(self) -> dict[int, str]:
-        """Snapshot public function/data and auxiliary symbols as string labels."""
+        """Get a copy of the symbols of get_symbols as {address: "dll.name"}."""
         return {address: "{}.{}".format(*value) for address, value in self.get_symbols().items()}
 
     def _set_run_error(self, error: ErrorInfo) -> None:
@@ -3334,7 +3338,7 @@ class WindowsEmulator(BinaryEmulator):
             self.curr_run.error = error
 
     def _end_run_on_hook_error(self, description: str, exception: Exception) -> bool:
-        """Log the current exception, save it as the run error, and stop emulation."""
+        """Log the current exception, save it as the error of the run, and end the emulation."""
         logger.exception(description)
         error = self.get_error_info(
             ErrorType.INTERNAL_ERROR,
@@ -3386,11 +3390,7 @@ class WindowsEmulator(BinaryEmulator):
         return run.mem_access.setdefault(mmap, MemAccess(base=mmap.base, size=mmap.size))
 
     def _hook_mem_read(self, emu, access, address, size, value):
-        """
-        Hook each memory read event that occurs.
-
-        This hook is used to lookup symbols and modules that are read from during emulation.
-        """
+        """Count the reads of each symbol, section and memory map."""
         try:
             symbol = self.get_symbol_from_address(address)
             if symbol:
@@ -3408,11 +3408,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during memory read", e)
 
     def _hook_mem_write(self, emu, access, address, size, value):
-        """
-        Hook each memory write event that occurs.
-
-        This hook is used to track memory modifications to interesting memory locations.
-        """
+        """Count the writes of each symbol, section and memory map."""
         try:
             symbol = self.get_symbol_from_address(address)
             if symbol:
@@ -3430,7 +3426,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during memory write", e)
 
     def _handle_invalid_read(self, emu, address, size, value):
-        """Hook each invalid memory read event that occurs."""
+        """Handle a read from unmapped memory."""
         mod = self.get_mod_from_addr(address)
         if mod:
             return True
@@ -3441,10 +3437,9 @@ class WindowsEmulator(BinaryEmulator):
         return self._raise_memory_fault(address, "read")
 
     def _handle_prot_fetch(self, emu, address, size, value):
-        """Called when non-executable code is emulated."""
-        # Ordinary analysis recovers execution in non-X guest sections.
-        # Synthetic API protections and debugger stops are always
-        # authoritative; a symbol never causes dispatch from this hook.
+        """Handle a fetch from memory without execute permission."""
+        # Without a debugger, the guest can run code in its own memory without execute permission.
+        # A fetch from a synthetic module or the token range, or any fetch with a debugger, is a fault.
         module = self.get_mod_from_addr(address)
         if (
             not self._should_stop_on_faults
@@ -3452,8 +3447,8 @@ class WindowsEmulator(BinaryEmulator):
             and not self.api_registry.overlaps_traps(address)
         ):
             if module is not None and module._image.source == "guest_pe":
-                # A change of protection while Unicorn handles this fetch can
-                # make its current translation incorrect. Change it after Unicorn stops.
+                # A change of protection while Unicorn handles this fetch can make
+                # the current translation incorrect. Change the protection after Unicorn stops.
                 native_perms = next(perms for start, end, perms in self.get_mem_regions() if start <= address <= end)
                 perms = next(perms for perms, native in self.emu_eng.perms.items() if native == native_perms)
                 page = address & ~(self.page_size - 1)
@@ -3466,8 +3461,7 @@ class WindowsEmulator(BinaryEmulator):
         return False
 
     def _handle_invalid_write(self, emu, address, size, value):
-        """Called when non-writable address is written to."""
-        # ignore patches to APIs
+        """Handle a write to unmapped memory."""
         if winemu.EMU_RESERVED <= address < winemu.EMU_RESERVED_END:
             return self._complete_reserved_access(address, size, "write")
 
@@ -3486,15 +3480,15 @@ class WindowsEmulator(BinaryEmulator):
         """
         Code hook that runs at the next instruction after an API call, a fault or a request to end the run.
 
-        It ends the run if it is complete and unmaps the reserved range. It disables itself when it has no more work.
+        End the run if it is complete, and unmap the reserved range. Disable the hook when there is no more work.
         """
         try:
             if addr == self.return_hook or self.is_run_complete:
                 self.on_run_complete()
                 return False
 
-            # Handler instructions are not progress at the original fault site.
-            # After continuation, retain the guard until the guest advances.
+            # A guest exception handler continued at the fault address. Clear the repeat count of the fault
+            # when PC leaves that address.
             if self._seh_resume_pc is not None and addr != self._seh_resume_pc:
                 self._seh_last_fault = None
                 self._seh_repeat_count = 0
@@ -3508,7 +3502,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during code hook (deferred work)", e)
 
     def _hook_code_coverage(self, emu, addr, size):
-        """Persistent code hook that records every executed address for coverage."""
+        """Record the address of each instruction that runs, for coverage."""
         try:
             if self.curr_run is not None:
                 self.curr_run.coverage.add(addr)
@@ -3517,11 +3511,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during code hook (coverage)", e)
 
     def _hook_code_tracing(self, emu, addr, size):
-        """
-        Persistent code hook for memory tracing.
-
-        The hook counts instructions and tracks symbol execution and per-region execution.
-        """
+        """Count the instructions, and the executes of each symbol, section and memory map."""
         try:
             if logger.isEnabledFor(logging.DEBUG):
                 disasm = self.get_disasm(addr, size)[2]
@@ -3548,11 +3538,7 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during code hook (tracing)", e)
 
     def _hook_code_debug(self, emu, addr, size):
-        """
-        Log disassembly and register state for every instruction when debug mode is enabled.
-
-        This is a persistent code hook.
-        """
+        """Log the disassembly and the registers of each instruction in debug mode."""
         x = self.get_disasm(addr, size)[2]
         if self.get_arch() == _arch.ARCH_AMD64:
             regs: tuple[str, ...] = ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9")
@@ -3839,7 +3825,7 @@ class WindowsEmulator(BinaryEmulator):
         return self._new_object_handle(objman.Semaphore, name)
 
     def _hook_interrupt(self, emu, intnum):
-        """Called when software interrupts occur."""
+        """Handle a software interrupt."""
         self.emu_eng.clear_exception_state()
         if (
             not self.is_kernel_mode
@@ -3859,10 +3845,10 @@ class WindowsEmulator(BinaryEmulator):
                 self.raise_cpu_exception(exception, ErrorType.UNHANDLED_INTERRUPT, interrupt_num=intnum)
             return True
 
-        # Handle __fastfail interrupt introduced in Windows 8
+        # int 0x29 is __fastfail (Windows 8 and later)
         if intnum == 0x29:
             ecx = self.reg_read(_arch.X86_REG_ECX)
-            # Cookie security init failed, just return since we are in __security_init_cookie
+            # __security_init_cookie raises FAST_FAIL_GS_COOKIE_INIT (6). Return to its caller.
             if ecx == 6:
 
                 def _tmp_hook(emu, addr, size):
