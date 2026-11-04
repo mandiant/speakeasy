@@ -96,19 +96,20 @@ class ApiHammer:
                     if (mnem == "call") and op in e_arch.REG_LOOKUP.keys():
                         if self.hammer_memregion is None:
                             self.hammer_memregion = self.emu.mem_map(0x1024 * 4, tag="speakeasy.hammerpatch")
+                        # The 2-byte call has no room for a patch, so point the register at a stub that
+                        # returns 0. The caller code stays as it is.
+                        stub = None
                         if conv == e_arch.CALL_CONV_CDECL:
-                            patch = b"\x31\xc0\xc3"
-                            self.emu.mem_write(eip, patch)
-                            logger.info("API HAMMERING DETECTED - patching 2 cdecl at %x" % (eip,))  # noqa
+                            stub = b"\x31\xc0\xc3"
                         elif conv == e_arch.CALL_CONV_STDCALL:
-                            patch = b"\x31\xc0\xc2" + (4 * argc).to_bytes(2, "little") + b"\x90"
-                            loc = self.hammer_memregion + self.hammer_offset
-                            if (self.hammer_offset + len(patch)) < 0x1024 * 4:
-                                self.emu.mem_write(loc, patch)
-                                self.hammer_offset += len(patch)
-                                reg = e_arch.REG_LOOKUP[op]
-                                self.emu.reg_write(reg, loc)
-                                logger.info("API HAMMERING DETECTED - patching 2 stdcall at %x" % (eip,))  # noqa
+                            stub = b"\x31\xc0\xc2" + (4 * argc).to_bytes(2, "little") + b"\x90"
+                        loc = self.hammer_memregion + self.hammer_offset
+                        if stub and (self.hammer_offset + len(stub)) < 0x1024 * 4:
+                            self.emu.mem_write(loc, stub)
+                            self.hammer_offset += len(stub)
+                            reg = e_arch.REG_LOOKUP[op]
+                            self.emu.reg_write(reg, loc)
+                            logger.info("API HAMMERING DETECTED - patching 2 at %x", eip)
                     else:
                         logger.info(f"API HAMMERING DETECTED - unable to patch {eip:x}")
             except Exception:
