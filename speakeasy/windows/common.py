@@ -3,9 +3,7 @@
 import datetime
 import hashlib
 import os
-from collections import namedtuple
 from enum import IntFlag
-from typing import Any
 
 import pefile
 
@@ -163,7 +161,7 @@ def normalize_dll_name(name: str) -> str:
 
 
 class _PeParser(pefile.PE):
-    """A pefile PE with the mapped image, the imports and the exports that the loaders read."""
+    """A pefile PE with the mapped image and the imports that the loaders read."""
 
     def __init__(self, path=None, data=None, emu_path="", fast_load=False):
         super().__init__(name=path, data=data, fast_load=fast_load)
@@ -176,7 +174,6 @@ class _PeParser(pefile.PE):
         self.base: int = self.OPTIONAL_HEADER.ImageBase
         self.hash: str = self._hash_pe(path=path, data=data)
         self.imports: dict[int, tuple[str, str]] = self._get_pe_imports()
-        self.exports: list[Any] = self._get_pe_exports()
         self.mapped_image: bytes = self.get_mapped_image()
         self.image_size: int = self.OPTIONAL_HEADER.SizeOfImage
         self.ep: int = self.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -225,28 +222,6 @@ class _PeParser(pefile.PE):
                     imports.update({imp.address: (dll, func_name)})
         return imports
 
-    def get_exports(self):
-        self.exports = self._get_pe_exports()
-
-        return self.exports
-
-    def _get_pe_exports(self):
-        pe = self
-        exports: list = []
-        if not hasattr(pe, "DIRECTORY_ENTRY_EXPORT"):
-            return exports
-
-        for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
-            entry = namedtuple("export", ["name", "address", "forwarder", "ordinal"])  # type: ignore[name-match]
-            entry.name = exp.name
-            entry.address = exp.address + pe.base
-            entry.forwarder = exp.forwarder
-            entry.ordinal = exp.ordinal
-            if entry.name:
-                entry.name = entry.name.decode("utf-8")
-            exports.append(entry)
-        return exports
-
     def _get_architecture(self):
         # 0x010b: PE32, 0x020b: PE32+ (64 bit)
         magic = self.OPTIONAL_HEADER.Magic
@@ -255,11 +230,6 @@ class _PeParser(pefile.PE):
         if magic & ddk.PE32_PLUS_BIT:
             return _arch.ARCH_AMD64
         raise ValueError(f"Unsupported architecture: 0x{magic:x}")
-
-    def get_export_by_name(self, name):
-        for exp in self.get_exports():
-            if name == exp.name:
-                return exp.address
 
     def get_base_name(self):
         fn = os.path.basename(self.path)
@@ -322,4 +292,3 @@ class _PeParser(pefile.PE):
         self.mapped_image = self.get_mapped_image()
 
         self.imports = self._get_pe_imports()
-        self.exports = self._get_pe_exports()

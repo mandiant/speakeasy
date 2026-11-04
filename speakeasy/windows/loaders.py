@@ -516,13 +516,10 @@ class PeLoader:
 
     def make_image(self) -> LoadedImage:
         class InventoryParser(_PeParser):
-            # PeLoader reads the imports and exports from the pefile entries. The
-            # _PeParser versions decode names as UTF-8 and fail on other bytes.
+            # PeLoader reads the imports from the pefile entries. The _PeParser
+            # version decodes names as UTF-8 and fails on other bytes.
             def _get_pe_imports(self):
                 return {}
-
-            def _get_pe_exports(self):
-                return []
 
         pe = InventoryParser(path=self._path, data=self._data)
         supported = {(0x14C, 0x10B): _arch.ARCH_X86, (0x8664, 0x20B): _arch.ARCH_AMD64}
