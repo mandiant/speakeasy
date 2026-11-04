@@ -18,7 +18,7 @@ class EmulationError(SpeakeasyError):
 
 
 class NotSupportedError(EmulationError):
-    """Sample is not currently supported."""
+    """Raised when the emulator does not support the input, for example a .NET assembly."""
 
 
 class ApiEmuError(EmulationError):
@@ -30,7 +30,7 @@ class CpuError(EmulationError):
 
 
 class OutOfMemoryError(EmulationError):
-    """No free range of the address space can hold an allocation."""
+    """Raised when no free range of the address space can hold an allocation."""
 
 
 class WindowsEmuError(EmulationError):
@@ -61,6 +61,6 @@ class EngineError(SpeakeasyError):
     """Raised when the CPU engine rejects a request, for example an unknown register or hook type."""
 
 
-# Old names, kept for one release.
+# Deprecated aliases.
 EmuException = CpuError
 EmuEngineError = EngineError
