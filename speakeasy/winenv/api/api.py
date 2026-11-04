@@ -40,8 +40,9 @@ INT_BITS = {"hh": 8, "h": 16, "ll": 64, "I64": 64, "q": 64, "j": 64}
 
 def get_format_slot_sizes(spec: re.Match, ptr_size: int) -> list[int]:
     """
-    Get the size in bytes of each argument that one printf conversion reads,
-    in order: the width, the precision and then the value.
+    Get the size in bytes of each argument that one printf conversion reads.
+
+    The order is the width, the precision, then the value.
     """
     sizes = [ptr_size] * [spec["width"], spec["precision"]].count("*")
     conv, length = spec["conv"], spec["length"]
@@ -57,8 +58,9 @@ def get_format_slot_sizes(spec: re.Match, ptr_size: int) -> list[int]:
 
 class HandlerArg:
     """
-    One argument of a handled call, as recorded in the report. A handler sets
-    ``display`` to show a value it decoded, such as the path behind a handle.
+    One argument of an API call, as the report shows it.
+
+    A handler sets ``display`` to show a value that it decoded, such as the path of a handle.
     """
 
     def __init__(self, arg: ApiArg, param: sigdb.ParamSig | None = None) -> None:
@@ -84,12 +86,13 @@ class HandlerArg:
     @display.setter
     def display(self, text: object) -> None:
         """
-        Show ``text`` for this argument. The type becomes ``str`` on a
-        parameter declared as a string, and ``text`` otherwise. A parameter
-        that the signature renders as an enum or flags keeps that rendering,
-        so all such values have one format. A value that is not a string,
-        such as ``None`` from a failed lookup or a NULL pointer the handler
-        did not decode, keeps the current display.
+        Show ``text`` for this argument.
+
+        The type changes to ``str`` for a parameter that the signature declares as a
+        string, else to ``text``. A parameter that the signature shows as an enum or
+        flags keeps that display, so that all these values have one format. If ``text``
+        is not a string, for example ``None`` from a failed lookup or a NULL pointer
+        that the handler did not decode, the display does not change.
         """
         if not isinstance(text, str) or (
             self._param is not None and self._arg.type in (ApiArgType.ENUM, ApiArgType.FLAGS)
@@ -107,11 +110,13 @@ def _detached_arg() -> HandlerArg:
 
 class HandlerArgs:
     """
-    The arguments of a handled call. With a usable signature there is one
-    entry per parameter, found by parameter name or index. Without one there
-    is one entry per argument slot, found by slot index. A name or index that
-    does not match an entry gives a detached argument whose changes are not
-    recorded, so a missing signature never stops emulation.
+    The arguments of an API call.
+
+    If the emulator can use the signature of the API, there is one entry for each
+    parameter, and a handler gets an entry by parameter name or index. Else there is
+    one entry for each argument slot, and a handler gets an entry by slot index. A
+    name or index without an entry gives a detached argument. The report does not
+    record changes to a detached argument, so a missing signature does not stop emulation.
     """
 
     def __init__(self, args: list[ApiArg], params: list[sigdb.ParamSig] | None = None, discard: bool = False) -> None:
@@ -124,8 +129,10 @@ class HandlerArgs:
         cls, sig: sigdb.FuncSig, ptr_size: int, rendered: list[sigfmt.RenderedArg], slots: list[int]
     ) -> HandlerArgs:
         """
+        Make the arguments from the rendered values of the signature parameters.
+
         Raises:
-            ValueError: if the slots do not match the slots the signature consumes.
+            ValueError: if the slots do not match the slots that the signature uses.
         """
         return cls(sigfmt.get_call_args(sig, ptr_size, rendered, slots), list(sig.params))
 
@@ -176,9 +183,7 @@ NO_CONTEXT = ApiContext(args=HandlerArgs([], discard=True))
 
 
 class ApiHandler:
-    """
-    Base class for handling exported functions
-    """
+    """Base class of the API handlers of one emulated DLL."""
 
     name = ""
 
@@ -297,20 +302,14 @@ class ApiHandler:
         return self.emu.heap_alloc(size, heap)
 
     def heap_size(self, addr):
-        """
-        Get the requested size of a block that heap_alloc returned, or None
-        for any other address.
-        """
+        """Get the requested size of a block that ``heap_alloc`` returned, or None for any other address."""
         mm = self.emu.get_address_map(addr)
         if not mm or mm.free or mm.base != addr or not (mm.tag or "").startswith("api.heap"):
             return None
         return next((n for a, n, _ in reversed(self.emu.get_heap_allocs()) if a == addr), mm.size)
 
     def heap_free(self, addr):
-        """
-        Free a block that heap_alloc returned. Return False, and free nothing,
-        for any other address.
-        """
+        """Free a block that ``heap_alloc`` returned. Return False, and free nothing, for any other address."""
         if self.heap_size(addr) is None:
             return False
         self.emu.mem_free(addr)
@@ -323,9 +322,7 @@ class ApiHandler:
         return self.emu.mem_free(addr)
 
     def win_perms_to_emu_perms(self, win_perms):
-        """
-        Get the emulator permissions for a Windows page protection.
-        """
+        """Get the emulator permissions for a Windows page protection."""
         new = 0
         if win_perms & (PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE | PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_WRITECOPY):
             new = common.PERM_MEM_RWX
@@ -373,9 +370,7 @@ class ApiHandler:
         return name
 
     def read_res_identifier(self, emu, ctx, arg, cw, val):
-        """
-        Read a resource name or integer ID (MAKEINTRESOURCE) and show it as the display of ``arg``.
-        """
+        """Read a resource name or integer ID (MAKEINTRESOURCE) and show it as the display of ``arg``."""
         name = self.normalize_res_identifier(emu, cw, val)
         ctx.args[arg].display = name if isinstance(name, str) else hex(name)
         return name
@@ -440,7 +435,6 @@ class ApiHandler:
             profiler.record_process_event(run, pos, proc, event_type, kwargs)
 
     def get_max_int(self):
-        # Byte order is irrelevant here
         return int.from_bytes(b"\xff" * self.get_ptr_size(), "little")
 
     def mem_read(self, addr, size):
@@ -499,9 +493,8 @@ class ApiHandler:
         raise ApiEmuError(f"No encoding found for char width: {width}")
 
     def mem_write(self, addr, data):
-        # If the data being written to a shared memory mapping, update all mappings
-        # This will likely have to be made more robust to handle more complicated
-        # scenarios with varying file offsets
+        # Write the data to all views of a shared file mapping, at the same offset from the
+        # base of each view. This is wrong for views at different file offsets.
         mm = self.emu.get_address_map(addr)
         if mm and mm.shared:
             fm = self.emu.get_file_manager()
@@ -522,9 +515,7 @@ class ApiHandler:
         return int.from_bytes(self.mem_read(addr, self.ptr_size), "little")
 
     def write_dword(self, addr: int, value: int) -> None:
-        """
-        Write the low 32 bits of value. A negative value becomes its two's complement.
-        """
+        """Write the low 32 bits of ``value``. A negative value becomes its two's complement."""
         self.mem_write(addr, (value & 0xFFFFFFFF).to_bytes(4, "little"))
 
     def write_qword(self, addr: int, value: int) -> None:
@@ -553,26 +544,22 @@ class ApiHandler:
 
     def get_char_width(self, ctx):
         """
-        Based on the API name, determine the character width
-        being used by the function. An export without the A or W
-        suffix, such as lstrcpy, is ANSI.
+        Get the character width of the API from its name: 2 for a W suffix, else 1.
+
+        An export without the A or W suffix, such as lstrcpy, is ANSI.
         """
         if ctx.func_name.endswith("W"):
             return 2
         return 1
 
     def get_va_arg_count(self, fmt):
-        """
-        Get the number of pointer-sized argument slots that a printf format reads
-        """
+        """Get the number of pointer-sized argument slots that a printf format reads."""
         ptr_size = self.get_ptr_size()
         sizes = (size for spec in FORMAT_SPEC.finditer(fmt) for size in get_format_slot_sizes(spec, ptr_size))
         return sum(size // ptr_size for size in sizes)
 
     def va_args(self, va_list, num_args):
-        """
-        Get the variable argument list
-        """
+        """Read ``num_args`` pointer-sized values from ``va_list``."""
         args = []
         ptr = va_list
         ptrsize = self.get_ptr_size()
@@ -585,8 +572,13 @@ class ApiHandler:
 
     def setup_callback(self, func, args):
         """
-        For APIs that call functions, we will setup the stack to make this flow
-        naturally.
+        Call the guest function ``func`` with ``args`` from the current API handler.
+
+        If the API frame already has a guest call, add the call to the pending calls of
+        the frame. The API returns to its caller after the last call.
+
+        Raises:
+            ApiEmuError: if no API call is active.
         """
         run = self.emu.get_current_run()
 
@@ -601,10 +593,11 @@ class ApiHandler:
 
     def do_str_format(self, string, argv, wide=False):
         """
-        Format a string similar to msvcrt.printf. With ``wide``, %s and %S
-        follow the wide-character functions: %s is a wide string and %S is
-        an ANSI string, unless an h or l prefix gives the width. Missing
-        arguments read as 0.
+        Format a string as msvcrt printf does.
+
+        With ``wide``, %s and %S follow the wide-character functions: %s is a wide
+        string and %S is an ANSI string, unless an h or l prefix gives the width.
+        Missing arguments read as 0.
         """
         ptr_size = self.get_ptr_size()
         slots = list(argv)
