@@ -101,7 +101,7 @@ CALL_CONV_FASTCALL = 2
 CALL_CONV_FLOAT = 3
 VAR_ARGS = -1
 
-# Register string constants
+# Register names to register IDs
 REG_LOOKUP = {
     # x86 registers
     "eax": X86_REG_EAX,
