@@ -2276,7 +2276,7 @@
             }
           ],
           "default": null,
-          "description": "Names of the disposition flags of the call.",
+          "description": "Disposition of the call, ``REG_CREATED_NEW_KEY`` or ``REG_OPENED_EXISTING_KEY``. Absent when the create fails.",
           "title": "Open Flags"
         },
         "access_flags": {
@@ -2292,7 +2292,7 @@
             }
           ],
           "default": null,
-          "description": "Names of the access rights that the caller asks for.",
+          "description": "Names of the access rights that the caller asks for, such as ``KEY_READ``.",
           "title": "Access Flags"
         }
       },
@@ -2489,7 +2489,7 @@
             }
           ],
           "default": null,
-          "description": "Names of the open flags of the call.",
+          "description": "Names of the open flags of the call. Speakeasy does not set it.",
           "title": "Open Flags"
         },
         "access_flags": {
@@ -2505,7 +2505,7 @@
             }
           ],
           "default": null,
-          "description": "Names of the access rights that the caller asks for.",
+          "description": "Names of the access rights that the caller asks for, such as ``KEY_READ``.",
           "title": "Access Flags"
         }
       },

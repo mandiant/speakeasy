@@ -10,6 +10,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 
 from speakeasy import Speakeasy
+from speakeasy.profiler_events import RegCreateKeyEvent, RegOpenKeyEvent
 from speakeasy.windows.cryptman import CryptContext
 from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.objman import HandleAllocator
@@ -1028,3 +1029,31 @@ def test_reg_open_key_ignores_a_trailing_backslash(dll_emu: Speakeasy, api: str,
     expected = _open_key(dll_emu, api, hkey, alloc(dll_emu, b"Software\\Foo\\Bar\x00"))
     assert expected[0] == windefs.ERROR_SUCCESS
     assert _open_key(dll_emu, api, hkey, alloc(dll_emu, b"Software\\Foo\\Bar\\\x00")) == expected
+
+
+def test_reg_create_key_ex_and_reg_open_key_ex_record_the_disposition_and_access(dll_emu: Speakeasy) -> None:
+    se = dll_emu
+    run = se.emu.curr_run
+    assert run is not None
+    subkey = alloc(se, b"Software\\Contoso\x00")
+
+    def create(sam: int) -> int:
+        phk = alloc(se, b"\x00" * 4)
+        disp = alloc(se, b"\x00" * 4)
+        rv, _ = call(se, "advapi32", "RegCreateKeyExA", [HKEY_CURRENT_USER, subkey, 0, 0, 0, sam, 0, phk, disp])
+        assert rv == windefs.ERROR_SUCCESS
+        return _dword(se, disp)
+
+    assert create(0xF003F) == 1
+    assert create(0x20019) == 2
+    phk = alloc(se, b"\x00" * 4)
+    rv, _ = call(se, "advapi32", "RegOpenKeyExA", [HKEY_CURRENT_USER, subkey, 0, 0x2, phk])
+    assert rv == windefs.ERROR_SUCCESS
+
+    creates = [e for e in run.events if isinstance(e, RegCreateKeyEvent)]
+    assert [(e.open_flags, e.access_flags) for e in creates] == [
+        (["REG_CREATED_NEW_KEY"], ["KEY_ALL_ACCESS"]),
+        (["REG_OPENED_EXISTING_KEY"], ["KEY_READ"]),
+    ]
+    opens = [e for e in run.events if isinstance(e, RegOpenKeyEvent)]
+    assert [(e.open_flags, e.access_flags) for e in opens] == [(None, ["KEY_SET_VALUE"])]

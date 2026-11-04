@@ -306,7 +306,6 @@ Each event has `pos`, the position of the thread that did the operation, so the 
           "event": "reg_open_key",
           "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft",
           "handle": "0x88",
-          "open_flags": ["REG_OPTION_NON_VOLATILE"],
           "access_flags": ["KEY_READ"]
         },
         {
@@ -314,7 +313,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
           "event": "reg_create_key",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
-          "open_flags": ["REG_OPTION_NON_VOLATILE"],
+          "open_flags": ["REG_CREATED_NEW_KEY"],
           "access_flags": ["KEY_WRITE"]
         },
         {

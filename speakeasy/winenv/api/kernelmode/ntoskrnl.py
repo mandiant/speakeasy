@@ -2740,7 +2740,7 @@ class Ntoskrnl(api.ApiHandler):
 
         ctx.args["ObjectAttributes"].display = name
 
-        hnd = self.reg_open_key(name, create=False)
+        hnd = self.reg_open_key(name, create=False, access=DesiredAccess)
         if not hnd:
             return ddk.STATUS_OBJECT_NAME_NOT_FOUND
 
@@ -2840,7 +2840,8 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args["ObjectAttributes"].display = path
 
         existing = emu.reg_get_key(path=path)
-        hnd = self.reg_open_key(path, create=True)
+        disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
+        hnd = self.reg_open_key(path, create=True, disposition=disp, access=DesiredAccess)
         key = self.get_reg_key(hnd)
         if not hnd or not key:
             return ddk.STATUS_OBJECT_NAME_NOT_FOUND
@@ -2848,7 +2849,6 @@ class Ntoskrnl(api.ApiHandler):
         if KeyHandle:
             self.write_ptr(KeyHandle, hnd)
         if Disposition:
-            disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
             self.write_dword(Disposition, disp)
 
         return ddk.STATUS_SUCCESS
