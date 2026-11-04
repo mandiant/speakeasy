@@ -2259,10 +2259,10 @@ class WindowsEmulator(BinaryEmulator):
                 return 0
             hooks = self.get_api_hooks(module.name, str(reference))
             eligible = allow_dynamic or self.config.modules.functions_always_exist or hooks
-            # Declared functions that the physical manifest lacks still resolve,
-            # because other Windows builds export them.
+            # A function in the signature database resolves even if the module does not
+            # export it, because other Windows builds export it.
             eligible = eligible or (isinstance(reference, str) and self.has_api_signature(module.name, reference))
-            # Empty placeholder modules deliberately offer dynamic-only functions.
+            # A synthetic module without exports gives a dynamic entry for each name.
             eligible = eligible or (module._image.source == "synthetic" and not module.get_exports())
             if not eligible or module._image.source != "synthetic" or module is getattr(self, "container_image", None):
                 return 0
@@ -2305,7 +2305,7 @@ class WindowsEmulator(BinaryEmulator):
         return entry.address
 
     def _get_export_directory(self, module):
-        """Read the export directory (RVA, size) from the mapped header, or None when it cannot be read."""
+        """Read the (RVA, size) of the export directory from the mapped header, or None if the read fails."""
         try:
             nt = module.base + struct.unpack("<I", self.mem_read(module.base + 0x3C, 4))[0]
             magic = struct.unpack("<H", self.mem_read(nt + 0x18, 2))[0]
@@ -2331,7 +2331,7 @@ class WindowsEmulator(BinaryEmulator):
         return hosts[0]
 
     def get_proc(self, mod_name, func_name):
-        """Resolve an explicit import request to stable mapped code or storage."""
+        """Get the address of func_name in the module that implements mod_name. Load the module if it is not loaded."""
         host = self.get_import_host(mod_name, func_name)
         module = self.get_mod_by_name(host)
         if module is None:
@@ -2716,7 +2716,7 @@ class WindowsEmulator(BinaryEmulator):
         return f"{arg.name}: {text}" if arg.name is not None else text
 
     def log_api(self, pc: int, imp_api: str, rv: int | None, args: list[ApiArg], *, run=None) -> None:
-        """Log an API call and record it with the profiler."""
+        """Log an API call and record it in the report."""
         call_str = f"{imp_api}({', '.join(self.format_api_arg(arg) for arg in args)})"
 
         rv = self.get_machine_word(rv)
@@ -2747,7 +2747,12 @@ class WindowsEmulator(BinaryEmulator):
         return sigdb.ARCH_X86 if self.get_arch() == _arch.ARCH_X86 else sigdb.ARCH_X64
 
     def _lookup_api_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
-        """Find the authoritative declaration without choosing an execution ABI."""
+        """
+        Get the declaration of dll!name, also a declaration that lookup_api_signature rejects.
+
+        Raises:
+            WindowsEmuError: if the signature database fails.
+        """
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         try:
@@ -2763,7 +2768,7 @@ class WindowsEmulator(BinaryEmulator):
         return sig
 
     def _lookup_api_set_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
-        """Find a declaration that win32metadata files under an API set that maps to ``dll``."""
+        """Get a declaration that the signature database has under an API set whose host is ``dll``."""
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         sig = db.lookup(dll, name, arch)
@@ -2781,8 +2786,8 @@ class WindowsEmulator(BinaryEmulator):
         return sig
 
     def _can_stub_unknown_api(self, dll: str, name: str) -> bool:
-        # A known unsupported declaration is not unknown and still requires a
-        # handler.
+        # A function with a declaration that the emulator cannot use is not
+        # unknown, so it does not get a stub.
         return self.config.modules.functions_always_exist and self._lookup_api_declaration(dll, name) is None
 
     def has_api_signature(self, dll: str, name: str) -> bool:
@@ -2790,10 +2795,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_handler_signature(self, dll: str, name: str, argc: int) -> sigdb.FuncSig | None:
         """
-        Find the signature that names the arguments of a call served by a handler.
+        Get the signature that names the arguments of a call to a handler.
 
-        Returns None when the function is unknown, variadic, or its declaration does not consume exactly the ``argc``
-        slots the handler reads.
+        Return None if the function is unknown or variadic, or if its declaration does not use exactly the ``argc``
+        slots that the handler reads.
         """
         try:
             sig = self.get_signature_db().lookup(dll, name, self._get_signature_arch())
@@ -2806,7 +2811,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_signature_formatter(self) -> sigfmt.ArgFormatter:
         """
-        Get the formatter that renders arguments of signature-emulated calls for the API trace.
+        Get the formatter that renders API arguments from their signatures for the report.
 
         The formatter renders strings, enums, flags and struct contents.
         """
@@ -2831,7 +2836,7 @@ class WindowsEmulator(BinaryEmulator):
         values = sig.values_from_slots(argv, self.get_ptr_size())
         return [self._render_signature_arg(param, value, i) for i, (param, value) in enumerate(zip(sig.params, values))]
 
-    # Upper bound on how much memory a single Out parameter is zero-filled with
+    # The maximum number of bytes that the emulator zeroes for one Out parameter
     MAX_OUT_ZERO_FILL = 0x10000
 
     def _read_uint_for_signature(self, addr: int, size: int) -> int | None:
@@ -2842,10 +2847,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def _zero_fill_out_params(self, sig: sigdb.FuncSig, values: list[int], ptr_size: int) -> None:
         """
-        Give Out-only pointer parameters deterministic contents.
+        Zero the buffers of the Out parameters that are not also In parameters.
 
-        A call we only know the signature of reports success without producing any data, so the memory the caller
-        reads back is zeroed (empty strings, NULL handles, zero counts) rather than left as uninitialized stack.
+        A call from a signature returns success but writes no data. So the caller reads zeros, such as empty strings,
+        NULL handles and zero counts, and not old stack data.
         """
         db = self.get_signature_db()
         for index, (param, value) in enumerate(zip(sig.params, values)):
@@ -2863,7 +2868,7 @@ class WindowsEmulator(BinaryEmulator):
                 )
 
     def _default_return_for_signature(self, sig: sigdb.FuncSig) -> int | None:
-        """Pick a plausible "success" return value for a call we only know the signature of."""
+        """Get a success value for the return type of a call from a signature."""
         kind = sig.ret_kind
         if kind == "v":
             return None
@@ -2873,16 +2878,16 @@ class WindowsEmulator(BinaryEmulator):
             if self.om is not None:
                 return self.om.allocate_handle()
             return 4
-        # Status codes (HRESULT, NTSTATUS, WIN32_ERROR), counts and pointers all
-        # read as "nothing happened" at zero.
+        # For status codes (HRESULT, NTSTATUS, WIN32_ERROR), 0 is success. For
+        # counts and pointers, 0 means no data.
         return 0
 
     def _handle_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int) -> int | None:
         """
-        Emulate an import that has no handler using only its declared signature.
+        Run an API that has no handler from its signature.
 
-        Consume the right number of argument slots, log the call with decoded arguments, return a
-        type-appropriate success value and clean up the stack according to the calling convention.
+        Read the arguments, log the call, zero the Out buffers, and return a success value for the return type. Remove
+        the arguments from the stack as the calling convention requires.
         """
         imp_api = f"{dll}.{name}"
         ptr_size = self.get_ptr_size()
@@ -2978,7 +2983,7 @@ class WindowsEmulator(BinaryEmulator):
                 logger.error("API handler %s.%s changed SP without returning", dll, name)
                 self.end_run_on_fault()
         except uc.UcError as e:
-            # Reading the arguments or writing the results of the call touched unmapped memory
+            # The API code accessed unmapped memory when it read the arguments or wrote the results
             kind, address, access_type, _ = guest_callbacks.get_handler_fault(self, e, entry_pc)
             if access_type is None or self._should_stop_on_faults:
                 raise
@@ -3045,8 +3050,7 @@ class WindowsEmulator(BinaryEmulator):
         if hooks:
             hooked_func = MethodType(impl.func, impl.module)
             orig = lambda args: hooked_func(self, args, ctx)  # noqa
-            # Hooks execute in FIFO order (first registered, first called).
-            # All hooks run; the last hook's return value is used.
+            # All hooks run in the order of get_api_hooks. The return value of the last hook is the result.
             prev_ctx, self.api_ctx = self.api_ctx, ctx
             try:
                 for hook in hooks:
@@ -3058,8 +3062,7 @@ class WindowsEmulator(BinaryEmulator):
                 rv = self.api.call_api_func(impl.module, impl.func, argv, ctx=ctx)
             except Exception as e:
                 if self._should_stop_on_faults:
-                    # Let the outer GDB fault path expose the failed frame
-                    # before run cleanup and report signal termination.
+                    # _execute_runs reports the fault to the debugger before it ends the run.
                     raise
                 desc, address, access_type, message = guest_callbacks.get_handler_fault(self, e, self.get_pc())
                 if access_type and self._can_raise_api_fault():
@@ -3085,7 +3088,7 @@ class WindowsEmulator(BinaryEmulator):
         frame.result = rv
         mm = self.get_address_map(ret)
 
-        # Is this function being called from a dynamcially allocated memory segment?
+        # The return address is in memory that VirtualAlloc allocated.
         if mm and mm.tag and "virtualalloc" in mm.tag.lower():
             self._fire_dyn_code_hooks(ret)
 
@@ -3100,7 +3103,6 @@ class WindowsEmulator(BinaryEmulator):
         ):
             self.do_call_return(impl.argc, ret, rv, conv=impl.conv)
 
-        # Deferred lifecycle/SEH work is processed before guest execution resumes.
         if not self.is_run_complete:
             self.enable_deferred_work_hook()
         return True
@@ -3109,8 +3111,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Run the user hook of an API that has no handler.
 
-        The hook gives the argument count and the calling convention. Only the last hook that was added runs, because
-        the hooks can give different values.
+        The hook gives the argument count and the calling convention. The hooks can give different values, so only the
+        last hook from get_api_hooks runs.
         """
         if len(hooks) > 1:
             logger.warning(
@@ -3157,7 +3159,7 @@ class WindowsEmulator(BinaryEmulator):
         self.do_call_return(argc, call.return_address, 1, conv=conv)
 
     def _handle_unsupported_api(self, call: _ApiCallState) -> None:
-        """End the run with an unsupported_api error."""
+        """End the run with an ``unsupported_api`` error."""
         error = self.get_error_info(ErrorType.UNSUPPORTED_API, call.return_address, api_name=call.api_name)
         logger.error("Unsupported API: %s (ret: 0x%x)", call.api_name, call.return_address)
         self.log_api(call.call_pc, call.api_name, None, [], run=call.run)
@@ -3178,7 +3180,7 @@ class WindowsEmulator(BinaryEmulator):
             self.on_run_complete()
 
     def start_guest_callback(self, frame, function, args, sp=None):
-        """Enter a guest callback on the stack of its frame, or below sp."""
+        """Call function with args as a guest callback of frame, on the stack of frame or below sp."""
         if frame.saved_registers is None:
             registers = NONVOLATILE_AMD64 if self.get_arch() == _arch.ARCH_AMD64 else NONVOLATILE_X86
             frame.saved_registers = tuple((register, self.reg_read(register)) for register in registers)
@@ -3186,7 +3188,7 @@ class WindowsEmulator(BinaryEmulator):
         sp = frame.stack_pointer if sp is None else sp
         if self.ptr_size == 8:
             # Win64 callees expect RSP + 8 to be 16-byte aligned at entry, and
-            # each argument after the fourth occupies one 8-byte stack slot.
+            # each argument after the fourth uses one 8-byte stack slot.
             sp &= ~0xF
             if max(len(args) - 4, 0) % 2:
                 sp -= 8
@@ -3194,9 +3196,13 @@ class WindowsEmulator(BinaryEmulator):
         self.set_pc(function)
 
     def _continue_guest_callback(self):
-        """Resume a typed guest callback continuation outside Unicorn callbacks."""
+        """
+        Continue the API handler after one of its guest callbacks returned.
+
+        Resume the handler generator, start the next pending callback of the frame, or return from the API.
+        """
         run = self.get_current_run()
-        # Frames below the one returning were left without returning
+        # Drop the frames of nested callbacks that the guest left without a return
         while len(run.guest_callbacks) > 1 and run.guest_callbacks[-1].stack_pointer < self.get_stack_ptr():
             run.guest_callbacks.pop()
         frame = run.guest_callbacks[-1]
@@ -3231,12 +3237,12 @@ class WindowsEmulator(BinaryEmulator):
         self.module_loader.rollback_guest_load(frame)
 
     def restore_caller_registers(self, frame):
-        """Restore the nonvolatile registers the guest calls of frame may have changed, as Windows keeps them."""
+        """Restore the nonvolatile registers that the guest callbacks of frame can change. Windows keeps them."""
         for register, value in frame.saved_registers or ():
             self.reg_write(register, value)
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
-        """High level function used to catch all invalid memory accesses that occur during emulation."""
+        """Handle an access to unmapped memory, or an access that the page protection denies."""
         try:
             access = self.emu_eng.mem_access.get(access)
             logger.debug("mem_unmapped: access=%s addr=0x%x size=0x%x", access, address, size)
