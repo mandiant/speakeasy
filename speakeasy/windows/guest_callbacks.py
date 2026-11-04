@@ -1,30 +1,25 @@
 """
-Guest callbacks: Python code that calls guest functions and acts on their results.
+Guest callbacks: Python code that calls guest functions and uses their results.
 
-"Guest callback" means the emulator calling back into guest code, as opposed to
-the guest calling the emulator through an API. API handlers already do this
-with a fixed list of calls decided up front (GuestCallbackFrame.pending), e.g. to
-run a DllMain. This module adds code that decides what to call next from what
-the previous call returned, like the x64 exception dispatcher, which runs
-filters and handlers. That code runs for an API handler or, for a CPU
-exception, with no API involved at all; the name says what it does rather than
-who starts it.
+A guest callback is a call from the emulator into guest code. An API handler can
+give a fixed list of calls (``GuestCallbackFrame.pending``), for example to run a
+DllMain. A generator handler selects the next call from the result of the
+previous call, as the x64 exception dispatcher does when it runs filters and
+handlers. A generator handler runs for an API handler, or for a CPU exception
+without an API call.
 
-Such code is a generator handler: it yields a GuestCall for each guest function
-it calls, is sent that call's return value, and finally returns either a return
-value for the API that started it or a Resume to continue the guest at another
-context:
+A generator handler yields a ``GuestCall`` for each guest function that it calls,
+and gets the return value of that call. At the end, it returns the return value
+of the API that started it, or a ``Resume`` that continues the guest at a
+different context:
 
     def handler(emu, callback):
         result = yield GuestCall(callback, (1, 2))
         return result + 1
 
-Emulation is never nested: each guest call runs in the normal run loop on the
-stack of the handler's frame and returns to GUEST_CALLBACK_RETURN_ADDR, where the
-handler continues. The emulator only calls into this module where an API
-handler returns a generator (start_api_handler) or a Resume, such as NtContinue
-(transfer), where a guest call returns (resume), and to unwind through handler
-frames (unwind_frame).
+Emulation is never nested. Each guest call runs in the normal run loop, on the
+stack of the handler frame, and returns to ``GUEST_CALLBACK_RETURN_ADDR``. Then
+the handler continues.
 """
 
 from collections.abc import Generator
@@ -49,7 +44,7 @@ class GuestCall:
 
 @dataclass(frozen=True)
 class Resume:
-    """Continue the guest at a CONTEXT, abandoning the stack below it."""
+    """Continue the guest at a CONTEXT, and drop the guest callback frames at or below its stack pointer."""
 
     context: Any
 
@@ -58,7 +53,7 @@ GeneratorHandler = Generator[GuestCall, int, "int | Resume | None"]
 
 
 class CallbackError(Exception):
-    """A generator handler failure: the run ends with an error of type kind at address."""
+    """A generator handler failed. The run ends with an error of type ``kind`` at ``address``."""
 
     def __init__(
         self, kind: ErrorType, address: int, access_type: str | None = None, pc: int | None = None, **details: Any
@@ -95,9 +90,9 @@ def get_handler_fault(emu, error: Exception, pc: int) -> tuple[ErrorType, int, s
     """
     Get the error type, address, access type and message for an exception raised by an API handler.
 
-    A handler that reads or writes an invalid guest pointer fails like guest code does at the
-    first byte it cannot access. Unicorn reports the start of the whole access.
-    Any other exception is an internal_error, with the exception text as the message.
+    If a handler reads or writes an invalid guest pointer, the error address is the first byte
+    that the handler cannot access, as for guest code. Unicorn gives the start of the whole access.
+    Any other exception is an ``internal_error``, with the exception text as the message.
     """
     access = HANDLER_FAULT_ACCESS.get(error.errno) if isinstance(error, uc.UcError) else None
     if access is None or not error.args:
@@ -111,21 +106,26 @@ def get_handler_fault(emu, error: Exception, pc: int) -> tuple[ErrorType, int, s
 @dataclass
 class HandlerState:
     generator: GeneratorHandler
-    # Guest stack reserved below the frame for data the guest calls see
+    # Size of the guest stack below the frame that holds data for the guest calls
     scratch: int = 0
-    # CONTEXT64 of the guest state the handler interrupted, if it has no caller to return to
+    # Address of the CONTEXT of the guest state that the handler interrupted, if the handler has no caller
     context: int = 0
 
 
 def start(emu, frame: GuestCallbackFrame, generator: GeneratorHandler) -> None:
-    """Run a generator handler on frame up to its first guest call. A CallbackError of that first step propagates."""
+    """
+    Run a generator handler on ``frame`` up to its first guest call.
+
+    Raises:
+        CallbackError: if the handler fails before its first guest call.
+    """
     frame.handler = HandlerState(generator)
     emu.get_current_run().guest_callbacks.append(frame)
     _step(emu, frame, None)
 
 
 def start_api_handler(emu, frame: GuestCallbackFrame, generator: GeneratorHandler) -> int | None:
-    """Run the generator an API handler returned; return the API result if it already finished."""
+    """Run the generator that an API handler returned. Return the API result if the generator finished."""
     try:
         start(emu, frame, generator)
     except CallbackError as e:
@@ -142,7 +142,7 @@ def resume(emu, frame: GuestCallbackFrame) -> None:
 
 
 def fail(emu, e: CallbackError) -> None:
-    """End the run with the error e describes."""
+    """End the run with the error of ``e``."""
     run = emu.get_current_run()
     if e.pc is not None:
         emu.set_pc(e.pc)
@@ -187,10 +187,10 @@ def transfer(emu, context) -> None:
 
 def drop_abandoned(emu, sp: int) -> None:
     """
-    Drop the frames at or below sp, where the guest runs.
+    Drop the guest callback frames at or below ``sp``, where the guest continues.
 
-    The guest left their guest calls without returning, as a handler that continues in an __except block leaves the
-    dispatch of its exception.
+    The guest left the guest calls of these frames without a return, for example when a handler continues in an
+    ``__except`` block and leaves the dispatch of its exception.
     """
     callbacks = emu.get_current_run().guest_callbacks
     while callbacks and callbacks[-1].stack_pointer <= sp:
@@ -198,7 +198,7 @@ def drop_abandoned(emu, sp: int) -> None:
 
 
 def current(emu) -> HandlerState:
-    """The state of the running generator handler."""
+    """Get the state of the running generator handler."""
     state: HandlerState = emu.get_current_run().guest_callbacks[-1].handler
     return state
 
@@ -214,7 +214,7 @@ def alloca(emu, data: bytes) -> int:
 
 def caller_context(emu):
     """
-    Get the context of the caller of the API being handled.
+    Get the context of the caller of the current API call.
 
     The context is valid in a generator handler before its first guest call, while the registers are still the caller's.
     """
@@ -227,9 +227,10 @@ def caller_context(emu):
 
 
 def unwind_frame(emu, ctx) -> None:
-    """Unwind ctx, returning to GUEST_CALLBACK_RETURN_ADDR, to the guest state its handler frame interrupted."""
+    """Unwind ``ctx`` at ``GUEST_CALLBACK_RETURN_ADDR`` to the guest state that its frame interrupted."""
     frames = [f for f in emu.get_current_run().guest_callbacks if f.stack_pointer >= ctx.Rsp]
-    if not frames:  # the guest's own copy of the address, on a corrupt stack: the walk ends
+    # No frame has this return address, for example a guest copy on a corrupt stack. End the walk.
+    if not frames:
         ctx.Rip = 0
         return
     frame = min(frames, key=lambda f: f.stack_pointer)
