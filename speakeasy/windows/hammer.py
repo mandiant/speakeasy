@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# default list of APIs to always allow despite triggering API hammering detection
+# The mitigation does not patch calls to these APIs, unless the config gives its own allow list.
 _default_api_hammer_allowlist = [
     "kernel32.WriteProcessMemory",
     "kernel32.WriteFile",
@@ -29,9 +29,9 @@ def _lowercase_set(tt):
 
 class ApiHammer:
     """
-    Detect and attempt to mitigate API hammering.
+    Find API hammering and patch the call sites.
 
-    Malware samples use API hammering as part of anti-sandbox or anti-emulation.
+    Malware calls an API many times in a loop to use up the time of a sandbox or an emulator.
     """
 
     def __init__(self, emu):
@@ -59,21 +59,21 @@ class ApiHammer:
         return apiname.lower() in self.allow_list
 
     def handle_import_func(self, imp_api, conv, argc):
-        """Identifies possible API hammering and attempts to patch in mitigations."""
+        """
+        Count the calls to an API from one return address.
+
+        When the count gets to the threshold, patch the call site on x86, so that the call returns 0
+        without a call to the API.
+        """
         if not self.enabled:
-            # api hammering mitigation not enabled, so exit
             return
         if self.is_allowed_api(imp_api):
-            # this is an api that we always want to allow, don't bother trying to
-            # prevent api hammering
             return
         hammer_key = imp_api + f"{self.emu.get_ret_address():x}"
         self.api_stats[hammer_key] += 1
         if self.api_stats[hammer_key] < self.api_threshold:
             return
-        # TODO: better parameterize the checking & dispatch of the types of calls/jmps to imports
-        # so we can more easily loop through them & clean up the the logic below
-        # TODO: track patches in the hammer_memregion & reuse when possible
+        # TODO: reuse the stubs in hammer_memregion.
         if self.emu.get_arch() == e_arch.ARCH_X86:
             try:
                 eip = self.emu.get_ret_address() - 6
@@ -115,5 +115,5 @@ class ApiHammer:
                 return
 
         if self.emu.get_arch() == e_arch.ARCH_AMD64:
-            # TODO
+            # TODO: patch the call sites on x64.
             pass
