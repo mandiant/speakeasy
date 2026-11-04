@@ -148,11 +148,13 @@ def test_the_cli_reference_lists_each_flag_of_the_help():
         if line.startswith("  -"):
             invocation = re.split(r"\s{2,}", line.strip())[0]
             help_flags.update(LONG_FLAG.findall(invocation))
-    help_flags.discard("--help")
-
     sections = re.split(r"^#+ ", CLI_REFERENCE.read_text(), flags=re.MULTILINE)
-    flag_sections = [s for s in sections if s.startswith(("Runtime-only flags", "Current schema-derived flags"))]
-    doc_flags = set(LONG_FLAG.findall("".join(flag_sections)))
+    flag_sections = [s for s in sections if s.startswith(("Runtime-only flags", "Config flags"))]
+    doc_flags = set(LONG_FLAG.findall("".join(flag_sections))) - {"--help", "--no-"}
+
+    def without_negations(flags: set[str]) -> set[str]:
+        # The reference names each boolean flag once and says that it also has a --no- form.
+        return {f for f in flags if not (f.startswith("--no-") and "--" + f[len("--no-") :] in flags)}
 
     assert len(flag_sections) == 2
-    assert doc_flags == help_flags
+    assert without_negations(doc_flags) == without_negations(help_flags - {"--help"})
