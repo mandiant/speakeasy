@@ -261,16 +261,14 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
 
 def main():
     parser = argparse.ArgumentParser(description="Emulate a Windows binary with speakeasy", allow_abbrev=False)
-    parser.add_argument(
-        "-t", "--target", action="store", dest="target", required=False, help="Path to input file to emulate"
-    )
+    parser.add_argument("-t", "--target", action="store", dest="target", required=False, help="Path of the input file")
     parser.add_argument(
         "-o",
         "--output",
         action="store",
         dest="output",
         required=False,
-        help="Path to output file to save report (default: write the report to stdout)",
+        help="Path of the report file (default: write the report to stdout)",
     )
     parser.add_argument(
         "--argv",
@@ -278,25 +276,25 @@ def main():
         default="",
         dest="argv",
         required=False,
-        help="Commandline parameters to supply to emulated process, as a quoted string "
+        help="Command line arguments of the emulated process, as one quoted string "
         "(e.g. --argv=\"-log -path 'C:\\\\path with spaces\\\\'\")",
     )
     parser.add_argument(
-        "-c", "--config", action="store", dest="config", required=False, help="Path to emulator config file"
+        "-c", "--config", action="store", dest="config", required=False, help="Path of a JSON config file"
     )
     parser.add_argument(
         "--dump-default-config",
         action="store_true",
         dest="dump_default_config",
         required=False,
-        help="Print built-in default config JSON and exit",
+        help="Print the default config as JSON and exit",
     )
     parser.add_argument(
         "--raw",
         action="store_true",
         dest="do_raw",
         required=False,
-        help="Attempt to emulate file as-is with no parsing (e.g. shellcode)",
+        help="Emulate the input as shellcode, without PE parsing",
     )
     parser.add_argument(
         "--raw-offset",
@@ -304,7 +302,7 @@ def main():
         default=0,
         required=False,
         dest="raw_offset",
-        help="When in raw mode, offset to start emulating: decimal, or hex with 0x",
+        help="Offset in the shellcode at which emulation starts: decimal, or hex with 0x",
     )
     parser.add_argument(
         "--entry-point",
@@ -312,8 +310,8 @@ def main():
         default=None,
         required=False,
         dest="entry_point",
-        help="RVA to use as entry point instead of the PE's default: decimal, or hex with 0x. "
-        "Only applies to PE modules, not raw/shellcode.",
+        help="RVA at which emulation starts, in place of the entry point of the PE: decimal, or hex with 0x. "
+        "Applies only to PE input.",
     )
     parser.add_argument(
         "--arch",
@@ -322,14 +320,14 @@ def main():
         type=str.lower,
         choices=["x86", "x64", "amd64"],
         required=False,
-        help="Architecture of the shellcode. Required with --raw, and only applies to raw mode.",
+        help="Architecture of the shellcode. Required with --raw.",
     )
     parser.add_argument(
         "--dropped-files-path",
         action="store",
         dest="dropped_files_path",
         required=False,
-        help="Path to store files created during emulation",
+        help="Path of a zip archive for the files that the sample writes, with a speakeasy_manifest.json",
     )
     parser.add_argument(
         "-k",
@@ -337,14 +335,14 @@ def main():
         action="store_true",
         dest="emulate_children",
         required=False,
-        help="Emulate any processes created with CreateProcess APIs after the input file finishes emulating",
+        help="After the PE input finishes, emulate the processes that the input creates",
     )
     parser.add_argument(
         "--no-mp",
         action="store_true",
         dest="no_mp",
         required=False,
-        help="Run emulation in the current process instead of a child process",
+        help="Run the emulation in the current process, in place of a child process",
     )
     parser.add_argument(
         "-v",
@@ -359,7 +357,7 @@ def main():
         action="store_true",
         dest="gdb",
         required=False,
-        help="Enable GDB server stub (pauses before first instruction)",
+        help="Start a GDB server and wait for a client before the first instruction. Implies --no-mp.",
     )
     parser.add_argument(
         "--gdb-host",
@@ -367,7 +365,7 @@ def main():
         dest="gdb_host",
         default="127.0.0.1",
         required=False,
-        help="GDB server bind host (default: 127.0.0.1)",
+        help="Address on which the GDB server listens (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--gdb-port",
@@ -376,7 +374,7 @@ def main():
         type=int,
         default=1234,
         required=False,
-        help="GDB server port (default: 1234)",
+        help="Port on which the GDB server listens (default: 1234)",
     )
     parser.add_argument(
         "-V",
@@ -384,7 +382,7 @@ def main():
         action="append",
         dest="volumes",
         default=[],
-        help="Mount a host path into the emulated filesystem (host_path:guest_path). May be repeated.",
+        help="Map a host path into the emulated file system (host_path:guest_path). Can be given more than once.",
     )
     parser.add_argument("--version", action="version", version=f"speakeasy {__version__}")
 
