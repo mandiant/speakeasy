@@ -155,23 +155,23 @@
     },
     "DataArtifact": {
       "additionalProperties": false,
-      "description": "Stores one deduplicated binary payload referenced elsewhere in a report.\n\nPayloads are keyed by SHA-256 in the top-level ``Report.data`` mapping.\nOther models store the SHA-256 key as a reference instead of embedding bytes\ninline repeatedly.",
+      "description": "One payload of the report.\n\nThe top-level ``data`` of the report keys each payload by the SHA-256 of its bytes. A ``data_ref``\nfield elsewhere in the report holds such a key.",
       "properties": {
         "compression": {
           "$ref": "#/$defs/ArtifactCompression",
-          "description": "Compression algorithm applied to the stored payload."
+          "description": "Compression of the payload."
         },
         "encoding": {
           "$ref": "#/$defs/ArtifactEncoding",
-          "description": "Text encoding used for serialized payload bytes."
+          "description": "Text encoding of the compressed payload."
         },
         "size": {
-          "description": "Uncompressed payload size in bytes.",
+          "description": "Size of the payload before compression, in bytes.",
           "title": "Size",
           "type": "integer"
         },
         "data": {
-          "description": "Encoded payload bytes after compression and serialization.",
+          "description": "Payload, compressed and then encoded.",
           "title": "Data",
           "type": "string"
         }
@@ -243,20 +243,20 @@
     },
     "DroppedFile": {
       "additionalProperties": false,
-      "description": "Represents one file artifact written by emulated execution.\n\nDropped-file entries are created from filesystem manager state when a run\ncompletes and fully written files are detected.\n\nUse these records to recover secondary payloads and configuration artifacts.",
+      "description": "A file that the guest wrote completely, up to the end of the run.",
       "properties": {
         "path": {
-          "description": "Emulated destination path of the written file.\n\nInterpret this as the malware-intended filesystem location.",
+          "description": "Emulated path of the file.",
           "title": "Path",
           "type": "string"
         },
         "size": {
-          "description": "Dropped file size in bytes.",
+          "description": "Size of the file in bytes.",
           "title": "Size",
           "type": "integer"
         },
         "sha256": {
-          "description": "SHA-256 hash of the dropped file bytes.\n\nUse this for sample correlation and deduplication workflows.",
+          "description": "SHA-256 of the file data.",
           "title": "Sha256",
           "type": "string"
         },
@@ -270,7 +270,7 @@
             }
           ],
           "default": null,
-          "description": "Optional reference into the top-level report ``data`` store.\n\nWhen present, resolve this SHA-256 key in ``Report.data`` to recover the compressed file bytes.",
+          "description": "Key in the top-level ``data`` of the file data. Absent for a file above MAX_EMBEDDED_FILE_SIZE.",
           "title": "Data Ref"
         }
       },
@@ -284,21 +284,21 @@
     },
     "DynamicCodeSegment": {
       "additionalProperties": false,
-      "description": "Describes one dynamically generated code region that executed.\n\nDynamic code segments are added when execution reaches memory previously\nregistered as dynamic code (for example after VirtualAlloc/WriteProcessMemory\nstyle paths).\n\nThis section is useful for unpacking and staged payload detection.",
+      "description": "A dynamic code region where code ran.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region.",
       "properties": {
         "tag": {
-          "description": "Memory-map tag assigned to the dynamic region.\n\nTags help correlate the segment with allocation provenance in traces.",
+          "description": "Tag of the memory region.",
           "title": "Tag",
           "type": "string"
         },
         "base": {
-          "description": "Base address of the dynamic code region.\n\nUse this with memory layout data to inspect surrounding mapped content.",
+          "description": "Base address of the region.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Region size of the dynamic code segment.\n\nLarge regions may indicate unpacked module images or staged blobs.",
+          "description": "Size of the region in bytes.",
           "title": "Size",
           "type": "integer"
         }
@@ -313,11 +313,11 @@
     },
     "EntryPoint": {
       "additionalProperties": false,
-      "description": "Represents one emulation execution primitive captured as a run.\n\nA run may be a module entry point, callback, exported function, injected\nthread, or other execution start context.\n\nMost behavioral telemetry is attached at this level, so treat each entry as\na self-contained execution narrative.",
+      "description": "One run, and the events and data that the run collected.\n\nA run starts at one address, such as the module entry point, an export, a TLS callback or a\nthread.",
       "properties": {
         "type": {
           "$ref": "#/$defs/EntryPointType",
-          "description": "Kind of code that this run executes.\n\nExamples include the module entry point, an export, a TLS callback, and a thread."
+          "description": "Kind of code that the run executes, such as ``module_entry``, ``export`` or ``thread``."
         },
         "name": {
           "anyOf": [
@@ -329,17 +329,17 @@
             }
           ],
           "default": null,
-          "description": "Detail for ``type``, or null when the type has no detail.\n\nFor example the export name, the TLS callback index, the dependency module, or the IRP major function.",
+          "description": "Detail for ``type``, such as the export name, the TLS callback index, the dependency module or the IRP major function. Absent when the type has no detail.",
           "title": "Name"
         },
         "start_address": {
-          "description": "Address where this run began executing.\n\nUse this as the anchor when following control flow in disassembly.",
+          "description": "Address where the run started.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Start Address",
           "type": "string"
         },
         "args": {
-          "description": "Argument values supplied at run entry.",
+          "description": "Arguments that the emulator gives to the code at ``start_address``.",
           "items": {
             "pattern": "^0x[0-9a-f]+$",
             "type": "string"
@@ -357,7 +357,7 @@
             }
           ],
           "default": null,
-          "description": "Process identifier associated with the run context.\n\nPopulated when process context is known for this entry point.",
+          "description": "ID of the process of the run.",
           "title": "Pid"
         },
         "tid": {
@@ -370,7 +370,7 @@
             }
           ],
           "default": null,
-          "description": "Thread identifier associated with the run context.\n\nUseful for correlating with per-event ``pos.tid`` values.",
+          "description": "ID of the thread of the run.",
           "title": "Tid"
         },
         "instruction_count": {
@@ -383,12 +383,12 @@
             }
           ],
           "default": null,
-          "description": "Instruction count executed for this run.\n\nCan be limited by configuration caps or early termination conditions.",
+          "description": "Number of instructions that the run executed. Absent when the run executed none.",
           "title": "Instruction Count"
         },
         "api_hash": {
           "default": "",
-          "description": "SHA-256 hash over unique API names invoked in first-seen order.\n\nUse this for coarse behavioral clustering across samples and architectures.",
+          "description": "SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.",
           "title": "Api Hash",
           "type": "string"
         },
@@ -403,7 +403,7 @@
             }
           ],
           "default": null,
-          "description": "Return value produced when the run ended normally.\n\nInterpret this in the calling convention context of ``type``.",
+          "description": "Value of the return register when the run completed.",
           "title": "Return Value"
         },
         "error": {
@@ -416,10 +416,10 @@
             }
           ],
           "default": null,
-          "description": "Run-local error details when execution did not complete cleanly.\n\nConsult this with ``events`` to identify the exact failure transition."
+          "description": "Error that ended the run. Absent when the run completed."
         },
         "events": {
-          "description": "Chronological event stream emitted during this run.\n\nEvent contents are produced by API, process, file, registry, network, and exception recorders.",
+          "description": "Events of the run, in order.",
           "items": {
             "discriminator": {
               "mapping": {
@@ -557,11 +557,11 @@
             }
           ],
           "default": null,
-          "description": "Symbol-level access counters observed during tracing.\n\nPresent only when memory tracing is enabled in config.",
+          "description": "Access counts of each API symbol. Only with ``analysis.memory_tracing``.",
           "title": "Symbol Accesses"
         },
         "dynamic_code_segments": {
-          "description": "Dynamically generated code regions that executed in this run.\n\nIndicates unpacking, JIT-like behavior, or in-memory staging activity.",
+          "description": "Dynamic code regions where code ran in the run.",
           "items": {
             "$ref": "#/$defs/DynamicCodeSegment"
           },
@@ -582,11 +582,11 @@
             }
           ],
           "default": null,
-          "description": "Sorted list of executed instruction addresses for coverage analysis.\n\nPresent only when coverage collection is enabled in config.",
+          "description": "Sorted addresses of the instructions that ran. Only with ``analysis.coverage``.",
           "title": "Coverage"
         },
         "dropped_files": {
-          "description": "File artifacts detected as fully written during the run.\n\nUse this list to extract secondary payloads and logs.",
+          "description": "Files that the guest wrote completely, up to the end of the run.",
           "items": {
             "$ref": "#/$defs/DroppedFile"
           },
@@ -603,7 +603,7 @@
             }
           ],
           "default": null,
-          "description": "Optional memory and module snapshot captured at run completion.\n\nPopulate this when memory-layout capture is active for the emulator mode."
+          "description": "Memory regions and modules at the end of the run. User mode only."
         }
       },
       "required": [
@@ -637,11 +637,11 @@
     },
     "ErrorInfo": {
       "additionalProperties": false,
-      "description": "Captures failure context for top-level or per-entry-point errors.\n\nError records can represent unsupported API termination, instruction faults,\nexplicit runtime limits, or unhandled exceptions.\n\nInspect this structure first when a run exits unexpectedly.",
+      "description": "Why a run, or the emulation, ended with an error.\n\nThe emulator fills only the fields that apply to the error ``type``.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ErrorType",
-          "description": "Error category identifier describing the failure mode.\n\nExamples include unsupported API paths, max API limits, and fault conditions raised by emulator hooks. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
+          "description": "Kind of error, such as ``unsupported_api``, ``max_api_count`` or ``invalid_read``. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
         },
         "pc": {
           "anyOf": [
@@ -654,7 +654,7 @@
             }
           ],
           "default": null,
-          "description": "Program counter associated with the error, when available.\n\nUse this address to align failures with disassembly and event traces.",
+          "description": "Address of the instruction that caused the error. For ``unsupported_api``, the return address.",
           "title": "Pc"
         },
         "instruction": {
@@ -667,7 +667,7 @@
             }
           ],
           "default": null,
-          "description": "Faulting instruction text, when known.\n\nUseful for quickly identifying invalid memory operations or bad control flow transitions.",
+          "description": "Disassembly of the instruction at ``pc``.",
           "title": "Instruction"
         },
         "address": {
@@ -681,7 +681,7 @@
             }
           ],
           "default": null,
-          "description": "Faulting memory address that triggered the error.",
+          "description": "Memory address that the faulting access used.",
           "title": "Address"
         },
         "access_type": {
@@ -694,7 +694,7 @@
             }
           ],
           "default": null,
-          "description": "Memory access type that faulted: read, write, or fetch."
+          "description": "Kind of the faulting access: read, write or fetch."
         },
         "registers": {
           "anyOf": [
@@ -710,7 +710,7 @@
             }
           ],
           "default": null,
-          "description": "Register state snapshot at the time of the error.",
+          "description": "Register values at the time of the error.",
           "title": "Registers"
         },
         "stack": {
@@ -765,7 +765,7 @@
             }
           ],
           "default": null,
-          "description": "Memory region containing the faulting address, if mapped."
+          "description": "Memory region that contains ``address``. Absent when ``address`` is not mapped."
         },
         "nearby_regions": {
           "anyOf": [
@@ -780,7 +780,7 @@
             }
           ],
           "default": null,
-          "description": "Up to 2 nearest memory regions when the faulting address is unmapped.",
+          "description": "The memory regions nearest to ``address`` when ``address`` is not mapped.",
           "title": "Nearby Regions"
         },
         "tid": {
@@ -819,7 +819,7 @@
             }
           ],
           "default": null,
-          "description": "Human-readable one-line triage summary of the error.",
+          "description": "One line of text that tells what went wrong.",
           "title": "Context Summary"
         },
         "traceback": {
@@ -832,7 +832,7 @@
             }
           ],
           "default": null,
-          "description": "Python traceback when the error originated from an internal exception.",
+          "description": "Python traceback of an ``internal_error``.",
           "title": "Traceback"
         },
         "message": {
@@ -858,7 +858,7 @@
             }
           ],
           "default": null,
-          "description": "API function name for unsupported-API errors.",
+          "description": "Name of the API that has no handler, for ``unsupported_api``.",
           "title": "Api Name"
         },
         "count": {
@@ -871,7 +871,7 @@
             }
           ],
           "default": null,
-          "description": "API call count that triggered a max-API-count limit.",
+          "description": "Limit that ended the run: ``max_api_calls`` of the config for ``max_api_count``, or the instruction limit for ``max_instructions``.",
           "title": "Count"
         },
         "last_api": {
@@ -884,7 +884,7 @@
             }
           ],
           "default": null,
-          "description": "Last API name invoked before max-API-count termination.",
+          "description": "Name of the API call that went above the limit, for ``max_api_count``.",
           "title": "Last Api"
         },
         "interrupt_num": {
@@ -897,7 +897,7 @@
             }
           ],
           "default": null,
-          "description": "Interrupt number for unhandled-interrupt errors.",
+          "description": "Interrupt number, for ``unhandled_interrupt``.",
           "title": "Interrupt Num"
         }
       },
@@ -1398,31 +1398,31 @@
     },
     "LoadedModule": {
       "additionalProperties": false,
-      "description": "Captures one module visible in the run's loaded-module inventory.\n\nModule entries are assembled from runtime module objects at run completion.\n\nThis section provides a concise map of what binaries were present and where.",
+      "description": "A module that is loaded at the end of a run.",
       "properties": {
         "name": {
-          "description": "Module file name or canonical module identifier.\n\nUse this to correlate module events and API import usage.",
+          "description": "Name of the module.",
           "title": "Name",
           "type": "string"
         },
         "path": {
-          "description": "Emulated module path.\n\nUseful for distinguishing system modules from payload modules.",
+          "description": "Emulated path of the module.",
           "title": "Path",
           "type": "string"
         },
         "base": {
-          "description": "Module base address in virtual memory.\n\nUse this as the relocation anchor for offsets and symbol lookups.",
+          "description": "Base address of the module.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Total mapped module size in bytes.\n\nHelps identify unusually large or tiny mapped images.",
+          "description": "Size of the module image in bytes.",
           "title": "Size",
           "type": "integer"
         },
         "segments": {
-          "description": "Section/segment breakdown for the module mapping.\n\nUse these entries for section-aware interpretation of memory behavior.",
+          "description": "Sections of the module.",
           "items": {
             "$ref": "#/$defs/ModuleSegment"
           },
@@ -1769,20 +1769,20 @@
     },
     "MemoryAccesses": {
       "additionalProperties": false,
-      "description": "Aggregates read/write/execute counters for one memory region.\n\nThese counters are produced by runtime memory tracing hooks when enabled.\n\nUse them to prioritize regions with meaningful behavioral activity.",
+      "description": "Read, write and execute counts of one memory region, from memory tracing.",
       "properties": {
         "reads": {
-          "description": "Total read operations observed for the region.\n\nHigh read density often indicates lookup tables or parsed structures.",
+          "description": "Number of reads in the region.",
           "title": "Reads",
           "type": "integer"
         },
         "writes": {
-          "description": "Total write operations observed for the region.\n\nHigh write density often indicates decoded payload construction.",
+          "description": "Number of writes in the region.",
           "title": "Writes",
           "type": "integer"
         },
         "execs": {
-          "description": "Total execute operations observed for the region.\n\nNon-zero execution marks code-bearing pages and trampoline regions.",
+          "description": "Number of instructions that ran in the region.",
           "title": "Execs",
           "type": "integer"
         }
@@ -1797,10 +1797,10 @@
     },
     "MemoryLayout": {
       "additionalProperties": false,
-      "description": "Bundles memory-region and loaded-module snapshots for one run.\n\nThis object is populated when the emulator captures run-end memory state.\n\nUse it to understand both raw mappings and higher-level module context.",
+      "description": "Memory regions and loaded modules at the end of a run.",
       "properties": {
         "layout": {
-          "description": "Flat list of captured memory regions for the run.\n\nEntries may include module headers/sections and generic maps.",
+          "description": "Memory regions, with one region for the headers and one for each section of a module.",
           "items": {
             "$ref": "#/$defs/MemoryRegion"
           },
@@ -1808,7 +1808,7 @@
           "type": "array"
         },
         "modules": {
-          "description": "Loaded modules present when the run completed.\n\nUse alongside ``layout`` to interpret address ownership and segment roles.",
+          "description": "Modules that are loaded at the end of the run.",
           "items": {
             "$ref": "#/$defs/LoadedModule"
           },
@@ -1821,32 +1821,32 @@
     },
     "MemoryRegion": {
       "additionalProperties": false,
-      "description": "Represents one memory layout entry captured for an entry point.\n\nMemory layout capture runs at run completion and may include section-split\nmodule regions plus generic heap/stack mappings.\n\nUse this data to correlate execution artifacts with mapped memory topology.",
+      "description": "One memory region at the end of a run.\n\nThe emulator splits the image of a module into one region for the headers and one region\nfor each section.",
       "properties": {
         "tag": {
-          "description": "Region tag assigned by the memory manager.\n\nTags encode provenance such as module sections, heaps, or emulator internal structures.",
+          "description": "Tag of the region. The tag of a module region starts with ``emu.module.``.",
           "title": "Tag",
           "type": "string"
         },
         "base": {
-          "description": "Base address of the memory region.\n\nTreat this as the start of the region for disassembly and dump slicing.",
+          "description": "Base address of the region.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Region size in bytes.\n\nCombine with ``base`` to derive half-open address ranges.",
+          "description": "Size of the region in bytes.",
           "title": "Size",
           "type": "integer"
         },
         "perms": {
-          "description": "Permission string (for example ``r-x`` or ``rw-``).\n\nInterpret this as the final effective page protection at capture time.",
+          "description": "Permissions at the end of the run, such as ``r-x`` or ``rw-``.",
           "title": "Perms",
           "type": "string"
         },
         "is_free": {
           "default": false,
-          "description": "Whether the region had been freed at capture time.\n\nFreed regions can remain visible when memory retention settings keep old maps for analysis.",
+          "description": "If true, the guest freed the region. Only ``keep_memory_on_free`` keeps a freed region.",
           "title": "Is Free",
           "type": "boolean"
         },
@@ -1860,7 +1860,7 @@
             }
           ],
           "default": null,
-          "description": "Optional read/write/execute counters for the region.\n\nPopulated primarily when memory tracing was enabled for the run."
+          "description": "Access counts of the region. Absent when memory tracing is off or the run did not use the region."
         },
         "data_ref": {
           "anyOf": [
@@ -1872,7 +1872,7 @@
             }
           ],
           "default": null,
-          "description": "Optional reference into the top-level report ``data`` store.\n\nWhen present, resolve this SHA-256 key in ``Report.data`` to recover the compressed region bytes.",
+          "description": "Key in the top-level ``data`` of the region data. Only with ``snapshot_memory_regions``, and never for the stack and the heaps.",
           "title": "Data Ref"
         }
       },
@@ -1934,26 +1934,26 @@
     },
     "ModuleSegment": {
       "additionalProperties": false,
-      "description": "Describes one section-like segment within a loaded module.\n\nSegment data is collected from module metadata during memory layout capture.\n\nUse this to align addresses with section boundaries and permissions.",
+      "description": "One section of a loaded module.",
       "properties": {
         "name": {
-          "description": "Segment or section name within the module image.\n\nUseful for mapping behavior to familiar PE sections such as ``.text``.",
+          "description": "Name of the section, such as ``.text``.",
           "title": "Name",
           "type": "string"
         },
         "base": {
-          "description": "Absolute virtual address of the segment start.\n\nUse with ``size`` to identify covered address ranges.",
+          "description": "Virtual address of the section.",
           "pattern": "^0x[0-9a-f]+$",
           "title": "Base",
           "type": "string"
         },
         "size": {
-          "description": "Segment size in bytes.\n\nLarge executable segments usually contain primary code paths.",
+          "description": "Virtual size of the section in bytes.",
           "title": "Size",
           "type": "integer"
         },
         "perms": {
-          "description": "Effective memory permissions for the segment, such as ``r-x``.\n\nUse this to identify writable-executable anomalies or data-only regions.",
+          "description": "Permissions from the section header, such as ``r-x``.",
           "title": "Perms",
           "type": "string"
         }
@@ -2708,10 +2708,10 @@
     },
     "RegionInfo": {
       "additionalProperties": false,
-      "description": "Describes a memory region for exception context.",
+      "description": "A memory region near a fault.",
       "properties": {
         "tag": {
-          "description": "Memory-map tag identifying the region.",
+          "description": "Tag of the memory region.",
           "title": "Tag",
           "type": "string"
         },
@@ -2722,7 +2722,7 @@
           "type": "string"
         },
         "size": {
-          "description": "Region size in bytes.",
+          "description": "Size of the region in bytes.",
           "title": "Size",
           "type": "integer"
         },
@@ -2736,7 +2736,7 @@
             }
           ],
           "default": null,
-          "description": "Permission string (e.g. ``r-x``).",
+          "description": "Permissions, such as ``r-x``.",
           "title": "Perms"
         }
       },
@@ -2793,10 +2793,10 @@
     },
     "StringCollection": {
       "additionalProperties": false,
-      "description": "Represents one categorized bucket of extracted strings.\n\nString extraction runs both on static image bytes and post-emulation memory\nsnapshots. This model keeps ANSI and UTF-16 findings separated.\n\nCompare these lists to identify runtime-decoded strings that were not present\nin the original file bytes.",
+      "description": "ANSI and UTF-16 strings from one source.",
       "properties": {
         "ansi": {
-          "description": "ASCII/ANSI strings extracted for this bucket.\n\nThese are populated by static string scans or memory string extraction depending on the parent field.",
+          "description": "ASCII strings.",
           "items": {
             "type": "string"
           },
@@ -2804,7 +2804,7 @@
           "type": "array"
         },
         "unicode": {
-          "description": "UTF-16 style strings extracted for this bucket.\n\nUse these to spot wide-character configuration values and command artifacts.",
+          "description": "UTF-16LE strings.",
           "items": {
             "type": "string"
           },
@@ -2817,15 +2817,15 @@
     },
     "StringsReport": {
       "additionalProperties": false,
-      "description": "Groups static and in-memory string extraction results.\n\nStatic strings come from the original loaded image, while in-memory strings\nare collected after execution and often include decoded/decrypted content.\n\nUse this section to quickly triage embedded versus runtime materialized\nindicators.",
+      "description": "Strings of the input file, and strings that the guest made in memory.",
       "properties": {
         "static": {
           "$ref": "#/$defs/StringCollection",
-          "description": "Strings extracted from the initial file image bytes.\n\nPrimarily influenced by the module loader and static string scanner."
+          "description": "Strings in the data of the input file."
         },
         "in_memory": {
           "$ref": "#/$defs/StringCollection",
-          "description": "Strings extracted from memory after emulation executes.\n\nPopulated when string analysis is enabled and runtime decoding created new string material."
+          "description": "Strings in the stack and the heaps at the end of the emulation that are not in ``static``. These strings often are decoded data."
         }
       },
       "title": "StringsReport",
@@ -2833,25 +2833,25 @@
     },
     "SymAccessReport": {
       "additionalProperties": false,
-      "description": "Summarizes memory accesses to symbol-resolved addresses.\n\nSymbol access accounting is mainly populated when memory tracing is active\nand the emulator can resolve touched addresses back to known symbols.\n\nUse these counters to identify import-table walking and export resolution\nbehavior.",
+      "description": "Read, write and execute counts of one symbol address, from memory tracing.",
       "properties": {
         "symbol": {
-          "description": "Resolved symbol name in ``module.symbol`` form.\n\nThis identifies the logical target accessed by code during tracing.",
+          "description": "Symbol name in ``module.symbol`` form.",
           "title": "Symbol",
           "type": "string"
         },
         "reads": {
-          "description": "Number of read accesses observed for this symbol.\n\nHigh values often indicate lookup loops or pointer chasing.",
+          "description": "Number of reads of the symbol address.",
           "title": "Reads",
           "type": "integer"
         },
         "writes": {
-          "description": "Number of write accesses observed for this symbol.\n\nNon-zero writes can indicate tampering or patching behavior.",
+          "description": "Number of writes to the symbol address.",
           "title": "Writes",
           "type": "integer"
         },
         "execs": {
-          "description": "Number of execution accesses observed for this symbol.\n\nExecution hits often represent direct calls/jumps through symbol-backed addresses.",
+          "description": "Number of times that the guest ran code at the symbol address.",
           "title": "Execs",
           "type": "integer"
         }
@@ -3045,21 +3045,21 @@
     }
   },
   "additionalProperties": false,
-  "description": "Top-level Speakeasy output report model.\n\nThis object combines run telemetry, metadata for the emulated input, and\noptional analysis artifacts.\n\nTreat this as the canonical machine-readable output for downstream tooling.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data. An empty list or\nobject means that Speakeasy collected the data and found nothing.",
+  "description": "Report of one emulation: the input metadata, the runs and the payloads.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data. An empty list or\nobject means that Speakeasy collected the data and found nothing.",
   "properties": {
     "report_version": {
       "default": "6.0.0",
-      "description": "Schema/report format version generated by the profiler.\n\nUse this to route parsing logic when consuming multiple report versions.",
+      "description": "Version of the report format.",
       "title": "Report Version",
       "type": "string"
     },
     "emulation_total_runtime": {
-      "description": "Total wall-clock runtime in seconds for the emulation session.\n\nDerived from profiler start/stop timing and rounded to milliseconds.",
+      "description": "Wall-clock time in seconds, rounded to milliseconds, from the last start of the run queue to the end of the emulation.",
       "title": "Emulation Total Runtime",
       "type": "number"
     },
     "timestamp": {
-      "description": "Epoch timestamp (seconds) captured at emulation start time.\n\nUse this for timeline correlation with external logs.",
+      "description": "Unix time in seconds of the last start of the run queue.",
       "title": "Timestamp",
       "type": "integer"
     },
@@ -3073,7 +3073,7 @@
         }
       ],
       "default": null,
-      "description": "Architecture of the input sample, when known.\n\nPopulated from loader metadata."
+      "description": "Architecture of the input."
     },
     "path": {
       "anyOf": [
@@ -3085,7 +3085,7 @@
         }
       ],
       "default": null,
-      "description": "Host path of the input file, when the input was loaded from a file.\n\nUseful for provenance tracking in batch pipelines.",
+      "description": "Host path of the input file. Absent when the input came from bytes.",
       "title": "Path"
     },
     "sha256": {
@@ -3098,7 +3098,7 @@
         }
       ],
       "default": null,
-      "description": "SHA-256 hash of the emulated input bytes, when available.\n\nUse this as the primary stable sample identifier.",
+      "description": "SHA-256 of the input.",
       "title": "Sha256"
     },
     "size": {
@@ -3111,7 +3111,7 @@
         }
       ],
       "default": null,
-      "description": "Input file size in bytes, when available.\n\nHelps validate sample identity and triage packaging anomalies.",
+      "description": "Size of the input in bytes.",
       "title": "Size"
     },
     "file_type": {
@@ -3124,7 +3124,7 @@
         }
       ],
       "default": null,
-      "description": "Kind of input file, when known.\n\nDerived from loader inspection before emulation starts."
+      "description": "Kind of input file."
     },
     "image_base": {
       "anyOf": [
@@ -3137,11 +3137,11 @@
         }
       ],
       "default": null,
-      "description": "Base address at which the primary module was loaded during emulation.\n\nUse this to rebase analysis tools (e.g. IDA Pro) to match emulated addresses.",
+      "description": "Base address of the input image in the emulator. Rebase a disassembler database to this address to match the addresses of the report.",
       "title": "Image Base"
     },
     "errors": {
-      "description": "Top-level emulator errors not tied to a specific run.\n\nThese usually reflect session-level failures rather than per-entry-point termination.",
+      "description": "Errors that do not belong to one run, such as an ``invalid_image`` defect of the input PE.",
       "items": {
         "$ref": "#/$defs/ErrorInfo"
       },
@@ -3158,18 +3158,18 @@
         }
       ],
       "default": null,
-      "description": "Optional static and in-memory string extraction output.\n\nPresent only when string analysis is enabled in config."
+      "description": "Strings of the input and of memory. Only with ``analysis.strings``."
     },
     "data": {
       "additionalProperties": {
         "$ref": "#/$defs/DataArtifact"
       },
-      "description": "Deduplicated binary payload store keyed by SHA-256.\n\nResolve ``*_ref`` fields in the report against this mapping to recover compressed payload bytes.",
+      "description": "Payloads of the report, keyed by SHA-256. Each ``data_ref`` field holds a key of this mapping.",
       "title": "Data",
       "type": "object"
     },
     "entry_points": {
-      "description": "Ordered list of all runs executed during emulation.\n\nThis is the primary behavioral timeline for the report.",
+      "description": "Runs of the emulation, in the order that the runs started.",
       "items": {
         "$ref": "#/$defs/EntryPoint"
       },
