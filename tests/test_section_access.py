@@ -1,8 +1,10 @@
 import copy
+import struct
 
 import pytest
 
 from speakeasy import Speakeasy
+from tests.pe_builder import build_pe
 
 
 @pytest.fixture(scope="module")
@@ -62,3 +64,21 @@ def test_section_stats_not_identical(tracing_report):
             stats[name] = (region.accesses.reads, region.accesses.writes, region.accesses.execs)
 
     assert len(set(stats.values())) > 1
+
+
+def test_untouched_section_has_no_accesses(base_config):
+    # mov eax, [image base]; ret: the run reads the headers and does not touch .data.
+    data, _ = build_pe(32, text=lambda base, iat: b"\xa1" + struct.pack("<I", base) + b"\xc3")
+    cfg = copy.deepcopy(base_config)
+    cfg["analysis"] = dict(cfg.get("analysis", {}))
+    cfg["analysis"]["memory_tracing"] = True
+    with Speakeasy(config=cfg) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        report = se.get_report()
+
+    image = range(module.base, module.base + module.image_size)
+    layout = {r.tag.split(".")[-2]: r for r in report.entry_points[0].memory.layout if r.base in image}
+    assert layout["headers"].accesses is not None
+    assert layout["headers"].accesses.reads > 0
+    assert layout["data"].accesses is None
