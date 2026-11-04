@@ -1993,7 +1993,7 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_system_root(self):
         """Get the path of the "SYSTEMROOT" environment variable."""
-        sysroot = self.get_env().get("systemroot", "C:\\WINDOWS\\system32")
+        sysroot = self.get_env().get("systemroot", "C:\\Windows")
         if not sysroot.endswith("\\"):
             sysroot += "\\"
         return sysroot

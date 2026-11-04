@@ -86,7 +86,7 @@ class WinKernelEmulator(WindowsEmulator):
 
         self._set_input_metadata(path, data)
 
-        emu_path = f"{self.get_system_root()}drivers\\{file_name}"
+        emu_path = f"{self.get_system_root()}system32\\drivers\\{file_name}"
 
         image = PeLoader(path=path, data=data).make_image()
         image.name = mod_name
