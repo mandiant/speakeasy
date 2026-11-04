@@ -25,7 +25,7 @@
 
     "env": {
         "comspec": "C:\\Windows\\system32\\cmd.exe",
-        "systemroot": "C:\\Windows\\system32",
+        "systemroot": "C:\\Windows",
         "windir": "C:\\Windows"
     },
 

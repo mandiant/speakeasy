@@ -140,3 +140,18 @@ def test_setup_user_shared_data_leaves_foreign_maps_untouched(config, arch, bits
     assert len(set(chunks.values())) == 1
     chunk = next(iter(chunks.values()))
     assert int.from_bytes(chunk[0x3B8:0x3C0], "little") == 10_000_000
+
+
+@pytest.mark.parametrize("env", [None, {}], ids=["default", "no_systemroot"])
+def test_kernel_input_driver_is_under_system32_drivers(config, load_test_bin, env):
+    if env is None:
+        cfg: dict = {}
+    else:
+        cfg = config
+        cfg["env"] = env
+    se = Speakeasy(config=cfg)
+    try:
+        module = se.load_module(data=load_test_bin("wdm_test_x64.sys.xz"))
+        assert module.emu_path.lower() == f"c:\\windows\\system32\\drivers\\{module.name}.sys"
+    finally:
+        se.shutdown()
