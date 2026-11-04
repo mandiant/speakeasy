@@ -50,7 +50,7 @@ The `type` of an entry point is the kind of code that the run executes, and `nam
 | `driver_entry`, `driver_unload`, `driver_reinit` | none |
 | `irp` | IRP major function, for example `IRP_MJ_DEVICE_CONTROL` |
 
-The schema also has the run type `callback` and the event type `module_load`. Speakeasy does not set them.
+The schema also has the run type `callback` and the event types `mem_free` and `module_load`. Speakeasy does not set them.
 
 ## API arguments and handles
 
@@ -92,10 +92,10 @@ Each event has `pos`, the position of the thread that did the operation, so the 
   // Report format version.
   "report_version": "6.0.0",
 
-  // Total wall-clock runtime in seconds.
+  // Wall-clock seconds from the last start of the run queue to the end.
   "emulation_total_runtime": 1.234,
 
-  // Emulation start timestamp (epoch seconds).
+  // Unix time in seconds of the last start of the run queue.
   "timestamp": 1760000000,
 
   // Input metadata. A key is absent when the value is unknown.
