@@ -328,7 +328,7 @@ class FileCreateEvent(Event):
     )
     access_flags: list[str] | None = Field(
         default=None,
-        description="Requested access rights for the file operation.",
+        description="Names of the access rights that the caller asks for, such as ``GENERIC_READ``.",
     )
 
 
@@ -344,7 +344,7 @@ class FileOpenEvent(Event):
     )
     access_flags: list[str] | None = Field(
         default=None,
-        description="Requested access rights for the file operation.",
+        description="Names of the access rights that the caller asks for, such as ``GENERIC_READ``.",
     )
 
 
@@ -427,14 +427,14 @@ class RegOpenKeyEvent(Event):
         description="Event type of a registry key open.",
     )
     path: str = Field(description="Path of the key.")
-    handle: HexIntOptional = Field(default=None, description="Registry handle returned for the key, when available.")
+    handle: HexIntOptional = Field(default=None, description="Key handle that the API returns.")
     open_flags: list[str] | None = Field(
         default=None,
         description="Names of the open flags of the call.",
     )
     access_flags: list[str] | None = Field(
         default=None,
-        description="Requested registry access rights.",
+        description="Names of the access rights that the caller asks for.",
     )
 
 
@@ -446,14 +446,14 @@ class RegCreateKeyEvent(Event):
         description="Event type of a registry key creation.",
     )
     path: str = Field(description="Path of the key.")
-    handle: HexIntOptional = Field(default=None, description="Registry handle returned for the key, when available.")
+    handle: HexIntOptional = Field(default=None, description="Key handle that the API returns.")
     open_flags: list[str] | None = Field(
         default=None,
         description="Names of the disposition flags of the call.",
     )
     access_flags: list[str] | None = Field(
         default=None,
-        description="Requested registry access rights.",
+        description="Names of the access rights that the caller asks for.",
     )
 
 
