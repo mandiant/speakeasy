@@ -21,7 +21,7 @@ class VOLUME_DISK_EXTENTS(EmuStruct):
 
 
 class DriverModule(km.KernelModule):
-    """Class for emulation of specific drivers (e.g. their ioctl handlers)."""
+    """The volmgr driver. Each IOCTL gets one disk extent, as for IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS."""
 
     def __init__(self):
         super().__init__()
