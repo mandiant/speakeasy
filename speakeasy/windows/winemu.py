@@ -72,16 +72,16 @@ from speakeasy.winenv.defs.nt import ddk
 if TYPE_CHECKING:
     from speakeasy.speakeasy import Speakeasy
 
-# The number of exports of a DLL that the emulator runs when it emulates all exports
+# The maximum number of exports of a module that the emulator runs when it emulates all exports
 MAX_EXPORTS_TO_EMULATE = 10
 
-# GDB signal number reported for memory faults
+# The signal number that the GDB server reports for memory faults
 GDB_SIGSEGV = 11
 
-# Upper bound on the static TLS data copied for each thread
+# The maximum size of the static TLS data that the emulator copies for each thread
 TLS_TEMPLATE_MAX = 0x1000000
 
-# Registers a callee must preserve; guest callbacks of an API return them to its caller unchanged
+# The registers that a callee must preserve. The emulator restores them after the guest callbacks of an API.
 NONVOLATILE_X86 = (_arch.X86_REG_EBX, _arch.X86_REG_EBP, _arch.X86_REG_ESI, _arch.X86_REG_EDI)
 NONVOLATILE_AMD64 = (
     _arch.AMD64_REG_RBX,
@@ -109,10 +109,10 @@ class _ExecutionBudget:
 @dataclass(frozen=True)
 class SuspendedApiCall:
     """
-    The guest reached the trap of an API. The handler of the API runs next.
+    The guest called an API. The run loop calls the handler of the API next.
 
-    The stack pointer, the return address and the code of the API are the values at the trap.
-    If a debugger changes one of them, the guest runs the code of the API again, and the handler does not run.
+    The stack pointer, the return address and the code of the API are the values when the guest fetched the token.
+    If a debugger changes one of them, the emulator drops the exit, and the guest runs the code of the API again.
     """
 
     entry: ApiEntry
@@ -128,12 +128,12 @@ class RunReturn:
 
 @dataclass(frozen=True)
 class CallbackReturn:
-    """A guest callback returned to GUEST_CALLBACK_RETURN_ADDR. The API handler that called it continues."""
+    """A guest callback returned to ``GUEST_CALLBACK_RETURN_ADDR``. The API handler that called it continues."""
 
 
 @dataclass(frozen=True)
 class FaultReturn:
-    """A fault ended the run. The run completes after Unicorn stops, also if Unicorn then raises an error."""
+    """A fault ended the run. The run loop completes the run after Unicorn stops, also if Unicorn raises an error."""
 
 
 @dataclass(frozen=True)
@@ -141,7 +141,7 @@ class ExecRecovery:
     """
     The guest fetched code from a guest PE page without execute permission.
 
-    The run loop sets perms on the page and runs the code again.
+    The run loop sets the protection of the page to ``perms`` and runs the code again.
     """
 
     page: int
@@ -150,19 +150,20 @@ class ExecRecovery:
 
 @dataclass(frozen=True)
 class RaisedCpuException:
-    """A CPU exception that goes to the exception handlers of the guest."""
+    """A CPU exception that the run loop sends to the exception handlers of the guest."""
 
     exception: cpu_exceptions.CpuException
-    error_type: ErrorType  # the run's error if no handler takes it
+    error_type: ErrorType  # the error of the run if no handler takes the exception
     interrupt_num: int | None = None
     access_type: str | None = None
-    rax: int | None = None  # restored before dispatch, since IN overwrites it
-    # (page, perms) of a guard page, whose protection the access restores
+    rax: int | None = None  # the run loop restores RAX before dispatch, because the IN instruction writes it
+    # (page, perms) of a guard page. The run loop restores perms on the page before dispatch.
     guard_page: tuple[int, int] | None = None
 
 
-# The reason why Unicorn stopped. A hook records it and stops Unicorn, and then the run loop handles it.
-# If a second hook records an exit before Unicorn stops, the first exit stays.
+# The reason why Unicorn stopped. A hook records the exit and stops Unicorn, or _get_exit_at_pc gets the exit from
+# the PC after Unicorn stops. Then the run loop handles the exit. If two hooks record an exit, the emulator keeps the
+# first.
 NativeExit = SuspendedApiCall | RunReturn | CallbackReturn | FaultReturn | ExecRecovery | RaisedCpuException
 
 
@@ -190,7 +191,11 @@ R = TypeVar("R")
 
 
 def execution_scope(func: Callable[Concatenate[S, P], R]) -> Callable[Concatenate[S, P], R]:
-    """Share one active-time cap across every start in a public invocation."""
+    """
+    Apply one ``max_total_time`` limit to all emulation in a call of the decorated method.
+
+    A nested call of a decorated method uses the limit of the outer call.
+    """
 
     @wraps(func)
     def wrapped(self: S, *args: P.args, **kwargs: P.kwargs) -> R:
@@ -218,7 +223,7 @@ def _module_type_from_path(path: str, default: str = "dll") -> str:
 
 
 def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list[tuple[int, int, int]]:
-    """Merge per-page permissions into (base, size, perms) runs of contiguous pages with equal permissions."""
+    """Merge the permissions of single pages into (base, size, perms) ranges of adjacent pages with equal perms."""
     runs: list[tuple[int, int, int]] = []
     for page_base in sorted(page_perms):
         perms = page_perms[page_base]
@@ -233,7 +238,7 @@ def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list
 
 @dataclass
 class RunLimits:
-    """The time and instruction limits of one call of the run loop, and the instructions it counts."""
+    """The time and instruction limits of one call of the run loop, and the instruction count of the call."""
 
     # When the call started, from time.monotonic().
     started: float
@@ -251,12 +256,12 @@ class RunLimits:
     budget: int
     # The instructions that the run can still execute, or -1 for no limit.
     remaining: int
-    # The last instruction that the accounting hook saw start, when there is one.
+    # The address of the last instruction that the accounting hook counted, or None.
     last_executed: int | None = None
 
     @classmethod
     def from_run(cls, run: Run, timeout: float, budget: int, total_budget: _ExecutionBudget | None) -> "RunLimits":
-        """Get the limits that apply to run from now, with the nearer of the two time limits as the deadline."""
+        """Get the limits that apply to ``run`` from now. The deadline is the nearer of the two time limits."""
         started = time.monotonic()
         spent = run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
@@ -284,28 +289,26 @@ class RunLimits:
         )
 
     def get_native_timeout(self) -> float:
-        """Get the timeout for the next native start: the time to the deadline, or 0 for none."""
+        """Get the timeout for the next start of Unicorn: the time to the deadline, or 0 for no deadline."""
         return max(self.deadline - time.monotonic(), 0.000001) if self.deadline is not None else 0
 
     def get_native_count(self) -> int:
         """
-        Get the instruction count for the next native start, or 0 for no limit.
+        Get the instruction count for the next start of Unicorn, or 0 for no limit.
 
-        The count stops native execution at the instruction limit, so that
-        tracing hooks do not see an instruction beyond it. The accounting hook
-        counts the instructions across the native starts of one call.
+        The count stops Unicorn at the instruction limit, so that the tracing
+        hooks do not see an instruction after the limit. The accounting hook
+        counts the instructions of all starts of Unicorn in one call.
         """
         return self.remaining if self.budget > 0 else 0
 
 
 class WindowsEmulator(BinaryEmulator):
     """
-    Base class providing emulation of all Windows modules and shellcode.
+    Base class of the user mode and kernel mode emulators.
 
-    This class is meant to provide overlapping functionality for both user mode and kernel mode samples.
-
-    Subclasses must define:
-        peb_addr: Address of the Process Environment Block
+    It adds processes, threads, modules, runs, API calls and SEH to BinaryEmulator. Win32Emulator sets ``peb_addr``
+    to the address of the PEB pointer in the TEB (``fs:[0x30]`` or ``gs:[0x60]``).
     """
 
     _X64_EXEC_ADDR_MASK = (1 << 52) - 1
@@ -316,12 +319,12 @@ class WindowsEmulator(BinaryEmulator):
 
     @abstractmethod
     def alloc_peb(self, proc: Any) -> None:
-        """Allocate memory for the Process Environment Block (PEB). Subclasses must implement."""
+        """Allocate memory for the Process Environment Block (PEB)."""
         ...
 
     @abstractmethod
     def init_processes(self, processes: list[Any]) -> None:
-        """Initialize configured processes. Subclasses must implement."""
+        """Create the processes of the config."""
         ...
 
     def __init__(self, config, *, exit_event=None, debug=False, gdb_port=None, gdb_host=None):
@@ -356,7 +359,7 @@ class WindowsEmulator(BinaryEmulator):
         self.api_registry: ApiRegistry = ApiRegistry(self)
         self._native_exit: NativeExit | None = None
         self._api_call_site: tuple[int, int] | None = None
-        # Guard pages, mapped without access, with the protection their first access restores
+        # Maps each guard page to the protection that its first access restores. Guard pages have no access.
         self.guard_pages: dict[int, int] = {}
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
         self.module_loader: ModuleLoader = ModuleLoader(self)
@@ -368,20 +371,18 @@ class WindowsEmulator(BinaryEmulator):
         self.virtual_mem_base: int = 0x50000
 
         # Code hook for work that must wait until the next instruction, such as the end
-        # of a run. It is enabled only when there is such work.
+        # of a run. The emulator enables the hook only when there is such work.
         self.deferred_work_hook: Any | None = None
 
         self.is_run_complete: bool = False
         self.is_emu_complete: bool = False
         self.processes: list[Any] = []
-        # Child processes created by calls to CreateProcess
-        # by any module. This is separate from self.processes in order
-        # to not mix up config processes with child processes
+        # The processes that the guest creates with CreateProcess. self.processes does not include them.
         self.child_processes: list[Any] = []
         self.curr_thread: Any | None = None
         self.prev_pc: int = 0
-        # The state of the kernel, and of a user-mode emulator before a process exists. Each process has its own.
-        # The environment is in BinaryEmulator.env.
+        # The state of the kernel, and of a user mode emulator before a process exists. Each process has its own
+        # copy of these fields. BinaryEmulator.env has the environment.
         self.cd: str = ""
         self.heap_allocs: list[tuple[int, int, str]] = []
         self.veh_handlers: list[int] = []
@@ -402,7 +403,6 @@ class WindowsEmulator(BinaryEmulator):
         self.handle_allocator: HandleAllocator = HandleAllocator()
         # The handles of the kernel, and of a user-mode emulator before a process exists
         self.handles: HandleTable = HandleTable(self.handle_allocator, self.dec_ref, self.get_pseudo_handle_object)
-        # OS resource managers
         self.regman: RegistryManager = RegistryManager(
             self.get_handle_table, self.config.registry, os_ver=self.config.os_ver, emu=self
         )
@@ -416,17 +416,16 @@ class WindowsEmulator(BinaryEmulator):
         self._io_manager: Any | None = None
 
     def _parse_config(self, config):
-        """Parse the emulation config file."""
         super()._parse_config(config)
         self.cd = self.config.current_dir
         self.command_line: str = self.config.command_line
 
     def init_machine(self, arch):
         """
-        Create the CPU, the disassembler and the API layer for arch.
+        Create the Unicorn engine, the disassembler and the API layer for ``arch``.
 
         Then create the Windows structures and the modules of the machine. Load images after this. The container image
-        of a DLL or shellcode input is not part of the machine: Win32Emulator.load_container loads it.
+        of a DLL or shellcode input is not part of the machine. Win32Emulator.load_container loads it.
 
         Raises:
             WindowsEmuError: if the machine is already initialized, or arch is not x86 or amd64.
@@ -474,27 +473,22 @@ class WindowsEmulator(BinaryEmulator):
         return self.om
 
     def on_run_complete(self):
-        """
-        Clean up after a run completes (implemented in the child class) since this may mean different things depending.
-
-        This function will pop the next run from the run queue and emulate it.
-        """
-        # Implemented by a subclass (e.g. kernel/user mode emulators)
+        """Record the result of the current run and prepare the next run from the queue."""
         raise NotImplementedError()
 
     def end_run_on_fault(self):
         """
         End the current run after a handled memory fault.
 
-        With a debugger attached, stop the engine at the fault instead, and end the run after the debugger resumes.
-        Faults at a PC in the reserved emulator range, such as the return hook, are not sample faults, so they do not
+        With a debugger attached, stop Unicorn at the fault, and end the run after the debugger resumes.
+        A fault at a PC in the reserved range, such as the return hook, is not a fault of the guest, so it does not
         stop the debugger.
         """
         pc = self.get_pc()
         in_reserved = winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED + winemu.EMU_RESERVE_SIZE
         if not self._should_stop_on_faults or in_reserved:
-            # The fault belongs to this run. Go to the next run only after Unicorn stops,
-            # also if Unicorn raises an error after emu_stop. Otherwise the fault can change the next run.
+            # The run loop goes to the next run only after Unicorn stops, also if Unicorn raises an error
+            # after the stop. Otherwise the rest of the fault can change the next run.
             self._record_exit(FaultReturn())
             return
         self._pending_fault_stop = StopReason(signal=GDB_SIGSEGV, kind="exception", address=pc)
