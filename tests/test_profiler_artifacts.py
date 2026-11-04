@@ -2,6 +2,8 @@ import hashlib
 import io
 from dataclasses import dataclass
 
+import pytest
+
 from speakeasy.profiler import Profiler, Run
 from speakeasy.profiler_events import (
     ApiArg,
@@ -192,3 +194,22 @@ def test_repeated_api_call_with_same_rendering_is_recorded_once():
 
     assert all(isinstance(e, ApiEvent) for e in run.events)
     assert [e.args for e in run.events if isinstance(e, ApiEvent)] == [lib_name(0x2000), unnamed]
+
+
+@pytest.mark.parametrize("event_type", [EventType.MEM_WRITE, EventType.MEM_READ])
+def test_memory_event_does_not_merge_into_another_run_or_process(event_type: EventType) -> None:
+    profiler = Profiler()
+    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
+    explorer = TargetProcess(id=9, path="C:\\Windows\\explorer.exe")
+    svchost = TargetProcess(id=10, path="C:\\Windows\\system32\\svchost.exe")
+
+    run1 = Run()
+    profiler.record_process_event(run1, pos, explorer, event_type, {"base": 0x1000, "size": 4, "data": b"aaaa"})
+    run2 = Run()
+    profiler.record_process_event(run2, pos, svchost, event_type, {"base": 0x1004, "size": 4, "data": b"bbbb"})
+    profiler.record_process_event(run2, pos, explorer, event_type, {"base": 0x1008, "size": 4, "data": b"cccc"})
+    # The same run and target process, and the range starts at the end of the last range: one event.
+    profiler.record_process_event(run2, pos, explorer, event_type, {"base": 0x100C, "size": 4, "data": b"dddd"})
+
+    assert [(e.pid, e.base, e.size) for e in run1.events] == [(9, 0x1000, 4)]
+    assert [(e.pid, e.base, e.size) for e in run2.events] == [(10, 0x1004, 4), (9, 0x1008, 8)]

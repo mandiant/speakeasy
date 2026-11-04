@@ -176,6 +176,7 @@ class Profiler:
         self.decoded_strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
         self.last_data: list[int] = [0, 0]
         self.last_event: AnyEvent | dict[str, Any] = {}
+        self.last_event_run: Run | None = None
         self.set_start_time()
         self.runtime: float = 0
         self.meta: dict[str, Any] = {}
@@ -460,7 +461,8 @@ class Profiler:
         the process of the actor.
 
         A memory read or write merges with the last process event when that event is of the same
-        type and its range ends at the start of the new range.
+        type, is in the same run, has the same target process, and its range ends at the start of the
+        new range.
 
         Raises:
             ValueError: if ``event_type`` is not a process, memory or thread event type.
@@ -506,18 +508,25 @@ class Profiler:
                 pid=pid,
             )
 
-        elif event_type == EventType.MEM_WRITE:
+        elif event_type in (EventType.MEM_WRITE, EventType.MEM_READ):
+            event_cls = MemWriteEvent if event_type == EventType.MEM_WRITE else MemReadEvent
             base = kwargs["base"]
             size = kwargs["size"]
             data = kwargs["data"]
             last_base, last_size = self.last_data
             last_evt = self.last_event
-            if isinstance(last_evt, MemWriteEvent) and (last_base + last_size) == base:
+            self.last_data = [base, size]
+            if (
+                isinstance(last_evt, event_cls)
+                and self.last_event_run is run
+                and last_evt.path == path
+                and last_evt.pid == pid
+                and (last_base + last_size) == base
+            ):
                 last_evt.data_ref = self.merge_binary_data(last_evt.data_ref, data, limit=1024)
                 last_evt.size += len(data)
-                self.last_data = [base, size]
                 return
-            event = MemWriteEvent(
+            event = event_cls(
                 pos=pos,
                 path=path,
                 base=base,
@@ -525,28 +534,6 @@ class Profiler:
                 data_ref=self.put_binary_data(data, limit=1024),
                 pid=pid,
             )
-            self.last_data = [base, size]
-
-        elif event_type == EventType.MEM_READ:
-            base = kwargs["base"]
-            size = kwargs["size"]
-            data = kwargs["data"]
-            last_base, last_size = self.last_data
-            last_evt = self.last_event
-            if isinstance(last_evt, MemReadEvent) and (last_base + last_size) == base:
-                last_evt.data_ref = self.merge_binary_data(last_evt.data_ref, data, limit=1024)
-                last_evt.size += len(data)
-                self.last_data = [base, size]
-                return
-            event = MemReadEvent(
-                pos=pos,
-                path=path,
-                base=base,
-                size=size,
-                data_ref=self.put_binary_data(data, limit=1024),
-                pid=pid,
-            )
-            self.last_data = [base, size]
 
         elif event_type == EventType.THREAD_INJECT:
             event = ThreadInjectEvent(
@@ -573,6 +560,7 @@ class Profiler:
 
         run.events.append(event)
         self.last_event = event
+        self.last_event_run = run
 
     def record_dns_event(self, run, pos: TracePosition, domain, ip=""):
         """Record a DNS lookup. The profiler adds one event for each query and response in a run."""
