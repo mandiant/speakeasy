@@ -63,7 +63,7 @@ class Hook:
     Base class for all emulator hooks.
 
     A hook has no emulator until ``bind`` gives it one. ``Speakeasy`` keeps the hooks
-    that a caller adds before the load, and binds them before the emulator runs.
+    that a caller adds before the load, and binds them when it creates the machine.
     """
 
     htype: int
@@ -76,9 +76,9 @@ class Hook:
 
         Args:
             cb: Python callback function. Its first argument is the emulator.
-            native_hook: If true, register a new, raw callback with the underlying
-                emulation engine, which calls it directly. Otherwise, dispatch the hook
-                through a wrapper hook (for example ``_wrap_code_cb``).
+            native_hook: If true, ``add`` adds an engine hook that calls the callback through
+                a wrapper such as ``_wrap_code_cb``. If false, a dispatch hook of the emulator
+                calls the callback, for example ``_hook_mem_invalid_dispatch``.
         """
         self.cb: Callable[..., Any] = cb
         self.handle: int = 0
@@ -150,7 +150,7 @@ class Hook:
 
 
 class ApiHook(Hook):
-    """This hook type is used when using a specific API (e.g. kernel32.CreateFile)."""
+    """Hook that fires when the guest calls an API, for example ``kernel32.CreateFile``."""
 
     htype = HOOK_API
 
@@ -164,16 +164,17 @@ class ApiHook(Hook):
 
 class DynCodeHook(Hook):
     """
-    Hook that fires when dynamically created or copied code runs.
+    Hook that fires when the guest runs code in memory that ``VirtualAlloc`` or a similar API allocated.
 
-    It fires once per dynamic code mapping. This is useful for unpacking.
+    It fires the first time that the start of the region runs, and each time that code in the
+    region calls an API. Use it to find unpacked code.
     """
 
     htype = HOOK_DYN_CODE
 
 
 class CodeHook(Hook):
-    """This hook callback will fire for every CPU instruction."""
+    """Hook that fires for each instruction in its address range."""
 
     htype = HOOK_CODE
 
@@ -189,7 +190,7 @@ class CodeHook(Hook):
 
 
 class ReadMemHook(Hook):
-    """This hook will fire each time a valid chunk of memory is read from."""
+    """Hook that fires when the guest reads mapped memory in its address range."""
 
     htype = HOOK_MEM_READ
 
@@ -207,7 +208,7 @@ class ReadMemHook(Hook):
 
 
 class WriteMemHook(Hook):
-    """This hook will fire each time a valid chunk of memory is written to."""
+    """Hook that fires when the guest writes mapped memory in its address range."""
 
     htype = HOOK_MEM_WRITE
 
@@ -225,7 +226,7 @@ class WriteMemHook(Hook):
 
 
 class MapMemHook(Hook):
-    """This hook will fire each time a chunk of memory is mapped."""
+    """Hook that fires when the emulator maps memory with a base in the address range of the hook."""
 
     htype = HOOK_MEM_MAP
 
@@ -236,7 +237,7 @@ class MapMemHook(Hook):
 
 
 class InvalidMemHook(Hook):
-    """This hook will fire each time a invalid chunk of memory is accessed."""
+    """Hook that fires when the guest accesses unmapped or protected memory."""
 
     htype = HOOK_MEM_INVALID
 
@@ -247,7 +248,7 @@ class InvalidMemHook(Hook):
 
 
 class InterruptHook(Hook):
-    """This hook will fire each time a a software interrupt is triggered."""
+    """Hook that fires for an interrupt or a CPU exception."""
 
     htype = HOOK_INTERRUPT
 
@@ -264,7 +265,7 @@ class InstructionHook(Hook):
     """
     Hook that fires when a selected instruction executes.
 
-    Unicorn supports only the instructions IN, OUT, SYSCALL, and SYSENTER. The emulator
+    The engine supports only the instructions IN, OUT, SYSCALL, and SYSENTER. The emulator
     calls the IN hooks through one dispatch hook (see ``BinaryEmulator._hook_in_dispatch``).
     """
 
@@ -281,7 +282,7 @@ class InstructionHook(Hook):
         """Get whether the pc is in the range of the hook. ``begin > end`` means all addresses."""
         # Unicorn does not check the range of an IN or OUT hook, and checks a SYSENTER hook
         # against a pc that is not up to date, so the wrappers check the range here.
-        # A hook with no range does not read the pc, because the read costs about 1 us.
+        # A hook with no range does not read the pc, because a register read is slow in a hot hook.
         return self.begin > self.end or self.begin <= self.emu.get_pc() <= self.end
 
     def add(self):
