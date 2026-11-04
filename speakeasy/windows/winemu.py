@@ -3614,7 +3614,11 @@ class WindowsEmulator(BinaryEmulator):
         return module.base
 
     def load_module_by_name(self, name, emu_path=None, base=None, native_path=None, data=None):
-        """Load one coherent native or catalog-generated module instance."""
+        """
+        Load the module name, or get it if it is loaded.
+
+        Load the module from data, else from the module directory, else as a synthetic API module.
+        """
         name = module_name(name)
         existing = self.get_mod_by_name(name)
         if existing is not None:
@@ -3651,11 +3655,8 @@ class WindowsEmulator(BinaryEmulator):
             self.module_loader.guest_dependencies.append(module)
         return module
 
-    # This will create a module from a file inside Speakeasy's
-    # object manager. file_path is expected to point to a valid PE
-    # file, like it would on a real Windows machine
-    # Returns: raw data that represents a PE file
     def get_module_data_from_emu_file(self, file_path):
+        """Get the contents of the file at file_path in the emulated file system, or None if there is no file."""
         if not self.does_file_exist(file_path):
             return None
 
@@ -3664,9 +3665,7 @@ class WindowsEmulator(BinaryEmulator):
         if not mod_file:
             return None
 
-        # This file could have been read from, so don't mess
-        # with its file offset pointer. Just get the raw bytes
-        # from the BytesIO object
+        # get_contents keeps the file pointer of the guest.
         return mod_file.get_contents()
 
     def init_sys_modules(self, modules_config):
@@ -3685,7 +3684,7 @@ class WindowsEmulator(BinaryEmulator):
         return rtmods
 
     def get_thread_context(self, thread=None):
-        """Get the current thread CPU context."""
+        """Get the saved CONTEXT of thread, or the CONTEXT of the CPU if thread is None."""
         if thread:
             return thread.get_context()
         if self.get_arch() == _arch.ARCH_AMD64:
@@ -3704,7 +3703,7 @@ class WindowsEmulator(BinaryEmulator):
         return ctx
 
     def load_thread_context(self, ctx, thread=None):
-        """Set the current thread CPU context."""
+        """Write ctx to the CPU registers, and its debug registers to the current thread."""
         if self.get_arch() == _arch.ARCH_AMD64:
             registers = thread_context.CPU_REGISTERS_AMD64
         else:
@@ -3759,7 +3758,12 @@ class WindowsEmulator(BinaryEmulator):
     _SEH_MAX_REPEAT = 4
 
     def dispatch_seh(self, faulting_address, exception, error):
-        """Dispatch exception to the guest handlers. Return whether a handler takes it."""
+        """
+        Send exception to the guest handlers with SEH dispatch. Return True if a handler takes it.
+
+        Return False if the same fault occurs ``_SEH_MAX_REPEAT`` times in a row, so that a handler that does not fix
+        the fault cannot make an infinite loop.
+        """
         self._seh_resume_pc = None
         fault_key = (self.get_pc(), faulting_address)
         if fault_key == self._seh_last_fault:
@@ -3774,19 +3778,19 @@ class WindowsEmulator(BinaryEmulator):
 
     @property
     def active_api_frame(self) -> GuestCallbackFrame | None:
-        """The frame of the API call being handled, if any."""
+        """The frame of the API call that the emulator runs, or None."""
         return self._active_api_frame
 
     def exception_dispatcher(self):
-        """The exception dispatch of the architecture."""
+        """Get the SEH dispatch module of the architecture."""
         return seh64 if self.get_arch() == _arch.ARCH_AMD64 else seh32
 
     def note_seh_resume(self, pc):
         """
-        A handler continues execution at pc.
+        Record that a guest exception handler continues execution at pc.
 
-        Resuming elsewhere than the fault is progress; at the fault, the guard against repeating it holds until
-        execution moves on.
+        If pc is not the address of the last fault, clear the repeat count. If pc is the address of the fault, keep the
+        count until the deferred work hook sees PC move away.
         """
         if self._seh_last_fault is None:
             return
@@ -3800,9 +3804,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _new_object_handle(self, otype, name):
         """
-        Create an object that only its handles keep.
+        Create an object of type otype with one handle.
 
-        The handle takes over the reference of the object manager, so the last close removes the object.
+        The handle takes the reference of the object manager, so the last close of a handle removes the object.
         """
         om = self.get_object_manager("object creation")
         obj = om.new_object(otype)
@@ -3816,7 +3820,7 @@ class WindowsEmulator(BinaryEmulator):
         return self._new_object_handle(objman.Event, name)
 
     def dec_ref(self, obj):
-        """Dereference an object."""
+        """Decrement the reference count of obj."""
         om = self.get_object_manager("object dereference")
         return om.dec_ref(obj)
 
