@@ -81,7 +81,8 @@ class ApiHammer:
                 logger.info(f"api hammering at: {imp_api} 0x{self.emu.get_pc():x} {mnem!r} {op!r} {instr!r}")
                 if (mnem == "call") and "dword ptr" in instr:
                     if conv == e_arch.CALL_CONV_CDECL:
-                        patch = b"\x31\xc0\x90\x90\x90\x90\x90"
+                        # xor eax, eax and 4 nops, so that the patch is the size of the 6-byte call.
+                        patch = b"\x31\xc0\x90\x90\x90\x90"
                         self.emu.mem_write(eip, patch)
                         logger.info(f"API HAMMERING DETECTED - patching 1 cdecl at {eip:x}")
                     elif conv == e_arch.CALL_CONV_STDCALL:
