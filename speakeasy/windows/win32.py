@@ -740,7 +740,8 @@ class Win32Emulator(WindowsEmulator):
                     sec_addr = sect.virtual_address + mm_base
                     sec_prot = get_prot_string(sect.perms)
 
-                    sec_access = access_stats
+                    # access_stats counts only the accesses outside every section, which are the header accesses.
+                    sec_access = None
                     sec_key = (mm_base, sect.virtual_address)
                     sec_ma = run.section_access.get(sec_key)
                     if sec_ma:
