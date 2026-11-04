@@ -1,13 +1,14 @@
 """
 Hardware execute breakpoints, from the debug registers of the current thread.
 
-Unicorn has no debug registers. While the current thread's Dr7 enables an
-execute breakpoint, a code hook at its address raises STATUS_SINGLE_STEP before
-the instruction runs, as the CPU's debug exception does, and sets the
-breakpoint's bit in Dr6. A handler that continues at the breakpoint with the
-resume flag set runs the instruction once without breaking again.
+Unicorn has no debug registers. When Dr7 of the current thread enables an
+execute breakpoint, the emulator adds a code hook at the breakpoint address.
+The hook raises STATUS_SINGLE_STEP before the instruction runs, as the debug
+exception of the CPU does, and sets the bit of the breakpoint in Dr6. If a
+handler continues at the breakpoint with the resume flag set, the instruction
+runs one time and does not break again.
 
-Data breakpoints (a Dr7 R/W field other than execute) are not implemented.
+Data breakpoints (a Dr7 R/W field other than execute) have no effect.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ RESUME_FLAG = 0x10000
 
 
 def execute_breakpoints(debug_registers: dict[str, int]) -> dict[int, int]:
-    """Address to index of each execute breakpoint that Dr7 enables."""
+    """Get the index of each execute breakpoint that Dr7 enables, by address."""
     dr7 = debug_registers["Dr7"]
     breakpoints: dict[int, int] = {}
     for i in range(4):
@@ -54,11 +55,11 @@ class HardwareBreakpoints:
             self.emu.remove_hook(self.hooks.pop(address))
         for address in wanted.keys() - self.hooks.keys():
             self.hooks[address] = self.emu.add_code_hook(self._hit, begin=address, end=address)
-            # Code that already ran was translated without the hook
+            # Unicorn translated the code that already ran without the hook
             self.emu.emu_eng.invalidate_translations(address, address + 1)
 
     def resume_at(self, address: int) -> None:
-        """The current thread continues at address with the resume flag: run it without breaking."""
+        """Let the current thread run the instruction at address one time without a break, as the resume flag does."""
         self.resume = None
         if address in self.hooks:
             self.resume = (self.emu.get_current_thread(), address)
