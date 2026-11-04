@@ -1,18 +1,16 @@
 """
-Human readable rendering of the arguments of API calls with a known signature.
+Text of the arguments of API calls with a known signature.
 
-:class:`ArgFormatter` turns raw argument values into the text that appears in
-the API trace, using the type information in a
-:class:`~speakeasy.winenv.api.sigdb.SignatureDatabase`: strings are read from
-memory, BOOLs become ``TRUE``/``FALSE``, enum and flag values get their
-symbolic names, and pointers to known structs are expanded into a JSON-like
-``{field: value, ...}`` rendering, following nested pointers a bounded number
-of levels. Each top-level argument also gets a kind that tells a consumer how
-to read its text; strings inside a struct rendering are quoted, top-level
-strings are not.
+``ArgFormatter`` changes raw argument values into the text of the API trace. It
+uses the types of a ``SignatureDatabase``: it reads strings from memory, shows
+BOOLs as ``TRUE`` or ``FALSE``, shows the names of enum and flag values, and
+shows a pointer to a known struct as ``{field: value, ...}``. It follows nested
+pointers to a fixed depth. Each top-level argument also gets a kind that tells a
+consumer how to read its text. Strings inside a struct have quotes, top-level
+strings do not.
 
-Memory access goes through callbacks so the formatter is independent of the
-emulator and testable against a plain ``bytes`` buffer.
+``ArgFormatter`` reads memory through callbacks, so it does not need the
+emulator, and a test can give it a ``bytes`` buffer.
 """
 
 from __future__ import annotations
@@ -29,7 +27,7 @@ from speakeasy.winenv.codepage import decode_ansi
 ReadMem = Callable[[int, int], bytes]
 ReadXmm = Callable[[int], int]
 
-# Structs with a more useful rendering than their raw fields
+# Structs that show as one value, not as their fields
 _COUNTED_STRING_STRUCTS = {"UNICODE_STRING": 2, "STRING": 1, "ANSI_STRING": 1, "CUNICODE_STRING": 2}
 _INTEGER_STRUCTS = ("LARGE_INTEGER", "ULARGE_INTEGER")
 
@@ -67,7 +65,7 @@ class ArgFormatter:
     # -- parameters --------------------------------------------------------
 
     def render_param(self, param: sigdb.ParamSig, value: int, index: int) -> RenderedArg:
-        """Render parameter ``index`` of a call whose folded argument value is ``value``."""
+        """Render parameter ``index`` of a call. ``value`` is the parameter value, made from its argument slots."""
         kind = param.kind
         if kind in sigdb.FLOAT_KINDS:
             if self.ptr_size == 8 and index < 4 and self.read_xmm is not None:
@@ -80,13 +78,13 @@ class ArgFormatter:
         if kind == "g" and self.ptr_size == 4:
             return RenderedArg(self._format_guid(value.to_bytes(16, "little")), ApiArgType.GUID)
         if kind == "st" and not (self.ptr_size == 8 and param.size(8) not in (1, 2, 4, 8)):
-            # by value in the argument slots themselves
+            # A struct passed by value is in the argument slots
             return self._render_struct_bytes(_struct_key(param), value.to_bytes(param.size(self.ptr_size), "little"))
         if kind in ("ps", "st", "g", *sigdb.STRING_KINDS) and (not param.is_in or not value):
-            # Out-only pointers hold nothing meaningful before the call
+            # Show NULL and out-only pointers as addresses. An out-only buffer has no data before the call.
             return RenderedArg(hex(value), ApiArgType.PTR)
         if kind == "g":
-            # aggregate passed by reference on Win64
+            # Win64 passes a GUID by value as a pointer to a copy
             try:
                 return RenderedArg(self._format_guid(self.read_mem(value, 16)), ApiArgType.GUID)
             except Exception:
@@ -235,7 +233,7 @@ class ArgFormatter:
         return "{" + ", ".join(parts) + "}"
 
     def _render_special_struct(self, struct: sigdb.StructDef, data: bytes) -> RenderedArg | None:
-        """Counted strings render as their (unquoted) text, LARGE_INTEGERs as one number."""
+        """Render a counted string as its text without quotes, and a LARGE_INTEGER as one number, else None."""
         name = struct.name
         if name in _INTEGER_STRUCTS and len(data) >= 8:
             return RenderedArg(hex(int.from_bytes(data[:8], "little")), ApiArgType.INT)
@@ -308,12 +306,12 @@ def get_call_args(
     slots: list[int],
 ) -> list[ApiArg]:
     """
-    Assemble the named arguments of a call from the rendering of its
-    parameters. ``slots`` holds the raw argument slots as read from the call
-    and gives each parameter's value.
+    Make the named arguments of a call from its rendered parameters.
+
+    ``slots`` has the raw argument slots of the call, and gives the value of each parameter.
 
     Raises:
-        ValueError: if the slots do not match the slots the signature consumes.
+        ValueError: if the slots or the rendered parameters do not match the signature.
     """
     if len(slots) != sig.slot_count(ptr_size) or len(rendered) != len(sig.params):
         raise ValueError(f"{sig.name}: argument slots do not match the signature")
@@ -325,12 +323,12 @@ def get_call_args(
 
 
 def get_slot_args(slots: list[int]) -> list[ApiArg]:
-    """Arguments of a call without a usable signature, one entry per argument slot."""
+    """Get the arguments of a call without a usable signature, one for each argument slot."""
     return [ApiArg(type=ApiArgType.INT, value=slot, display=hex(slot)) for slot in slots]
 
 
 def _struct_key(param: sigdb.ParamSig) -> str | None:
-    """Struct table key named by a ps:NAME or st:NAME:SIZE code."""
+    """Get the struct name of a ps:NAME or st:NAME:SIZE parameter, or None."""
     qualifier = param.qualifier or ""
     if param.kind == "st":
         return qualifier.rsplit(":", 1)[0] or None
