@@ -3705,7 +3705,7 @@ class WindowsEmulator(BinaryEmulator):
             thread_context.get_debug_registers(thread, ctx)
         return ctx
 
-    def load_thread_context(self, ctx, thread=None):
+    def load_thread_context(self, ctx):
         """Write ctx to the CPU registers, and its debug registers to the current thread."""
         if self.get_arch() == _arch.ARCH_AMD64:
             registers = thread_context.CPU_REGISTERS_AMD64
