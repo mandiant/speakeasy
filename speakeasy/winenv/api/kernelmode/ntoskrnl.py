@@ -1359,7 +1359,7 @@ class Ntoskrnl(api.ApiHandler):
 
         base = self.mem_read(BaseAddress, emu.get_ptr_size())
         base = int.from_bytes(base, "little")
-        base = self.mem_alloc(size, tag=f"api.virtalloc.{obj.image}", process=obj)
+        base = self.mem_alloc(size, tag=f"api.ZwAllocateVirtualMemory.{obj.image}", process=obj)
 
         emu._set_dyn_code_hook(base, size)
 

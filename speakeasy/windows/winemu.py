@@ -3088,8 +3088,8 @@ class WindowsEmulator(BinaryEmulator):
         frame.result = rv
         mm = self.get_address_map(ret)
 
-        # The return address is in memory that VirtualAlloc allocated.
-        if mm and mm.tag and "virtualalloc" in mm.tag.lower():
+        # The return address is in memory that VirtualAlloc or ZwAllocateVirtualMemory allocated.
+        if mm and mm.tag and any(name in mm.tag.lower() for name in ("virtualalloc", "allocatevirtualmemory")):
             self._fire_dyn_code_hooks(ret)
 
         self.log_api(call.call_pc, imp_api, rv, ctx.args.get_report_args(), run=call.run)
