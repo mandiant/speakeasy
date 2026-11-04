@@ -19,7 +19,8 @@ from speakeasy.report import EntryPointType
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
-from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
+from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS, REG_CREATE_KEY_DISPOSITION, REG_SAM_FLAGS
+from speakeasy.winenv.defs.lookup import decode_flags
 
 if TYPE_CHECKING:
     from speakeasy.windows.fileman import File
@@ -456,8 +457,16 @@ class ApiHandler:
     def does_file_exist(self, path):
         return self.emu.does_file_exist(path)
 
-    def reg_open_key(self, path, create=False):
-        return self.emu.reg_open_key(path, create=create)
+    def reg_open_key(self, path, create=False, disposition=None, access=None):
+        """
+        Open or optionally create a registry key, and return a new handle or None.
+
+        ``disposition`` is a REG_CREATE_KEY_DISPOSITION value and ``access`` a REGSAM or ACCESS_MASK value
+        of the call. The event gets their names.
+        """
+        disposition_names = decode_flags(REG_CREATE_KEY_DISPOSITION, disposition) if disposition else None
+        access_names = decode_flags(REG_SAM_FLAGS, access) if access else None
+        return self.emu.reg_open_key(path, create=create, disposition=disposition_names, access=access_names)
 
     def get_reg_key(self, handle) -> RegKey | None:
         """Get the key of a predefined key or an open key handle, or None if the handle refers to no key."""

@@ -306,18 +306,20 @@ class RegistryManager:
         if self.emu:
             self.emu.record_registry_event(path, event_type, **kwargs)
 
-    def open_key(self, path, create=False):
+    def open_key(self, path, create=False, disposition=None, access=None):
         """
         Open or optionally create a registry key, and return a new handle or None.
 
         The event is reg_create_key when ``create`` is set, and reg_open_key when not.
-        A failed open records the event with no handle.
+        A failed open records the event with no handle and no disposition.
+        ``disposition`` and ``access`` are the names of the disposition and of the access
+        rights of the call, for the event.
         """
         hnd = self.get_key_handle(path, create)
         key = self.get_key(hnd) if hnd else None
         key_path = key.get_path() if key else self.normalize_reg_path(path)
         event_type = EventType.REG_CREATE_KEY if create else EventType.REG_OPEN_KEY
-        self.record_event(key_path, event_type, handle=hnd)
+        self.record_event(key_path, event_type, handle=hnd, disposition=disposition if hnd else None, access=access)
         return hnd
 
     def get_key_handle(self, path, create):

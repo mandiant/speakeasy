@@ -84,13 +84,14 @@ class AdvApi32(api.ApiHandler):
         """
         hKey, lpSubKey, ulOptions, samDesired, phkResult = argv
 
-        return self.open_key(hKey, lpSubKey, phkResult, ctx, new_handle=True)
+        return self.open_key(hKey, lpSubKey, phkResult, ctx, new_handle=True, access=samDesired)
 
-    def open_key(self, hKey, lpSubKey, phkResult, ctx, new_handle=False):
+    def open_key(self, hKey, lpSubKey, phkResult, ctx, new_handle=False, access=None):
         """
         Open ``lpSubKey`` below ``hKey`` and write the new handle to
         ``phkResult``. Without a subkey, the handle is ``hKey`` itself, or
         a new handle to the same key when ``new_handle`` is set.
+        ``access`` is the REGSAM value of the call, for the event.
         """
         rv = windefs.ERROR_SUCCESS
 
@@ -114,11 +115,11 @@ class AdvApi32(api.ApiHandler):
                 lpSubKey = "\\" + lpSubKey
             lpSubKey = hkey_name + lpSubKey
 
-            hnd = self.reg_open_key(lpSubKey, create=False)
+            hnd = self.reg_open_key(lpSubKey, create=False, access=access)
             if not hnd:
                 rv = windefs.ERROR_FILE_NOT_FOUND
         elif new_handle:
-            hnd = self.reg_open_key(hkey_name, create=False)
+            hnd = self.reg_open_key(hkey_name, create=False, access=access)
 
         if phkResult:
             self.write_ptr(phkResult, hnd or 0)
@@ -386,7 +387,8 @@ class AdvApi32(api.ApiHandler):
                 key_path = key_path + sub_key
 
         existing = self.emu.reg_get_key(path=key_path)
-        hnd = self.reg_open_key(key_path, create=True)
+        disp = regdefs.REG_OPENED_EXISTING_KEY if existing else regdefs.REG_CREATED_NEW_KEY
+        hnd = self.reg_open_key(key_path, create=True, disposition=disp, access=samDesired)
         if not hnd:
             return windefs.ERROR_PATH_NOT_FOUND
 
@@ -394,7 +396,6 @@ class AdvApi32(api.ApiHandler):
             self.write_ptr(phkResult, hnd)
 
         if lpdwDisposition:
-            disp = 2 if existing else 1
             self.write_dword(lpdwDisposition, disp)
 
         return windefs.ERROR_SUCCESS

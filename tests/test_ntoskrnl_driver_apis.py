@@ -13,7 +13,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 import speakeasy.winenv.defs.registry.reg as regdefs
 from speakeasy import Speakeasy
 from speakeasy.profiler import Run
-from speakeasy.profiler_events import RegCreateKeyEvent, RegWriteValueEvent
+from speakeasy.profiler_events import RegCreateKeyEvent, RegOpenKeyEvent, RegWriteValueEvent
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
 from tests.handler_harness import alloc, call, get_kernel_emu
@@ -414,3 +414,20 @@ def test_api_call_from_zw_allocate_virtual_memory_records_dynamic_code(any_drive
     entry = se.get_report().entry_points[-1]
     assert entry.error is None
     assert [seg.base for seg in entry.dynamic_code_segments] == [base]
+
+
+def test_zw_create_key_and_zw_open_key_record_the_disposition_and_access(driver_emu: Speakeasy) -> None:
+    run = _current_run(driver_emu)
+    _create_key(driver_emu, SOFTWARE_KEY)
+    _create_key(driver_emu, SOFTWARE_KEY)
+    phnd = alloc(driver_emu, b"\x00" * 4)
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwOpenKey", [phnd, 0x20019, _object_attributes(driver_emu, SOFTWARE_KEY)])
+    assert rv == ddk.STATUS_SUCCESS
+
+    creates = [e for e in run.events if isinstance(e, RegCreateKeyEvent)]
+    assert [(e.open_flags, e.access_flags) for e in creates] == [
+        (["REG_CREATED_NEW_KEY"], ["KEY_ALL_ACCESS"]),
+        (["REG_OPENED_EXISTING_KEY"], ["KEY_ALL_ACCESS"]),
+    ]
+    opens = [e for e in run.events if isinstance(e, RegOpenKeyEvent)]
+    assert [(e.open_flags, e.access_flags) for e in opens] == [(None, ["KEY_READ"])]

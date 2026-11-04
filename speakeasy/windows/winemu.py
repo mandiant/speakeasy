@@ -600,9 +600,9 @@ class WindowsEmulator(BinaryEmulator):
 
         return self._io_manager.dev_ioctl(arch, dev, ioctl, inbuf)
 
-    def reg_open_key(self, path, *, create=False):
+    def reg_open_key(self, path, *, create=False, disposition=None, access=None):
         """Open a key of the emulated registry. If create is set, create the key if it does not exist."""
-        return self.regman.open_key(path, create)
+        return self.regman.open_key(path, create, disposition=disposition, access=access)
 
     def reg_get_subkeys(self, hkey):
         """Get subkeys for a given registry key."""

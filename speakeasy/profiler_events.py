@@ -430,11 +430,11 @@ class RegOpenKeyEvent(Event):
     handle: HexIntOptional = Field(default=None, description="Key handle that the API returns.")
     open_flags: list[str] | None = Field(
         default=None,
-        description="Names of the open flags of the call.",
+        description="Names of the open flags of the call. Speakeasy does not set it.",
     )
     access_flags: list[str] | None = Field(
         default=None,
-        description="Names of the access rights that the caller asks for.",
+        description="Names of the access rights that the caller asks for, such as ``KEY_READ``.",
     )
 
 
@@ -449,11 +449,14 @@ class RegCreateKeyEvent(Event):
     handle: HexIntOptional = Field(default=None, description="Key handle that the API returns.")
     open_flags: list[str] | None = Field(
         default=None,
-        description="Names of the disposition flags of the call.",
+        description=(
+            "Disposition of the call, ``REG_CREATED_NEW_KEY`` or ``REG_OPENED_EXISTING_KEY``. "
+            "Absent when the create fails."
+        ),
     )
     access_flags: list[str] | None = Field(
         default=None,
-        description="Names of the access rights that the caller asks for.",
+        description="Names of the access rights that the caller asks for, such as ``KEY_READ``.",
     )
 
 
