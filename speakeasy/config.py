@@ -378,9 +378,17 @@ class FileEntryByExt(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     mode: Literal["by_ext"] = Field(description="by_ext matches all paths with the extension ext.")
-    ext: str = Field(description="File extension that this entry matches, without the dot, such as exe.")
+    ext: str = Field(
+        description="File extension that this entry matches, such as exe. Case and a leading dot do not matter."
+    )
     path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
     byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
+
+    @field_validator("ext")
+    @classmethod
+    def normalize_ext(cls, v: str) -> str:
+        # The file manager compares the extension of a path in lower case and without the dot.
+        return v.removeprefix(".").lower()
 
 
 class FileEntryDefault(BaseModel):
