@@ -63,13 +63,12 @@ class WindowsApi:
         return (mod, mod.get_func_handler(exp_name))
 
     def call_api_func(self, mod, func, argv, ctx):
-        """
-        Call the handler to implement the imported API
-        """
         return func(mod, self.emu, argv, ctx)
 
     def call_data_func(self, mod, func, ptr):
         """
-        Call the handler to initialize and return imported data variables
+        Call the data handler of an exported variable.
+
+        The handler writes the initial value at ``ptr`` and returns ``ptr``.
         """
         return func(mod, ptr)
