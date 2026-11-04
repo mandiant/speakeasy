@@ -1,4 +1,4 @@
-"""The handle table of a process: the objects that its handle values refer to."""
+"""Handle tables: the objects that handle values refer to."""
 
 from __future__ import annotations
 
@@ -20,7 +20,10 @@ CURRENT_THREAD_HANDLE = 0xFFFFFFFE
 
 class HandleTable:
     """
-    Map the handle values of a process to their objects.
+    Map handle values to their objects.
+
+    Each process has a table for its kernel object handles. Objects that are not kernel objects, such as
+    sockets and windows, have their handles in other tables.
 
     Each handle holds a reference: ``new_handle`` adds 1 to ``ref_cnt`` of the object, and ``close``
     calls ``release`` with the object. ``pseudo`` gives the object of a pseudo handle, such as the
