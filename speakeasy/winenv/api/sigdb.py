@@ -1,25 +1,20 @@
 """
-Win32 API signature database.
+The Win32 API signature database.
 
-Speakeasy implements a curated subset of the Windows API with hand-written
-handlers (see ``speakeasy.winenv.api``). For everything else, this module
-supplies just enough information about an import to keep emulation coherent:
-how many argument slots the call consumed, which calling convention cleans
-them up, the name and basic type of each parameter, and the return type.
+Speakeasy has handlers for a part of the Windows API (see ``speakeasy.winenv.api``).
+For the other APIs, this module gives the declaration of an import: the number of
+argument slots, the calling convention, the name and type of each parameter, and the
+return type.
 
-Signatures come from pluggable :class:`SignatureSource` backends. Two are
-bundled, both reading the same compact JSON table format:
+A ``SignatureSource`` gives the signatures. Two sources come with Speakeasy, and both
+read the same compact JSON table format:
 
-* :class:`Win32MetadataSource` reads ``resources/win32/win32json_signatures.json.gz``,
-  generated from Microsoft's win32metadata (via the ``deps/win32json``
-  submodule) by ``scripts/gen_win32_signatures.py``: the documented Win32 API.
-* :class:`PhntSource` reads ``resources/win32/phnt_signatures.json.gz``,
-  generated from the phnt native API headers (``deps/phnt``) by
-  ``scripts/gen_phnt_signatures.py``: ``Nt*``/``Zw*``/``Rtl*``/``Ldr*`` and
-  other ntdll exports win32metadata leaves undocumented.
+* ``Win32MetadataSource``: the documented Win32 API, from Microsoft win32metadata.
+* ``PhntSource``: the ntdll exports that win32metadata does not document, such as
+  the ``Nt`` and ``Rtl`` functions, from the phnt native API headers.
 
-Both files are build artifacts and may be absent from a source checkout; a
-source with no file degrades to "no signatures" and logs a single warning.
+The build generates the signature files, so a source checkout can be without them.
+A source without its file gives no signatures and logs one warning.
 """
 
 from __future__ import annotations
@@ -51,10 +46,9 @@ CONV_CDECL = "cdecl"
 ARCH_X86 = "x86"
 ARCH_X64 = "x64"
 
-# Byte size of each type code kind; None means pointer-sized. Kinds that carry
-# a qualifier (``ps:NAME``, ``st:NAME:SIZE``) are handled in ParamSig.size().
-# Pointer kinds may qualify their target: ``p:u32`` (DWORD*), ``a:u16``
-# (WCHAR buffer), ``ps:NAME`` (struct pointer).
+# Byte size of each type code kind. None means pointer-sized. ParamSig.size gives the
+# size of the ``st`` and ``arr`` kinds. A pointer kind can name its target type:
+# ``p:u32`` (DWORD*), ``a:u16`` (WCHAR buffer), ``ps:NAME`` (struct pointer).
 TYPE_SIZES: dict[str, int | None] = {
     "v": 0,
     "i8": 1,
@@ -97,14 +91,14 @@ def normalize_dll(name: str) -> str:
 
 @dataclass(frozen=True)
 class EnumDef:
-    """A named set of integer constants, optionally combinable as flags."""
+    """A named set of integer constants. With ``flags``, a value can combine more than one constant."""
 
     name: str
     values: tuple[tuple[str, int], ...]
     flags: bool = False
 
     def decode(self, value: int) -> str:
-        """Render ``value`` with the rules of :func:`speakeasy.winenv.defs.lookup.get_value_names`."""
+        """Render ``value`` with the rules of ``speakeasy.winenv.defs.lookup.get_value_names``."""
         return "|".join(get_value_names(self.values, value, self.flags))
 
 
@@ -131,8 +125,9 @@ class FieldDef:
 @dataclass(frozen=True)
 class StructDef:
     """
-    Layout of a struct or union. ``fields`` is empty when the generator could
-    not resolve every field; the size is still reliable then.
+    Layout of a struct or union.
+
+    ``fields`` is empty if the generator could not resolve all fields. The size is correct also then.
     """
 
     name: str
@@ -150,10 +145,10 @@ class ParamSig:
     """
     One parameter of an API signature.
 
-    ``buffer_len`` describes how long the buffer a pointer parameter refers to
-    is, when the declaration says: ``("n", i)`` parameter *i* holds the byte
-    count, ``("c", i)`` parameter *i* holds the element count, ``("k", n)``
-    a fixed count of *n* elements.
+    ``buffer_len`` gives the length of the buffer of a pointer parameter, if the
+    declaration gives it. With ``("n", i)``, parameter ``i`` has the byte count. With
+    ``("c", i)``, parameter ``i`` has the element count. With ``("k", n)``, the
+    buffer has ``n`` elements.
     """
 
     name: str
@@ -172,14 +167,14 @@ class ParamSig:
 
     @property
     def enum(self) -> str | None:
-        """Name of the enum an integer parameter draws its value from, if any."""
+        """Name of the enum of an integer parameter, if any."""
         if self.kind in INT_KINDS:
             return self.qualifier
         return None
 
     @property
     def pointee(self) -> str | None:
-        """Type code of what a pointer/buffer parameter points at, if known."""
+        """Type code of the target of a pointer or buffer parameter, if known."""
         kind = self.kind
         if kind in ("p", "a"):
             return self.qualifier
@@ -190,7 +185,7 @@ class ParamSig:
         return None
 
     def elem_size(self, ptr_size: int) -> int | None:
-        """Size in bytes of one pointed-at element, or None when opaque (void*)."""
+        """Size in bytes of one target element, or None for an opaque pointer (void*)."""
         pointee = self.pointee
         if pointee is None:
             return None
@@ -198,7 +193,7 @@ class ParamSig:
 
     @property
     def is_in(self) -> bool:
-        # Parameters without any direction annotation are treated as inputs.
+        # A parameter without a direction is an input
         return "i" in self.flags or "o" not in self.flags
 
     @property
@@ -210,7 +205,7 @@ class ParamSig:
         return "?" in self.flags
 
     def size(self, ptr_size: int) -> int:
-        """Size in bytes of the parameter's value for the given pointer size."""
+        """Size in bytes of the value of the parameter for ``ptr_size``."""
         kind = self.kind
         if kind == "st":
             # st:NAME:SIZE or st:NAME:SIZE32/SIZE64
@@ -231,14 +226,14 @@ class ParamSig:
     def slots(self, ptr_size: int) -> int:
         """Number of pointer-sized argument slots this parameter occupies."""
         if ptr_size == 8 and self.kind in AGGREGATE_KINDS:
-            # Win64 passes aggregates that are not 1, 2, 4 or 8 bytes by
-            # reference, so they always take exactly one slot.
+            # Win64 passes an aggregate of 1, 2, 4 or 8 bytes in one slot, and other
+            # aggregates by reference in one slot.
             return 1
         size = self.size(ptr_size)
         return max(1, -(-size // ptr_size))
 
     def value_mask(self, ptr_size: int) -> int | None:
-        """Mask to apply to a slot value to recover a narrower-than-slot parameter."""
+        """Mask that gets a parameter narrower than a slot from the slot value, or None."""
         if self.kind in AGGREGATE_KINDS:
             return None
         size = self.size(ptr_size)
@@ -272,14 +267,15 @@ class FuncSig:
 
     def supports_emulation(self, ptr_size: int) -> bool:
         """
-        Whether the current generic integer-slot executor can use this ABI.
+        Return True if the emulator can call this function from the signature, without a handler.
 
-        This conservative capability check does not affect catalog membership
-        or handler/hook availability. Floating-point transport, aggregate
-        returns, variadic calls, and non-cdecl/stdcall conventions need
-        explicit support. On x86, wide integer and aggregate arguments occupy
-        multiple stack slots; on x64, an aggregate argument takes one slot. Wide
-        returns require EDX:EAX and cannot use the generic return path.
+        The emulator can call a cdecl or stdcall function whose arguments and return
+        value are integers, pointers or structs passed by value. It cannot call a
+        variadic function, a declaration with a skip marker, or a function with
+        floating-point arguments, a struct return value or a return value wider than a
+        pointer (EDX:EAX on x86). On x86, a 64-bit integer or a struct argument uses
+        more than one stack slot. On x64, a struct argument uses one slot. The result
+        does not change the exports of a module or the handlers and hooks that can run.
         """
         arch = ARCH_X86 if ptr_size == 4 else ARCH_X64
         if not self.supports_arch(arch) or self.skip is not None or self.variadic:
@@ -297,14 +293,16 @@ class FuncSig:
         return [p.slots(ptr_size) for p in self.params]
 
     def slot_count(self, ptr_size: int) -> int:
-        """Total argument slots consumed by a call (what speakeasy calls ``argc``)."""
+        """Total number of argument slots of a call. This is the ``argc`` of a handler."""
         return sum(self.slot_layout(ptr_size))
 
     def values_from_slots(self, slots: list[int], ptr_size: int) -> list[int]:
         """
-        Fold raw argument slots back into one integer per parameter. Multi-slot
-        parameters (64-bit scalars and by-value structs on x86) are joined
-        little-endian; narrower parameters are masked to their size.
+        Join the raw argument slots into one integer for each parameter.
+
+        A parameter with more than one slot, such as a 64-bit integer or a struct passed
+        by value on x86, gets its slots in little-endian order. A parameter narrower than
+        a slot gets only the bits of its size.
         """
         values = []
         pos = 0
@@ -323,16 +321,17 @@ class FuncSig:
 
 
 # ``read_uint(addr, size)`` reads a little-endian unsigned integer from emulated
-# memory, None when the address is unmapped.
+# memory, or returns None if the address is unmapped.
 ReadUInt = Callable[[int, int], "int | None"]
 LookupStruct = Callable[[str], "StructDef | None"]
 
 
 def buffer_count(sig: FuncSig, index: int, values: list[int], ptr_size: int, read_uint: ReadUInt) -> int | None:
     """
-    Value of the count/size parameter ``index`` of a call with argument
-    ``values``. Counts passed by pointer (``PDWORD pcbSize``) are read through
-    ``read_uint(addr, size) -> int | None``; unknown shapes give None.
+    Get the value of the count or size parameter ``index`` of a call with the argument ``values``.
+
+    Read a count passed by pointer (``PDWORD pcbSize``) with ``read_uint``. Return None
+    for a NULL or output pointer, an unmapped pointer or other parameter types.
     """
     param = sig.params[index]
     value = values[index]
@@ -340,7 +339,7 @@ def buffer_count(sig: FuncSig, index: int, values: list[int], ptr_size: int, rea
     if kind in INT_KINDS or (kind == "p" and param.qualifier is None):
         return value
     if kind == "p" and param.qualifier is not None:
-        # count lives behind a pointer; only meaningful if it is an input
+        # Only an input pointer has a count before the call
         if not value or not param.is_in:
             return None
         size = param.elem_size(ptr_size) or ptr_size
@@ -352,9 +351,11 @@ def out_buffer_size(
     sig: FuncSig, index: int, values: list[int], ptr_size: int, lookup_struct: LookupStruct, read_uint: ReadUInt
 ) -> int | None:
     """
-    How many bytes an ``Out`` pointer parameter is declared to receive, or None
-    when the signature does not say (``void*`` with no size, arrays with no
-    count). Strings without a declared size count only their terminator.
+    Get the size in bytes of the buffer of an out pointer parameter, as the declaration gives it.
+
+    Return None if the signature does not give the size, for example for a ``void*``
+    without a size or an array without a count. A string without a declared size
+    counts only its terminator.
     """
     param = sig.params[index]
     if param.buffer_len is not None:
@@ -385,7 +386,7 @@ class SignatureSource(ABC):
     @property
     @abstractmethod
     def available(self) -> bool:
-        """True when this source has any signatures to offer."""
+        """True if this source has signatures."""
 
     @abstractmethod
     def lookup(self, dll: str, func: str, arch: str) -> FuncSig | None:
@@ -393,14 +394,14 @@ class SignatureSource(ABC):
 
     def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
         """
-        Enumerate exact, architecture-eligible module declarations, independently of ABI support.
+        Yield the declarations of ``dll`` for ``arch``, also those that the emulator cannot call.
 
-        Lookup-only custom sources contribute no catalog entries by default.
+        The default yields nothing, so a source that has only ``lookup`` adds no exports.
         """
         return iter(())
 
     def lookup_enum(self, name: str) -> EnumDef | None:
-        """Return the enum definition a type code qualifier refers to, if this source has it."""
+        """Return the enum that a type code qualifier names, if this source has it."""
         return None
 
     def lookup_struct(self, name: str) -> StructDef | None:
@@ -412,10 +413,10 @@ class Win32MetadataSource(SignatureSource):
     """
     Signatures generated from win32metadata via win32json.
 
-    Entries are indexed by function name first: win32metadata records the DLL
-    that implements a function (``KERNEL32.dll!K32EnumProcesses``) rather than
-    the forwarder a sample imports from (``psapi.dll!EnumProcesses``), so the
-    DLL is used to disambiguate and to select name prefixes, not as a hard key.
+    The index key is the function name. win32metadata records the DLL that implements
+    a function (``KERNEL32.dll!K32EnumProcesses``), not the DLL that a sample imports it
+    from (``psapi.dll!EnumProcesses``). So ``lookup`` uses the DLL only to select one of
+    the declarations of a name and to add name prefixes.
     """
 
     name = "win32metadata"
@@ -475,8 +476,8 @@ class Win32MetadataSource(SignatureSource):
                 )
                 return
             self._functions = doc.get("functions", {})
-            # Keep raw declarations and their original indices so catalogs share
-            # the lookup cache without eagerly constructing any FuncSig objects.
+            # Keep the raw declarations and their indices, so that iter_functions and lookup
+            # share the FuncSig cache, and make a FuncSig only when a caller asks for it.
             for name, entries in self._functions.items():
                 for idx, entry in enumerate(entries):
                     dll = normalize_dll(entry["dll"])
@@ -509,11 +510,11 @@ class Win32MetadataSource(SignatureSource):
 
     def iter_functions(self, dll: str, arch: str) -> Iterator[FuncSig]:
         """
-        Yield exact DLL declarations in name order, converting them lazily.
+        Yield the declarations of ``dll`` for ``arch``, in name order.
 
-        Unlike lookup, this never reuses another DLL's declarations or applies
-        DLL aliases/name prefixes. The first architecture-eligible declaration
-        for each exact name wins; skip markers do not affect membership.
+        Unlike ``lookup``, use only the declarations of this DLL, without DLL aliases or
+        name prefixes. For each name, yield the first declaration for ``arch``, also if
+        it has a skip marker.
         """
         self._load()
         dll = normalize_dll(dll)
@@ -543,8 +544,8 @@ class Win32MetadataSource(SignatureSource):
         if not candidates:
             return None
 
-        # Prefer the declaration whose implementing DLL matches the import;
-        # otherwise trust the (almost always unique) function name.
+        # Use the declaration of the DLL of the import. Else use the first declaration
+        # of the name, because most names have only one.
         matching = [c for c in candidates if c[2]["dll"] == dll]
         name, idx, entry = (matching or candidates)[0]
         if not matching:
@@ -612,10 +613,10 @@ class PhntSource(Win32MetadataSource):
     """
     Signatures generated from the phnt native API headers.
 
-    Same table format as :class:`Win32MetadataSource`. Everything it declares
-    is exported by ``ntdll`` (and, for ``Nt*``/``Zw*`` services, ``ntoskrnl``);
-    struct layouts are not included, so ``ps:`` codes resolve against the
-    other sources in the database.
+    It uses the table format of ``Win32MetadataSource``. ntdll exports all of its
+    functions, and ntoskrnl also exports the ``Nt`` and ``Zw`` services. It has no
+    struct layouts, so the other sources of the database give the structs of ``ps:``
+    codes.
     """
 
     name = "phnt"
@@ -626,7 +627,7 @@ class PhntSource(Win32MetadataSource):
 
 
 class SignatureDatabase:
-    """Ordered collection of signature sources; the first source with an answer wins."""
+    """An ordered list of signature sources. The first source with an answer wins."""
 
     def __init__(self, sources: list[SignatureSource] | None = None) -> None:
         if sources is None:
@@ -654,11 +655,10 @@ class SignatureDatabase:
 
     def get_functions(self, dll: str, arch: str) -> dict[str, FuncSig]:
         """
-        Map the exact declarations of one DLL to their signatures.
+        Get the declarations of one DLL, by name.
 
-        Membership comes from each source's catalog, never from a permissive
-        lookup or an ABI capability check. The first source that declares a
-        name wins.
+        The names come from ``iter_functions`` of each source, not from ``lookup`` or
+        ``FuncSig.supports_emulation``. The first source that declares a name wins.
         """
         key = (normalize_dll(dll), arch)
         functions = self._functions.get(key)
@@ -690,7 +690,7 @@ _default_lock = threading.Lock()
 
 
 def get_default_database() -> SignatureDatabase:
-    """Process-wide database backed by the bundled win32metadata and phnt signatures."""
+    """Get the shared database of the bundled win32metadata and phnt signatures."""
     global _default_db
     if _default_db is None:
         with _default_lock:
