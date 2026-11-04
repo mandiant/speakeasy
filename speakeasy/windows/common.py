@@ -13,8 +13,7 @@ import speakeasy.winenv.arch as _arch
 from speakeasy.struct import Enum
 from speakeasy.winenv.defs.nt import ddk
 
-# GDT Constants needed to set our emulator into protected mode
-# Access bits
+# Access bits and flags of the GDT descriptors that the emulator builds for protected mode.
 GDT_ACCESS_BITS = Enum()
 GDT_ACCESS_BITS.ProtMode32 = 0x4
 GDT_ACCESS_BITS.PresentBit = 0x80
@@ -111,9 +110,9 @@ def get_datetime_from_filetime(filetime: int) -> datetime.datetime:
     return FILETIME_EPOCH + datetime.timedelta(microseconds=filetime // 10)
 
 
-# DLL and API set name prefixes, and the modules that have handlers for their
-# functions. The first prefix that matches is used. When the functions of a set
-# are in more than one module, the main module is first.
+# DLL and API set name prefixes, and the modules that have handlers for their functions.
+# ``get_dll_hosts`` uses the first prefix that matches. When the functions of a set are in
+# more than one module, the main module is first.
 DLL_HOSTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
         ("api-ms-win-crt", "api-ms-win-core-crt", "vcruntime", "ucrtbased", "ucrtbase", "msvcr", "msvcp", "crtdll"),
@@ -149,7 +148,7 @@ def get_dll_hosts(name: str) -> tuple[str, ...]:
     """
     Get the modules that have handlers for the functions of a DLL or API set.
 
-    A DLL that is not in DLL_HOSTS has its own handlers.
+    A DLL that is not in ``DLL_HOSTS`` has its own handlers.
     """
     lower = name.lower()
     for prefixes, hosts in DLL_HOSTS:
@@ -164,7 +163,7 @@ def normalize_dll_name(name: str) -> str:
 
 
 class _PeParser(pefile.PE):
-    """Represents PE files loaded into the emulator."""
+    """A pefile PE with the mapped image, the imports and the exports that the loaders read."""
 
     def __init__(self, path=None, data=None, emu_path="", fast_load=False):
         super().__init__(name=path, data=data, fast_load=fast_load)
@@ -238,7 +237,7 @@ class _PeParser(pefile.PE):
             return exports
 
         for exp in pe.DIRECTORY_ENTRY_EXPORT.symbols:
-            entry = namedtuple("export", ["name", "address", "forwarder", "ordinal"])  # type: ignore[name-match]  # legacy: namedtuple name differs from var
+            entry = namedtuple("export", ["name", "address", "forwarder", "ordinal"])  # type: ignore[name-match]
             entry.name = exp.name
             entry.address = exp.address + pe.base
             entry.forwarder = exp.forwarder
@@ -281,7 +280,7 @@ class _PeParser(pefile.PE):
             return True
 
     def is_dotnet(self):
-        """Is the current PE file a .NET assembly?"""
+        """Test whether the PE imports a .NET entry point or has a CLR header (data directory 14)."""
         for dll, func in self.imports.values():
             if dll == "mscoree" and func in ["_CorExeMain", "_CorDllMain"]:
                 return True
@@ -292,8 +291,9 @@ class _PeParser(pefile.PE):
         """
         Return the image with each section at its virtual address.
 
-        pefile leaves out a section whose raw data goes past the end of the file. Windows maps the
-        bytes that the file has and fills the rest with zeros, so this keeps them.
+        pefile ``get_memory_mapped_image`` leaves out a section whose raw data goes past the end of the
+        file. Windows maps the bytes that the file has and fills the rest with zeros, so this method
+        keeps the bytes that the file has.
         """
         data = self.__data__
         alignment = self.OPTIONAL_HEADER.SectionAlignment
@@ -319,7 +319,6 @@ class _PeParser(pefile.PE):
         self.base = to
         self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
 
-        # After relocation, generate a new memory mapped image
         self.mapped_image = self.get_mapped_image()
 
         self.imports = self._get_pe_imports()
