@@ -34,3 +34,22 @@ def test_unhandled_fault_maps_no_page(base_config) -> None:
         assert error.nearby_regions
     finally:
         se.shutdown()
+
+
+def test_read_of_an_unmapped_module_image_is_an_invalid_read(base_config) -> None:
+    se = Speakeasy(config=copy.deepcopy(base_config))
+    try:
+        # mov eax, [imm32]; ret
+        addr = se.load_shellcode(data=b"\xa1\x00\x00\x00\x00\xc3", arch="x86")
+        mod = next(m for m in se.emu.modules if m.name == "ws2_32")
+        se.mem_free(mod.base)
+        assert se.get_address_map(mod.base) is None
+        target = mod.base + 0x10
+        se.mem_write(addr + 1, target.to_bytes(4, "little"))
+        se.run_shellcode(addr)
+        error = se.get_report().entry_points[0].error
+        assert error is not None
+        assert error.type == "invalid_read"
+        assert error.address == target
+    finally:
+        se.shutdown()
