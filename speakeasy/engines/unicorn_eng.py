@@ -1,7 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-# Unicorn specific wrappers and abstraction implemented here
-
 from __future__ import annotations
 
 import ctypes as ct
@@ -87,7 +85,12 @@ def get_tsc_offset_location(mode):
 
 
 class ToggleableHook:
-    """Hook than can be toggled on/off at arbitrary times."""
+    """
+    Hold the ctypes callback of a hook that ``hook_add`` added through the C API.
+
+    The reference keeps the callback alive while Unicorn can call it. The engine does not read ``enabled``.
+    The ``Hook`` objects in ``common`` check their own flag.
+    """
 
     def __init__(self, cb):
         self.cb: ct._CFunctionType = cb
@@ -103,7 +106,7 @@ class ToggleableHook:
 
 
 class EmuEngine:
-    """Wrapper class for underlying cpu emulation engines."""
+    """Wrap a Unicorn instance for the emulator."""
 
     def __init__(self):
         self.name: str = "unicorn"
@@ -196,7 +199,7 @@ class EmuEngine:
 
     def init_engine(self, eng_arch, mode):
         """
-        Initialize cpu engine.
+        Create the Unicorn instance for an architecture and a bitness.
 
         Raises:
             EngineError: if ``eng_arch`` is not x86 or AMD64, or ``mode`` is not 32 or 64 bits.
@@ -220,18 +223,18 @@ class EmuEngine:
         get_tsc_offset_location(_mode)
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
-        """Allocate memory in the cpu engine."""
+        """Map memory in the engine."""
         assert self.emu is not None
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
         return self.emu.mem_map(base, size, perm)
 
     def mem_unmap(self, addr, size):
-        """Free memory in the cpu engine."""
+        """Unmap memory in the engine."""
         assert self.emu is not None
         return self.emu.mem_unmap(addr, size)
 
     def mem_regions(self):
-        """Get current memory allocations from the engine."""
+        """Get the mapped regions of the engine."""
         assert self.emu is not None
         return self.emu.mem_regions()
 
@@ -240,7 +243,7 @@ class EmuEngine:
         assert self.emu is not None
         result = self.emu.mem_write(addr, data)
         if data:
-            # Host/debugger writes must invalidate already translated stub bytes.
+            # Drop the translated code of the range, so that the guest runs the new bytes.
             self.emu.ctl_remove_cache(addr, addr + len(data))
         return result
 
@@ -250,7 +253,7 @@ class EmuEngine:
         return self.emu.mem_read(addr, size)
 
     def mem_protect(self, addr, size, perms):
-        """Change the memory protections for pages in the emu engine."""
+        """Change the protection of pages in the engine."""
         assert self.emu is not None
         perm = self.perms.get(perms, uc.UC_PROT_ALL)
         result = self.emu.mem_protect(addr, size, perm)
@@ -286,18 +289,18 @@ class EmuEngine:
         self.emu.context_restore(context)
 
     def invalidate_translations(self, begin, end):
-        """Drop the translated code of [begin, end), e.g. so that a code hook added since applies to it."""
+        """Drop the translated code of [begin, end), so that the next run of it uses the current hooks."""
         assert self.emu is not None
         self.emu.ctl_remove_cache(begin, end)
 
     def flush_translations(self):
-        """Drop all translated code, e.g. so that a code hook added since applies to it."""
+        """Drop all translated code, so that the next run uses the current hooks."""
         assert self.emu is not None
         self.emu.ctl(uc.UC_CTL_TB_FLUSH, uc.UC_CTL_IO_WRITE)
 
     def reg_write(self, reg, val):
         """
-        Modify register values.
+        Write a register.
 
         Raises:
             EngineError: if ``reg`` is not a known register.
@@ -310,7 +313,7 @@ class EmuEngine:
 
     def reg_read(self, reg):
         """
-        Read register values.
+        Read a register.
 
         Raises:
             EngineError: if ``reg`` is not a known register.
@@ -322,12 +325,12 @@ class EmuEngine:
         return self.emu.reg_read(ereg)
 
     def stop(self):
-        """Stop the emulation engine."""
+        """Stop the engine."""
         assert self.emu is not None
         return self.emu.emu_stop()
 
     def start(self, addr, timeout=0, count=0):
-        """Start the emulation engine. A timeout of 0 seconds disables it."""
+        """Start the engine at ``addr``. A ``timeout`` of 0 seconds and a ``count`` of 0 or -1 set no limit."""
         assert self.emu is not None
         if count == -1:
             count = 0
@@ -341,7 +344,7 @@ class EmuEngine:
 
     def hook_add(self, addr=None, cb=None, htype=None, begin=1, end=0, arg1=0):
         """
-        Add a callback function for a specific event type or address.
+        Add a callback for a hook type and an address range, and return the hook handle.
 
         Raises:
             EngineError: if ``htype`` is not a known hook type.
@@ -355,15 +358,14 @@ class EmuEngine:
 
         handle = self.emu._uch
 
-        # The unicorn bindings have a default python wrapper. We want to use
-        # our own wrapper and don't need the extra overhead. Add callbacks directly
-        # to the unicorn library here.
+        # The Python wrapper of the Unicorn bindings adds a call to each hook. For the code, memory,
+        # invalid memory and instruction hooks, add the callback to the C library directly.
         if hook_type == uc.UC_HOOK_INSN:
-            if arg1 == u.UC_X86_INS_IN:  # IN instruction
+            if arg1 == u.UC_X86_INS_IN:
                 cb = ct.cast(UC_HOOK_INSN_IN_CB(cb), UC_HOOK_INSN_IN_CB)
-            elif arg1 == u.UC_X86_INS_OUT:  # OUT instruction
+            elif arg1 == u.UC_X86_INS_OUT:
                 cb = ct.cast(UC_HOOK_INSN_OUT_CB(cb), UC_HOOK_INSN_OUT_CB)
-            elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):  # SYSCALL/SYSENTER
+            elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):
                 cb = ct.cast(UC_HOOK_INSN_SYSCALL_CB(cb), UC_HOOK_INSN_SYSCALL_CB)
             else:
                 raise ValueError(f"unsupported instruction for an instruction hook: {arg1}")
@@ -376,7 +378,7 @@ class EmuEngine:
         else:
             return self.emu.hook_add(htype=hook_type, callback=cb, begin=begin, end=end)
         ptr = ct.cast(cb, ct.c_void_p)
-        # uc_hook_add requires an additional paramter for the hook type UC_HOOK_INSN
+        # For UC_HOOK_INSN, uc_hook_add takes the instruction as an extra argument.
         if hook_type == uc.UC_HOOK_INSN:
             insn = ct.c_int(arg1)
             rv = _uc.uc_hook_add(handle, ct.byref(hook_id), hook_type, ptr.value, None, begin, end, insn)
@@ -391,13 +393,13 @@ class EmuEngine:
         return hook_id.value
 
     def hook_enable(self, hook_handle):
-        """Enable a previously disabled hook."""
+        """Set the ``enabled`` flag of a hook that ``hook_add`` added through the C API."""
         hook = self._callbacks.get(hook_handle)
         if hook:
             return hook.enable()
 
     def hook_disable(self, hook_handle):
-        """Disable a previously enabled hook."""
+        """Clear the ``enabled`` flag of a hook that ``hook_add`` added through the C API."""
         hook = self._callbacks.get(hook_handle)
         if hook:
             return hook.disable()
