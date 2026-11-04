@@ -30,7 +30,7 @@ class ManifestExport(BaseModel):
     )
     forwarder: str | None = Field(
         default=None,
-        description="Forwarder string in `DLL.name` or `DLL.#ordinal` form, when the export forwards elsewhere.",
+        description="Forwarder string in `DLL.name` or `DLL.#ordinal` form, if the export is a forwarder.",
     )
     kind: Literal["function", "data"] = Field(
         default="function",
@@ -61,7 +61,7 @@ class ExportManifest(BaseModel):
     size_of_image: int = Field(gt=0, description="SizeOfImage from the PE optional header.")
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$", description="SHA-256 of the source binary, in lower-case hex.")
     exports: tuple[ManifestExport, ...] = Field(
-        description="Exports sorted by ordinal, then by name. Names are unique. RVA 0 entries are left out."
+        description="Exports sorted by ordinal, then by name. Names are unique. Exports with RVA 0 are not in the list."
     )
 
     @model_validator(mode="after")
