@@ -69,7 +69,7 @@ if TYPE_CHECKING:
 
 
 class MemAccess:
-    """Represent a symbolicated chunk of memory that can be tracked."""
+    """Read, write and execute counts of one memory range or symbol."""
 
     def __init__(self, base=None, sym=None, size=0):
         self.base: int | None = base
@@ -82,7 +82,7 @@ class MemAccess:
 
 @dataclass
 class GuestCallbackFrame:
-    """State retained while guest callbacks run: the API call that started them, if any."""
+    """State of a guest callback sequence, and of the API call that started it, if any."""
 
     stack_pointer: int
     return_address: int
@@ -97,9 +97,9 @@ class GuestCallbackFrame:
     event: ApiEvent | None = None
     created_modules: list[Any] = field(default_factory=list)
     peb_module_snapshot: list[tuple[Any, dict[int, Any]]] = field(default_factory=list)
-    # Set while a generator handler (speakeasy.windows.guest_callbacks) runs on this frame
+    # The generator handler (speakeasy.windows.guest_callbacks) that runs on this frame, if any.
     handler: Any = None
-    # (register, value) pairs of the nonvolatile registers when the first guest call starts
+    # (register, value) pairs of the nonvolatile registers before the first guest call.
     saved_registers: tuple[tuple[int, int], ...] | None = None
 
 
@@ -116,10 +116,9 @@ class DynCode(TypedDict):
 
 class Run:
     """
-    Basic execution primitive for the emulation engine.
+    One unit of execution in the run queue, and the report data that the run collects.
 
-    A run can represent any form of execution: a thread, a callback, an exported function,
-    or even a child process.
+    A run starts at one address: an entry point, an export, a TLS callback, a thread or a child process.
     """
 
     def __init__(self):
@@ -166,7 +165,7 @@ class Run:
 
 
 class Profiler:
-    """Generate an execution report for all runs that occur within a binary emulation."""
+    """Collect the events of all runs and build the report."""
 
     def __init__(self, analysis: AnalysisConfig | None = None):
         super().__init__()
@@ -184,34 +183,34 @@ class Profiler:
         self.artifact_store: ArtifactStore = ArtifactStore()
 
     def add_input_metadata(self, meta):
-        """Add top-level profiler fields with metadata for the module to emulate."""
+        """Set the metadata of the input, such as the path and the SHA-256, for the report."""
         self.meta = meta
 
     def set_start_time(self):
-        """Record the start time of a sample to time the execution length."""
+        """Set the start time of the report clock to now."""
         self.start_time = time.time()
 
     def get_run_time(self):
-        """Get the time spent emulating a specific run."""
+        """Get the number of seconds since the last call of ``set_start_time``."""
         return time.time() - self.start_time
 
     def stop_run_clock(self):
-        """Stop the runtime clock to include in the report."""
+        """Save the time since the last call of ``set_start_time`` as the runtime of the report."""
         self.runtime = self.get_run_time()
 
     def add_run(self, run: Run) -> None:
-        """Add a new run to the captured run list."""
+        """Add a run to the report."""
         self.runs.append(run)
 
     def put_binary_data(self, data: bytes, limit: int | None = None) -> str | None:
-        """Store binary data and return its artifact reference."""
+        """Store the data, cut to ``limit`` bytes, and return its artifact reference."""
         if not data:
             return None
         payload = data[:limit] if limit else data
         return self.artifact_store.put_bytes(payload)
 
     def merge_binary_data(self, artifact_ref: str | None, data: bytes, limit: int | None = None) -> str | None:
-        """Append raw bytes to an existing artifact payload and store the merged result."""
+        """Append the data to an artifact, cut the result to ``limit`` bytes, and return the new reference."""
         if not data and artifact_ref:
             return artifact_ref
         if not artifact_ref:
@@ -222,7 +221,7 @@ class Profiler:
         return self.artifact_store.put_bytes(merged)
 
     def record_error_event(self, error: ErrorInfo) -> None:
-        """Log a top level emulator error for the emulation report."""
+        """Add an error to the top-level ``errors`` list of the report."""
         if not self.meta.get("errors"):
             self.meta["errors"] = []
         self.meta["errors"].append(error)
@@ -248,12 +247,12 @@ class Profiler:
         deduplicate: bool = True,
     ) -> ApiEvent:
         """
-        Log a call to an OS API. This includes arguments, return address, and return value.
+        Record a call to an API, with the arguments and the return value.
 
-        A call is recorded once when it repeats the API, address, arguments and
-        return value of one of the last few events. Raw argument values do not
-        count, so a loop that passes the same string from another buffer stays
-        one event.
+        If ``deduplicate`` is true, the profiler does not add a call that has the same API, pc,
+        shown arguments and return value as one of the last 3 events of the run. The shown
+        argument values are compared, not the raw values, so a loop that passes the same string
+        from a different buffer gives one event.
         """
         run.num_apis += 1
 
@@ -289,9 +288,10 @@ class Profiler:
         size=None,
     ):
         """
-        Log file access events.
+        Record a file event: create, open, read, write or delete of a file, or create or delete of a directory.
 
-        This includes handles being opened, data reads, and data writes.
+        A read or a write merges with the last event of the same type and path in the run. The
+        data preview keeps the first 1024 bytes.
 
         Raises:
             ValueError: if ``event_type`` is not a file event type.
@@ -376,9 +376,7 @@ class Profiler:
         size=None,
     ):
         """
-        Log registry access events.
-
-        This includes values and keys being accessed, read, and written.
+        Record a registry event: open, create, list or delete of a key, or read, write or delete of a value.
 
         Raises:
             ValueError: if ``event_type`` is not a registry event type.
@@ -455,16 +453,14 @@ class Profiler:
 
     def record_process_event(self, run, pos: TracePosition, proc, event_type: EventType, kwargs):
         """
-        Log events related to a process accessing another process.
+        Record a process, memory or thread event.
 
-        This includes creating a child process, reading or writing to a process, and creating
-        a thread within another process.
+        ``pos`` gives the process and the thread that do the operation, and ``proc`` is the target
+        process. The ``pid`` of the event is the target process ID, or ``None`` when the target is
+        the process of the actor.
 
-        ``pos`` is the actor's execution position (the process/thread that performed
-        the operation); ``proc`` is the target. The target process id is carried as
-        event payload (``pid``) so the event stays in the actor's timeline. When the
-        target is the actor's own process, the payload ``pid`` is left NULL, so a
-        populated ``pid`` always means the operation crossed a process boundary.
+        A memory read or write merges with the last process event when that event is of the same
+        type and its range ends at the start of the new range.
 
         Raises:
             ValueError: if ``event_type`` is not a process, memory or thread event type.
@@ -579,7 +575,7 @@ class Profiler:
         self.last_event = event
 
     def record_dns_event(self, run, pos: TracePosition, domain, ip=""):
-        """Log DNS name lookups for the emulation report."""
+        """Record a DNS lookup. The profiler adds one event for each query and response in a run."""
         for evt in run.events:
             if isinstance(evt, NetDnsEvent) and evt.query == domain and evt.response == ip:
                 return
@@ -592,7 +588,7 @@ class Profiler:
         run.events.append(event)
 
     def record_http_event(self, run, pos: TracePosition, server, port, headers="", body=b"", secure=False):
-        """Log HTTP traffic that occurs during emulation."""
+        """Record an HTTP request. The profiler adds one event for each server, port, protocol and headers in a run."""
         event = NetHttpEvent(
             pos=pos,
             server=server,
@@ -615,7 +611,7 @@ class Profiler:
         run.events.append(event)
 
     def record_dyn_code_event(self, run, tag, base, size):
-        """Log code that the emulated program generates at runtime and then executes."""
+        """Record a dynamic code region that the guest runs. The profiler adds each base address once per run."""
         if base not in run.dyn_code["base_addrs"]:
             entry: DynCodeMapping = {"tag": tag, "base": base, "size": size}
             run.dyn_code["mmap"].append(entry)
@@ -632,7 +628,7 @@ class Profiler:
         data=b"",
         method="",
     ):
-        """Log network activity for an emulation run."""
+        """Record socket traffic."""
         data_ref = self.put_binary_data(data or b"", limit=0x3000)
 
         event = NetTrafficEvent(
@@ -659,7 +655,7 @@ class Profiler:
         pc_offset=None,
         stack=None,
     ):
-        """Log a handled exception event."""
+        """Record an exception that the emulator sends to a guest handler."""
         event = ExceptionEvent(
             pos=pos,
             instruction=instruction,
@@ -674,12 +670,12 @@ class Profiler:
         run.events.append(event)
 
     def get_json_report(self) -> str:
-        """Get the execution profile of the emulator as a JSON string."""
+        """Get the report as JSON. Fields with a ``None`` value are left out."""
         report = self.get_report()
         return report.model_dump_json(indent=4, exclude_none=True)
 
     def get_report(self) -> Report:
-        """Get the execution profile of the emulator."""
+        """Build the report from the runs, the strings and the artifacts."""
         entry_points = []
 
         for r in self.runs:
