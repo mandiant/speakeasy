@@ -7,7 +7,6 @@ import multiprocessing.synchronize
 import re
 import struct
 import threading
-import traceback
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar
 
@@ -34,7 +33,7 @@ from speakeasy.hooks import (
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
 from speakeasy.profiler_events import StackEntry
-from speakeasy.report import ErrorInfo, ErrorType, Report
+from speakeasy.report import Report
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 logger = logging.getLogger(__name__)
@@ -123,6 +122,11 @@ class BinaryEmulator(MemoryManager, ABC):
         """Get the current run."""
         ...
 
+    @abstractmethod
+    def start(self) -> None:
+        """Run the runs in the queue."""
+        ...
+
     def __init__(self, config):
         super().__init__()
 
@@ -195,22 +199,6 @@ class BinaryEmulator(MemoryManager, ABC):
         self.emu_eng.stop()
         if self.profiler:
             self.profiler.stop_run_clock()
-
-    def start(self, addr, size):
-        """Add the hooks and start the engine at ``addr``. An engine error ends the emulation."""
-        self.set_hooks()
-        self._unmap_reserved_range()
-        if self.profiler:
-            self.profiler.start_clock()
-        try:
-            self.emu_eng.start(addr, timeout=self.config.max_run_time, count=self.config.max_instructions)
-        except Exception as e:
-            if self.profiler:
-                error = ErrorInfo(
-                    type=ErrorType.INTERNAL_ERROR, traceback=traceback.format_exc(), message=str(e) or type(e).__name__
-                )
-                self.profiler.record_error_event(error)
-            self.on_emu_complete()
 
     def reg_write(self, reg, val) -> None:
         """
