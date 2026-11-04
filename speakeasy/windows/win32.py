@@ -41,7 +41,7 @@ THISCALL_MEMBER = re.compile(r"^\?.*@@[ABEFIJMNQRUV][FI]*[ABCD]E")
 
 
 class Win32Emulator(WindowsEmulator):
-    """User Mode Windows Emulator Class."""
+    """Emulate a user mode Windows process."""
 
     file_name: str
     mod_name: str
@@ -56,7 +56,7 @@ class Win32Emulator(WindowsEmulator):
         self.com: COM = COM(config)
 
     def get_argv(self):
-        """Get command line arguments (if any) that are being passed to the emulated process. (e.g. main(argv))."""
+        """Get the ``argv`` of the emulated process, from the configured arguments or the command line."""
         argv0 = ""
         out = []
 
@@ -105,15 +105,11 @@ class Win32Emulator(WindowsEmulator):
         return 2
 
     def get_session_manager(self) -> SessionManager:
-        """
-        Get the session manager for the emulator.
-
-        This will manage things like desktops, windows, and session isolation
-        """
+        """Get the session manager, which holds the sessions, desktops and windows."""
         return self.sessman
 
     def add_vectored_exception_handler(self, first, handler):
-        """Add a vectored exception handler that will be executed on an exception."""
+        """Add a vectored exception handler. If ``first`` is true, the handler goes before the others."""
         handlers = self.get_veh_handlers()
         if handler in handlers:
             return
@@ -132,7 +128,7 @@ class Win32Emulator(WindowsEmulator):
         """
         Add the processes of the config to the process list.
 
-        Skip the entry with is_main_exe: the main process is the container process or the process of the input EXE.
+        Skip the entry with ``is_main_exe``: the main process is the container process or the process of the input EXE.
         """
         for proc in processes:
             if proc.is_main_exe:
@@ -189,7 +185,7 @@ class Win32Emulator(WindowsEmulator):
             raise Win32EmuError("Module not found")
 
         startup = []
-        # Check if any TLS callbacks exist, these run before the module's entry point
+        # TLS callbacks run before the entry point of the module.
         tls = module.get_tls_callbacks()
         for i, cb_addr in enumerate(tls):
             base = module.base
@@ -223,9 +219,8 @@ class Win32Emulator(WindowsEmulator):
             startup.append(run)
 
         if all_entrypoints:
-            # Only emulate a subset of all the exported functions
-            # There are some modules (such as the windows kernel) with
-            # thousands of exports
+            # Limit the number of export runs, because some modules, such as the Windows kernel, have
+            # thousands of exports.
             exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
 
             if exports:
@@ -247,22 +242,21 @@ class Win32Emulator(WindowsEmulator):
                         argc, argv = self.build_service_main_args("IPRIP", char_width=char_width)
                         run.args = [argc, argv]
                     else:
-                        # Here we set dummy args to pass into the export function
+                        # Each export gets the same placeholder arguments.
                         run.args = args
                     if module.arch == _arch.ARCH_X86 and exp.name and THISCALL_MEMBER.match(exp.name):
                         if this is None:
                             this = self.mem_map(8, tag="emu.export_this", base=0x41420000)
                         run.registers = {_arch.X86_REG_ECX: this}
-                    # Store these runs and only queue them before the unload
-                    # routine this is because some exports may not be ready to
-                    # be called yet
+                    # The export runs come after the DllMain run in the queue, because an export can depend
+                    # on the state that DllMain sets up.
                     self.add_run(run)
 
         return startup
 
     def run_module(self, module, *, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
-        Begin emulating a previously loaded module.
+        Add the runs of a loaded module to the run queue, and run the queue.
 
         Args:
             module: Module to emulate.
@@ -272,8 +266,7 @@ class Win32Emulator(WindowsEmulator):
         """
         startup = self.prepare_module_for_emulation(module, all_entrypoints, entry_point=entry_point)
 
-        # Create an empty process object for the module if none is
-        # supplied, only do this for the main module
+        # The main module gets a new process if there is no container process.
         if self.curr_process is None:
             if self.argv:
                 self.command_line = f'"{module.emu_path}" {subprocess.list2cmdline(self.argv)}'
@@ -298,16 +291,13 @@ class Win32Emulator(WindowsEmulator):
 
         peb = self.alloc_peb(self.curr_process)
 
-        # Set the TEB
         self.init_teb(t, peb)
 
-        # Begin emulation of main module
         self.start()
 
         if not emulate_children or len(self.child_processes) == 0:
             return
 
-        # Emulate any child processes
         finished = self.curr_process
         while len(self.child_processes) > 0:
             child = self.child_processes.pop(0)
@@ -410,7 +400,12 @@ class Win32Emulator(WindowsEmulator):
         return sc_addr
 
     def run_shellcode(self, sc_addr, stack_commit=0x4000, offset=0) -> None:
-        """Begin emulating position independent code (i.e. shellcode) to prepare for emulation."""
+        """
+        Add a run for the loaded shellcode at ``sc_addr`` + ``offset``, and run the queue.
+
+        Raises:
+            Win32EmuError: if no loaded module starts at ``sc_addr``.
+        """
         target = None
         for mod in self.modules:
             if isinstance(mod, RuntimeModule) and mod.base == sc_addr:
@@ -435,7 +430,7 @@ class Win32Emulator(WindowsEmulator):
 
         self.add_run(run)
 
-        # Create an empty process object for the shellcode if there is no container process
+        # The shellcode gets a new process if there is no container process.
         if self.curr_process is None:
             p = objman.Process(self)
             self.processes.append(p)
@@ -453,13 +448,16 @@ class Win32Emulator(WindowsEmulator):
 
         peb = self.alloc_peb(self.curr_process)
 
-        # Set the TEB
         self.init_teb(t, peb)
 
         self.start()
 
     def alloc_peb(self, proc):
-        """Allocate memory for the Process Environment Block (PEB)."""
+        """
+        Set up the PEB of a process and return it.
+
+        Map the loader data, fill in the version fields and add the modules to the loader lists.
+        """
         if proc.is_peb_active:
             return proc.peb
         size = proc.peb_ldr_data.sizeof()
@@ -528,7 +526,7 @@ class Win32Emulator(WindowsEmulator):
             self.module_loader.shared_peb_modules.add(self.get_mod_by_name(dll).base)
 
     def set_unhandled_exception_handler(self, handler_addr):
-        """Establish a handler for unhandled exceptions that occur during emulation."""
+        """Set the unhandled exception filter of the current process."""
         self._get_process_state().unhandled_exception_filter = handler_addr
 
     def init_machine_structures(self):
@@ -551,7 +549,7 @@ class Win32Emulator(WindowsEmulator):
         self.init_processes(self.config.processes)
 
     def init_sys_modules(self, modules_config):
-        """Get the system modules (e.g. drivers) that are loaded in the emulator."""
+        """Load the system modules of the config, hide them from the PEB and create their devices."""
         rtmods = super().init_sys_modules(modules_config)
         for mod in rtmods:
             mod.visible_in_peb = False
@@ -570,10 +568,11 @@ class Win32Emulator(WindowsEmulator):
         """
         Load the container image and make its process the current process.
 
-        A DLL or shellcode input runs in this process. Call this after init_machine and before the input image loads.
+        A DLL or shellcode input runs in this process. Call this method after ``init_machine`` and before the
+        input image loads.
 
-        The container image is the image of the entry in processes of the config that
-        has is_main_exe set. If the config has no such entry, do nothing.
+        The container image is the image of the entry in ``processes`` of the config that
+        has ``is_main_exe`` set. If the config has no such entry, do nothing.
 
         Raises:
             WindowsEmuError: if the machine is not initialized, or the container is already loaded.
@@ -604,11 +603,7 @@ class Win32Emulator(WindowsEmulator):
         return process
 
     def exit_process(self):
-        """
-        An emulated binary is attempted to terminate its current process.
-
-        Signal that the run has finished.
-        """
+        """End the current run, because the guest ended its process."""
         self.enable_deferred_work_hook()
         self.is_run_complete = True
 
@@ -625,7 +620,7 @@ class Win32Emulator(WindowsEmulator):
         return super()._hook_mem_unmapped(emu, access, address, size, value)
 
     def set_hooks(self):
-        """Set the emulator callbacks."""
+        """Add the hooks of the user mode emulator, then the tracing, coverage and debug hooks."""
         super().set_hooks()
 
         if not self.has_builtin_hooks:
@@ -633,7 +628,7 @@ class Win32Emulator(WindowsEmulator):
             self.add_interrupt_hook(cb=self._hook_interrupt)
             self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
             if self.config.exceptions.dispatch_handlers:
-                # User mode cannot execute these; Windows raises an exception instead
+                # IN and OUT are privileged in user mode, so Windows raises an exception.
                 self.add_instruction_hook(cb=self._hook_in_instruction, insn=UC_X86_INS_IN)
                 self.add_instruction_hook(cb=self._hook_out_instruction, insn=UC_X86_INS_OUT)
             self.has_builtin_hooks = True
@@ -644,12 +639,10 @@ class Win32Emulator(WindowsEmulator):
 
     def stop(self) -> None:
         self.is_run_complete = True
-        # self._map_reserved_range()
-        # self.unset_hooks()
         super().stop()
 
     def on_emu_complete(self):
-        """Called when all runs have completed emulation."""
+        """Find the decoded strings if the config asks for them, then stop the emulation."""
         if not self.is_emu_complete:
             self.is_emu_complete = True
             if self.config.analysis.strings and self.profiler:
@@ -663,11 +656,7 @@ class Win32Emulator(WindowsEmulator):
         self.stop()
 
     def on_run_complete(self):
-        """
-        Clean up after a run completes.
-
-        This function will pop the next run from the run queue and emulate it.
-        """
+        """Record the result of the run, then prepare the next run in the queue."""
         self.is_run_complete = True
         run = self.curr_run
         if run is not None:
@@ -682,7 +671,7 @@ class Win32Emulator(WindowsEmulator):
         return self._prepare_next_run()
 
     def _capture_memory_layout(self, run: Run) -> None:
-        """Capture current memory layout and loaded modules for the run report."""
+        """Record the memory layout and the loaded modules in the report of the run."""
         EXCLUDED_TAG_PREFIXES = ("emu.stack", "api.heap", "emu.process_heap")
 
         prot_map = {
