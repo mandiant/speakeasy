@@ -493,18 +493,26 @@ class ApiHandler:
         raise ApiEmuError(f"No encoding found for char width: {width}")
 
     def mem_write(self, addr, data):
-        # Write the data to all views of a shared file mapping, at the same offset from the
-        # base of each view. This is wrong for views at different file offsets.
+        # A write to a view of a shared file mapping also goes to each other shared view that shows the same
+        # bytes of the section. Only the part of the write that a view covers goes to it.
         mm = self.emu.get_address_map(addr)
         if mm and mm.shared:
             fm = self.emu.get_file_manager()
             fmap = fm.get_mapping_from_addr(mm.base)
             if fmap:
-                for base in fmap.views:
-                    if base == mm.base:
+                src = fmap.views[mm.base]
+                start = src.offset + (addr - src.base)
+                end = start + len(data)
+                for view in fmap.views.values():
+                    if view is src:
                         continue
-                    tgt_offset = addr - mm.base
-                    self.emu.mem_write(base + tgt_offset, data)
+                    tgt = self.emu.get_address_map(view.base)
+                    if not tgt or not tgt.shared:
+                        continue
+                    lo = max(start, view.offset)
+                    hi = min(end, view.offset + view.size)
+                    if lo < hi:
+                        self.emu.mem_write(view.base + (lo - view.offset), data[lo - start : hi - start])
 
         return self.emu.mem_write(addr, data)
 
