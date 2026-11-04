@@ -1,16 +1,16 @@
 """
-x64 exception dispatch, after ntdll's RtlDispatchException and RtlUnwindEx.
+x64 exception dispatch, modeled on RtlDispatchException and RtlUnwindEx of ntdll.
 
-Handlers come from the unwind data of the frames on the stack.
+The emulator gets the handlers from the unwind data of the frames on the stack.
 
-The entry points are dispatch_fault, for CPU exceptions, and the API handlers
-raise_exception, rtl_unwind_ex and c_specific_handler. These are generator
-handlers (see guest_callbacks.py): they yield a GuestCall for each vectored
-handler, language handler, filter and __finally block they run, and are sent
-back its return value. What x86 shares is in seh.py.
+dispatch_fault dispatches CPU exceptions. The API handlers, such as raise_exception,
+rtl_unwind_ex and c_specific_handler, are generator handlers (see guest_callbacks.py).
+A generator handler yields a GuestCall for each vectored handler, language handler,
+filter and __finally block that it runs, and gets the return value of the call back.
+seh.py has the code that x86 and x64 share.
 
-Data that guest handlers see (EXCEPTION_RECORD, CONTEXT, DISPATCHER_CONTEXT)
-lives on the guest stack below the handler's frame, as it does on Windows.
+The emulator puts the data that guest handlers see (EXCEPTION_RECORD, CONTEXT,
+DISPATCHER_CONTEXT) on the guest stack below the frame of the handler, as Windows does.
 
 See https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64
 """
@@ -57,8 +57,8 @@ def find_function(emu, pc: int) -> unwind.RuntimeFunction | None:
     """
     Get the unwind data of the function at pc, like RtlLookupFunctionEntry.
 
-    The data comes from a loaded image, else from a table registered at runtime. Callback tables are not called: their
-    functions unwind as leaf functions.
+    The function gets the data from a loaded image, or else from a table that the sample added at runtime. The emulator
+    does not call the callbacks of callback tables, so their functions unwind as leaf functions.
     """
     module = emu.get_module_from_addr(pc)
     fn = module and unwind.lookup_function_entry(emu.mem_read, module.base, pc)
@@ -74,9 +74,9 @@ def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[Any, unwind.Runti
     """
     Unwind ctx in place, yielding (frame context, function, frame info) for each frame with unwind data.
 
-    Frames of the emulator itself (a generator handler's call into the guest) are unwound to
-    the guest state they interrupted, so a walk from a handler continues into the
-    frames that raised the exception, as it does through KiUserExceptionDispatcher.
+    At the return address of a guest callback, the walk restores the guest state that the guest callback
+    interrupted. So a walk from a handler continues into the frames that raised the exception, as a walk
+    through KiUserExceptionDispatcher does on Windows.
     """
     for _ in range(seh.MAX_FRAMES):
         pc = ctx.Rip
@@ -129,7 +129,7 @@ def rtl_raise_exception(emu, record: int) -> GeneratorHandler:
 
 
 def rtl_unwind_ex(emu, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
-    """RtlUnwindEx, called by the guest: unwind from its caller."""
+    """RtlUnwindEx: unwind from the caller of the API."""
     return (
         yield from unwind_to(emu, guest_callbacks.caller_context(emu), target_frame, target_ip, record, return_value)
     )
@@ -153,15 +153,18 @@ def dispatch_exception(emu, record: int, context: int) -> GeneratorHandler:
         disposition = yield GuestCall(info.handler, (record, info.establisher_frame, context, dispatcher_context))
         if disposition == windefs.ExceptionContinueExecution:
             return exception.resume()
-        # ExceptionContinueSearch; nested and collided unwinds are not distinguished
+        # Other dispositions, also ExceptionNestedException and ExceptionCollidedUnwind, continue the search
     return (yield from exception.unhandled())
 
 
 def unwind_to(emu, ctx, target_frame: int, target_ip: int, record: int, return_value: int) -> GeneratorHandler:
     """
-    Walk up from ctx and call termination handlers, like RtlUnwindEx.
+    Walk up from ctx and call the termination handlers, as RtlUnwindEx does.
 
     Then resume the target frame at target_ip with return_value in rax.
+
+    Raises:
+        UnhandledException: if the walk does not find target_frame.
     """
     fields = seh.read_record(emu, record) if record else seh.exception_record(emu, STATUS_UNWIND, 0, ctx.Rip)
     fields.ExceptionFlags |= EXCEPTION_UNWINDING if target_frame else UNWINDING
@@ -219,7 +222,7 @@ def c_specific_handler(
         if flags & EXCEPTION_TARGET_UNWIND and any(
             b <= target_pc < e and h == handler and t == target for b, e, h, t in scopes
         ):
-            break  # the scope also encloses the target: it is not being left
+            break  # the scope also contains the target, so the unwind does not leave the scope
         if not target:  # __finally
             emu.mem_write(dispatcher_context + SCOPE_INDEX_OFFSET, struct.pack("<I", index + 1))
             yield GuestCall(image_base + handler, (1, establisher_frame))  # AbnormalTermination() is TRUE
