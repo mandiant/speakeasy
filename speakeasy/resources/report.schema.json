@@ -1108,7 +1108,7 @@
             }
           ],
           "default": null,
-          "description": "Requested access rights for the file operation.",
+          "description": "Names of the access rights that the caller asks for, such as ``GENERIC_READ``.",
           "title": "Access Flags"
         }
       },
@@ -1210,7 +1210,7 @@
             }
           ],
           "default": null,
-          "description": "Requested access rights for the file operation.",
+          "description": "Names of the access rights that the caller asks for, such as ``GENERIC_READ``.",
           "title": "Access Flags"
         }
       },
@@ -2260,7 +2260,7 @@
             }
           ],
           "default": null,
-          "description": "Registry handle returned for the key, when available.",
+          "description": "Key handle that the API returns.",
           "title": "Handle"
         },
         "open_flags": {
@@ -2292,7 +2292,7 @@
             }
           ],
           "default": null,
-          "description": "Requested registry access rights.",
+          "description": "Names of the access rights that the caller asks for.",
           "title": "Access Flags"
         }
       },
@@ -2473,7 +2473,7 @@
             }
           ],
           "default": null,
-          "description": "Registry handle returned for the key, when available.",
+          "description": "Key handle that the API returns.",
           "title": "Handle"
         },
         "open_flags": {
@@ -2505,7 +2505,7 @@
             }
           ],
           "default": null,
-          "description": "Requested registry access rights.",
+          "description": "Names of the access rights that the caller asks for.",
           "title": "Access Flags"
         }
       },
