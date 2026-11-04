@@ -20,7 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 def validate_forwarder(value: str) -> None:
-    """Validate DLL.name / DLL.#ordinal syntax without resolving its target."""
+    """
+    Check that ``value`` is a forwarder string in ``DLL.name`` or ``DLL.#ordinal`` form. Do not resolve the target.
+
+    Raises:
+        ValueError: if ``value`` is not a valid forwarder string.
+    """
     if not value or "\0" in value:
         raise ValueError("Invalid forwarder")
     if not value.isascii():
@@ -113,7 +118,7 @@ IMAGE_REL_BASED_DIR64 = 10
 
 @dataclass(frozen=True)
 class BaseRelocation:
-    """An entry of the base relocation table of a PE. The loader adds the base delta to the value at rva."""
+    """An entry of the base relocation table of a PE. The loader adds the base delta to the value at ``rva``."""
 
     rva: int
     type: int
@@ -124,10 +129,10 @@ class LoadedImage:
     """
     An image and its addresses.
 
-    A loader returns the image at its preferred base, image_base. The addresses are RVAs:
+    A loader returns the image at its preferred base, ``image_base``. The addresses are RVAs:
     the bases of the regions, the IAT slots, the exports, the entry points, the TLS callbacks
-    and the TLS and resource directories. relocate_image returns a copy at a base, with
-    absolute addresses. relocations is None if the image can load only at its preferred base.
+    and the TLS and resource directories. ``relocate_image`` returns a copy at a base, with
+    absolute addresses. ``relocations`` is None if the image can load only at its preferred base.
     """
 
     arch: int
@@ -153,7 +158,7 @@ class LoadedImage:
 
 
 def _write_image_base(image: LoadedImage, data: bytearray, base: int) -> None:
-    """Write base in the ImageBase field of the PE header, in the data of the region at RVA 0."""
+    """Write ``base`` in the ImageBase field of the PE header, in the data of the region at RVA 0."""
     if image.pe_metadata is None or len(data) < 0x40:
         return
     size = 8 if image.pe_metadata.magic == 0x20B else 4
@@ -165,14 +170,14 @@ def _write_image_base(image: LoadedImage, data: bytearray, base: int) -> None:
 
 def relocate_image(image: LoadedImage, base: int) -> LoadedImage:
     """
-    Return a copy of the image at base, with absolute addresses.
+    Return a copy of the image at ``base``, with absolute addresses.
 
-    If base is not the preferred base, add the difference to the value at each base relocation
-    and write base in the ImageBase field of the PE header, as the Windows loader does.
+    If ``base`` is not the preferred base, add the difference to the value at each base relocation
+    and write ``base`` in the ImageBase field of the PE header, as the Windows loader does.
 
     Raises:
-        ValueError: if the image does not fit at base, the image has no relocation data and
-            base is not its preferred base, or a base relocation is not valid.
+        ValueError: if the image does not fit at ``base``, the image has no relocation data and
+            ``base`` is not its preferred base, or a base relocation is not valid.
     """
     if type(base) is not int or base < 0 or base + image.image_size > 1 << image.arch:
         raise ValueError(f"Image does not fit in the address space at {base:#x}")
@@ -304,10 +309,15 @@ class InitRoutine:
 
 def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
     """
-    Check raw delay descriptors before trusting pefile's permissive parser.
+    Check the raw delay import descriptors, because pefile accepts malformed descriptors.
 
-    Legacy x86 descriptors contain VAs. pefile normalizes their struct fields
-    in place; retain the raw bytes so mapping does not rewrite the guest table.
+    Return the RVA and the raw bytes of the directory, and the thunk count of each
+    descriptor. Old x86 descriptors hold VAs, and pefile changes their fields to RVAs.
+    The caller writes the raw bytes back, so that the mapped image has the original table.
+
+    Raises:
+        ValueError: if a descriptor or its tables are outside the image or not terminated,
+            or the attributes of a descriptor are not valid for the architecture.
     """
     if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) <= 13:
         return 0, b"", []
@@ -356,10 +366,10 @@ def _delay_import_directory(pe: Any) -> tuple[int, bytes, list[int]]:
 
 class PeLoader:
     """
-    Load guest PEs, tolerating malformed optional inventories.
+    Load a guest PE.
 
-    Malformed import and export metadata is skipped with a warning. Image
-    mapping and architecture validation are mandatory.
+    The loader logs a warning and skips malformed import, export and TLS callback data.
+    It rejects a PE with an unsupported machine type, or with headers or sections that do not fit the image.
     """
 
     def __init__(
@@ -381,7 +391,7 @@ class PeLoader:
         ep_rva = pe.OPTIONAL_HEADER.AddressOfEntryPoint
         if ep_rva >= pe.image_size:
             problems.append(f"entry point RVA {ep_rva:#x} is outside the image (size {pe.image_size:#x})")
-        # Only raw data up to VirtualSize is mapped, and files often end
+        # The loader maps raw data only up to VirtualSize, and files often end
         # inside the FileAlignment padding of the last section.
         alignment = pe.OPTIONAL_HEADER.FileAlignment or 1
         file_end = -(-pe.file_size // alignment) * alignment
@@ -403,8 +413,8 @@ class PeLoader:
         return problems
 
     def _import_dll_name(self, pe: Any, entry: Any, source: str) -> str:
-        # pefile replaces non-ASCII names with *invalid*. Read the original
-        # bounded string so accepting Latin-1 does not lose the name's bytes.
+        # pefile replaces a non-ASCII name with *invalid*. Read the raw string, so that
+        # the Latin-1 decode keeps all bytes of the name.
         rva = entry.struct.Name if source == "static" else entry.struct.szName
         if not 0 < rva < pe.image_size:
             raise ValueError("Import DLL name lies outside the image")
@@ -416,8 +426,8 @@ class PeLoader:
         if terminator < 0:
             raise ValueError("Unterminated imported DLL name")
         raw = raw[:terminator]
-        # Retain pefile's filename rules for ASCII, allowing high bytes only
-        # through the explicit lossless decoding policy.
+        # Apply the file name rules of pefile, but accept bytes above 0x7F. The Latin-1
+        # decode below keeps them.
         ascii_name = bytes(c if c < 128 else ord("x") for c in raw)
         if not raw or not pefile.is_valid_dos_filename(ascii_name):
             raise ValueError("Invalid imported DLL name")
@@ -432,13 +442,16 @@ class PeLoader:
         return dll
 
     def _static_import_slots(self, pe: Any, entry: Any, parsed: Any, budget: list[int]):
-        """Retain raw thunk positions when pefile filters malformed names."""
+        """
+        Yield the IAT slot RVA and the symbol of each import of a static descriptor.
+
+        Read the thunk table directly, so that each import keeps its slot when pefile drops a malformed name.
+        """
         width = pe.arch // 8
         table_rva = entry.struct.OriginalFirstThunk or entry.struct.FirstThunk
         if table_rva != entry.struct.FirstThunk:
-            # pefile falls back to the IAT when the preferred table is empty
-            # or unreadable. Static symbol addresses track relocation; validate
-            # their slot offsets before using thunk_rva as table-choice evidence.
+            # pefile reads the IAT if the ILT is empty or cannot be read. If the thunk_rva of a
+            # pefile symbol is its IAT slot, read the IAT too. Check the slot offset first.
             for symbol in parsed:
                 address = getattr(symbol, "address", None)
                 thunk_rva = getattr(symbol, "thunk_rva", None)
@@ -469,8 +482,8 @@ class PeLoader:
                 return
             if not value:
                 return
-            # Allow a terminator after exhaustion, but stop on the first
-            # further nonzero thunk: at most one lookahead per descriptor.
+            # When the limit is reached, a NUL thunk still ends the table, but the next
+            # nonzero thunk stops the read.
             if not budget[0]:
                 self._optional_error("static import name table", ValueError("Import symbol limit exceeded"))
                 return
@@ -484,7 +497,7 @@ class PeLoader:
                 continue
             symbol = symbols.get(thunk_rva)
             if symbol is None:
-                # Recover metadata only; never rewrite guest thunks or IAT bytes.
+                # pefile dropped this symbol. Read its ordinal or name from the thunk.
                 name = None
                 if not ordinal:
                     try:
@@ -503,8 +516,8 @@ class PeLoader:
 
     def make_image(self) -> LoadedImage:
         class InventoryParser(_PeParser):
-            # PeLoader builds these inventories from the raw pefile entries.
-            # Avoid legacy eager UTF-8 decoding before our policy can run.
+            # PeLoader reads the imports and exports from the pefile entries. The
+            # _PeParser versions decode names as UTF-8 and fail on other bytes.
             def _get_pe_imports(self):
                 return {}
 
@@ -521,8 +534,8 @@ class PeLoader:
         if pe.OPTIONAL_HEADER.SizeOfHeaders > pe.image_size:
             raise ValueError("PE headers extend beyond the image")
         for section in pe.sections:
-            # Raw file-alignment padding is not a declared virtual allocation.
-            # Malware images may put that padding beyond SizeOfImage.
+            # Check only the virtual size. In malware, the FileAlignment padding of the
+            # raw data can go past SizeOfImage.
             if section.Misc_VirtualSize and section.VirtualAddress + section.Misc_VirtualSize > pe.image_size:
                 raise ValueError("PE section extends beyond the image")
 
@@ -551,8 +564,8 @@ class PeLoader:
         except (ValueError, pefile.PEFormatError) as error:
             self._optional_error("delay import directory", error)
             parsed_delay = ()
-            # Restore bounded raw descriptors even if their inventory is bad:
-            # pefile may have normalized legacy VA fields in place.
+            # Write back the raw descriptors also when they are not valid, because pefile
+            # can change old VA fields to RVAs.
             directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[13]
             delay_rva, size = directory.VirtualAddress, directory.Size
             delay_raw = b""
@@ -570,8 +583,8 @@ class PeLoader:
 
         imports: list[ImportEntry] = []
         ptr_size = pe.arch // 8
-        # Eager delay binding uses exactly the same inventory as ordinary imports.
-        # pefile normalizes legacy x86 VA-based delay descriptors to RVAs.
+        # The loader binds delay imports at load time, with the same import list as static
+        # imports. pefile changes the VAs of old x86 delay descriptors to RVAs.
         parsed_static = {
             entry.struct.get_file_offset(): entry.imports for entry in getattr(pe, "DIRECTORY_ENTRY_IMPORT", ())
         }
@@ -579,18 +592,16 @@ class PeLoader:
         if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > 1:
             directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[1]
             if directory.VirtualAddress:
-                # The names-only pass retains descriptors whose entire symbol
-                # inventory was discarded by pefile's permissive parser.
+                # With dllnames_only, pefile keeps a descriptor also when it drops all of its symbols.
                 try:
                     static_entries = (
                         pe.parse_import_directory(directory.VirtualAddress, directory.Size, dllnames_only=True) or ()
                     )
                 except pefile.PEFormatError as error:
                     self._optional_error("static import directory", error)
-        # pefile's > MAX_IMPORT_SYMBOLS guard can retain MAX + 1 symbols.
-        # Preserve that surface with a shared nonzero-slot cap, including
-        # malformed entries. Terminators do not consume it. This bounds our
-        # single-table walk without duplicating pefile's ILT/IAT read counter.
+        # pefile stops after more than MAX_IMPORT_SYMBOLS symbols, so it can keep
+        # MAX_IMPORT_SYMBOLS + 1. Use the same limit for the nonzero thunks of all static
+        # descriptors, also the malformed ones. NUL thunks do not count.
         static_budget = [pefile.MAX_IMPORT_SYMBOLS + 1]
         for entries, source in ((static_entries, "static"), (parsed_delay, "delay")):
             for entry in entries:
@@ -627,8 +638,8 @@ class PeLoader:
         parsed_exports = getattr(getattr(pe, "DIRECTORY_ENTRY_EXPORT", None), "symbols", ())
         if pe.OPTIONAL_HEADER.DATA_DIRECTORY:
             directory = pe.OPTIONAL_HEADER.DATA_DIRECTORY[0]
-            # Windows classifies forwarders by the full declared range, even
-            # when Size runs past the image, so only the header must fit.
+            # Windows uses the full Size of the directory to find forwarders, also when Size
+            # goes past the image. So only the directory header must fit.
             directory_end = directory.VirtualAddress + directory.Size
             if (directory.VirtualAddress or directory.Size) and (
                 not directory.VirtualAddress or directory.Size < 40 or directory.VirtualAddress + 40 > pe.image_size
@@ -651,7 +662,7 @@ class PeLoader:
                         if terminator < 0:
                             raise ValueError("Unterminated forwarder within export directory")
                         forwarder = directory_bytes[offset:terminator].decode("ascii")
-                        # An empty forwarder is one the image writes at runtime.
+                        # The image can write the forwarder string at run time, so an empty string is valid.
                         if forwarder:
                             validate_forwarder(forwarder)
                     section = pe.get_section_by_rva(exp.address)
@@ -688,7 +699,7 @@ class PeLoader:
         def read_mapped(rva: int, size: int) -> bytes:
             return bytes(mapped_image[rva : rva + size]).ljust(size, b"\0")
 
-        # Windows reads the directory from the mapped image, so it may extend
+        # Windows reads the directory from the mapped image, so it can extend
         # into the zero-filled tail of a section that pefile does not parse.
         if tls_rva and tls_rva + 4 * ptr_size + 8 <= pe.image_size:
             tls_directory = tls_rva
@@ -763,14 +774,13 @@ class PeLoader:
                     else:
                         res_id = resource_id.struct.Id
 
-                    # Regular resource entry
                     if hasattr(resource_id, "directory"):
                         for resource_lang in resource_id.directory.entries:
                             if hasattr(resource_lang, "data"):
                                 data_rva = resource_lang.data.struct.OffsetToData
                                 size = resource_lang.data.struct.Size
                                 lang_id = resource_lang.id or 0
-                                # Calculate RVA of the entry structure for HRSRC compatibility
+                                # FindResource returns the address of the IMAGE_RESOURCE_DATA_ENTRY as the HRSRC
                                 entry_offset = resource_lang.data.struct.get_file_offset()
                                 entry_rva = pe.get_rva_from_offset(entry_offset)
 
