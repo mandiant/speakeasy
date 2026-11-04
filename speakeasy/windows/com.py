@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class COM:
-    """The Component Object Model (COM) manager for the emulator. This will manage COM interfaces."""
+    """Build the COM interface vtables in guest memory."""
 
     def __init__(self, config: SpeakeasyConfig):
         super().__init__()
@@ -25,15 +25,20 @@ class COM:
         """
         Get the address that a vtable slot of ``iface_name`` holds for ``method_name``.
 
-        A method without a handler gets an address too, so
-        that a call to it stops the run as an unsupported API.
+        A method without a handler gets an address too, so that a call to it goes through handler
+        resolution like an API without a handler.
         """
         method = getattr(com_api.ComApi, f"{iface_name}_{method_name}", None)
         func_name = method.__apihook__[0] if method else f"{iface_name}.{method_name}"
         return emu.add_callback(com_api.ComApi.name, func_name)
 
     def get_interface(self, emu, ptr_size, name):
-        """Get COM interface."""
+        """
+        Map a vtable for a COM interface, with one method address in each slot.
+
+        Raises:
+            Win32EmuError: if the interface is not known, or it has a field of an unsupported type.
+        """
         iface = comdefs.IFACE_TYPES.get(name)
         if not iface:
             raise Win32EmuError(f"Invalid COM interface: {name}")
@@ -46,12 +51,11 @@ class COM:
         field_offset = 0
         for field in fields:
             field_name, field_obj = field
-            # Determine if the field is an inherited interface (e.g., IUnknown)
+            # A Structure field is an inherited interface, such as IUnknown.
             if issubclass(field_obj, ctypes.Structure):
                 if field_name not in comdefs.IFACE_TYPES:
                     raise Win32EmuError(f"COM interface {name} inherits unsupported interface {field_name}")
 
-                # Iterate inherited interface fields
                 for subfield in field_obj._fields_:
                     subfield_name, subfield_type = subfield
                     if issubclass(subfield_type, (ctypes.c_uint32, ctypes.c_ulong, ctypes.c_ulonglong)):
