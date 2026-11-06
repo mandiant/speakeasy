@@ -83,7 +83,7 @@ def walk_frames(emu, ctx, handler_type: int) -> Iterator[tuple[Any, unwind.Runti
         if pc == winemu.GUEST_CALLBACK_RETURN_ADDR:
             guest_callbacks.unwind_frame(emu, ctx)
             continue
-        if not pc or winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED_END:
+        if not pc or winemu.EMU_RESERVED <= pc < winemu.EMU_RESERVED_END or pc == emu.thread_return_addr:
             return
         frame_ctx = copy_context(ctx)
         try:

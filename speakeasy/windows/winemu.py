@@ -397,6 +397,8 @@ class WindowsEmulator(BinaryEmulator):
 
         self.return_hook: int = winemu.EMU_RETURN_ADDR
         self.exit_hook: int = winemu.EXIT_RETURN_ADDR
+        # A jump in kernel32 to the return hook. The EXE entry point and thread start routines return to it.
+        self.thread_return_addr: int | None = None
         self._parse_config(config)
 
         self.wintypes = windefs
@@ -867,7 +869,7 @@ class WindowsEmulator(BinaryEmulator):
             if max(len(run.args) - 4, 0) % 2:
                 stk_ptr -= 8
 
-        self.set_func_args(stk_ptr, self.return_hook, *run.args, conv=_arch.CALL_CONV_STDCALL)
+        self.set_func_args(stk_ptr, self.get_run_return_address(run), *run.args, conv=_arch.CALL_CONV_STDCALL)
         for reg, value in run.registers.items():
             self.reg_write(reg, value)
         stk_ptr = self.get_stack_ptr()
@@ -907,6 +909,10 @@ class WindowsEmulator(BinaryEmulator):
 
         self.set_pc(run.start_addr)
         return run
+
+    def get_run_return_address(self, run: Run) -> int:
+        """Get the return address that the code of run returns to. A return to it ends the run."""
+        return self.return_hook
 
     def mem_cast(self, obj, addr):
         """Read a structure of the type of obj from guest memory at addr."""

@@ -518,6 +518,27 @@ class Win32Emulator(WindowsEmulator):
         core_mods.sort(key=lambda x: x[0])
         return exe_mods + [m for _, m in core_mods] + other_mods
 
+    def get_run_return_address(self, run: Run) -> int:
+        """
+        Get the return address that the code of run returns to. A return to it ends the run.
+
+        On Windows, BaseThreadInitThunk of kernel32 calls the entry point of an EXE and the start routine of a
+        thread. So these runs return to a jump in kernel32 that goes to the return hook. A search down from the
+        return address finds the headers of kernel32. The other runs return to the return hook.
+        """
+        if run.type not in (EntryPointType.MODULE_ENTRY, EntryPointType.THREAD):
+            return self.return_hook
+        if self.thread_return_addr is None:
+            kernel32 = self.get_mod_by_name("kernel32")
+            if kernel32 is None:
+                return self.return_hook
+            try:
+                self.thread_return_addr = self.api_registry.add_jump(kernel32, self.return_hook)
+            except WindowsEmuError as e:
+                logger.debug("thread start routines return to the return hook: %s", e)
+                return self.return_hook
+        return self.thread_return_addr
+
     def _ensure_core_dlls_loaded(self):
         CORE_DLLS = ["ntdll", "kernel32", "kernelbase"]
         for dll in CORE_DLLS:
