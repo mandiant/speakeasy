@@ -534,9 +534,8 @@ def test_nt_query_information_token_gives_the_user_sid_of_an_opened_process(
     assert (rv, size) == (ddk.STATUS_BUFFER_TOO_SMALL, 2 * ptr_size + 28)
 
     info = alloc(se, b"\xcc" * size)
-    rv, _ = call(
-        se, "ntdll", "NtQueryInformationToken", [token, TOKEN_INFORMATION_CLASS.TokenUser, info, size, ret_len]
-    )
+    argv = [token, TOKEN_INFORMATION_CLASS.TokenUser, info, size, ret_len]
+    rv, _ = call(se, "ntdll", "NtQueryInformationToken", argv)
     sid = read_ptr(se, info)
     assert (rv, sid) == (ddk.STATUS_SUCCESS, info + 2 * ptr_size)
     authority = bytes([1, 5]) + (5).to_bytes(6, "big")
