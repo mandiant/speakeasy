@@ -73,7 +73,6 @@ APPMODEL_ERROR_NO_PACKAGE = 15700
 
 PATHCCH_MAX_CCH = 0x8000
 
-ERROR_BAD_LENGTH = 24
 ERROR_BAD_ARGUMENTS = 160
 ERROR_OLD_WIN_VERSION = 1150
 
@@ -6650,7 +6649,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
         if not lpJobObjectInformation or cbJobObjectInformationLength < size:
-            emu.set_last_error(ERROR_BAD_LENGTH)
+            emu.set_last_error(windefs.ERROR_BAD_LENGTH)
             return 0
         # The job has no limits and no accounting data
         self.mem_write(lpJobObjectInformation, b"\x00" * size)
