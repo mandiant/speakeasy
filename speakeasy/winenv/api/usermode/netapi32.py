@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.windows.netapi32 as netapi32defs
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.windows.common import FILETIME_UNIX_EPOCH
+from speakeasy.winenv.api.compare import Fold, get_string_order
 
 from .. import api
 
@@ -111,6 +113,56 @@ class NetApi32(api.ApiHandler):
 
         return netapi32defs.NERR_Success
 
+    @apihook("NetStatisticsGet", argc=5)
+    def NetStatisticsGet(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NET_API_STATUS NetStatisticsGet(
+            LMSTR ServerName,
+            LMSTR Service,
+            DWORD Level,
+            DWORD Options,
+            LPBYTE *Buffer
+        );
+
+        The statistics start when the system starts. All counters are zero.
+        """
+        ServerName, Service, Level, Options, Buffer = argv
+
+        if ServerName:
+            ctx.args["ServerName"].display = self.read_wide_string(ServerName)
+        service = ""
+        if Service:
+            service = self.read_wide_string(Service)
+            ctx.args["Service"].display = service
+
+        self.write_ptr(Buffer, 0)
+
+        boot_time = emu.api.load_api_handler("kernel32").boot_time
+        start = (boot_time - FILETIME_UNIX_EPOCH) // 10_000_000
+
+        stats: netapi32defs.STAT_WORKSTATION_0 | netapi32defs.STAT_SERVER_0
+        if get_string_order(service, netapi32defs.SERVICE_WORKSTATION, Fold.ASCII_LOWER) == 0:
+            stats = netapi32defs.STAT_WORKSTATION_0(emu.get_ptr_size())
+            stats.StatisticsStartTime = start
+        elif get_string_order(service, netapi32defs.SERVICE_SERVER, Fold.ASCII_LOWER) == 0:
+            stats = netapi32defs.STAT_SERVER_0(emu.get_ptr_size())
+            stats.sts0_start = start
+        else:
+            return windefs.ERROR_NOT_SUPPORTED
+
+        if Level != 0:
+            return windefs.ERROR_INVALID_LEVEL
+        if Options != 0:
+            return windefs.ERROR_INVALID_PARAMETER
+
+        buf = self.heap_alloc(stats.sizeof(), heap="NetApiBufferAllocate")
+        if not buf:
+            return windefs.ERROR_NOT_ENOUGH_MEMORY
+        self.mem_write(buf, stats.get_bytes())
+        self.write_ptr(Buffer, buf)
+
+        return netapi32defs.NERR_Success
+
     @apihook("NetUserAdd", argc=4)
     def NetUserAdd(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -136,4 +188,7 @@ class NetApi32(api.ApiHandler):
             LPVOID Buffer
         );
         """
+        (Buffer,) = argv
+        if Buffer:
+            self.heap_free(Buffer)
         return netapi32defs.NERR_Success
