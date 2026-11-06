@@ -346,7 +346,7 @@ def test_lstrcmp_exports_without_suffix_read_ansi(dll_emu: Speakeasy, api: str, 
 
 
 @pytest.mark.parametrize("api, cw", [("lstrcmpA", 1), ("lstrcmpW", 2), ("lstrcmpiA", 1), ("lstrcmpiW", 2)])
-@pytest.mark.parametrize(("null1", "null2", "expected"), [(True, True, 0), (True, False, -1), (False, True, 1)])
+@pytest.mark.parametrize("null1, null2, expected", [(True, True, 0), (True, False, -1), (False, True, 1)])
 def test_lstrcmp_sorts_a_null_string_first(
     dll_emu: Speakeasy, api: str, cw: int, null1: bool, null2: bool, expected: int
 ) -> None:
