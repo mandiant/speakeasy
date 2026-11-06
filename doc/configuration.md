@@ -343,7 +343,9 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   "modules": {
     // If true, when the guest loads an unknown module, the emulator creates an
-    // empty synthetic API module. If false, the load fails.
+    // empty synthetic API module. If false, the load fails, except for a DLL in
+    // the system directory of a clean Windows install (see
+    // cli-environment-overrides.md).
     "modules_always_exist": false,
 
     // If true, an API that has no handler and no entry in the signature database
