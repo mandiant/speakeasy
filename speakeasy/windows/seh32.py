@@ -57,6 +57,18 @@ TRYLEVEL_NONE_SEH4 = 0xFFFFFFFE  # -2
 # SEH4 scope tables start with GS and EH cookie offsets
 SEH4_SCOPE_TABLE_HEADER = 0x10
 
+# The registration that the local unwind adds while a __finally block runs, as _local_unwind2 of the CRT.
+#
+#   struct {
+#       PVOID Next;              // 0x00
+#       PVOID ExceptionHandler;  // 0x04, _unwind_handler
+#       DWORD TryLevel;          // 0x08, the enclosing level of the scope
+#       PVOID Registration;      // 0x0c, the registration of the frame
+#   };
+UNWIND_HANDLER = "_unwind_handler"
+UNWIND_LEVEL = 0x08
+UNWIND_REGISTRATION = 0x0C
+
 
 def _u32(emu, address: int) -> int:
     value: int = struct.unpack("<I", emu.mem_read(address, 4))[0]
@@ -198,36 +210,42 @@ class MsvcFrame:
 
     def local_unwind(self, stop: int) -> Generator[GuestCall, int, None]:
         """Leave the scopes inside the stop level, running their __finally blocks."""
+        node = 0
         for _ in range(seh.MAX_FRAMES):  # a scope table may be corrupt
             if self.try_level in (self.none, stop):
                 break
             enclosing, filter_function, handler = self.scope(self.try_level)
             self.try_level = enclosing
             if not filter_function:
-                state = guest_callbacks.current(self.emu)
-                state.termination = (self.registration, enclosing)
-                try:
-                    yield self.call(handler)
-                finally:
-                    state.termination = None
+                if not node:
+                    unwind_handler = self.emu.add_callback("msvcrt", UNWIND_HANDLER)
+                    node = guest_callbacks.alloca(
+                        self.emu, struct.pack("<IIII", exception_list(self.emu), unwind_handler, 0, self.registration)
+                    )
+                    set_exception_list(self.emu, node)
+                _write_u32(self.emu, node + UNWIND_LEVEL, enclosing)
+                yield self.call(handler)
+        if node:
+            set_exception_list(self.emu, _u32(self.emu, node))
 
 
 def is_abnormal_termination(emu) -> bool:
     """
     Get the result of _abnormal_termination: whether the caller is a __finally block that local_unwind runs.
 
-    As in the CRT, the newest registration at fs:[0] must be the frame that the unwind leaves, and the
-    try level of the frame must be the enclosing level of the __finally scope. A function that the block
-    calls adds a registration, and a __try in the block changes the try level.
+    As in the CRT, the newest registration at fs:[0] must be the one that local_unwind adds, and the try
+    level of the frame must be the level in that registration. A function that the block calls adds a
+    registration, and a __try in the block changes the try level.
     """
-    callbacks = emu.get_current_run().guest_callbacks
-    termination: tuple[int, int] | None = (
-        callbacks[-1].handler.termination if callbacks and callbacks[-1].handler else None
-    )
-    if termination is None:
+    newest = next(registrations(emu), None)
+    if newest is None:
         return False
-    registration, level = termination
-    return exception_list(emu) == registration and _u32(emu, registration + TRY_LEVEL) == level
+    node, _, handler = newest
+    entry = emu.api_registry.entries.get(handler)
+    if entry is None or entry.name != UNWIND_HANDLER:
+        return False
+    registration = _u32(emu, node + UNWIND_REGISTRATION)
+    return _u32(emu, registration + TRY_LEVEL) == _u32(emu, node + UNWIND_LEVEL)
 
 
 def msvc_handler(emu, frame: MsvcFrame, record: int, context: int) -> GeneratorHandler:

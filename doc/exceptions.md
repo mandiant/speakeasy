@@ -35,8 +35,10 @@ target frame.
 
 On x86, the emulator walks the chain of registrations at `fs:[0]`. The MSVC
 language handlers `_except_handler3` and `_except_handler4_common` run filters
-and `__finally` blocks, and `RtlUnwind` unwinds registrations. In a `__finally`
-block that these handlers run for an unwind, `_abnormal_termination` returns 1.
+and `__finally` blocks, and `RtlUnwind` unwinds registrations. While these
+handlers run a `__finally` block for an unwind, the newest registration at
+`fs:[0]` has the handler `msvcrt._unwind_handler`, as with `_local_unwind2` of
+the CRT. In this block, `_abnormal_termination` returns 1.
 
 When no handler takes an exception, the emulator calls the filter that the
 sample set with `SetUnhandledExceptionFilter`. The filter can continue
