@@ -524,6 +524,13 @@ def test_net_statistics_get_rejects_the_request(
     assert (rv, buf) == (error, 0)
 
 
+def test_net_api_buffer_free_frees_the_statistics(dll_emu: Speakeasy) -> None:
+    _, buf, _ = get_net_statistics(dll_emu, "LanmanServer")
+    assert call(dll_emu, "netapi32", "NetApiBufferFree", [buf])[0] == 0
+    mm = dll_emu.emu.get_address_map(buf)
+    assert mm is None or mm.free
+
+
 def test_url_download_to_cache_file_small_buffer_fails(dll_emu: Speakeasy) -> None:
     url = alloc(dll_emu, b"http://example.com/a.bin\x00")
     out = alloc(dll_emu, b"\xcc" * 8)
