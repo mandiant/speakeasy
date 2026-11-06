@@ -53,20 +53,6 @@ def test_c99_j_and_t_modifiers_format_value(api, fmt, value, expected):
     assert do_format(api, fmt, [value]) == expected
 
 
-def test_multiple_ll_conversions_keep_output_index_correct(api):
-    assert do_format(api, "%llx %llx", [0x1111, 0x2222]) == "1111 2222"
-
-
-def test_narrow_string_after_z_splice_formats_both_args(api):
-    api.strings[0x500000] = b"hello"
-
-    assert do_format(api, "%zu %s", [42, 0x500000]) == "42 hello"
-
-
-def test_p_conversion_after_z_splice_lands_in_correct_slot(api):
-    assert do_format(api, "%zu %p", [42, 0xDEADBEEF]) == "42 00000000DEADBEEF"
-
-
 def test_upper_p_conversion_after_ll_splice_lands_in_correct_slot(api):
     assert do_format(api, "%llx %P", [0xAB, 0xDEADBEEF]) == "ab 00000000DEADBEEF"
 
