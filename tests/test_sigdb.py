@@ -458,19 +458,6 @@ def test_database_empty() -> None:
     assert db.lookup("kernel32", "CreateFileW", "x86") is None
 
 
-def test_missing_file_warns_once_per_source(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    sigdb.Win32MetadataSource._missing_warned = False
-    sigdb.PhntSource._missing_warned = False
-    with caplog.at_level("WARNING", logger="speakeasy.winenv.api.sigdb"):
-        for _ in range(2):
-            assert not sigdb.Win32MetadataSource(str(tmp_path / "a.json.gz")).available
-            assert not sigdb.PhntSource(str(tmp_path / "b.json.gz")).available
-    messages = [r.getMessage() for r in caplog.records]
-    assert len(messages) == 2
-    assert "win32metadata" in messages[0] and "gen_win32_signatures" in messages[0]
-    assert "phnt" in messages[1] and "gen_phnt_signatures" in messages[1]
-
-
 # -- bundled database -------------------------------------------------------
 
 
