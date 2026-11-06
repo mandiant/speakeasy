@@ -6102,6 +6102,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
+        # We don't strictly need pe here for SizeofResource if we trust hResInfo,
+        # but the API takes hModule.
+        # Just use hResInfo which points to IMAGE_RESOURCE_DATA_ENTRY
         return self.read_dword(hResInfo + 4)
 
     def get_resources(self, emu, hModule, type_=None, name=None, lang=0):
