@@ -4,6 +4,10 @@ Physical export tables of Windows modules.
 Each ``resources/win32/exports/<arch>/<module>.json`` file records the export
 directory of one real Windows binary: ordinals, names, forwarder strings and
 whether the export is code or data. ``ExportManifest`` defines the file format.
+
+Each ``resources/win32/ordinals/<arch>/<module>.json`` file gives the names of
+the export ordinals of a module that has no manifest. ``OrdinalNames`` defines
+the file format.
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from speakeasy.windows.loaders import validate_forwarder
 
 MANIFEST_ROOT = Path(__file__).resolve().parent.parent / "resources" / "win32" / "exports"
+ORDINAL_NAMES_ROOT = MANIFEST_ROOT.parent / "ordinals"
 
 
 class ManifestExport(BaseModel):
@@ -85,9 +90,51 @@ class ExportManifest(BaseModel):
         return cls.model_validate_json(path.read_bytes())
 
 
+class OrdinalName(BaseModel):
+    """The exported name of one ordinal."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ordinal: int = Field(ge=1, le=0xFFFF, description="Biased export ordinal, as an importer uses it.")
+    name: str = Field(min_length=1, description="Exported name.")
+
+
+class OrdinalNames(BaseModel):
+    """
+    The names of the export ordinals of a module.
+
+    The file does not identify a binary, and it does not tell code exports from data exports.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    module: str = Field(min_length=1, description="Lower-case file stem. It is also the file name.")
+    arch: Literal["x86", "x64"] = Field(description="Architecture of the module. It is also the directory name.")
+    names: tuple[OrdinalName, ...] = Field(description="Names sorted by ordinal. Ordinals and names are unique.")
+
+    @model_validator(mode="after")
+    def _check_names(self) -> OrdinalNames:
+        ordinals = [entry.ordinal for entry in self.names]
+        if ordinals != sorted(set(ordinals)):
+            raise ValueError("ordinals must be unique and sorted")
+        if len({entry.name for entry in self.names}) != len(self.names):
+            raise ValueError("names must be unique")
+        return self
+
+    @classmethod
+    def from_path(cls, path: Path) -> OrdinalNames:
+        """
+        Load and validate one ordinal names file.
+
+        Raises:
+            pydantic.ValidationError: if the file does not follow the format.
+        """
+        return cls.model_validate_json(path.read_bytes())
+
+
 @cache
-def get_manifest_names(arch: str) -> frozenset[str]:
-    directory = MANIFEST_ROOT / arch
+def get_resource_names(root: Path, arch: str) -> frozenset[str]:
+    directory = root / arch
     if not directory.is_dir():
         return frozenset()
     return frozenset(path.stem for path in directory.glob("*.json"))
@@ -96,6 +143,14 @@ def get_manifest_names(arch: str) -> frozenset[str]:
 @cache
 def get_export_manifest(module: str, arch: str) -> ExportManifest | None:
     """Return the manifest for a lower-case module name on ``x86`` or ``x64``, if one exists."""
-    if module not in get_manifest_names(arch):
+    if module not in get_resource_names(MANIFEST_ROOT, arch):
         return None
     return ExportManifest.from_path(MANIFEST_ROOT / arch / f"{module}.json")
+
+
+@cache
+def get_ordinal_names(module: str, arch: str) -> OrdinalNames | None:
+    """Return the ordinal names for a lower-case module name on ``x86`` or ``x64``, if they exist."""
+    if module not in get_resource_names(ORDINAL_NAMES_ROOT, arch):
+        return None
+    return OrdinalNames.from_path(ORDINAL_NAMES_ROOT / arch / f"{module}.json")
