@@ -2009,7 +2009,7 @@ class AdvApi32(api.ApiHandler):
 
         if hnd is not None:
             hnd.update(data)
-        ctx.args["pbData"].display = base64.b64encode(data).decode("ascii")
+        ctx.args["pbData"].display = base64.b64encode(data).decode("utf-8")
         if out:
             self.mem_write(pbData, out)
         self.write_dword(pdwDataLen, len(out))
@@ -2047,7 +2047,7 @@ class AdvApi32(api.ApiHandler):
 
         if hnd is not None:
             hnd.update(out)
-        ctx.args["pbData"].display = base64.b64encode(out).decode("ascii")
+        ctx.args["pbData"].display = base64.b64encode(out).decode("utf-8")
         if out:
             self.mem_write(pbData, out)
         self.write_dword(pdwDataLen, len(out))
