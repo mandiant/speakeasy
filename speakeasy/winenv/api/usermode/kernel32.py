@@ -892,15 +892,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         dwDesiredAccess, bInheritHandle, dwProcessId = argv
 
-        proc = next((p for p in emu.get_processes() if p.pid == dwProcessId), None)
-        if not proc:
-            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
-            return 0
-
-        if not emu.get_object_from_addr(proc.address):
-            emu.add_object(proc)
-
-        hnd = emu.get_object_handle(proc)
+        hnd = emu.open_process(dwProcessId)
         if not hnd:
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
