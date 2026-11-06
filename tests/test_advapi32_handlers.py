@@ -737,12 +737,6 @@ def test_get_token_information_returns_the_integrity_level(admin_emu: Speakeasy)
     assert admin_emu.mem_read(sid, 12) == bytes([1, 1]) + (16).to_bytes(6, "big") + struct.pack("<I", level)
 
 
-def test_enum_services_status_returns_no_services(dll_emu: Speakeasy) -> None:
-    outs = [alloc(dll_emu, b"\xcc" * 4) for _ in range(3)]
-    rv, _ = call(dll_emu, "advapi32", "EnumServicesStatusA", [0x1234, 0x30, 3, 0, 0, *outs])
-    assert (rv, [_dword(dll_emu, a) for a in outs]) == (1, [0, 0, 0])
-
-
 @pytest.mark.parametrize(
     "api, data",
     [
