@@ -204,7 +204,30 @@ class MsvcFrame:
             enclosing, filter_function, handler = self.scope(self.try_level)
             self.try_level = enclosing
             if not filter_function:
-                yield self.call(handler)
+                state = guest_callbacks.current(self.emu)
+                state.termination = (self.registration, enclosing)
+                try:
+                    yield self.call(handler)
+                finally:
+                    state.termination = None
+
+
+def is_abnormal_termination(emu) -> bool:
+    """
+    Get whether the caller is a __finally block that local_unwind runs, as _abnormal_termination does.
+
+    As in the CRT, the newest registration at fs:[0] must be the frame that the unwind leaves, and the
+    try level of the frame must be the enclosing level of the __finally scope. A function that the block
+    calls adds a registration, and a __try in the block changes the try level.
+    """
+    callbacks = emu.get_current_run().guest_callbacks
+    termination: tuple[int, int] | None = (
+        callbacks[-1].handler.termination if callbacks and callbacks[-1].handler else None
+    )
+    if termination is None:
+        return False
+    registration, level = termination
+    return exception_list(emu) == registration and _u32(emu, registration + TRY_LEVEL) == level
 
 
 def msvc_handler(emu, frame: MsvcFrame, record: int, context: int) -> GeneratorHandler:

@@ -27,7 +27,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     get_winmain_command_line,
     scan_c_format,
 )
-from tests.guest_harness import guest_call
+from tests.guest_harness import get_api, guest_call
 from tests.handler_harness import alloc, call, get_win32_emu, load_emu, start_process
 
 FILETIME_UNIX_EPOCH = 116444736000000000
@@ -586,6 +586,56 @@ def test_seh_filter_exe_calls_the_signal_handler_once(
     assert [cb.function for cb in dll_emu.emu.get_current_run().guest_callbacks] == [0x401000]
     assert tuple(dll_emu.emu.get_func_argv(e_arch.CALL_CONV_CDECL, len(args))) == args
     assert call(dll_emu, "msvcrt", "signal", [sig, SIG_DFL])[0] == SIG_DFL
+
+
+def test_abnormal_termination_is_true_only_in_a_finally_block_of_an_unwind(config: dict[str, Any]) -> None:
+    """
+    Run the __finally block of an x86 MSVC frame on the normal path and for an unwind.
+
+    The __finally scope is in an __except scope. The __finally block records the result of
+    _abnormal_termination. Then an access violation in the __finally scope unwinds the frame.
+    """
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        data = se.mem_alloc(0x1000)
+        results, count = data, data + 0x10
+        scope_table, filter_function, finally_block = code + 0x200, code + 0x300, code + 0x400
+        abnormal_termination = get_api(se, "msvcrt", "_abnormal_termination")
+
+        main = b"\x55\x89\xe5\x6a\xff"  # push ebp; mov ebp, esp; push -1
+        main += b"\x68" + struct.pack("<I", scope_table)
+        main += b"\x68" + struct.pack("<I", get_api(se, "msvcrt", "_except_handler3"))
+        main += b"\x64\xff\x35" + bytes(4)  # push fs:[0]
+        main += b"\x64\x89\x25" + bytes(4)  # mov fs:[0], esp
+        main += b"\x83\xec\x08\x89\x65\xe8"  # sub esp, 8; mov [ebp-0x18], esp
+        main += b"\xc7\x45\xfc" + struct.pack("<I", 1)  # enter the __finally scope
+        main += b"\xc7\x45\xfc" + struct.pack("<I", 0)  # leave it
+        main += b"\xb8" + struct.pack("<I", finally_block) + b"\xff\xd0"  # call the __finally block
+        main += b"\xc7\x45\xfc" + struct.pack("<I", 1)  # enter the __finally scope
+        main += b"\xc7\x05" + bytes(4) + struct.pack("<I", 1)  # mov dword [0], 1
+        except_block = code + len(main)
+        main += b"\x8b\x65\xe8"  # mov esp, [ebp-0x18]
+        main += b"\x8b\x4d\xf0\x64\x89\x0d" + bytes(4)  # mov ecx, [ebp-0x10]; mov fs:[0], ecx
+        main += b"\x89\xec\x5d"  # mov esp, ebp; pop ebp
+        main += b"\xa1" + struct.pack("<I", count) + b"\xc3"  # mov eax, [count]; ret
+
+        record = b"\xb8" + struct.pack("<I", abnormal_termination) + b"\xff\xd0"  # call _abnormal_termination
+        record += b"\x8b\x0d" + struct.pack("<I", count)  # mov ecx, [count]
+        record += b"\x89\x04\x8d" + struct.pack("<I", results)  # mov [results + ecx * 4], eax
+        record += b"\xff\x05" + struct.pack("<I", count) + b"\xc3"  # inc dword [count]; ret
+
+        se.mem_write(code, main)
+        se.mem_write(scope_table, struct.pack("<6I", 0xFFFFFFFF, filter_function, except_block, 0, 0, finally_block))
+        se.mem_write(filter_function, b"\xb8\x01\x00\x00\x00\xc3")  # EXCEPTION_EXECUTE_HANDLER
+        se.mem_write(finally_block, record)
+        se.mem_write(results, b"\xcc" * 8)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert run.return_value == 2
+        assert struct.unpack("<II", se.mem_read(results, 8)) == (0, 1)
 
 
 @pytest.mark.parametrize("c", [0xFFFFFFE2, 0xE2])

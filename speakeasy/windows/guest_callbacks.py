@@ -110,6 +110,8 @@ class HandlerState:
     scratch: int = 0
     # Address of the CONTEXT of the guest state that the handler interrupted, if the handler has no caller
     context: int = 0
+    # Registration record and try level of the x86 __finally block that the handler runs for an unwind
+    termination: tuple[int, int] | None = None
 
 
 def start(emu, frame: GuestCallbackFrame, generator: GeneratorHandler) -> None:
