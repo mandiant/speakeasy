@@ -14,7 +14,7 @@ lower-case file names, sorted, one name on each line. See the README.md in that 
 
 Usage::
 
-    python scripts/gen_system_dlls.py [--release 11-24H2] [--cache DIR] [--output DIR]
+    python scripts/gen_system_dlls.py [--release 11-24H2] [--cache DIR] [--output DIR] [--jobs N]
 """
 
 from __future__ import annotations
