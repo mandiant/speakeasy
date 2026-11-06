@@ -282,13 +282,3 @@ class _PeParser(pefile.PE):
                 del mapped[address:]
             mapped += section.get_data()
         return bytes(mapped[: self.OPTIONAL_HEADER.SizeOfImage])
-
-    def rebase(self, to):
-        self.relocate_image(to)
-
-        self.base = to
-        self.ep = self.OPTIONAL_HEADER.AddressOfEntryPoint
-
-        self.mapped_image = self.get_mapped_image()
-
-        self.imports = self._get_pe_imports()
