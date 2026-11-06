@@ -50,8 +50,9 @@ se.shutdown()
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_self_respawning_threads_stop_at_cap(config):
-    config.update(max_run_time=5, max_total_time=0.06)
+def test_self_respawning_threads_stop_at_cap(config, caplog):
+    max_total_time, delay = 0.25, 0.05
+    config.update(max_run_time=5, max_total_time=max_total_time)
     se = Speakeasy(config=config)
     try:
         # CreateThread(NULL, 0, this_function, NULL, 0, NULL); RET
@@ -62,14 +63,19 @@ def test_self_respawning_threads_stop_at_cap(config):
         se.mem_write(base + 16, create_thread.to_bytes(4, "little"))
 
         def slow_create_thread(e, api, original, args):
-            time.sleep(0.04)
+            time.sleep(delay)
             return original(args)
 
         se.add_api_hook(slow_create_thread, "kernel32", "CreateThread")
         se.run_shellcode(base)
 
         errors = [run.error.type if run.error else None for run in se.get_report().entry_points]
-        assert errors == [None, "max_total_time"]
+        assert errors[:-1] == [None] * (len(errors) - 1)
+        # The last run is complete if the cap is reached while its thread is prepared.
+        assert errors[-1] in (None, "max_total_time")
+        # Each run that starts a thread uses at least delay, so no run starts after the cap.
+        assert len(errors) <= max_total_time / delay + 1
+        assert sum("Total execution time" in record.message for record in caplog.records) == 1
     finally:
         se.shutdown()
 
