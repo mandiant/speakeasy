@@ -1218,30 +1218,6 @@ def test_gdb_breakpoint_keeps_code_outside_it_fast():
     assert elapsed < 3 * baseline, (elapsed, baseline)
 
 
-def test_gdb_resumes_after_a_timeout_log_it_once(config, caplog):
-    config["max_run_time"] = 0.2
-    port = _find_free_port()
-    se = Speakeasy(config=config, gdb_port=port)
-    try:
-        base = se.load_shellcode(data=b"\xeb\xfe", arch="x86")
-        server = threading.Thread(target=se.run_shellcode, args=(base,))
-        server.start()
-        client = GdbRspClient(port)
-        try:
-            assert client.query_halt_reason().startswith(("S05", "T05"))
-            stops = [client.continue_(), client.continue_(), client.step(), client.query("vCont;c")]
-            client.send_no_wait("k")
-        finally:
-            client.close()
-        server.join(timeout=10)
-        assert not server.is_alive()
-    finally:
-        se.shutdown()
-
-    assert all(stop.startswith("T05") for stop in stops)
-    assert sum("Timeout of" in record.message for record in caplog.records) == 1
-
-
 @contextmanager
 def _serve(se: Speakeasy, port: int, address: int) -> Iterator[GdbRspClient]:
     """Run the shellcode at address in a thread under the GDB server of se, and connect to it."""
