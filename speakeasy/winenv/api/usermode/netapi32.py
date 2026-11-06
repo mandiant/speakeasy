@@ -137,11 +137,16 @@ class NetApi32(api.ApiHandler):
 
         self.write_ptr(Buffer, 0)
 
+        boot_time = emu.api.load_api_handler("kernel32").boot_time
+        start = (boot_time - FILETIME_UNIX_EPOCH) // 10_000_000
+
         stats: netapi32defs.STAT_WORKSTATION_0 | netapi32defs.STAT_SERVER_0
         if get_string_order(service, netapi32defs.SERVICE_WORKSTATION, Fold.ASCII_LOWER) == 0:
             stats = netapi32defs.STAT_WORKSTATION_0(emu.get_ptr_size())
+            stats.StatisticsStartTime = start
         elif get_string_order(service, netapi32defs.SERVICE_SERVER, Fold.ASCII_LOWER) == 0:
             stats = netapi32defs.STAT_SERVER_0(emu.get_ptr_size())
+            stats.sts0_start = start
         else:
             return windefs.ERROR_NOT_SUPPORTED
 
@@ -149,13 +154,6 @@ class NetApi32(api.ApiHandler):
             return windefs.ERROR_INVALID_LEVEL
         if Options != 0:
             return windefs.ERROR_INVALID_PARAMETER
-
-        boot_time = emu.api.load_api_handler("kernel32").boot_time
-        start = (boot_time - FILETIME_UNIX_EPOCH) // 10_000_000
-        if isinstance(stats, netapi32defs.STAT_WORKSTATION_0):
-            stats.StatisticsStartTime = start
-        else:
-            stats.sts0_start = start
 
         buf = self.heap_alloc(stats.sizeof(), heap="NetApiBufferAllocate")
         if not buf:
