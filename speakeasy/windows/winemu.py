@@ -1550,6 +1550,16 @@ class WindowsEmulator(BinaryEmulator):
         """Get the process list. It does not include the child processes."""
         return self.processes
 
+    def open_process(self, pid: int) -> int:
+        """Open a handle to the process with the ID pid in the process list. Return 0 if no process has the ID."""
+        proc = next((p for p in self.get_processes() if p.pid == pid), None)
+        if proc is None:
+            return 0
+        if not self.get_object_from_addr(proc.address):
+            self.add_object(proc)
+        hnd: int = self.get_object_handle(proc)
+        return hnd
+
     def kill_process(self, proc):
         """Remove proc from the process list."""
         try:

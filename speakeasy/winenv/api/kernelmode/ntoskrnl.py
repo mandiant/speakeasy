@@ -21,6 +21,7 @@ from speakeasy.report import EntryPointType, ErrorType
 from speakeasy.windows import objman
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
+from speakeasy.winenv.api.token import query_token_information
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 from speakeasy.winenv.defs.enums import FILE_ACCESS_FLAGS, NT_CREATE_FILE_DISPOSITION, REG_VALUE_TYPE
 from speakeasy.winenv.defs.lookup import decode, decode_flags
@@ -28,6 +29,7 @@ from speakeasy.winenv.defs.nt import ddk
 
 if TYPE_CHECKING:
     from speakeasy.windows.kernel import WinKernelEmulator
+    from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
 
@@ -1240,6 +1242,69 @@ class Ntoskrnl(api.ApiHandler):
         self.write_ptr(Handle, hnd)
 
         return rv
+
+    @apihook("ZwOpenProcess", argc=4)
+    def ZwOpenProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwOpenProcess(
+            PHANDLE ProcessHandle,
+            ACCESS_MASK DesiredAccess,
+            POBJECT_ATTRIBUTES ObjectAttributes,
+            PCLIENT_ID ClientId
+        );
+        """
+        ProcessHandle, DesiredAccess, ObjectAttributes, ClientId = argv
+
+        if not ClientId:
+            return ddk.STATUS_INVALID_PARAMETER_MIX
+
+        hnd = emu.open_process(self.read_ptr(ClientId))
+        if not hnd:
+            return ddk.STATUS_INVALID_CID
+
+        self.write_ptr(ProcessHandle, hnd)
+        return ddk.STATUS_SUCCESS
+
+    @apihook("ZwOpenProcessToken", argc=3)
+    def ZwOpenProcessToken(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwOpenProcessToken(
+            HANDLE ProcessHandle,
+            ACCESS_MASK DesiredAccess,
+            PHANDLE TokenHandle
+        );
+        """
+        ProcessHandle, DesiredAccess, TokenHandle = argv
+
+        proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc:
+            return ddk.STATUS_INVALID_HANDLE
+
+        self.write_ptr(TokenHandle, emu.get_handle_table().new_handle(proc.token))
+        return ddk.STATUS_SUCCESS
+
+    @apihook("ZwQueryInformationToken", argc=5)
+    def ZwQueryInformationToken(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwQueryInformationToken(
+            HANDLE TokenHandle,
+            TOKEN_INFORMATION_CLASS TokenInformationClass,
+            PVOID TokenInformation,
+            ULONG TokenInformationLength,
+            PULONG ReturnLength
+        );
+        """
+        TokenHandle, TokenInformationClass, TokenInformation, TokenInformationLength, ReturnLength = argv
+
+        if not emu.get_handle_table().get(TokenHandle, objman.Token):
+            return ddk.STATUS_INVALID_HANDLE
+
+        status, size = query_token_information(
+            self, emu, TokenInformationClass, TokenInformation, TokenInformationLength
+        )
+        if ReturnLength:
+            self.write_dword(ReturnLength, size)
+        return status
 
     @apihook("PsGetProcessPeb", argc=1)
     def PsGetProcessPeb(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

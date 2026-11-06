@@ -15,6 +15,7 @@ from speakeasy.profiler_events import EventType
 from speakeasy.report import EntryPointType
 from speakeasy.windows import objman
 from speakeasy.windows.cryptman import CIPHER_MODES, CryptoApiError, CryptoApiKey
+from speakeasy.winenv.api.token import query_token_information
 from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import (
     ENUM_SERVICE_STATE,
@@ -23,6 +24,7 @@ from speakeasy.winenv.defs.enums import (
     SERVICE_STATUS_CURRENT_STATE,
 )
 from speakeasy.winenv.defs.lookup import decode
+from speakeasy.winenv.defs.nt import ddk
 
 from .. import api
 
@@ -30,9 +32,11 @@ if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
 
 MD5_INITIAL_STATE = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
-TOKEN_USER = 1
-TOKEN_INTEGRITY_LEVEL = 25
-SE_GROUP_INTEGRITY = 0x20
+TOKEN_QUERY_ERRORS = {
+    ddk.STATUS_BUFFER_TOO_SMALL: windefs.ERROR_INSUFFICIENT_BUFFER,
+    ddk.STATUS_INFO_LENGTH_MISMATCH: windefs.ERROR_BAD_LENGTH,
+    ddk.STATUS_ACCESS_VIOLATION: windefs.ERROR_NOACCESS,
+}
 
 
 class AdvApi32(api.ApiHandler):
@@ -1346,39 +1350,16 @@ class AdvApi32(api.ApiHandler):
         );
         """
         TokenHandle, TokenInformationClass, TokenInformation, TokenInformationLength, ReturnLength = argv
-        rv = True
 
-        if TokenInformationClass in (TOKEN_USER, TOKEN_INTEGRITY_LEVEL):
-            ptr_size = emu.get_ptr_size()
-            if TokenInformationClass == TOKEN_USER:
-                str_sid = emu.config.user.sid
-                attributes = 0
-            else:
-                str_sid = "S-1-16-12288" if emu.config.user.is_admin else "S-1-16-8192"
-                attributes = SE_GROUP_INTEGRITY
-            sid = self.get_bytes(windefs.convert_sid_str_to_struct(ptr_size, str_sid))
-            size = 2 * ptr_size + len(sid)
-            if ReturnLength:
-                self.write_dword(ReturnLength, size)
-            if not TokenInformation or TokenInformationLength < size:
-                emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-                return False
-            label = (TokenInformation + 2 * ptr_size).to_bytes(ptr_size, "little") + attributes.to_bytes(
-                ptr_size, "little"
-            )
-            self.mem_write(TokenInformation, label + sid)
-            return True
-
-        if not TokenInformationLength:
-            rv = False
-            emu.set_last_error(windefs.ERROR_INSUFFICIENT_BUFFER)
-
-        if TokenInformationClass == 20 and TokenInformation and TokenInformationLength >= 4:
-            self.write_dword(TokenInformation, int(emu.config.user.is_admin))
+        status, size = query_token_information(
+            self, emu, TokenInformationClass, TokenInformation, TokenInformationLength
+        )
         if ReturnLength:
-            self.write_dword(ReturnLength, 4)
-
-        return rv
+            self.write_dword(ReturnLength, size)
+        if status == ddk.STATUS_SUCCESS:
+            return True
+        emu.set_last_error(TOKEN_QUERY_ERRORS[status])
+        return False
 
     @apihook("ConvertSidToStringSid", argc=2)
     def ConvertSidToStringSid(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
