@@ -29,6 +29,7 @@ EEXIST = 17
 EINVAL = 22
 EDOM = 33
 ERANGE = 34
+EILSEQ = 42
 THRD_SUCCESS = 0
 THRD_TIMEDOUT = 2
 # Size of the _Cnd_internal_imp_t that _Cnd_init allocates, on x64
@@ -6288,6 +6289,53 @@ class Msvcrt(api.ApiHandler):
         else:
             self.mem_write(mbstr, s[:count])
         return min(len(s), count)
+
+    @apihook("wcstombs_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def wcstombs_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t wcstombs_s(
+            size_t *pReturnValue,
+            char *mbstr,
+            size_t sizeInBytes,
+            const wchar_t *wcstr,
+            size_t count
+        );
+        """
+        pReturnValue, mbstr, sizeInBytes, wcstr, count = argv
+
+        if bool(mbstr) != bool(sizeInBytes):
+            return EINVAL
+        if mbstr:
+            self.mem_write(mbstr, b"\x00")
+        if pReturnValue:
+            self.write_ptr(pReturnValue, 0)
+        if not wcstr:
+            return EINVAL
+
+        max_chars = min(count, sizeInBytes)
+        if mbstr and not max_chars:
+            ws = ""
+        else:
+            ws = self.read_cstr(wcstr, max_chars=max_chars, width=2).decode("utf-16le", "surrogatepass")
+        ctx.args[3].display = ws
+        # The C locale has no multibyte character for a wide character above 0xFF.
+        try:
+            s = ws.encode("latin-1")
+        except UnicodeEncodeError:
+            return EILSEQ
+
+        rv = 0
+        n = len(s) + 1
+        if mbstr:
+            if n > sizeInBytes:
+                if count != self.get_max_int():
+                    return ERANGE
+                n = sizeInBytes
+                rv = STRUNCATE
+            self.mem_write(mbstr, s[: n - 1] + b"\x00")
+        if pReturnValue:
+            self.write_ptr(pReturnValue, n)
+        return rv
 
     @apihook("mbstowcs", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def mbstowcs(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

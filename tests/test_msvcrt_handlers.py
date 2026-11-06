@@ -10,6 +10,7 @@ from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
+    EILSEQ,
     EINVAL,
     ENOENT,
     ERANGE,
@@ -367,6 +368,64 @@ def test_mbstowcs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
     ret = alloc(dll_emu, b"\xcc" * 4)
     assert call(dll_emu, "msvcrt", "mbstowcs_s", [ret, 0, 0, alloc(dll_emu, b"hello\x00"), 0])[0] == 0
     assert dll_emu.mem_read(ret, 4) == (6).to_bytes(4, "little")
+
+
+@pytest.mark.parametrize(
+    "size, count, rv, converted, written",
+    [
+        (8, None, 0, 3, b"hi\x00"),
+        (8, 1, 0, 2, b"h\x00"),
+        (8, 2, 0, 3, b"hi\x00"),
+        (2, None, STRUNCATE, 2, b"h\x00"),
+        (2, 5, ERANGE, 0, b"\x00"),
+    ],
+)
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_wcstombs_s_converts_within_buffer(
+    request: pytest.FixtureRequest,
+    emu_name: str,
+    size: int,
+    count: int | None,
+    rv: int,
+    converted: int,
+    written: bytes,
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    ptr_size = se.emu.get_ptr_size()
+    if count is None:
+        count = (1 << (8 * ptr_size)) - 1
+    out = alloc(se, b"\xcc" * 16)
+    ret = alloc(se, b"\xcc" * 8)
+    assert call(se, "msvcrt", "wcstombs_s", [ret, out, size, alloc(se, "hi\0".encode("utf-16le")), count])[0] == rv
+    assert se.mem_read(ret, 8) == converted.to_bytes(ptr_size, "little") + b"\xcc" * (8 - ptr_size)
+    assert se.mem_read(out, len(written)) == written
+
+
+def test_wcstombs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "msvcrt", "wcstombs_s", [ret, 0, 0, alloc(dll_emu, "hello\0".encode("utf-16le")), 2])[0] == 0
+    assert dll_emu.mem_read(ret, 4) == (6).to_bytes(4, "little")
+
+
+@pytest.mark.parametrize("text, rv", [(None, EINVAL), ("a中", EILSEQ)])
+def test_wcstombs_s_fails_with_an_empty_buffer(dll_emu: Speakeasy, text: str | None, rv: int) -> None:
+    out = alloc(dll_emu, b"\xcc" * 16)
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    wcstr = alloc(dll_emu, f"{text}\0".encode("utf-16le")) if text is not None else 0
+    assert call(dll_emu, "msvcrt", "wcstombs_s", [ret, out, 8, wcstr, 8])[0] == rv
+    assert dll_emu.mem_read(ret, 4) == bytes(4)
+    assert dll_emu.mem_read(out, 2) == b"\x00\xcc"
+
+
+@pytest.mark.parametrize("has_buffer, size", [(False, 8), (True, 0)])
+def test_wcstombs_s_rejects_a_buffer_without_a_size(dll_emu: Speakeasy, has_buffer: bool, size: int) -> None:
+    out = alloc(dll_emu, b"\xcc" * 16) if has_buffer else 0
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    assert (
+        call(dll_emu, "msvcrt", "wcstombs_s", [ret, out, size, alloc(dll_emu, "hi\0".encode("utf-16le")), 8])[0]
+        == EINVAL
+    )
+    assert dll_emu.mem_read(ret, 4) == b"\xcc" * 4
 
 
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
