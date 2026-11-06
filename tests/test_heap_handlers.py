@@ -89,3 +89,24 @@ def test_rtl_reallocate_heap_keeps_the_data(emu: Speakeasy) -> None:
     assert emu.mem_read(new, 0x20) == b"\x41" * 0x20
     assert call(emu, "ntdll", "RtlSizeHeap", [heap, 0, new])[0] == 0x45
     assert call(emu, "ntdll", "RtlSizeHeap", [heap, 0, block])[0] == 0xFFFFFFFF
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu", "driver_emu"])
+def test_rtl_create_heap_gives_a_heap_for_the_rtl_heap_functions(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    dll = "ntoskrnl" if fixture == "driver_emu" else "ntdll"
+    heap = call(se, dll, "RtlCreateHeap", [0, 0, 0, 0, 0, 0])[0]
+    assert heap
+    assert call(se, dll, "RtlCreateHeap", [0, 0, 0, 0, 0, 0])[0] not in (0, heap)
+    block = call(se, dll, "RtlAllocateHeap", [heap, 0, 0x20])[0]
+    se.mem_write(block, b"\x41" * 0x20)
+    assert se.mem_read(block, 0x20) == b"\x41" * 0x20
+    assert call(se, dll, "RtlFreeHeap", [heap, 0, block])[0] == 1
+    assert call(se, dll, "RtlDestroyHeap", [heap])[0] == 0
+
+
+def test_rtl_create_heap_does_not_change_the_process_heap(emu: Speakeasy) -> None:
+    heap = call(emu, "ntdll", "RtlCreateHeap", [0, 0, 0, 0, 0, 0])[0]
+    process_heap = call(emu, "kernel32", "GetProcessHeap", [])[0]
+    assert process_heap not in (0, heap)
+    assert call(emu, "kernel32", "GetProcessHeap", [])[0] == process_heap
