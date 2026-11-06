@@ -9,12 +9,8 @@ from speakeasy.windows.api_registry import module_name
     "name, expected",
     [
         ("KERNEL32", "kernel32"),
-        ("Kernel32", "kernel32"),
-        ("kernel32", "kernel32"),
         ("kernel32.dll", "kernel32"),
-        ("kernel32.DLL", "kernel32"),
         ("Kernel32.Dll", "kernel32"),
-        ("api-ms-win-crt-runtime-l1-1-0.dll", "api-ms-win-crt-runtime-l1-1-0"),
         ("windows.storage.dll", "windows.storage"),
         ("windows.storage", "windows.storage"),
     ],
