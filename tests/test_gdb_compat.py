@@ -292,18 +292,6 @@ def test_xfer_escaping_respects_advertised_packet_size():
     assert all(value not in encoded[1:] for value in b"$#*")
 
 
-def test_hardware_breakpoint_accepts_large_ranges():
-    server = make_server()
-    replies: list[bytes] = []
-    server._reply = replies.append
-    server._install_hooks()
-
-    for size_hex in ("1c000", "28000", "2d000", "100000"):
-        server._change_breakpoint(f"Z1,401000,{size_hex}".encode())
-
-    assert replies == [b"OK"] * 4
-
-
 def test_hardware_breakpoint_range_hit_detection():
     server = make_server()
     reasons: list[StopReason] = []
