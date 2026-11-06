@@ -1,15 +1,48 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import ctypes as ct
 from typing import Annotated
 
 from speakeasy.struct import EmuStruct, Ptr
 from speakeasy.winenv.defs.enums import ENUM_SERVICE_TYPE, SERVICE_STATUS_CURRENT_STATE
 
+NTE_BAD_KEY = 0x80090003
+NTE_BAD_LEN = 0x80090004
+NTE_BAD_DATA = 0x80090005
 NTE_BAD_ALGID = 0x80090008
+NTE_BAD_FLAGS = 0x80090009
+NTE_BAD_TYPE = 0x8009000A
+NTE_BAD_KEY_STATE = 0x8009000B
+NTE_BAD_PUBLIC_KEY = 0x80090015
 NTE_INVALID_HANDLE = 0x80090026
 
+PROV_RSA_FULL = 1
+PROV_RSA_AES = 24
+
+CALG_RSA_SIGN = 0x2400
+CALG_AES_128 = 0x660E
+CALG_AES_192 = 0x660F
+CALG_AES_256 = 0x6610
+CALG_RC4 = 0x6801
+CALG_RSA_KEYX = 0xA400
+
+CRYPT_EXPORTABLE = 0x1
 CRYPT_NO_SALT = 0x10
+
+SIMPLEBLOB = 0x1
+PUBLICKEYBLOB = 0x6
+PLAINTEXTKEYBLOB = 0x8
+CUR_BLOB_VERSION = 2
+RSA1 = 0x31415352
+
+KP_IV = 1
+KP_PADDING = 3
+KP_MODE = 4
+
+CRYPT_MODE_CBC = 1
+CRYPT_MODE_ECB = 2
+CRYPT_MODE_CFB = 4
+
+PKCS5_PADDING = 1
 
 HP_HASHVAL = 2
 HP_HASHSIZE = 4
@@ -43,9 +76,3 @@ EMULATED_SERVICES = (
 class SERVICE_TABLE_ENTRY(EmuStruct):
     lpServiceName: Annotated[int, Ptr]
     lpServiceProc: Annotated[int, Ptr]
-
-
-class HCRYPTKEY(EmuStruct):
-    Algid: Annotated[int, ct.c_uint32]
-    keylen: Annotated[int, ct.c_uint32]
-    keyp: Annotated[int, Ptr]
