@@ -636,6 +636,17 @@ def test_crypt_import_key_fails_an_rc4_key_longer_than_256_bytes(dll_emu: Speake
     assert (rv, _last_error(dll_emu)) == (0, adv32defs.NTE_BAD_DATA)
 
 
+def test_crypt_set_key_param_padding_keeps_the_rc4_key_stream(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    se = dll_emu
+    key, data = bytes(range(16)), bytes(range(32))
+    hkey = _import_key(se, _acquire_context(se, adv32defs.PROV_RSA_AES), _plaintext_key_blob(adv32defs.CALG_RC4, key))
+    first = _crypt(se, "CryptEncrypt", hkey, data[:16], final=False)
+    padding = alloc(se, struct.pack("<I", adv32defs.PKCS5_PADDING))
+    assert call(se, "advapi32", "CryptSetKeyParam", [hkey, adv32defs.KP_PADDING, padding, 0])[0]
+    assert first + _crypt(se, "CryptEncrypt", hkey, data[16:], final=True) == ARC4.new(key).encrypt(data)
+
+
 def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
     ph = alloc(se, b"\xcc" * 8)
     pname = alloc(se, (name + "\x00").encode("utf-16le")) if name is not None else 0
