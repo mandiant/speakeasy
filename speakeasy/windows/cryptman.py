@@ -80,7 +80,7 @@ class CryptoApiKey:
                 raise CryptoApiError(adv32defs.NTE_BAD_ALGID)
             size = struct.unpack_from("<I", blob, 8)[0] if len(blob) >= 12 else 0
             secret = blob[12 : 12 + size]
-            if not size or len(secret) != size or AES_KEY_LENGTHS.get(algid, size) != size:
+            if len(secret) != size or size not in ARC4.key_size or AES_KEY_LENGTHS.get(algid, size) != size:
                 raise CryptoApiError(adv32defs.NTE_BAD_DATA)
             return cls(context, algid, flags, secret=secret)
         if blob_type == adv32defs.PUBLICKEYBLOB:

@@ -627,6 +627,15 @@ def test_crypt_import_key_fails_a_simple_blob(dll_emu: Speakeasy) -> None:
     assert (rv, _last_error(dll_emu)) == (0, adv32defs.NTE_BAD_PUBLIC_KEY)
 
 
+def test_crypt_import_key_fails_an_rc4_key_longer_than_256_bytes(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    blob = _plaintext_key_blob(adv32defs.CALG_RC4, bytes(257))
+    ph = alloc(dll_emu, b"\x00" * 4)
+    hprov = _acquire_context(dll_emu, adv32defs.PROV_RSA_AES)
+    rv, _ = call(dll_emu, "advapi32", "CryptImportKey", [hprov, alloc(dll_emu, blob), len(blob), 0, 0, ph])
+    assert (rv, _last_error(dll_emu)) == (0, adv32defs.NTE_BAD_DATA)
+
+
 def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
     ph = alloc(se, b"\xcc" * 8)
     pname = alloc(se, (name + "\x00").encode("utf-16le")) if name is not None else 0
