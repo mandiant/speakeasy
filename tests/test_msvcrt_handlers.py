@@ -10,6 +10,7 @@ from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import (
+    EILSEQ,
     EINVAL,
     ENOENT,
     ERANGE,
@@ -26,7 +27,7 @@ from speakeasy.winenv.api.usermode.msvcrt import (
     get_winmain_command_line,
     scan_c_format,
 )
-from tests.guest_harness import guest_call
+from tests.guest_harness import get_api, guest_call
 from tests.handler_harness import alloc, call, get_win32_emu, load_emu, start_process
 
 FILETIME_UNIX_EPOCH = 116444736000000000
@@ -368,6 +369,64 @@ def test_mbstowcs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(ret, 4) == (6).to_bytes(4, "little")
 
 
+@pytest.mark.parametrize(
+    "size, count, rv, converted, written",
+    [
+        (8, None, 0, 3, b"hi\x00"),
+        (8, 1, 0, 2, b"h\x00"),
+        (8, 2, 0, 3, b"hi\x00"),
+        (2, None, STRUNCATE, 2, b"h\x00"),
+        (2, 5, ERANGE, 0, b"\x00"),
+    ],
+)
+@pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
+def test_wcstombs_s_converts_within_buffer(
+    request: pytest.FixtureRequest,
+    emu_name: str,
+    size: int,
+    count: int | None,
+    rv: int,
+    converted: int,
+    written: bytes,
+) -> None:
+    se: Speakeasy = request.getfixturevalue(emu_name)
+    ptr_size = se.emu.get_ptr_size()
+    if count is None:
+        count = (1 << (8 * ptr_size)) - 1
+    out = alloc(se, b"\xcc" * 16)
+    ret = alloc(se, b"\xcc" * 8)
+    assert call(se, "msvcrt", "wcstombs_s", [ret, out, size, alloc(se, "hi\0".encode("utf-16le")), count])[0] == rv
+    assert se.mem_read(ret, 8) == converted.to_bytes(ptr_size, "little") + b"\xcc" * (8 - ptr_size)
+    assert se.mem_read(out, len(written)) == written
+
+
+def test_wcstombs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    assert call(dll_emu, "msvcrt", "wcstombs_s", [ret, 0, 0, alloc(dll_emu, "hello\0".encode("utf-16le")), 2])[0] == 0
+    assert dll_emu.mem_read(ret, 4) == (6).to_bytes(4, "little")
+
+
+@pytest.mark.parametrize("text, rv", [(None, EINVAL), ("a中", EILSEQ)])
+def test_wcstombs_s_empties_the_buffer_on_an_error(dll_emu: Speakeasy, text: str | None, rv: int) -> None:
+    out = alloc(dll_emu, b"\xcc" * 16)
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    wcstr = alloc(dll_emu, f"{text}\0".encode("utf-16le")) if text is not None else 0
+    assert call(dll_emu, "msvcrt", "wcstombs_s", [ret, out, 8, wcstr, 8])[0] == rv
+    assert dll_emu.mem_read(ret, 4) == bytes(4)
+    assert dll_emu.mem_read(out, 2) == b"\x00\xcc"
+
+
+@pytest.mark.parametrize("has_buffer, size", [(False, 8), (True, 0)])
+def test_wcstombs_s_rejects_a_buffer_without_a_size(dll_emu: Speakeasy, has_buffer: bool, size: int) -> None:
+    out = alloc(dll_emu, b"\xcc" * 16) if has_buffer else 0
+    ret = alloc(dll_emu, b"\xcc" * 4)
+    assert (
+        call(dll_emu, "msvcrt", "wcstombs_s", [ret, out, size, alloc(dll_emu, "hi\0".encode("utf-16le")), 8])[0]
+        == EINVAL
+    )
+    assert dll_emu.mem_read(ret, 4) == b"\xcc" * 4
+
+
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_fseek_takes_a_signed_offset(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
@@ -434,6 +493,25 @@ def test_strlwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
     s = alloc(dll_emu, b"C:\\\x8f\xc9AB\x00\xcc")
     assert call(dll_emu, "msvcrt", "_strlwr", [s])[0] == s
     assert dll_emu.mem_read(s, 9) == b"c:\\\x8f\xc9ab\x00\xcc"
+
+
+def test_wcslwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, "C:\\ÉΣAZ\0".encode("utf-16le") + b"\xcc")
+    assert call(dll_emu, "msvcrt", "_wcslwr", [s])[0] == s
+    assert dll_emu.mem_read(s, 17) == "c:\\ÉΣaz\0".encode("utf-16le") + b"\xcc"
+
+
+def test_wcslwr_s_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, "ÉAZ\0".encode("utf-16le") + b"\xcc")
+    assert call(dll_emu, "msvcrt", "_wcslwr_s", [s, 4])[0] == 0
+    assert dll_emu.mem_read(s, 9) == "Éaz\0".encode("utf-16le") + b"\xcc"
+
+
+def test_wcslwr_s_clears_a_string_without_a_terminator_in_the_buffer(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, "ABC\0".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "_wcslwr_s", [s, 3])[0] == EINVAL
+    assert dll_emu.mem_read(s, 8) == "\0BC\0".encode("utf-16le")
+    assert call(dll_emu, "msvcrt", "_wcslwr_s", [0, 3])[0] == EINVAL
 
 
 @pytest.mark.parametrize("a, b, count, rv", [("abX", "ABy", 2, 0), ("a", "b", 0, 0)])
@@ -508,6 +586,56 @@ def test_seh_filter_exe_calls_the_signal_handler_once(
     assert [cb.function for cb in dll_emu.emu.get_current_run().guest_callbacks] == [0x401000]
     assert tuple(dll_emu.emu.get_func_argv(e_arch.CALL_CONV_CDECL, len(args))) == args
     assert call(dll_emu, "msvcrt", "signal", [sig, SIG_DFL])[0] == SIG_DFL
+
+
+def test_abnormal_termination_is_true_only_in_a_finally_block_of_an_unwind(config: dict[str, Any]) -> None:
+    """
+    Run the __finally block of an x86 MSVC frame on the normal path and for an unwind.
+
+    The __finally scope is in an __except scope. The __finally block records the result of
+    _abnormal_termination. Then an access violation in the __finally scope unwinds the frame.
+    """
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
+        data = se.mem_alloc(0x1000)
+        results, count = data, data + 0x10
+        scope_table, filter_function, finally_block = code + 0x200, code + 0x300, code + 0x400
+        abnormal_termination = get_api(se, "msvcrt", "_abnormal_termination")
+
+        main = b"\x55\x89\xe5\x6a\xff"  # push ebp; mov ebp, esp; push -1
+        main += b"\x68" + struct.pack("<I", scope_table)
+        main += b"\x68" + struct.pack("<I", get_api(se, "msvcrt", "_except_handler3"))
+        main += b"\x64\xff\x35" + bytes(4)  # push fs:[0]
+        main += b"\x64\x89\x25" + bytes(4)  # mov fs:[0], esp
+        main += b"\x83\xec\x08\x89\x65\xe8"  # sub esp, 8; mov [ebp-0x18], esp
+        main += b"\xc7\x45\xfc" + struct.pack("<I", 1)  # enter the __finally scope
+        main += b"\xc7\x45\xfc" + struct.pack("<I", 0)  # leave it
+        main += b"\xb8" + struct.pack("<I", finally_block) + b"\xff\xd0"  # call the __finally block
+        main += b"\xc7\x45\xfc" + struct.pack("<I", 1)  # enter the __finally scope
+        main += b"\xc7\x05" + bytes(4) + struct.pack("<I", 1)  # mov dword [0], 1
+        except_block = code + len(main)
+        main += b"\x8b\x65\xe8"  # mov esp, [ebp-0x18]
+        main += b"\x8b\x4d\xf0\x64\x89\x0d" + bytes(4)  # mov ecx, [ebp-0x10]; mov fs:[0], ecx
+        main += b"\x89\xec\x5d"  # mov esp, ebp; pop ebp
+        main += b"\xa1" + struct.pack("<I", count) + b"\xc3"  # mov eax, [count]; ret
+
+        record = b"\xb8" + struct.pack("<I", abnormal_termination) + b"\xff\xd0"  # call _abnormal_termination
+        record += b"\x8b\x0d" + struct.pack("<I", count)  # mov ecx, [count]
+        record += b"\x89\x04\x8d" + struct.pack("<I", results)  # mov [results + ecx * 4], eax
+        record += b"\xff\x05" + struct.pack("<I", count) + b"\xc3"  # inc dword [count]; ret
+
+        se.mem_write(code, main)
+        se.mem_write(scope_table, struct.pack("<6I", 0xFFFFFFFF, filter_function, except_block, 0, 0, finally_block))
+        se.mem_write(filter_function, b"\xb8\x01\x00\x00\x00\xc3")  # EXCEPTION_EXECUTE_HANDLER
+        se.mem_write(finally_block, record)
+        se.mem_write(results, b"\xcc" * 8)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert run.return_value == 2
+        assert struct.unpack("<II", se.mem_read(results, 8)) == (0, 1)
 
 
 @pytest.mark.parametrize("c", [0xFFFFFFE2, 0xE2])

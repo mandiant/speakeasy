@@ -17,7 +17,7 @@ from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 from .. import api, exception_apis
-from ..compare import Fold, get_string_order
+from ..compare import ASCII_LOWER_TABLE, Fold, get_string_order
 
 if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
@@ -29,6 +29,7 @@ EEXIST = 17
 EINVAL = 22
 EDOM = 33
 ERANGE = 34
+EILSEQ = 42
 THRD_SUCCESS = 0
 THRD_TIMEDOUT = 2
 # Size of the _Cnd_internal_imp_t that _Cnd_init allocates, on x64
@@ -2558,6 +2559,30 @@ class Msvcrt(api.ApiHandler):
         """
         return seh32.except_handler3(emu, *argv)
 
+    @apihook("_abnormal_termination", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _abnormal_termination(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _abnormal_termination();
+
+        Return 1 in an x86 __finally block that the MSVC language handler runs for an unwind.
+        """
+        return int(seh32.is_abnormal_termination(emu))
+
+    @apihook("_unwind_handler", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _unwind_handler(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        EXCEPTION_DISPOSITION _unwind_handler(
+            PEXCEPTION_RECORD ExceptionRecord,
+            PEXCEPTION_REGISTRATION_RECORD EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PVOID DispatcherContext
+        );
+
+        The handler of the registration that the x86 local unwind adds while a __finally block runs.
+        An unwind continues to the frame of the __finally block, which continues its local unwind.
+        """
+        return windefs.ExceptionContinueSearch
+
     @apihook("_seh_filter_dll", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_dll(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -3473,6 +3498,43 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = decode_ansi(string)
         self.mem_write(str, string.lower())
         return str
+
+    @apihook("_wcslwr", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wcslwr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *_wcslwr(
+            wchar_t *str
+        );
+        """
+        (str,) = argv
+        if not str:
+            return 0
+        self.lower_wide_string(ctx, str, self.read_cstr(str, width=2))
+        return str
+
+    @apihook("_wcslwr_s", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wcslwr_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _wcslwr_s(
+            wchar_t *str,
+            size_t numberOfElements
+        );
+        """
+        str, numberOfElements = argv
+        if not str:
+            return EINVAL
+        data = self.read_cstr(str, max_chars=numberOfElements, width=2) if numberOfElements else b""
+        if len(data) // 2 >= numberOfElements:
+            self.mem_write(str, b"\x00\x00")
+            return EINVAL
+        self.lower_wide_string(ctx, str, data)
+        return 0
+
+    def lower_wide_string(self, ctx, address, data):
+        """Lower the case of a wide string in place, in the C locale, which changes only A to Z."""
+        text = data.decode("utf-16le", "surrogatepass")
+        ctx.args[0].display = text
+        self.mem_write(address, text.translate(ASCII_LOWER_TABLE).encode("utf-16le", "surrogatepass"))
 
     @apihook("strncat", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncat(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6288,6 +6350,53 @@ class Msvcrt(api.ApiHandler):
         else:
             self.mem_write(mbstr, s[:count])
         return min(len(s), count)
+
+    @apihook("wcstombs_s", argc=5, conv=e_arch.CALL_CONV_CDECL)
+    def wcstombs_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t wcstombs_s(
+            size_t *pReturnValue,
+            char *mbstr,
+            size_t sizeInBytes,
+            const wchar_t *wcstr,
+            size_t count
+        );
+        """
+        pReturnValue, mbstr, sizeInBytes, wcstr, count = argv
+
+        if bool(mbstr) != bool(sizeInBytes):
+            return EINVAL
+        if mbstr:
+            self.mem_write(mbstr, b"\x00")
+        if pReturnValue:
+            self.write_ptr(pReturnValue, 0)
+        if not wcstr:
+            return EINVAL
+
+        max_chars = min(count, sizeInBytes)
+        if mbstr and not max_chars:
+            ws = ""
+        else:
+            ws = self.read_cstr(wcstr, max_chars=max_chars, width=2).decode("utf-16le", "surrogatepass")
+        ctx.args[3].display = ws
+        # The C locale has no multibyte character for a wide character above 0xFF.
+        try:
+            s = ws.encode("latin-1")
+        except UnicodeEncodeError:
+            return EILSEQ
+
+        rv = 0
+        n = len(s) + 1
+        if mbstr:
+            if n > sizeInBytes:
+                if count != self.get_max_int():
+                    return ERANGE
+                n = sizeInBytes
+                rv = STRUNCATE
+            self.mem_write(mbstr, s[: n - 1] + b"\x00")
+        if pReturnValue:
+            self.write_ptr(pReturnValue, n)
+        return rv
 
     @apihook("mbstowcs", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def mbstowcs(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
