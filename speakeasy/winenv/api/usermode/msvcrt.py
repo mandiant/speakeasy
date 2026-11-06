@@ -2559,6 +2559,15 @@ class Msvcrt(api.ApiHandler):
         """
         return seh32.except_handler3(emu, *argv)
 
+    @apihook("_abnormal_termination", argc=0, conv=e_arch.CALL_CONV_CDECL)
+    def _abnormal_termination(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int _abnormal_termination();
+
+        Return 1 in an x86 __finally block that the MSVC language handler runs for an unwind.
+        """
+        return int(seh32.is_abnormal_termination(emu))
+
     @apihook("_seh_filter_dll", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_dll(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
