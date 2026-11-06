@@ -17,6 +17,7 @@ from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION, LCTYPE, PAGE_
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, invalid_handle, load_emu, start_process
+from tests.pe_builder import build_pe
 
 START_TIME = datetime.datetime(2026, 10, 31, 15, 15)
 
@@ -1551,3 +1552,34 @@ def test_get_cp_info_describes_the_code_page(emu: Speakeasy, code_page: int, max
     info = alloc(emu, b"\xcc" * 20)
     assert call(emu, "kernel32", "GetCPInfo", [code_page, info])[0] == 1
     assert emu.mem_read(info, 20) == struct.pack("<I", max_char_size) + b"?\x00" + b"\x00" * 12 + b"\xcc\xcc"
+
+
+def named_type_resource_pe(type_name: str, res_id: int, payload: bytes) -> bytes:
+    """Build a PE whose resource directory at RVA 0x2000 holds one resource with a string type."""
+    rva = 0x2000
+
+    def directory(named: int, entry_name: int, target: int) -> bytes:
+        return struct.pack("<IIHHHH", 0, 0, 0, 0, named, 1 - named) + struct.pack("<II", entry_name, target)
+
+    rsrc = directory(1, 0x80000000 | 0x58 + len(payload), 0x80000000 | 0x18)
+    rsrc += directory(0, res_id, 0x80000000 | 0x30)
+    rsrc += directory(0, 0x409, 0x48)
+    rsrc += struct.pack("<IIII", rva + 0x58, len(payload), 0, 0)
+    rsrc += payload
+    rsrc += struct.pack("<H", len(type_name)) + type_name.encode("utf-16le")
+    data, _ = build_pe(32, data=rsrc, extra_dirs={2: (rva, len(rsrc))})
+    return data
+
+
+@pytest.mark.parametrize("api", ["FindResourceA", "FindResourceW", "FindResourceExA", "FindResourceExW"])
+def test_find_resource_ignores_the_case_of_a_string_type(config: dict, api: str) -> None:
+    for se in load_emu(config, named_type_resource_pe("RESOURCE", 0x65, b"payload!")):
+        start_process(se)
+        base = se.emu.modules[0].base
+        lp_type = alloc(se, "Resource\0".encode("utf-16le" if api.endswith("W") else "latin-1"))
+        argv = [base, lp_type, 0x65, 0] if "Ex" in api else [base, 0x65, lp_type]
+        hres, _ = call(se, "kernel32", api, argv)
+        assert hres == base + 0x2048
+        data, _ = call(se, "kernel32", "LoadResource", [base, hres])
+        assert se.mem_read(data, 8) == b"payload!"
+        assert call(se, "kernel32", "SizeofResource", [base, hres])[0] == 8
