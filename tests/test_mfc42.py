@@ -24,7 +24,9 @@ def call_ordinals(dll: str, ordinals: list[int]):
 
 
 def build_program(dll: str, ordinals: list[int]) -> bytes:
-    data, _ = build_pe(32, text=call_ordinals(dll, ordinals), imports={dll: sorted(set(ordinals))})
+    data, _ = build_pe(
+        32, text=call_ordinals(dll, ordinals), data=bytes(4 * len(ordinals)), imports={dll: sorted(set(ordinals))}
+    )
     return data
 
 
