@@ -495,6 +495,25 @@ def test_strlwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
     assert dll_emu.mem_read(s, 9) == b"c:\\\x8f\xc9ab\x00\xcc"
 
 
+def test_wcslwr_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, "C:\\ÉΣAZ\0".encode("utf-16le") + b"\xcc")
+    assert call(dll_emu, "msvcrt", "_wcslwr", [s])[0] == s
+    assert dll_emu.mem_read(s, 17) == "c:\\ÉΣaz\0".encode("utf-16le") + b"\xcc"
+
+
+def test_wcslwr_s_lowers_only_ascii_letters_in_place(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, "ÉAZ\0".encode("utf-16le") + b"\xcc")
+    assert call(dll_emu, "msvcrt", "_wcslwr_s", [s, 4])[0] == 0
+    assert dll_emu.mem_read(s, 9) == "Éaz\0".encode("utf-16le") + b"\xcc"
+
+
+def test_wcslwr_s_clears_a_string_without_a_terminator_in_the_buffer(dll_emu: Speakeasy) -> None:
+    s = alloc(dll_emu, "ABC\0".encode("utf-16le"))
+    assert call(dll_emu, "msvcrt", "_wcslwr_s", [s, 3])[0] == EINVAL
+    assert dll_emu.mem_read(s, 8) == "\0BC\0".encode("utf-16le")
+    assert call(dll_emu, "msvcrt", "_wcslwr_s", [0, 3])[0] == EINVAL
+
+
 @pytest.mark.parametrize("a, b, count, rv", [("abX", "ABy", 2, 0), ("a", "b", 0, 0)])
 def test_wcsnicmp_compares_count_chars(dll_emu: Speakeasy, a: str, b: str, count: int, rv: int) -> None:
     args = [alloc(dll_emu, f"{s}\0".encode("utf-16le")) for s in (a, b)]

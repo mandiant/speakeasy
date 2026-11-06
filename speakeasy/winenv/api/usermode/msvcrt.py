@@ -17,7 +17,7 @@ from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 from .. import api, exception_apis
-from ..compare import Fold, get_string_order
+from ..compare import ASCII_LOWER_TABLE, Fold, get_string_order
 
 if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
@@ -3474,6 +3474,43 @@ class Msvcrt(api.ApiHandler):
         ctx.args[0].display = decode_ansi(string)
         self.mem_write(str, string.lower())
         return str
+
+    @apihook("_wcslwr", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _wcslwr(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        wchar_t *_wcslwr(
+            wchar_t *str
+        );
+        """
+        (str,) = argv
+        if not str:
+            return 0
+        self.lower_wide_string(ctx, str, self.read_cstr(str, width=2))
+        return str
+
+    @apihook("_wcslwr_s", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wcslwr_s(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        errno_t _wcslwr_s(
+            wchar_t *str,
+            size_t numberOfElements
+        );
+        """
+        str, numberOfElements = argv
+        if not str:
+            return EINVAL
+        data = self.read_cstr(str, max_chars=numberOfElements, width=2) if numberOfElements else b""
+        if len(data) // 2 >= numberOfElements:
+            self.mem_write(str, b"\x00\x00")
+            return EINVAL
+        self.lower_wide_string(ctx, str, data)
+        return 0
+
+    def lower_wide_string(self, ctx, address, data):
+        """Lower the case of a wide string in place, in the C locale, which changes only A to Z."""
+        text = data.decode("utf-16le", "surrogatepass")
+        ctx.args[0].display = text
+        self.mem_write(address, text.translate(ASCII_LOWER_TABLE).encode("utf-16le", "surrogatepass"))
 
     @apihook("strncat", argc=3, conv=e_arch.CALL_CONV_CDECL)
     def strncat(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
