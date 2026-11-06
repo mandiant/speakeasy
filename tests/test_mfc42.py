@@ -1,0 +1,43 @@
+"""MFC 4.2 programs that import mfc42.dll and mfc42u.dll by ordinal."""
+
+import struct
+
+import pytest
+
+from speakeasy import Speakeasy
+from tests.pe_builder import build_pe
+
+
+def call_ordinals(dll: str, ordinals: list[int]):
+    """Call each ordinal import of ``dll`` and store each return value in .data."""
+
+    def text(base: int, iat: dict) -> bytes:
+        code = b""
+        for index, ordinal in enumerate(ordinals):
+            code += b"\xff\x15" + struct.pack("<I", base + iat[dll, ordinal])
+            code += b"\xa3" + struct.pack("<I", base + 0x2000 + index * 4)
+        return code + b"\xc3"
+
+    return text
+
+
+def build_program(dll: str, ordinals: list[int]) -> bytes:
+    data, _ = build_pe(32, text=call_ordinals(dll, ordinals), imports={dll: sorted(set(ordinals))})
+    return data
+
+
+@pytest.mark.parametrize(
+    "dll, ordinal, name",
+    [
+        ("mfc42.dll", 1575, "?AfxWinInit@@YGHPAUHINSTANCE__@@0PADH@Z"),
+        ("mfc42u.dll", 1568, "?AfxWinInit@@YGHPAUHINSTANCE__@@0PAGH@Z"),
+    ],
+)
+def test_unsupported_ordinal_import_shows_the_export_name(config: dict, dll: str, ordinal: int, name: str) -> None:
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=build_program(dll, [ordinal])))
+        error = se.get_report().entry_points[0].error
+    module = dll.removesuffix(".dll")
+    assert error.type == "unsupported_api"
+    assert error.api_name == f"{module}.{name}"
+    assert error.instruction == f"api_trap {module}.{name}"

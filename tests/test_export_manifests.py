@@ -7,10 +7,18 @@ import pydantic
 import pytest
 
 from speakeasy import Speakeasy
-from speakeasy.windows.export_manifest import MANIFEST_ROOT, ExportManifest, get_export_manifest
+from speakeasy.windows.export_manifest import (
+    MANIFEST_ROOT,
+    ORDINAL_NAMES_ROOT,
+    ExportManifest,
+    OrdinalNames,
+    get_export_manifest,
+    get_ordinal_names,
+)
 from speakeasy.winenv.api.winapi import autoload_api_handlers
 
 MANIFEST_PATHS = sorted(MANIFEST_ROOT.glob("*/*.json"))
+ORDINAL_NAMES_PATHS = sorted(ORDINAL_NAMES_ROOT.glob("*/*.json"))
 
 
 @pytest.fixture(params=["x86", "amd64"])
@@ -50,9 +58,13 @@ def test_handler_ordinals_match_the_physical_exports():
         hooks = [h for attr in dir(handler) if (h := getattr(getattr(handler, attr), "__apihook__", None))]
         for arch in ("x86", "x64"):
             manifest = get_export_manifest(handler.name.lower(), arch)
-            if manifest is None:
+            ordinal_names = get_ordinal_names(handler.name.lower(), arch)
+            if manifest is not None:
+                ordinals = {e.name: e.ordinal for e in manifest.exports if e.name}
+            elif ordinal_names is not None:
+                ordinals = {e.name: e.ordinal for e in ordinal_names.names}
+            else:
                 continue
-            ordinals = {e.name: e.ordinal for e in manifest.exports if e.name}
             for name, _, _, _, ordinal in hooks:
                 if ordinal and ordinals.get(name) != ordinal:
                     mismatches.append((handler.name, arch, name, ordinal, ordinals.get(name)))
@@ -93,6 +105,31 @@ def test_manifest_format_rejects_invalid_files(tmp_path, change):
     path.write_text(json.dumps(data | change))
     with pytest.raises(pydantic.ValidationError):
         ExportManifest.from_path(path)
+
+
+@pytest.mark.parametrize("path", ORDINAL_NAMES_PATHS, ids=lambda p: f"{p.parent.name}/{p.stem}")
+def test_ordinal_names_file_is_well_formed(path):
+    ordinal_names = OrdinalNames.from_path(path)
+    assert ordinal_names.module == path.stem
+    assert ordinal_names.arch == path.parent.name
+    assert get_export_manifest(path.stem, path.parent.name) is None
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        [{"ordinal": 2, "name": "b"}, {"ordinal": 1, "name": "a"}],
+        [{"ordinal": 1, "name": "a"}, {"ordinal": 1, "name": "b"}],
+        [{"ordinal": 1, "name": "a"}, {"ordinal": 2, "name": "a"}],
+    ],
+)
+def test_ordinal_names_format_rejects_invalid_files(tmp_path, names):
+    path = tmp_path / "m.json"
+    path.write_text(json.dumps({"module": "m", "arch": "x86", "names": [{"ordinal": 1, "name": "a"}]}))
+    OrdinalNames.from_path(path)
+    path.write_text(json.dumps({"module": "m", "arch": "x86", "names": names}))
+    with pytest.raises(pydantic.ValidationError):
+        OrdinalNames.from_path(path)
 
 
 @pytest.mark.parametrize("module,name", [("ntdll", "NlsMbCodePageTag"), ("user32", "gSharedInfo")])

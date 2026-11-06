@@ -13,7 +13,7 @@ from typing import Any
 
 import speakeasy.winenv.arch as _arch
 from speakeasy import common
-from speakeasy.windows.export_manifest import get_export_manifest
+from speakeasy.windows.export_manifest import get_export_manifest, get_ordinal_names
 from speakeasy.windows.loaders import ExportEntry, LoadedImage, MemoryRegion, PeMetadata, SectionEntry
 from speakeasy.winenv.api.sigdb import SignatureDatabase
 
@@ -274,14 +274,19 @@ class ApiModuleLoader:
             return "data" if physical_kind == "data" or name in data_names else "function"
 
         manifest = get_export_manifest(self._name.lower(), arch_name)
+        physical_exports: list[ApiExportSpec] | None = None
         if manifest is not None:
-            # The manifest defines the names and ordinals. A handler name that is not in the
-            # manifest gets an ordinal after the highest manifest ordinal, so that it does not
-            # take an ordinal that the real module does not use. If the manifest has the A or W
-            # variant of a handler name, the emulator uses the handler name only to find the handler.
-            exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in manifest.exports]
-            physical = {e.name for e in manifest.exports}
-            next_ordinal = max((e.ordinal for e in manifest.exports), default=0) + 1
+            physical_exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in manifest.exports]
+        elif (ordinal_names := get_ordinal_names(self._name.lower(), arch_name)) is not None:
+            physical_exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name)) for e in ordinal_names.names]
+        if physical_exports is not None:
+            # The manifest or the ordinal names define the names and ordinals. A handler name that
+            # is not in them gets an ordinal after the highest ordinal, so that it does not take an
+            # ordinal that the real module does not use. If they have the A or W variant of a
+            # handler name, the emulator uses the handler name only to find the handler.
+            exports = physical_exports
+            physical = {e.name for e in exports}
+            next_ordinal = max((e.ordinal or 0 for e in exports), default=0) + 1
             extras = (handler_ordinals.keys() | data_names) - physical
             for name in sorted(n for n in extras if not {n + "A", n + "W"} & physical):
                 exports.append(ApiExportSpec(name, next_ordinal, kind(name)))
