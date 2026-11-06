@@ -12,6 +12,7 @@ the file format.
 
 from __future__ import annotations
 
+import re
 from functools import cache
 from pathlib import Path
 from typing import Literal
@@ -22,6 +23,10 @@ from speakeasy.windows.loaders import validate_forwarder
 
 MANIFEST_ROOT = Path(__file__).resolve().parent.parent / "resources" / "win32" / "exports"
 ORDINAL_NAMES_ROOT = MANIFEST_ROOT.parent / "ordinals"
+
+# The MSVC decoration of a variable is ?name@scope@...@@ and a storage class: 0, 1 or 2 for a
+# private, protected or public static data member, 3 for a global variable.
+MSVC_DATA_NAME = re.compile(r"\?[A-Za-z_][A-Za-z0-9_]*@(?:[A-Za-z_][A-Za-z0-9_]*@)*@[0-3]")
 
 
 class ManifestExport(BaseModel):
@@ -98,12 +103,17 @@ class OrdinalName(BaseModel):
     ordinal: int = Field(ge=1, le=0xFFFF, description="Biased export ordinal, as an importer uses it.")
     name: str = Field(min_length=1, description="Exported name.")
 
+    @property
+    def kind(self) -> Literal["function", "data"]:
+        """`data` when the name has the MSVC decoration of a static data member or a global variable."""
+        return "data" if MSVC_DATA_NAME.match(self.name) else "function"
+
 
 class OrdinalNames(BaseModel):
     """
     The names of the export ordinals of a module.
 
-    The file does not identify a binary, and it does not tell code exports from data exports.
+    The file does not identify a binary. The decoration of each name tells if the export is code or data.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)

@@ -285,7 +285,7 @@ class ApiModuleLoader:
         if manifest is not None:
             physical_exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in manifest.exports]
         elif (ordinal_names := get_ordinal_names(self._name.lower(), arch_name)) is not None:
-            physical_exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name)) for e in ordinal_names.names]
+            physical_exports = [ApiExportSpec(e.name, e.ordinal, kind(e.name, e.kind)) for e in ordinal_names.names]
         if physical_exports is not None:
             # The manifest or the ordinal names define the names and ordinals. A handler name that
             # is not in them gets an ordinal after the highest ordinal, so that it does not take an
