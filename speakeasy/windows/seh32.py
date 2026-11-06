@@ -214,7 +214,7 @@ class MsvcFrame:
 
 def is_abnormal_termination(emu) -> bool:
     """
-    Get whether the caller is a __finally block that local_unwind runs, as _abnormal_termination does.
+    Get the result of _abnormal_termination: whether the caller is a __finally block that local_unwind runs.
 
     As in the CRT, the newest registration at fs:[0] must be the frame that the unwind leaves, and the
     try level of the frame must be the enclosing level of the __finally scope. A function that the block
