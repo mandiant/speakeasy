@@ -26,6 +26,8 @@ def test_public_shellcode_reports_each_new_string_once_and_skips_input_strings(c
     literal = "INPUT_ANSI_LITERAL"
     marker = "DECODED_STACK_MARKER"
     # The stack gets a copy of the input literal and two copies of the marker.
+    # Byte-by-byte stores keep the marker out of the input image. RET leaves
+    # the bytes below SP for the completion-time string scanner.
     stores = (literal + "\0" + marker + "\0" + marker + "\0").encode()
     code = b"\x83\xec\x40"
     for offset, value in enumerate(stores):
