@@ -28,6 +28,7 @@ from speakeasy.winenv.defs.nt import ddk
 
 if TYPE_CHECKING:
     from speakeasy.windows.kernel import WinKernelEmulator
+    from speakeasy.windows.winemu import WindowsEmulator
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class Ntoskrnl(api.ApiHandler):
     name = "ntoskrnl"
     apihook = api.ApiHandler.apihook
     impdata = api.ApiHandler.impdata
-    emu: "WinKernelEmulator"
+    emu: "WindowsEmulator"
 
     def __init__(self, emu):
         super().__init__(emu)
@@ -53,12 +54,6 @@ class Ntoskrnl(api.ApiHandler):
         self.win = ntos
 
         super().__get_hook_attrs__(self)
-
-    def get_current_irql(self):
-        return self.emu.get_current_irql()
-
-    def set_current_irql(self, irql):
-        return self.emu.set_current_irql(irql)
 
     @impdata("IoDriverObjectType")
     def IoDriverObjectType(self, ptr):
@@ -85,7 +80,7 @@ class Ntoskrnl(api.ApiHandler):
 
         Kernel table containing SSDT.
         """
-        return self.emu.get_ssdt_ptr()
+        return ptr
 
     @impdata("KdDebuggerEnabled")
     def KdDebuggerEnabled(self, ptr):
@@ -158,7 +153,7 @@ class Ntoskrnl(api.ApiHandler):
         return -1
 
     @apihook("ObfDereferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ObfDereferenceObject(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObfDereferenceObject(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG_PTR ObfDereferenceObject(
             PVOID Object
@@ -171,7 +166,7 @@ class Ntoskrnl(api.ApiHandler):
             obj.ref_cnt -= 1
 
     @apihook("ZwClose", argc=1)
-    def ZwClose(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwClose(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwClose(
             HANDLE Handle
@@ -183,7 +178,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("DbgPrint", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def DbgPrint(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def DbgPrint(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG DbgPrint(
             PCSTR Format,
@@ -202,7 +197,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("DbgPrintEx", argc=_arch.VAR_ARGS, conv=_arch.CALL_CONV_CDECL)
-    def DbgPrintEx(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def DbgPrintEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG DbgPrintEx(
             ULONG ComponentId,
@@ -228,7 +223,7 @@ class Ntoskrnl(api.ApiHandler):
         return len(fin)
 
     @apihook("vDbgPrintEx", argc=4, conv=_arch.CALL_CONV_CDECL)
-    def vDbgPrintEx(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def vDbgPrintEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG vDbgPrintEx(
             ULONG ComponentId,
@@ -244,7 +239,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("vDbgPrintExWithPrefix", argc=5, conv=_arch.CALL_CONV_CDECL)
-    def vDbgPrintExWithPrefix(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def vDbgPrintExWithPrefix(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG vDbgPrintExWithPrefix(
             PCCH Prefix,
@@ -262,7 +257,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlAnsiStringToUnicodeString", argc=3)
     def RtlAnsiStringToUnicodeString(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlAnsiStringToUnicodeString(
@@ -303,7 +298,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("RtlInitAnsiString", argc=2)
-    def RtlInitAnsiString(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlInitAnsiString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlInitAnsiString(
             PANSI_STRING DestinationString,
@@ -331,7 +326,7 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args["SourceString"].display = ansi_str
 
     @apihook("RtlInitUnicodeString", argc=2)
-    def RtlInitUnicodeString(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlInitUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlInitUnicodeString(
             PUNICODE_STRING DestinationString,
@@ -359,9 +354,7 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args["SourceString"].display = uni_str
 
     @apihook("RtlDuplicateUnicodeString", argc=3)
-    def RtlDuplicateUnicodeString(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
-    ):
+    def RtlDuplicateUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlDuplicateUnicodeString(
             ULONG Flags,
@@ -393,7 +386,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlFreeUnicodeString", argc=1)
-    def RtlFreeUnicodeString(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlFreeUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlFreeUnicodeString(
             PUNICODE_STRING UnicodeString
@@ -409,7 +402,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(us.Buffer)
 
     @apihook("ExAllocatePoolWithTag", argc=3, conv=_arch.CALL_CONV_STDCALL)
-    def ExAllocatePoolWithTag(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExAllocatePoolWithTag(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID ExAllocatePoolWithTag(
             POOL_TYPE PoolType,
@@ -431,7 +424,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("ExFreePoolWithTag", argc=2)
-    def ExFreePoolWithTag(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExFreePoolWithTag(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExFreePoolWithTag(
             PVOID P,
@@ -448,7 +441,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(P)
 
     @apihook("IoAllocateWorkItem", argc=1)
-    def IoAllocateWorkItem(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoAllocateWorkItem(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PIO_WORKITEM IoAllocateWorkItem(
             PDEVICE_OBJECT DeviceObject
@@ -461,7 +454,7 @@ class Ntoskrnl(api.ApiHandler):
         return item
 
     @apihook("IoQueueWorkItem", argc=4)
-    def IoQueueWorkItem(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoQueueWorkItem(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoQueueWorkItem(
             PIO_WORKITEM IoWorkItem,
@@ -475,7 +468,7 @@ class Ntoskrnl(api.ApiHandler):
         self.setup_callback(WorkerRoutine, (device, Context))
 
     @apihook("IoFreeWorkItem", argc=1)
-    def IoFreeWorkItem(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoFreeWorkItem(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoFreeWorkItem(
             PIO_WORKITEM IoWorkItem
@@ -484,7 +477,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(argv[0])
 
     @apihook("ExAllocatePool", argc=2)
-    def ExAllocatePool(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExAllocatePool(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID ExAllocatePool(
             POOL_TYPE PoolType,
@@ -497,7 +490,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("ExAllocatePool2", argc=4)
-    def ExAllocatePool2(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExAllocatePool2(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID ExAllocatePool2(
             POOL_FLAGS Flags,
@@ -535,7 +528,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("ExFreePool", argc=1)
-    def ExFreePool(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExFreePool(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExFreePool(
             PVOID P
@@ -545,7 +538,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_free(P)
 
     @apihook("IoDeleteDriver", argc=1)
-    def IoDeleteDriver(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoDeleteDriver(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoDeleteDriver(
             PDRIVER_OBJECT DriverObject
@@ -649,7 +642,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("IofCompleteRequest", argc=2, conv=_arch.CALL_CONV_FASTCALL)
-    def IofCompleteRequest(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IofCompleteRequest(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IofCompleteRequest(
             PIRP Irp,
@@ -661,7 +654,7 @@ class Ntoskrnl(api.ApiHandler):
         ctx.args[1].display = hex(0xFF & PriorityBoost)
 
     @apihook("IoDeleteSymbolicLink", argc=1)
-    def IoDeleteSymbolicLink(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoDeleteSymbolicLink(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoDeleteSymbolicLink(
             PUNICODE_STRING SymbolicLinkName
@@ -675,7 +668,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("KeInitializeMutex", argc=2)
-    def KeInitializeMutex(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInitializeMutex(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeMutex(
             PRKMUTEX Mutex,
@@ -685,7 +678,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoDeleteDevice", argc=1)
-    def IoDeleteDevice(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoDeleteDevice(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoDeleteDevice(
             PDEVICE_OBJECT DeviceObject
@@ -697,7 +690,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("MmIsAddressValid", argc=1)
-    def MmIsAddressValid(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def MmIsAddressValid(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN MmIsAddressValid(
             PVOID VirtualAddress
@@ -711,7 +704,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwQuerySystemInformation", argc=4)
-    def ZwQuerySystemInformation(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwQuerySystemInformation(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwQuerySystemInformation(
             SYSTEM_INFORMATION_CLASS SystemInformationClass,
@@ -844,7 +837,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("_allshl", argc=0, conv=_arch.CALL_CONV_CDECL)
-    def _allshl(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def _allshl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONGLONG _allshl(
             LONGLONG a,
@@ -862,7 +855,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv & 0xFFFFFFFF
 
     @apihook("RtlMoveMemory", argc=3)
-    def RtlMoveMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlMoveMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void RtlMoveMemory(
             void *Destination,
@@ -874,7 +867,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(Destination, self.mem_read(Source, Length))
 
     @apihook("_vsnprintf_s", argc=5, conv=_arch.CALL_CONV_CDECL)
-    def _vsnprintf_s(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def _vsnprintf_s(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         int _vsnprintf_s(
             char *buffer,
@@ -892,7 +885,7 @@ class Ntoskrnl(api.ApiHandler):
         return self._write_secure_counted_string(fin, buffer, sizeOfBuffer, count)
 
     @apihook("PsCreateSystemThread", argc=7)
-    def PsCreateSystemThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsCreateSystemThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS PsCreateSystemThread(
             PHANDLE ThreadHandle,
@@ -926,7 +919,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlCopyUnicodeString", argc=2)
-    def RtlCopyUnicodeString(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCopyUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlCopyUnicodeString(
             PUNICODE_STRING DestinationString,
@@ -956,7 +949,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(DestinationString, self.get_bytes(dest))
 
     @apihook("RtlEqualUnicodeString", argc=3)
-    def RtlEqualUnicodeString(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlEqualUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlEqualUnicodeString(
             PCUNICODE_STRING String1,
@@ -982,7 +975,7 @@ class Ntoskrnl(api.ApiHandler):
         return int(rv)
 
     @apihook("RtlCompareString", argc=3)
-    def RtlCompareString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCompareString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG RtlCompareString(
             const STRING *String1,
@@ -1003,7 +996,7 @@ class Ntoskrnl(api.ApiHandler):
         return get_string_order(texts[0], texts[1], Fold.NONE)
 
     @apihook("RtlCompareUnicodeString", argc=3)
-    def RtlCompareUnicodeString(self, emu, argv, ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCompareUnicodeString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG RtlCompareUnicodeString(
             PCUNICODE_STRING String1,
@@ -1041,7 +1034,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoFreeIrp", argc=1)
-    def IoFreeIrp(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoFreeIrp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoFreeIrp(
             PIRP Irp
@@ -1050,7 +1043,7 @@ class Ntoskrnl(api.ApiHandler):
         (Irp,) = argv
 
     @apihook("IoReuseIrp", argc=2)
-    def IoReuseIrp(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoReuseIrp(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoReuseIrp(
             PIRP Irp,
@@ -1060,7 +1053,7 @@ class Ntoskrnl(api.ApiHandler):
         Irp, Iostatus = argv
 
     @apihook("IoAllocateMdl", argc=5)
-    def IoAllocateMdl(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoAllocateMdl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PMDL IoAllocateMdl(
             PVOID VirtualAddress,
@@ -1074,7 +1067,7 @@ class Ntoskrnl(api.ApiHandler):
         return self._new_mdl(VirtualAddress, Length)
 
     @apihook("MmProbeAndLockPages", argc=3)
-    def MmProbeAndLockPages(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def MmProbeAndLockPages(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID MmProbeAndLockPages(
             PMDL MemoryDescriptorList,
@@ -1085,7 +1078,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeDelayExecutionThread", argc=3)
-    def KeDelayExecutionThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeDelayExecutionThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS KeDelayExecutionThread(
             KPROCESSOR_MODE WaitMode,
@@ -1099,7 +1092,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeSetEvent", argc=3)
-    def KeSetEvent(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeSetEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG KeSetEvent(
             PRKEVENT Event,
@@ -1114,7 +1107,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("IoCreateSynchronizationEvent", argc=2)
     def IoCreateSynchronizationEvent(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         PKEVENT IoCreateSynchronizationEvent(
@@ -1135,7 +1128,7 @@ class Ntoskrnl(api.ApiHandler):
         return evt.address
 
     @apihook("KeInitializeEvent", argc=3)
-    def KeInitializeEvent(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInitializeEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeEvent(
             PRKEVENT Event,
@@ -1146,7 +1139,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeResetEvent", argc=1)
-    def KeResetEvent(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeResetEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG KeResetEvent(
             PRKEVENT Event
@@ -1157,7 +1150,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeClearEvent", argc=1)
-    def KeClearEvent(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeClearEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeClearEvent(
             PRKEVENT Event
@@ -1166,7 +1159,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeInitializeTimer", argc=1)
-    def KeInitializeTimer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInitializeTimer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeTimer(
             PKTIMER Timer
@@ -1175,7 +1168,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("KeSetTimer", argc=4)
-    def KeSetTimer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeSetTimer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN KeSetTimer(
             PKTIMER Timer,
@@ -1217,7 +1210,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ObOpenObjectByPointer", argc=7)
-    def ObOpenObjectByPointer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObOpenObjectByPointer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ObOpenObjectByPointer(
             PVOID Object,
@@ -1242,7 +1235,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsGetProcessPeb", argc=1)
-    def PsGetProcessPeb(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsGetProcessPeb(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PPEB PsGetProcessPeb(
             PEPROCESS Process
@@ -1255,7 +1248,7 @@ class Ntoskrnl(api.ApiHandler):
         return peb.address
 
     @apihook("KeStackAttachProcess", argc=2)
-    def KeStackAttachProcess(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeStackAttachProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeStackAttachProcess(
             PRKPROCESS PROCESS,
@@ -1268,7 +1261,7 @@ class Ntoskrnl(api.ApiHandler):
         emu.set_current_process(proc)
 
     @apihook("KeUnstackDetachProcess", argc=1)
-    def KeUnstackDetachProcess(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeUnstackDetachProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeUnstackDetachProcess(
             PRKAPC_STATE ApcState
@@ -1278,7 +1271,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ZwProtectVirtualMemory", argc=5)
-    def ZwProtectVirtualMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwProtectVirtualMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwProtectVirtualMemory(
             HANDLE ProcessHandle,
@@ -1302,7 +1295,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwWriteVirtualMemory", argc=5)
-    def ZwWriteVirtualMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwWriteVirtualMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwWriteVirtualMemory(
             HANDLE ProcessHandle,
@@ -1337,7 +1330,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwAllocateVirtualMemory", argc=6)
-    def ZwAllocateVirtualMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwAllocateVirtualMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwAllocateVirtualMemory(
             HANDLE ProcessHandle,
@@ -1368,7 +1361,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsLookupThreadByThreadId", argc=2)
-    def PsLookupThreadByThreadId(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsLookupThreadByThreadId(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS PsLookupThreadByThreadId(
             HANDLE ThreadId,
@@ -1390,7 +1383,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlGetVersion", argc=1)
-    def RtlGetVersion(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlGetVersion(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlGetVersion(
             PRTL_OSVERSIONINFOW VersionInformation
@@ -1423,7 +1416,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeWaitForSingleObject", argc=5)
-    def KeWaitForSingleObject(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeWaitForSingleObject(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS KeWaitForSingleObject(
             PVOID Object,
@@ -1439,7 +1432,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeInitializeApc", argc=8)
-    def KeInitializeApc(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInitializeApc(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeApc(
             PKAPC Apc,
@@ -1468,7 +1461,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("MmMapLockedPagesSpecifyCache", argc=6)
     def MmMapLockedPagesSpecifyCache(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         PVOID MmMapLockedPagesSpecifyCache(
@@ -1488,7 +1481,7 @@ class Ntoskrnl(api.ApiHandler):
         return mdl.StartVa + mdl.ByteOffset
 
     @apihook("KeInsertQueueApc", argc=4)
-    def KeInsertQueueApc(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInsertQueueApc(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN KeInsertQueueApc(
             PKAPC Apc,
@@ -1503,7 +1496,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KeInitializeDpc", argc=3)
-    def KeInitializeDpc(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInitializeDpc(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeDpc(
             PRKDPC Dpc,
@@ -1514,7 +1507,7 @@ class Ntoskrnl(api.ApiHandler):
         Dpc, DeferredRoutine, DeferredContext = argv
 
     @apihook("ObReferenceObjectByName", argc=8)
-    def ObReferenceObjectByName(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObReferenceObjectByName(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ObReferenceObjectByName(
             PUNICODE_STRING ObjectName,
@@ -1548,7 +1541,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoGetDeviceObjectPointer", argc=4)
-    def IoGetDeviceObjectPointer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoGetDeviceObjectPointer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoGetDeviceObjectPointer(
             PUNICODE_STRING ObjectName,
@@ -1573,7 +1566,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsTerminateSystemThread", argc=1)
-    def PsTerminateSystemThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsTerminateSystemThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS PsTerminateSystemThread(
             NTSTATUS ExitStatus
@@ -1586,7 +1579,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("IoRegisterBootDriverReinitialization", argc=3)
     def IoRegisterBootDriverReinitialization(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         VOID IoRegisterBootDriverReinitialization(
@@ -1600,7 +1593,7 @@ class Ntoskrnl(api.ApiHandler):
         self.queue_run(EntryPointType.DRIVER_REINIT, DriverReinitializationRoutine, (DriverObject, Context, 1))
 
     @apihook("KdDisableDebugger", argc=0)
-    def KdDisableDebugger(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KdDisableDebugger(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS KdDisableDebugger();
         """
@@ -1608,7 +1601,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("KdChangeOption", argc=6)
-    def KdChangeOption(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KdChangeOption(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS KdChangeOption(
             KD_OPTION Option,
@@ -1623,9 +1616,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("MmGetSystemRoutineAddress", argc=1)
-    def MmGetSystemRoutineAddress(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
-    ):
+    def MmGetSystemRoutineAddress(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID MmGetSystemRoutineAddress(
             PUNICODE_STRING SystemRoutineName
@@ -1645,7 +1636,7 @@ class Ntoskrnl(api.ApiHandler):
         return addr
 
     @apihook("KeQuerySystemTime", argc=1)
-    def KeQuerySystemTime(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeQuerySystemTime(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeQuerySystemTime(
             PLARGE_INTEGER CurrentTime
@@ -1657,7 +1648,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(CurrentTime, data)
 
     @apihook("KeQuerySystemTimePrecise", argc=1)
-    def KeQuerySystemTimePrecise(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeQuerySystemTimePrecise(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeQuerySystemTimePrecise(
             PLARGE_INTEGER CurrentTime
@@ -1666,7 +1657,7 @@ class Ntoskrnl(api.ApiHandler):
         self.KeQuerySystemTime(emu, argv, ctx)
 
     @apihook("RtlTimeToTimeFields", argc=2)
-    def RtlTimeToTimeFields(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlTimeToTimeFields(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID RtlTimeToTimeFields(
             PLARGE_INTEGER Time,
@@ -1693,7 +1684,7 @@ class Ntoskrnl(api.ApiHandler):
         self.mem_write(TimeFields, self.get_bytes(tf))
 
     @apihook("ExSystemTimeToLocalTime", argc=2)
-    def ExSystemTimeToLocalTime(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExSystemTimeToLocalTime(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExSystemTimeToLocalTime(
             PLARGE_INTEGER SystemTime,
@@ -1707,7 +1698,7 @@ class Ntoskrnl(api.ApiHandler):
         self.write_qword(LocalTime, int_sys_time)
 
     @apihook("CmRegisterCallbackEx", argc=6)
-    def CmRegisterCallbackEx(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def CmRegisterCallbackEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS CmRegisterCallbackEx(
             PEX_CALLBACK_FUNCTION Function,
@@ -1724,7 +1715,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("CmRegisterCallback", argc=3)
-    def CmRegisterCallback(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def CmRegisterCallback(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS CmRegisterCallback(
             PEX_CALLBACK_FUNCTION Function,
@@ -1740,7 +1731,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("CmUnRegisterCallback", argc=2)
-    def CmUnRegisterCallback(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def CmUnRegisterCallback(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS CmUnRegisterCallback(
             LARGE_INTEGER Cookie
@@ -1754,7 +1745,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("EtwRegister", argc=4)
-    def EtwRegister(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def EtwRegister(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS EtwRegister(
             LPCGUID ProviderId,
@@ -1775,7 +1766,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlImageDirectoryEntryToData", argc=4)
     def RtlImageDirectoryEntryToData(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         PVOID RtlImageDirectoryEntryToData(
@@ -1813,7 +1804,7 @@ class Ntoskrnl(api.ApiHandler):
             return 0
 
     @apihook("ZwOpenEvent", argc=3)
-    def ZwOpenEvent(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwOpenEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwOpenEvent(
             PHANDLE EventHandle,
@@ -1839,7 +1830,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwCreateEvent", argc=5)
-    def ZwCreateEvent(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwCreateEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwCreateEvent(
             PHANDLE EventHandle,
@@ -1865,7 +1856,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExInitializeResourceLite", argc=1)
-    def ExInitializeResourceLite(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExInitializeResourceLite(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ExInitializeResourceLite(
             PERESOURCE Resource
@@ -1876,7 +1867,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("KeEnterCriticalRegion", argc=0)
-    def KeEnterCriticalRegion(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeEnterCriticalRegion(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeEnterCriticalRegion();
         """
@@ -1884,7 +1875,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("ExAcquireResourceExclusiveLite", argc=2)
     def ExAcquireResourceExclusiveLite(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         BOOLEAN ExAcquireResourceExclusiveLite(
@@ -1897,7 +1888,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("ExAcquireResourceSharedLite", argc=2)
     def ExAcquireResourceSharedLite(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         BOOLEAN ExAcquireResourceSharedLite(
@@ -1909,7 +1900,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExReleaseResourceLite", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExReleaseResourceLite(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExReleaseResourceLite(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExReleaseResourceLite(
             PERESOURCE Resource
@@ -1918,7 +1909,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ExAcquireFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExAcquireFastMutex(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExAcquireFastMutex(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExAcquireFastMutex(
             PFAST_MUTEX FastMutex
@@ -1927,7 +1918,7 @@ class Ntoskrnl(api.ApiHandler):
         (FastMutex,) = argv
 
     @apihook("ExReleaseFastMutex", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ExReleaseFastMutex(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExReleaseFastMutex(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExReleaseFastMutex(
             PFAST_MUTEX FastMutex
@@ -1936,7 +1927,7 @@ class Ntoskrnl(api.ApiHandler):
         (FastMutex,) = argv
 
     @apihook("ObfReferenceObject", argc=1, conv=_arch.CALL_CONV_FASTCALL)
-    def ObfReferenceObject(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObfReferenceObject(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LONG_PTR ObfReferenceObject(
             PVOID Object
@@ -1945,7 +1936,7 @@ class Ntoskrnl(api.ApiHandler):
         return 0
 
     @apihook("RtlLengthRequiredSid", argc=1)
-    def RtlLengthRequiredSid(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlLengthRequiredSid(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         ULONG RtlLengthRequiredSid(
             ULONG SubAuthorityCount
@@ -1956,7 +1947,7 @@ class Ntoskrnl(api.ApiHandler):
         return self.sizeof(header) + 4 * SubAuthorityCount
 
     @apihook("RtlInitializeSid", argc=3)
-    def RtlInitializeSid(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlInitializeSid(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlInitializeSid(
             PSID Sid,
@@ -1977,7 +1968,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlSubAuthoritySid", argc=2)
-    def RtlSubAuthoritySid(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlSubAuthoritySid(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PULONG RtlSubAuthoritySid(
             PSID Sid,
@@ -1989,7 +1980,7 @@ class Ntoskrnl(api.ApiHandler):
         return Sid + self.sizeof(header) + 4 * SubAuthority
 
     @apihook("RtlCreateAcl", argc=3)
-    def RtlCreateAcl(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCreateAcl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlCreateAcl(
             PACL Acl,
@@ -2005,7 +1996,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlSetDaclSecurityDescriptor", argc=4)
     def RtlSetDaclSecurityDescriptor(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlSetDaclSecurityDescriptor(
@@ -2023,7 +2014,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("ObSetSecurityObjectByPointer", argc=3)
     def ObSetSecurityObjectByPointer(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS ObSetSecurityObjectByPointer(
@@ -2040,7 +2031,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlCreateSecurityDescriptor", argc=2)
     def RtlCreateSecurityDescriptor(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlCreateSecurityDescriptor(
@@ -2055,7 +2046,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlAddAccessAllowedAce", argc=4)
-    def RtlAddAccessAllowedAce(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlAddAccessAllowedAce(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlAddAccessAllowedAce(
             PACL Acl,
@@ -2071,7 +2062,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PoDeletePowerRequest", argc=1)
-    def PoDeletePowerRequest(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PoDeletePowerRequest(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID PoDeletePowerRequest(
             PVOID PowerRequest
@@ -2080,7 +2071,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("IoWMIRegistrationControl", argc=2)
-    def IoWMIRegistrationControl(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoWMIRegistrationControl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoWMIRegistrationControl(
             PDEVICE_OBJECT DeviceObject,
@@ -2096,7 +2087,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ObMakeTemporaryObject", argc=1)
-    def ObMakeTemporaryObject(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObMakeTemporaryObject(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ObMakeTemporaryObject(
             PVOID Object
@@ -2106,7 +2097,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlGetCompressionWorkSpaceSize", argc=3)
     def RtlGetCompressionWorkSpaceSize(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlGetCompressionWorkSpaceSize(
@@ -2123,7 +2114,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlCompressBuffer", argc=8)
-    def RtlCompressBuffer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCompressBuffer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlCompressBuffer(
             USHORT CompressionFormatAndEngine,
@@ -2167,7 +2158,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlDecompressBuffer", argc=6)
-    def RtlDecompressBuffer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlDecompressBuffer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlDecompressBuffer(
             USHORT CompressionFormat,
@@ -2213,7 +2204,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("FsRtlAllocatePool", argc=2)
-    def FsRtlAllocatePool(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def FsRtlAllocatePool(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID FsRtlAllocatePool(
             POOL_TYPE PoolType,
@@ -2226,7 +2217,7 @@ class Ntoskrnl(api.ApiHandler):
         return chunk
 
     @apihook("IofCallDriver", argc=2, conv=_arch.CALL_CONV_FASTCALL)
-    def IofCallDriver(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IofCallDriver(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IofCallDriver(
             PDEVICE_OBJECT DeviceObject,
@@ -2247,7 +2238,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("IoSetCompletionRoutineEx", argc=7)
-    def IoSetCompletionRoutineEx(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoSetCompletionRoutineEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS IoSetCompletionRoutineEx(
             PDEVICE_OBJECT DeviceObject,
@@ -2265,7 +2256,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ExQueueWorkItem", argc=2)
-    def ExQueueWorkItem(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ExQueueWorkItem(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ExQueueWorkItem(
             PWORK_QUEUE_ITEM WorkItem,
@@ -2275,7 +2266,7 @@ class Ntoskrnl(api.ApiHandler):
         WorkItem, QueueType = argv
 
     @apihook("ZwDeviceIoControlFile", argc=10)
-    def ZwDeviceIoControlFile(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwDeviceIoControlFile(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwDeviceIoControlFile(
             HANDLE FileHandle,
@@ -2323,9 +2314,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ObReferenceObjectByHandle", argc=6)
-    def ObReferenceObjectByHandle(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
-    ):
+    def ObReferenceObjectByHandle(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ObReferenceObjectByHandle(
             HANDLE Handle,
@@ -2350,14 +2339,14 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ObGetFilterVersion", argc=0)
-    def ObGetFilterVersion(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObGetFilterVersion(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         USHORT ObGetFilterVersion();
         """
         return 256
 
     @apihook("ObRegisterCallbacks", argc=2)
-    def ObRegisterCallbacks(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ObRegisterCallbacks(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ObRegisterCallbacks(
             POB_CALLBACK_REGISTRATION CallbackRegistration,
@@ -2370,7 +2359,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwDeleteKey", argc=1)
-    def ZwDeleteKey(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwDeleteKey(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwDeleteKey(
             HANDLE KeyHandle
@@ -2383,9 +2372,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwQueryInformationProcess", argc=5)
-    def ZwQueryInformationProcess(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
-    ):
+    def ZwQueryInformationProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwQueryInformationProcess(
             HANDLE ProcessHandle,
@@ -2454,7 +2441,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("IoGetCurrentProcess", argc=0)
-    def IoGetCurrentProcess(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoGetCurrentProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PEPROCESS IoGetCurrentProcess();
         """
@@ -2462,7 +2449,7 @@ class Ntoskrnl(api.ApiHandler):
         return p.address
 
     @apihook("PsGetCurrentProcessId", argc=0)
-    def PsGetCurrentProcessId(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsGetCurrentProcessId(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE PsGetCurrentProcessId();
         """
@@ -2471,7 +2458,7 @@ class Ntoskrnl(api.ApiHandler):
         return pid if pid is not None else 4
 
     @apihook("PsGetProcessId", argc=1)
-    def PsGetProcessId(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsGetProcessId(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         HANDLE PsGetProcessId(
             PEPROCESS Process
@@ -2482,7 +2469,7 @@ class Ntoskrnl(api.ApiHandler):
         return getattr(proc, "pid", 0)
 
     @apihook("NtSetInformationThread", argc=4)
-    def NtSetInformationThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def NtSetInformationThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS NtSetInformationThread(
             HANDLE ThreadHandle,
@@ -2503,7 +2490,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("IoRegisterShutdownNotification", argc=1)
     def IoRegisterShutdownNotification(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS IoRegisterShutdownNotification(
@@ -2517,7 +2504,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("IoRegisterLastChanceShutdownNotification", argc=1)
     def IoRegisterLastChanceShutdownNotification(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS IoRegisterLastChanceShutdownNotification(
@@ -2528,7 +2515,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("IoUnregisterShutdownNotification", argc=1)
     def IoUnregisterShutdownNotification(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         VOID IoUnregisterShutdownNotification(
@@ -2543,7 +2530,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         KIRQL KeGetCurrentIrql();
         """
-        return self.get_current_irql()
+        return emu.get_current_irql()
 
     @apihook("KeAcquireSpinLockRaiseToDpc", argc=1)
     def KeAcquireSpinLockRaiseToDpc(
@@ -2555,12 +2542,12 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         (SpinLock,) = argv
-        irql = self.get_current_irql()
-        self.set_current_irql(ddk.DISPATCH_LEVEL)
+        irql = emu.get_current_irql()
+        emu.set_current_irql(ddk.DISPATCH_LEVEL)
         return irql
 
     @apihook("KeInitializeSpinLock", argc=1)
-    def KeInitializeSpinLock(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeInitializeSpinLock(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeInitializeSpinLock(
             PKSPIN_LOCK SpinLock
@@ -2579,10 +2566,10 @@ class Ntoskrnl(api.ApiHandler):
         );
         """
         SpinLock, OldIrql = argv
-        irql = self.get_current_irql()
+        irql = emu.get_current_irql()
         if OldIrql:
             self.mem_write(OldIrql, bytes([irql]))
-        self.set_current_irql(ddk.DISPATCH_LEVEL)
+        emu.set_current_irql(ddk.DISPATCH_LEVEL)
 
     @apihook("KeReleaseSpinLock", argc=2)
     def KeReleaseSpinLock(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -2594,12 +2581,12 @@ class Ntoskrnl(api.ApiHandler):
         """
         SpinLock, NewIrql = argv
         if NewIrql:
-            self.set_current_irql(NewIrql & 0xFF)
+            emu.set_current_irql(NewIrql & 0xFF)
         else:
-            self.set_current_irql(ddk.PASSIVE_LEVEL)
+            emu.set_current_irql(ddk.PASSIVE_LEVEL)
 
     @apihook("MmUnlockPages", argc=1)
-    def MmUnlockPages(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def MmUnlockPages(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID MmUnlockPages(
             PMDL MemoryDescriptorList
@@ -2608,7 +2595,7 @@ class Ntoskrnl(api.ApiHandler):
         (MemoryDescriptorList,) = argv
 
     @apihook("IoFreeMdl", argc=1)
-    def IoFreeMdl(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def IoFreeMdl(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID IoFreeMdl(
             PMDL Mdl
@@ -2617,7 +2604,7 @@ class Ntoskrnl(api.ApiHandler):
         (Mdl,) = argv
 
     @apihook("KeCancelTimer", argc=1)
-    def KeCancelTimer(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeCancelTimer(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN KeCancelTimer(
             PKTIMER unnamedParam1
@@ -2627,7 +2614,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("PsGetVersion", argc=4)
-    def PsGetVersion(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def PsGetVersion(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN PsGetVersion(
             PULONG MajorVersion,
@@ -2653,7 +2640,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("PsSetCreateProcessNotifyRoutineEx", argc=2)
     def PsSetCreateProcessNotifyRoutineEx(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS PsSetCreateProcessNotifyRoutineEx(
@@ -2668,7 +2655,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("PsSetLoadImageNotifyRoutine", argc=1)
     def PsSetLoadImageNotifyRoutine(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS PsSetLoadImageNotifyRoutine(
@@ -2682,7 +2669,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("PsRemoveLoadImageNotifyRoutine", argc=1)
     def PsRemoveLoadImageNotifyRoutine(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS PsRemoveLoadImageNotifyRoutine(
@@ -2696,7 +2683,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("PsSetCreateThreadNotifyRoutine", argc=1)
     def PsSetCreateThreadNotifyRoutine(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS PsSetCreateThreadNotifyRoutine(
@@ -2710,7 +2697,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("PsRemoveCreateThreadNotifyRoutine", argc=1)
     def PsRemoveCreateThreadNotifyRoutine(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS PsRemoveCreateThreadNotifyRoutine(
@@ -2723,7 +2710,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwOpenKey", argc=3)
-    def ZwOpenKey(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwOpenKey(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwOpenKey(
             PHANDLE KeyHandle,
@@ -2750,7 +2737,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwQueryValueKey", argc=6)
-    def ZwQueryValueKey(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwQueryValueKey(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwQueryValueKey(
             HANDLE KeyHandle,
@@ -2816,7 +2803,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwCreateKey", argc=7)
-    def ZwCreateKey(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwCreateKey(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwCreateKey(
             PHANDLE KeyHandle,
@@ -2854,7 +2841,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwSetValueKey", argc=6)
-    def ZwSetValueKey(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwSetValueKey(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwSetValueKey(
             HANDLE KeyHandle,
@@ -2892,7 +2879,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwCreateFile", argc=11)
-    def ZwCreateFile(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwCreateFile(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwCreateFile(
             PHANDLE FileHandle,
@@ -2990,7 +2977,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwOpenFile", argc=6)
-    def ZwOpenFile(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwOpenFile(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwOpenFile(
             PHANDLE FileHandle,
@@ -3035,7 +3022,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwQueryInformationFile", argc=5)
-    def ZwQueryInformationFile(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwQueryInformationFile(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwQueryInformationFile(
             HANDLE FileHandle,
@@ -3067,7 +3054,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("RtlCompareMemory", argc=3)
-    def RtlCompareMemory(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlCompareMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         SIZE_T RtlCompareMemory(
             const VOID *Source1,
@@ -3086,7 +3073,7 @@ class Ntoskrnl(api.ApiHandler):
         return Length
 
     @apihook("RtlQueryRegistryValuesEx", argc=5)
-    def RtlQueryRegistryValuesEx(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlQueryRegistryValuesEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlQueryRegistryValuesEx(
             ULONG RelativeTo,
@@ -3114,7 +3101,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwWriteFile", argc=9)
-    def ZwWriteFile(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwWriteFile(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwWriteFile(
             HANDLE FileHandle,
@@ -3157,7 +3144,7 @@ class Ntoskrnl(api.ApiHandler):
         return nts
 
     @apihook("ZwReadFile", argc=9)
-    def ZwReadFile(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwReadFile(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwReadFile(
             HANDLE FileHandle,
@@ -3210,7 +3197,7 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_write(ios, status.to_bytes(ptr_size, "little") + information.to_bytes(ptr_size, "little"))
 
     @apihook("MmIsDriverVerifying", argc=1)
-    def MmIsDriverVerifying(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def MmIsDriverVerifying(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         LOGICAL MmIsDriverVerifying(
             struct _DRIVER_OBJECT *DriverObject
@@ -3222,7 +3209,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("ZwCreateSection", argc=7)
-    def ZwCreateSection(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwCreateSection(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwCreateSection(
             PHANDLE SectionHandle,
@@ -3270,7 +3257,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwOpenSection", argc=3)
-    def ZwOpenSection(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwOpenSection(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwOpenSection(
             PHANDLE SectionHandle,
@@ -3296,7 +3283,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwUnmapViewOfSection", argc=2)
-    def ZwUnmapViewOfSection(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwUnmapViewOfSection(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwUnmapViewOfSection(
             HANDLE ProcessHandle,
@@ -3316,7 +3303,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwMapViewOfSection", argc=10)
-    def ZwMapViewOfSection(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwMapViewOfSection(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwMapViewOfSection(
             HANDLE SectionHandle,
@@ -3418,7 +3405,7 @@ class Ntoskrnl(api.ApiHandler):
         return rv
 
     @apihook("RtlAllocateHeap", argc=3)
-    def RtlAllocateHeap(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlAllocateHeap(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID RtlAllocateHeap(
             PVOID HeapHandle,
@@ -3433,7 +3420,7 @@ class Ntoskrnl(api.ApiHandler):
         return block
 
     @apihook("ZwGetContextThread", argc=2)
-    def ZwGetContextThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwGetContextThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwGetContextThread(
             HANDLE ThreadHandle,
@@ -3453,7 +3440,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwSetContextThread", argc=2)
-    def ZwSetContextThread(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ZwSetContextThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS ZwSetContextThread(
             HANDLE ThreadHandle,
@@ -3480,7 +3467,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlFreeHeap", argc=3)
-    def RtlFreeHeap(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlFreeHeap(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         BOOLEAN RtlFreeHeap(
             PVOID HeapHandle,
@@ -3495,7 +3482,7 @@ class Ntoskrnl(api.ApiHandler):
         return 1
 
     @apihook("KeBugCheckEx", argc=5)
-    def KeBugCheckEx(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def KeBugCheckEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID KeBugCheckEx(
             ULONG BugCheckCode,
@@ -3583,7 +3570,7 @@ class Ntoskrnl(api.ApiHandler):
         return irp.address
 
     @apihook("ProbeForRead", argc=3)
-    def ProbeForRead(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ProbeForRead(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ProbeForRead(
             const volatile VOID *Address,
@@ -3594,7 +3581,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("ProbeForWrite", argc=3)
-    def ProbeForWrite(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def ProbeForWrite(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID ProbeForWrite(
             volatile VOID *Address,
@@ -3605,7 +3592,7 @@ class Ntoskrnl(api.ApiHandler):
         return
 
     @apihook("MmMapIoSpace", argc=4)
-    def MmMapIoSpace(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def MmMapIoSpace(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         PVOID MmMapIoSpace(
             PHYSICAL_ADDRESS PhysicalAddress,
@@ -3630,7 +3617,7 @@ class Ntoskrnl(api.ApiHandler):
         return base + offset
 
     @apihook("MmUnmapIoSpace", argc=2)
-    def MmUnmapIoSpace(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def MmUnmapIoSpace(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         VOID MmUnmapIoSpace(
             PVOID BaseAddress,
@@ -3642,7 +3629,7 @@ class Ntoskrnl(api.ApiHandler):
             self.mem_free(BaseAddress)
 
     @apihook("_wcsnset", argc=3, conv=_arch.CALL_CONV_CDECL)
-    def _wcsnset(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def _wcsnset(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         wchar_t *_wcsnset(
             wchar_t *str,
@@ -3656,7 +3643,7 @@ class Ntoskrnl(api.ApiHandler):
         return str
 
     @apihook("RtlAppendUnicodeToString", argc=2)
-    def RtlAppendUnicodeToString(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlAppendUnicodeToString(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlAppendUnicodeToString(
             PUNICODE_STRING Destination,
@@ -3671,7 +3658,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlAppendUnicodeStringToString", argc=2)
     def RtlAppendUnicodeStringToString(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlAppendUnicodeStringToString(
@@ -3687,7 +3674,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlQueryFeatureConfiguration", argc=4)
     def RtlQueryFeatureConfiguration(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlQueryFeatureConfiguration(
@@ -3703,7 +3690,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlQueryFeatureConfigurationChangeStamp", argc=0)
     def RtlQueryFeatureConfigurationChangeStamp(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         RTL_FEATURE_CHANGE_STAMP RtlQueryFeatureConfigurationChangeStamp();
@@ -3714,7 +3701,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlRegisterFeatureConfigurationChangeNotification", argc=4)
     def RtlRegisterFeatureConfigurationChangeNotification(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlRegisterFeatureConfigurationChangeNotification(
@@ -3731,7 +3718,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlUnregisterFeatureConfigurationChangeNotification", argc=1)
     def RtlUnregisterFeatureConfigurationChangeNotification(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlUnregisterFeatureConfigurationChangeNotification(
@@ -3742,7 +3729,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlRegisterFeatureUsageProvider", argc=3)
     def RtlRegisterFeatureUsageProvider(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlRegisterFeatureUsageProvider(
@@ -3758,7 +3745,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlUnregisterFeatureUsageProvider", argc=1)
     def RtlUnregisterFeatureUsageProvider(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlUnregisterFeatureUsageProvider(
@@ -3769,7 +3756,7 @@ class Ntoskrnl(api.ApiHandler):
 
     @apihook("RtlArmFeatureUsageProviderFlushNotification", argc=2)
     def RtlArmFeatureUsageProviderFlushNotification(
-        self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
+        self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
     ):
         """
         NTSTATUS RtlArmFeatureUsageProviderFlushNotification(
@@ -3780,7 +3767,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlRecordFeatureUsage", argc=2)
-    def RtlRecordFeatureUsage(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlRecordFeatureUsage(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlRecordFeatureUsage(
             PVOID Record,
@@ -3790,7 +3777,7 @@ class Ntoskrnl(api.ApiHandler):
         return ddk.STATUS_SUCCESS
 
     @apihook("RtlNotifyFeatureUsage", argc=1)
-    def RtlNotifyFeatureUsage(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+    def RtlNotifyFeatureUsage(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         NTSTATUS RtlNotifyFeatureUsage(
             PRTL_FEATURE_USAGE_REPORT FeatureUsageReport
