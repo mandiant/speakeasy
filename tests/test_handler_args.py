@@ -85,8 +85,8 @@ def test_variadic_handler_appends_entries() -> None:
         ApiArg(type="text", display="x=1"),
     ]
     args.clear()
-    args.append("out", type="str")
-    assert args.get_report_args() == [ApiArg(type="str", display="out")]
+    args.append("out")
+    assert args.get_report_args() == [ApiArg(type="text", display="out")]
 
 
 def test_no_context_discards_writes() -> None:
