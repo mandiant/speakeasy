@@ -1,10 +1,9 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import base64
 import hashlib
 import struct
 from typing import TYPE_CHECKING
-
-from Crypto.Cipher import ARC4
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.registry.reg as regdefs
@@ -15,6 +14,7 @@ from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import EventType
 from speakeasy.report import EntryPointType
 from speakeasy.windows import objman
+from speakeasy.windows.cryptman import CIPHER_MODES, CryptoApiError, CryptoApiKey
 from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import (
     ENUM_SERVICE_STATE,
@@ -27,8 +27,6 @@ from speakeasy.winenv.defs.lookup import decode
 from .. import api
 
 if TYPE_CHECKING:
-    from Crypto.Cipher.ARC4 import ARC4Cipher
-
     from speakeasy.windows.win32 import Win32Emulator
 
 MD5_INITIAL_STATE = (0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476)
@@ -53,8 +51,6 @@ class AdvApi32(api.ApiHandler):
         self.md5_contexts: dict[int, hashlib._Hash] = {}
         self.k32types = k32defs
         self.win = adv32defs
-
-        self.rc4: ARC4Cipher | None = None
 
         super().__get_hook_attrs__(self)
 
@@ -1822,44 +1818,199 @@ class AdvApi32(api.ApiHandler):
             DWORD dwFlags,
             HCRYPTKEY *phKey
         );
+
+        Derive RC4 keys only.
         """
         hProv, Algid, hBaseData, dwFlags, phKey = argv
 
-        # Only RC4 supported right now
-        if Algid != 0x6801:
+        if Algid != adv32defs.CALG_RC4:
+            emu.set_last_error(adv32defs.NTE_BAD_ALGID)
             return 0
 
-        hnd = emu.get_crypt_manager().get_hash(hBaseData)
-        if hnd is None:
+        cm = emu.get_crypt_manager()
+        prov = cm.get_context(hProv)
+        hnd = cm.get_hash(hBaseData)
+        if prov is None or hnd is None:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        # The upper 16 bits of dwFlags give the key length in bits. A 40-bit
-        # key, the default, gets 11 zero bytes of salt unless CRYPT_NO_SALT
-        # is set.
+        # The upper 16 bits of dwFlags give the key length in bits.
         digest = hnd.digest()
-        key_bits = dwFlags >> 16
-        if 40 < key_bits <= len(digest) * 8:
-            fixed_digest = digest[: key_bits // 8]
-        elif dwFlags & adv32defs.CRYPT_NO_SALT:
-            fixed_digest = digest[:5]
-        else:
-            fixed_digest = digest[:5] + b"\x00" * 11
+        key_bits = dwFlags >> 16 or prov.get_default_rc4_bits()
+        secret = digest[: key_bits // 8] if 40 < key_bits <= len(digest) * 8 else digest[:5]
+        self.write_ptr(phKey, prov.add_key(CryptoApiKey(prov, Algid, dwFlags, secret=secret)))
+        return 1
 
-        ptrsz = emu.get_ptr_size()
+    @apihook("CryptImportKey", argc=6)
+    def CryptImportKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CryptImportKey(
+            HCRYPTPROV hProv,
+            const BYTE *pbData,
+            DWORD dwDataLen,
+            HCRYPTKEY hPubKey,
+            DWORD dwFlags,
+            HCRYPTKEY *phKey
+        );
+        """
+        hProv, pbData, dwDataLen, hPubKey, dwFlags, phKey = argv
+        dwDataLen &= 0xFFFFFFFF
 
-        hKey = self.win.HCRYPTKEY(ptrsz)
-        hKey.Algid = Algid
-        hKey.keylen = len(fixed_digest)
-        hKey.keyp = self.mem_alloc(hKey.keylen)
+        prov = emu.get_crypt_manager().get_context(hProv)
+        if prov is None:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
 
-        hKeyp = self.mem_alloc(hKey.sizeof())
+        blob = self.mem_read(pbData, dwDataLen) if dwDataLen else b""
+        try:
+            key = CryptoApiKey.from_blob(prov, blob, dwFlags)
+        except CryptoApiError as e:
+            emu.set_last_error(e.code)
+            return 0
+        self.write_ptr(phKey, prov.add_key(key))
+        return 1
 
-        self.mem_write(hKey.keyp, fixed_digest)
+    @apihook("CryptGenKey", argc=4)
+    def CryptGenKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CryptGenKey(
+            HCRYPTPROV hProv,
+            ALG_ID Algid,
+            DWORD dwFlags,
+            HCRYPTKEY *phKey
+        );
 
-        self.mem_write(hKeyp, hKey.get_bytes())
-        self.write_ptr(phKey, hKeyp)
+        The key bytes come from the random number generator of the emulator.
+        """
+        hProv, Algid, dwFlags, phKey = argv
 
+        prov = emu.get_crypt_manager().get_context(hProv)
+        if prov is None:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        try:
+            key = CryptoApiKey.from_random(prov, Algid, dwFlags, emu.rng.randbytes)
+        except CryptoApiError as e:
+            emu.set_last_error(e.code)
+            return 0
+        self.write_ptr(phKey, prov.add_key(key))
+        return 1
+
+    @apihook("CryptExportKey", argc=6)
+    def CryptExportKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CryptExportKey(
+            HCRYPTKEY hKey,
+            HCRYPTKEY hExpKey,
+            DWORD dwBlobType,
+            DWORD dwFlags,
+            BYTE *pbData,
+            DWORD *pdwDataLen
+        );
+        """
+        hKey, hExpKey, dwBlobType, dwFlags, pbData, pdwDataLen = argv
+
+        key = emu.get_crypt_manager().get_crypto_api_key(hKey)
+        if key is None:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        try:
+            blob = key.get_blob(dwBlobType)
+        except CryptoApiError as e:
+            emu.set_last_error(e.code)
+            return 0
+
+        size = self.read_dword(pdwDataLen)
+        self.write_dword(pdwDataLen, len(blob))
+        if not pbData:
+            return 1
+        if size < len(blob):
+            emu.set_last_error(windefs.ERROR_MORE_DATA)
+            return 0
+        self.mem_write(pbData, blob)
+        return 1
+
+    @apihook("CryptSetKeyParam", argc=4)
+    def CryptSetKeyParam(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CryptSetKeyParam(
+            HCRYPTKEY hKey,
+            DWORD dwParam,
+            const BYTE *pbData,
+            DWORD dwFlags
+        );
+
+        Set KP_IV, KP_MODE and KP_PADDING. Other parameters do not change the key.
+        """
+        hKey, dwParam, pbData, dwFlags = argv
+
+        key = emu.get_crypt_manager().get_crypto_api_key(hKey)
+        if key is None:
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        if dwParam == adv32defs.KP_IV:
+            key.iv = self.mem_read(pbData, key.block_len) if key.block_len else b""
+        elif dwParam == adv32defs.KP_MODE:
+            mode = self.read_dword(pbData)
+            if mode not in CIPHER_MODES:
+                emu.set_last_error(adv32defs.NTE_BAD_DATA)
+                return 0
+            key.mode = mode
+        elif dwParam == adv32defs.KP_PADDING and self.read_dword(pbData) != adv32defs.PKCS5_PADDING:
+            emu.set_last_error(adv32defs.NTE_BAD_DATA)
+            return 0
+        key.reset()
+        return 1
+
+    @apihook("CryptEncrypt", argc=7)
+    def CryptEncrypt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CryptEncrypt(
+            HCRYPTKEY hKey,
+            HCRYPTHASH hHash,
+            BOOL Final,
+            DWORD dwFlags,
+            BYTE *pbData,
+            DWORD *pdwDataLen,
+            DWORD dwBufLen
+        );
+        """
+        hKey, hHash, Final, dwFlags, pbData, pdwDataLen, dwBufLen = argv
+        dwBufLen &= 0xFFFFFFFF
+        final = bool(Final & 0xFFFFFFFF)
+
+        cm = emu.get_crypt_manager()
+        key = cm.get_crypto_api_key(hKey)
+        hnd = cm.get_hash(hHash) if hHash else None
+        if key is None or (hHash and hnd is None):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
+
+        size = self.read_dword(pdwDataLen)
+        try:
+            out_size = key.get_encrypted_size(size, final)
+            if not pbData:
+                self.write_dword(pdwDataLen, out_size)
+                return 1
+            if dwBufLen < out_size:
+                self.write_dword(pdwDataLen, out_size)
+                emu.set_last_error(windefs.ERROR_MORE_DATA)
+                return 0
+            data = self.mem_read(pbData, size) if size else b""
+            out = key.encrypt(data, final, emu.rng.randbytes)
+        except CryptoApiError as e:
+            emu.set_last_error(e.code)
+            return 0
+
+        if hnd is not None:
+            hnd.update(data)
+        ctx.args["pbData"].display = base64.b64encode(data).decode("ascii")
+        if out:
+            self.mem_write(pbData, out)
+        self.write_dword(pdwDataLen, len(out))
         return 1
 
     @apihook("CryptDecrypt", argc=6)
@@ -1875,38 +2026,42 @@ class AdvApi32(api.ApiHandler):
         );
         """
         hKey, hHash, Final, dwFlags, pbData, pdwDataLen = argv
+        final = bool(Final & 0xFFFFFFFF)
 
-        # Hashing not supported
-        if hHash:
+        cm = emu.get_crypt_manager()
+        key = cm.get_crypto_api_key(hKey)
+        hnd = cm.get_hash(hHash) if hHash else None
+        if key is None or (hHash and hnd is None):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
 
-        ptrsz = emu.get_ptr_size()
-
-        hKey = self.mem_cast(self.win.HCRYPTKEY(ptrsz), hKey)
-
-        # Only RC4 supported right now
-        if hKey.Algid != 0x6801:
+        size = self.read_dword(pdwDataLen)
+        data = self.mem_read(pbData, size) if size else b""
+        try:
+            out = key.decrypt(data, final)
+        except CryptoApiError as e:
+            emu.set_last_error(e.code)
             return 0
 
-        encdatalen_b = self.mem_read(pdwDataLen, 4)
-        encdatalen = int.from_bytes(encdatalen_b, "little")
+        if hnd is not None:
+            hnd.update(out)
+        ctx.args["pbData"].display = base64.b64encode(out).decode("ascii")
+        if out:
+            self.mem_write(pbData, out)
+        self.write_dword(pdwDataLen, len(out))
+        return 1
 
-        encdata = self.mem_read(pbData, encdatalen)
-
-        key = self.mem_read(hKey.keyp, hKey.keylen)
-
-        if self.rc4 is None:
-            self.rc4 = ARC4.new(key)
-
-        dec = self.rc4.decrypt(encdata)
-        declen = len(dec)
-
-        self.mem_write(pbData, dec)
-        self.write_dword(pdwDataLen, declen)
-
-        if Final:
-            self.rc4 = None
-
+    @apihook("CryptDestroyKey", argc=1)
+    def CryptDestroyKey(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CryptDestroyKey(
+            HCRYPTKEY hKey
+        );
+        """
+        (hKey,) = argv
+        if not emu.get_crypt_manager().destroy_crypto_api_key(hKey):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return 0
         return 1
 
     @apihook("RegGetValue", argc=7, conv=_arch.CALL_CONV_STDCALL)

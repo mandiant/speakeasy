@@ -6,7 +6,8 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES, ARC4, PKCS1_v1_5
+from Crypto.PublicKey import RSA
 from Crypto.Util.Padding import pad
 
 from speakeasy import Speakeasy
@@ -461,6 +462,169 @@ def test_bcrypt_aes_block_padding_round_trip_matches_pycryptodome(dll_emu: Speak
         se.mem_write(piv, iv)
     assert call(se, "bcrypt", "BCryptDecrypt", [hkey, enc, 32, 0, piv, civ, dec, 32, pcb, padding])[0] == 0
     assert (_dword(se, pcb), se.mem_read(dec, 20)) == (20, plain)
+
+
+def _acquire_context(se: Speakeasy, prov_type: int) -> int:
+    ph = alloc(se, b"\x00" * 8)
+    assert call(se, "advapi32", "CryptAcquireContextA", [ph, 0, 0, prov_type, 0xF0000000])[0]
+    return _ptr(se, ph)
+
+
+def _plaintext_key_blob(algid: int, key: bytes) -> bytes:
+    header = struct.pack("<BBHII", adv32defs.PLAINTEXTKEYBLOB, adv32defs.CUR_BLOB_VERSION, 0, algid, len(key))
+    return header + key
+
+
+def _import_key(se: Speakeasy, hprov: int, blob: bytes, flags: int = 0) -> int:
+    ph = alloc(se, b"\x00" * 8)
+    assert call(se, "advapi32", "CryptImportKey", [hprov, alloc(se, blob), len(blob), 0, flags, ph])[0]
+    return _ptr(se, ph)
+
+
+def _gen_key(se: Speakeasy, hprov: int, algid: int, flags: int) -> int:
+    ph = alloc(se, b"\x00" * 8)
+    assert call(se, "advapi32", "CryptGenKey", [hprov, algid, flags, ph])[0]
+    return _ptr(se, ph)
+
+
+def _derive_rc4_key(se: Speakeasy, hprov: int, password: bytes) -> int:
+    ph = alloc(se, b"\x00" * 8)
+    assert call(se, "advapi32", "CryptCreateHash", [hprov, 0x8003, 0, 0, ph])[0]
+    hhash = _ptr(se, ph)
+    assert call(se, "advapi32", "CryptHashData", [hhash, alloc(se, password), len(password), 0])[0]
+    assert call(se, "advapi32", "CryptDeriveKey", [hprov, adv32defs.CALG_RC4, hhash, 0, ph])[0]
+    return _ptr(se, ph)
+
+
+def _crypt(se: Speakeasy, api: str, hkey: int, data: bytes, final: bool) -> bytes:
+    """Run CryptEncrypt or CryptDecrypt on data in a 256-byte buffer and return the output."""
+    buf = alloc(se, data.ljust(0x100, b"\x00"))
+    pcb = alloc(se, struct.pack("<I", len(data)))
+    argv = [hkey, 0, int(final), 0, buf, pcb] + ([0x100] if api == "CryptEncrypt" else [])
+    assert call(se, "advapi32", api, argv)[0]
+    return se.mem_read(buf, _dword(se, pcb))
+
+
+def _export_key(se: Speakeasy, hkey: int) -> bytes:
+    pcb = alloc(se, b"\x00" * 4)
+    argv = [hkey, 0, adv32defs.PLAINTEXTKEYBLOB, 0, 0, pcb]
+    assert call(se, "advapi32", "CryptExportKey", argv)[0]
+    size = _dword(se, pcb)
+    buf = alloc(se, b"\xcc" * size)
+    se.mem_write(pcb, struct.pack("<I", size - 1))
+    rv, _ = call(se, "advapi32", "CryptExportKey", [hkey, 0, adv32defs.PLAINTEXTKEYBLOB, 0, buf, pcb])
+    assert (rv, _last_error(se), _dword(se, pcb)) == (0, windefs.ERROR_MORE_DATA, size)
+    assert call(se, "advapi32", "CryptExportKey", [hkey, 0, adv32defs.PLAINTEXTKEYBLOB, 0, buf, pcb])[0]
+    return se.mem_read(buf, _dword(se, pcb))
+
+
+@pytest.mark.parametrize(
+    "algid, size",
+    [(adv32defs.CALG_AES_128, 16), (adv32defs.CALG_AES_192, 24), (adv32defs.CALG_AES_256, 32)],
+    ids=["aes-128", "aes-192", "aes-256"],
+)
+def test_crypt_aes_key_blob_round_trip_matches_pycryptodome(dll_emu: Speakeasy, algid: int, size: int) -> None:
+    start_process(dll_emu)
+    se = dll_emu
+    key, iv, plain = bytes(range(size)), bytes(range(0x10, 0x20)), b"twenty bytes of text"
+    blob = _plaintext_key_blob(algid, key)
+    hkey = _import_key(se, _acquire_context(se, adv32defs.PROV_RSA_AES), blob, adv32defs.CRYPT_EXPORTABLE)
+    assert call(se, "advapi32", "CryptSetKeyParam", [hkey, adv32defs.KP_IV, alloc(se, iv), 0])[0]
+    expected = AES.new(key, AES.MODE_CBC, iv=iv).encrypt(pad(plain, 16))
+
+    pcb = alloc(se, struct.pack("<I", len(plain)))
+    assert call(se, "advapi32", "CryptEncrypt", [hkey, 0, 1, 0, 0, pcb, 0])[0]
+    assert _dword(se, pcb) == len(expected)
+    se.mem_write(pcb, struct.pack("<I", len(plain)))
+    rv, _ = call(se, "advapi32", "CryptEncrypt", [hkey, 0, 1, 0, alloc(se, plain), pcb, len(plain)])
+    assert (rv, _last_error(se), _dword(se, pcb)) == (0, windefs.ERROR_MORE_DATA, len(expected))
+
+    assert _crypt(se, "CryptEncrypt", hkey, plain, final=True) == expected
+    assert _crypt(se, "CryptDecrypt", hkey, expected, final=True) == plain
+    assert _export_key(se, hkey) == blob
+    assert call(se, "advapi32", "CryptDestroyKey", [hkey])[0]
+    rv, _ = call(se, "advapi32", "CryptDecrypt", [hkey, 0, 1, 0, alloc(se, expected), pcb])
+    assert (rv, _last_error(se)) == (0, windefs.ERROR_INVALID_HANDLE)
+
+
+def test_crypt_gen_key_exports_the_key_that_it_encrypts_with(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    se = dll_emu
+    flags = 256 << 16 | adv32defs.CRYPT_EXPORTABLE
+    hkey = _gen_key(se, _acquire_context(se, adv32defs.PROV_RSA_AES), adv32defs.CALG_AES_256, flags)
+    blob = _export_key(se, hkey)
+    header = struct.pack(
+        "<BBHII", adv32defs.PLAINTEXTKEYBLOB, adv32defs.CUR_BLOB_VERSION, 0, adv32defs.CALG_AES_256, 32
+    )
+    assert (blob[:12], len(blob)) == (header, 44)
+    assert blob[12:] != bytes(32)
+
+    mode = alloc(se, struct.pack("<I", adv32defs.CRYPT_MODE_ECB))
+    assert call(se, "advapi32", "CryptSetKeyParam", [hkey, adv32defs.KP_MODE, mode, 0])[0]
+    plain = bytes(range(32))
+    assert _crypt(se, "CryptEncrypt", hkey, plain, final=False) == AES.new(blob[12:], AES.MODE_ECB).encrypt(plain)
+
+
+def test_crypt_export_key_needs_an_exportable_key(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hkey = _gen_key(dll_emu, _acquire_context(dll_emu, adv32defs.PROV_RSA_AES), adv32defs.CALG_AES_128, 0)
+    pcb = alloc(dll_emu, b"\x00" * 4)
+    rv, _ = call(dll_emu, "advapi32", "CryptExportKey", [hkey, 0, adv32defs.PLAINTEXTKEYBLOB, 0, 0, pcb])
+    assert (rv, _last_error(dll_emu)) == (0, adv32defs.NTE_BAD_KEY_STATE)
+
+
+@pytest.mark.parametrize(
+    "prov_type, get_key",
+    [(adv32defs.PROV_RSA_FULL, lambda digest: digest[:5] + bytes(11)), (adv32defs.PROV_RSA_AES, lambda digest: digest)],
+    ids=["40-bit", "128-bit"],
+)
+def test_crypt_derived_rc4_keys_keep_their_own_state(
+    dll_emu: Speakeasy, prov_type: int, get_key: Callable[[bytes], bytes]
+) -> None:
+    start_process(dll_emu)
+    se = dll_emu
+    hprov = _acquire_context(se, prov_type)
+    passwords = (b"first", b"second")
+    hkeys = [_derive_rc4_key(se, hprov, password) for password in passwords]
+    data = bytes(range(32))
+
+    out: dict[int, bytes] = {hkey: b"" for hkey in hkeys}
+    for chunk, final in ((data[:16], False), (data[16:], True)):
+        for hkey in hkeys:
+            out[hkey] += _crypt(se, "CryptDecrypt", hkey, chunk, final)
+    for hkey, password in zip(hkeys, passwords, strict=True):
+        key = get_key(hashlib.md5(password).digest())
+        assert out[hkey] == ARC4.new(key).decrypt(data)
+        assert _crypt(se, "CryptDecrypt", hkey, data, final=True) == ARC4.new(key).decrypt(data)
+
+
+def test_crypt_encrypt_with_an_rsa_public_key_blob(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    se = dll_emu
+    rsa = RSA.generate(1024)
+    header = struct.pack("<BBHI", adv32defs.PUBLICKEYBLOB, adv32defs.CUR_BLOB_VERSION, 0, adv32defs.CALG_RSA_KEYX)
+    blob = header + struct.pack("<III", adv32defs.RSA1, 1024, rsa.e) + rsa.n.to_bytes(128, "little")
+    hkey = _import_key(se, _acquire_context(se, adv32defs.PROV_RSA_FULL), blob)
+    plain = bytes(range(44))
+
+    pcb = alloc(se, struct.pack("<I", len(plain)))
+    assert call(se, "advapi32", "CryptEncrypt", [hkey, 0, 0, 0, 0, pcb, 0])[0]
+    assert _dword(se, pcb) == 128
+    out = _crypt(se, "CryptEncrypt", hkey, plain, final=False)
+    assert len(out) == 128
+    assert PKCS1_v1_5.new(rsa).decrypt(out[::-1], None) == plain
+
+
+def test_crypt_import_key_fails_a_simple_blob(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    header = struct.pack(
+        "<BBHII", adv32defs.SIMPLEBLOB, adv32defs.CUR_BLOB_VERSION, 0, adv32defs.CALG_RC4, adv32defs.CALG_RSA_KEYX
+    )
+    blob = alloc(dll_emu, header + bytes(128))
+    ph = alloc(dll_emu, b"\x00" * 4)
+    hprov = _acquire_context(dll_emu, adv32defs.PROV_RSA_FULL)
+    rv, _ = call(dll_emu, "advapi32", "CryptImportKey", [hprov, blob, 140, 0, 0, ph])
+    assert (rv, _last_error(dll_emu)) == (0, adv32defs.NTE_BAD_PUBLIC_KEY)
 
 
 def _open_storage_provider(se: Speakeasy, name: str | None) -> int:
