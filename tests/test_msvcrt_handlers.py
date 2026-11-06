@@ -408,7 +408,7 @@ def test_wcstombs_s_returns_size_for_null_buffer(dll_emu: Speakeasy) -> None:
 
 
 @pytest.mark.parametrize("text, rv", [(None, EINVAL), ("a中", EILSEQ)])
-def test_wcstombs_s_fails_with_an_empty_buffer(dll_emu: Speakeasy, text: str | None, rv: int) -> None:
+def test_wcstombs_s_empties_the_buffer_on_an_error(dll_emu: Speakeasy, text: str | None, rv: int) -> None:
     out = alloc(dll_emu, b"\xcc" * 16)
     ret = alloc(dll_emu, b"\xcc" * 4)
     wcstr = alloc(dll_emu, f"{text}\0".encode("utf-16le")) if text is not None else 0
