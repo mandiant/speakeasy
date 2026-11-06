@@ -104,7 +104,7 @@ def test_param_kind_and_flags() -> None:
     p = sigdb.ParamSig("lpFileName", "ps:SECURITY_ATTRIBUTES", "i?c")
     assert p.kind == "ps"
     assert p.qualifier == "SECURITY_ATTRIBUTES"
-    assert p.is_in and not p.is_out and p.is_optional
+    assert p.is_in and not p.is_out
 
     out = sigdb.ParamSig("lpThreadId", "p", "o?")
     assert out.is_out and not out.is_in

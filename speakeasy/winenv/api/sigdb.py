@@ -200,10 +200,6 @@ class ParamSig:
     def is_out(self) -> bool:
         return "o" in self.flags
 
-    @property
-    def is_optional(self) -> bool:
-        return "?" in self.flags
-
     def size(self, ptr_size: int) -> int:
         """Size in bytes of the value of the parameter for ``ptr_size``."""
         kind = self.kind
