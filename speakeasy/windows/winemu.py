@@ -64,6 +64,7 @@ from speakeasy.windows.module_loader import ModuleLoader
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
 from speakeasy.windows.regman import WINDOWS_CURRENT_VERSION_KEY, RegistryManager, RegKey, get_program_files_values
+from speakeasy.windows.system_dlls import is_system_dll
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.api.api import NO_CONTEXT, ApiContext, HandlerArgs
 from speakeasy.winenv.api.winapi import WindowsApi
@@ -2262,8 +2263,10 @@ class WindowsEmulator(BinaryEmulator):
             # A function in the signature database resolves even if the module does not
             # export it, because other Windows builds export it.
             eligible = eligible or (isinstance(reference, str) and self.has_api_signature(module.name, reference))
-            # A synthetic module without exports gives a dynamic entry for each name.
-            eligible = eligible or (module._image.source == "synthetic" and not module.get_exports())
+            # A synthetic module without exports gives a dynamic entry for each name, unless its exports are fixed.
+            eligible = eligible or (
+                module._image.source == "synthetic" and not module.get_exports() and not module._image.fixed_exports
+            )
             if not eligible or module._image.source != "synthetic" or module is getattr(self, "container_image", None):
                 return 0
             try:
@@ -3589,10 +3592,12 @@ class WindowsEmulator(BinaryEmulator):
         elif module is None:
             known = self.get_native_module_path(name) or self.api.load_api_handler(name)
             known = known or self.get_signature_db().get_functions(name, self._get_signature_arch())
-            if not known and not self.config.modules.modules_always_exist:
+            # Of the unknown DLLs, only a DLL of the system directory loads. GetProcAddress fails for its functions.
+            decoy = not known and not self.config.modules.modules_always_exist
+            if decoy and not is_system_dll(mod_name, self._get_signature_arch()):
                 return 0
             try:
-                module = self.load_module_by_name(name)
+                module = self.load_module_by_name(name, fixed_exports=decoy)
             except WindowsEmuError as error:
                 logger.warning("failed to load %s: %s", name, error)
                 return 0
@@ -3616,11 +3621,12 @@ class WindowsEmulator(BinaryEmulator):
                 frame.initializers[routine.address] = routine
         return module.base
 
-    def load_module_by_name(self, name, emu_path=None, base=None, native_path=None, data=None):
+    def load_module_by_name(self, name, emu_path=None, base=None, native_path=None, data=None, fixed_exports=False):
         """
         Load the module name, or get it if it is loaded.
 
         Load the module from data, else from the module directory, else as a synthetic API module.
+        A synthetic module with fixed_exports and without exports gives no dynamic entries for GetProcAddress.
         """
         name = module_name(name)
         existing = self.get_mod_by_name(name)
@@ -3653,6 +3659,7 @@ class WindowsEmulator(BinaryEmulator):
             ).make_image()
         image.name = name
         image.module_type = _module_type_from_path(emu_path)
+        image.fixed_exports = fixed_exports
         module = self.load_image(image, base)
         if image.source == "guest_pe" and module.is_dll() and not self.is_kernel_mode:
             self.module_loader.guest_dependencies.append(module)

@@ -133,6 +133,8 @@ class LoadedImage:
     the bases of the regions, the IAT slots, the exports, the entry points, the TLS callbacks
     and the TLS and resource directories. ``relocate_image`` returns a copy at a base, with
     absolute addresses. ``relocations`` is None if the image can load only at its preferred base.
+    A synthetic image without exports gives a dynamic entry for each name that the guest looks
+    up, except when ``fixed_exports`` is set.
     """
 
     arch: int
@@ -155,6 +157,7 @@ class LoadedImage:
     source: str = "guest_pe"
     relocations: list[BaseRelocation] | None = None
     problems: list[str] = field(default_factory=list)
+    fixed_exports: bool = False
 
 
 def _write_image_base(image: LoadedImage, data: bytearray, base: int) -> None:
