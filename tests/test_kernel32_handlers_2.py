@@ -1561,7 +1561,7 @@ def named_type_resource_pe(type_name: str, res_id: int, payload: bytes) -> bytes
     def directory(named: int, entry_name: int, target: int) -> bytes:
         return struct.pack("<IIHHHH", 0, 0, 0, 0, named, 1 - named) + struct.pack("<II", entry_name, target)
 
-    rsrc = directory(1, 0x80000000 | 0x58 + len(payload), 0x80000000 | 0x18)
+    rsrc = directory(1, 0x80000000 | (0x58 + len(payload)), 0x80000000 | 0x18)
     rsrc += directory(0, res_id, 0x80000000 | 0x30)
     rsrc += directory(0, 0x409, 0x48)
     rsrc += struct.pack("<IIII", rva + 0x58, len(payload), 0, 0)
