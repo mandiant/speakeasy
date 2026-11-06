@@ -36,6 +36,10 @@ The ANSI code page is 1252 and the OEM code page is 437. Speakeasy reads and wri
 
 `lstrcmp`, `lstrcmpi` and `CompareString` approximate the linguistic sort of Windows. They compare the strings without case first, and when these are equal, lower case sorts before upper case. Punctuation and symbols sort by their code values, without the Windows weights. The case-insensitive C runtime functions, such as `_stricmp`, fold only `A` to `Z`.
 
+## CryptoAPI keys
+
+The `HCRYPTKEY` functions support RC4 and AES keys of 128, 192 and 256 bits. `CryptImportKey` accepts a `PLAINTEXTKEYBLOB` and the `PUBLICKEYBLOB` of an RSA key. `CryptEncrypt` with an RSA public key uses PKCS#1 v1.5 padding. No key has a private part, so `CryptImportKey` fails a `SIMPLEBLOB` with `NTE_BAD_PUBLIC_KEY`, and `CryptDecrypt` fails with an RSA key. `CryptExportKey` gives only a `PLAINTEXTKEYBLOB`. `CryptDeriveKey` derives only RC4 keys. An AES key supports the CBC, ECB and CFB modes and PKCS#5 padding. `CryptSetKeyParam` sets `KP_IV`, `KP_MODE` and `KP_PADDING`, and returns `TRUE` for other parameters without a change to the key. `CryptGenKey` gets the key bytes from the random source of the emulator, so the key is the same in each run with the same `random_seed`.
+
 ## Environmental requirements
 
 A sample can expect files, registry keys, network responses, loaded modules or system structures that the config does not have. When one is missing, the sample can act as if it found an analysis environment, but the cause is the config. Before you decide that Speakeasy does not support a sample, add the missing items with the config file and the CLI overrides.
