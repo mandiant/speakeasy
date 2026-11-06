@@ -3417,6 +3417,35 @@ class Ntoskrnl(api.ApiHandler):
 
         return rv
 
+    @apihook("RtlCreateHeap", argc=6)
+    def RtlCreateHeap(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PVOID RtlCreateHeap(
+            ULONG Flags,
+            PVOID HeapBase,
+            SIZE_T ReserveSize,
+            SIZE_T CommitSize,
+            PVOID Lock,
+            PRTL_HEAP_PARAMETERS Parameters
+        );
+        """
+        Flags, HeapBase, ReserveSize, CommitSize, Lock, Parameters = argv
+
+        return self.create_heap(emu)
+
+    @apihook("RtlDestroyHeap", argc=1)
+    def RtlDestroyHeap(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PVOID RtlDestroyHeap(
+            PVOID HeapHandle
+        );
+
+        RtlDestroyHeap returns NULL on success and the heap handle on failure.
+        """
+        (HeapHandle,) = argv
+
+        return 0
+
     @apihook("RtlAllocateHeap", argc=3)
     def RtlAllocateHeap(self, emu: "WinKernelEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """

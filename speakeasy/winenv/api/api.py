@@ -299,6 +299,10 @@ class ApiHandler:
     def pool_alloc(self, pool_type, size, tag):
         return self.emu.pool_alloc(pool_type, size, tag)
 
+    def create_heap(self, emu):
+        """Map the header of a new heap and return its address, which is the heap handle."""
+        return self.mem_alloc(20, tag="emu.process_heap")
+
     def heap_alloc(self, size, heap):
         return self.emu.heap_alloc(size, heap)
 
