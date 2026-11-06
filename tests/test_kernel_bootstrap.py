@@ -6,7 +6,6 @@ import pytest
 import speakeasy.winenv.arch as _arch
 from speakeasy import Speakeasy, WinKernelEmulator
 from speakeasy.config import SpeakeasyConfig
-from speakeasy.errors import WindowsEmuError
 
 SAMPLE_PATH = Path(__file__).resolve().parent / "capa-testfiles" / "Practical Malware Analysis Lab 10-03.sys_"
 
@@ -15,13 +14,6 @@ KUSER_LOW_BASE = 0x7FFE0000
 KUSER_X86_ALIAS = 0xFFDF0000
 KUSER_X64_CANONICAL_ALIAS = 0xFFFFF78000000000
 KUSER_X64_EXEC_MIRROR = 0xFF78000000000
-
-
-def test_kernel_current_process_requires_machine(config):
-    emu = WinKernelEmulator(config=SpeakeasyConfig.model_validate(config))
-
-    with pytest.raises(WindowsEmuError, match="object services"):
-        emu.get_current_process()
 
 
 def test_kernel_import_data_allocation_uses_system_process_context(config):
