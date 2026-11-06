@@ -309,8 +309,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         )
 
     def create_heap(self, emu):
-        heap = self.mem_alloc(20, tag="emu.process_heap")
-
+        heap = super().create_heap(emu)
         self.heaps.append(heap)
         return heap
 
