@@ -175,7 +175,7 @@ def test_relocated_image_matches_pefile_rebase(filename, load_test_bin):
     base = 0x60000000
     data = relocate_image(PeLoader(data=raw).make_image(), base).regions[0].data
     expected = _PeParser(data=raw)
-    expected.rebase(base)
+    expected.relocate_image(base)
     mapped = expected.get_mapped_image()[: len(data)]
     # pefile does not write the new ImageBase into its mapped image.
     field = expected.OPTIONAL_HEADER.get_file_offset() + (24 if expected.arch == 64 else 28)
