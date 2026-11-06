@@ -7,6 +7,8 @@ import pytest
 from speakeasy import Speakeasy
 from tests.pe_builder import build_pe
 
+AFX_GET_MODULE_STATE = 1168
+
 
 def call_ordinals(dll: str, ordinals: list[int]):
     """Call each ordinal import of ``dll`` and store each return value in .data."""
@@ -41,3 +43,15 @@ def test_unsupported_ordinal_import_shows_the_export_name(config: dict, dll: str
     assert error.type == "unsupported_api"
     assert error.api_name == f"{module}.{name}"
     assert error.instruction == f"api_trap {module}.{name}"
+
+
+def test_afx_get_module_state_returns_one_state_with_the_instance_handle(config: dict) -> None:
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=build_program("mfc42.dll", [AFX_GET_MODULE_STATE, AFX_GET_MODULE_STATE]))
+        base = module.base
+        se.run_module(module)
+        assert se.get_report().entry_points[0].error is None
+        first, second = struct.unpack("<II", se.mem_read(base + 0x2000, 8))
+        assert first and first == second
+        instance, resource = struct.unpack("<II", se.mem_read(first + 8, 8))
+    assert instance == resource == base
