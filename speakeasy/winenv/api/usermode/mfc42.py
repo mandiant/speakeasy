@@ -24,7 +24,9 @@ class mfc42(api.ApiHandler):
         self.module_states: dict[Process, int] = {}
         super().__get_hook_attrs__(self)
 
-    @apihook("?AfxGetModuleState@@YGPAVAFX_MODULE_STATE@@XZ", argc=0, ordinal=1168)
+    # The x86 ordinal names give ordinal 1168. The hook gives no ordinal, because ordinal 1168
+    # of the x64 mfc42.dll is a different function.
+    @apihook("?AfxGetModuleState@@YGPAVAFX_MODULE_STATE@@XZ", argc=0)
     def AfxGetModuleState(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         AFX_MODULE_STATE* AfxGetModuleState();

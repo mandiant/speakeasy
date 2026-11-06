@@ -55,3 +55,16 @@ def test_afx_get_module_state_returns_one_state_with_the_instance_handle(config:
         assert first and first == second
         instance, resource = struct.unpack("<II", se.mem_read(first + 8, 8))
     assert instance == resource == base
+
+
+def test_x64_ordinal_import_does_not_run_the_x86_handler(config: dict) -> None:
+    def text(base: int, iat: dict) -> bytes:
+        call = b"\xff\x15" + struct.pack("<i", iat["mfc42.dll", AFX_GET_MODULE_STATE] - (0x1000 + 4 + 6))
+        return b"\x48\x83\xec\x28" + call + b"\x48\x83\xc4\x28\xc3"
+
+    data, _ = build_pe(64, text=text, imports={"mfc42.dll": [AFX_GET_MODULE_STATE]})
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=data))
+        error = se.get_report().entry_points[0].error
+    assert error.type == "unsupported_api"
+    assert error.api_name == f"mfc42.ordinal_{AFX_GET_MODULE_STATE}"
