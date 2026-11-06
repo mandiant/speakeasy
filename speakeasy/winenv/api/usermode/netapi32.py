@@ -190,4 +190,7 @@ class NetApi32(api.ApiHandler):
             LPVOID Buffer
         );
         """
+        (Buffer,) = argv
+        if Buffer:
+            self.heap_free(Buffer)
         return netapi32defs.NERR_Success
