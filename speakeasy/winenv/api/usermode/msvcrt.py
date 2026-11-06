@@ -735,35 +735,35 @@ class Msvcrt(api.ApiHandler):
         """
         pReturnValue, wcstr, sizeInWords, mbstr, count = argv
 
-        rv = 0
+        if bool(wcstr) != bool(sizeInWords):
+            return EINVAL
+        if wcstr:
+            self.mem_write(wcstr, b"\x00\x00")
         if pReturnValue:
             self.write_ptr(pReturnValue, 0)
+        if not mbstr:
+            return EINVAL
 
-        # Sanity checks
-        if (sizeInWords > 0 and not wcstr) or not mbstr or (sizeInWords == 0 and wcstr):
-            rv = EINVAL
+        is_truncated = count == self.get_max_int()
+        if wcstr and not is_truncated:
+            mbs = self.read_cstr(mbstr, max_chars=count) if count else b""
         else:
-            is_truncated = count == self.get_max_int()
-            if wcstr and not is_truncated:
-                mbs = self.read_cstr(mbstr, max_chars=count) if count else b""
-            else:
-                mbs = self.read_cstr(mbstr)
-            # The C locale maps each byte to the wide character with the same value.
-            text = mbs.decode("latin-1")
-            ctx.args[3].display = text
+            mbs = self.read_cstr(mbstr)
+        # The C locale maps each byte to the wide character with the same value.
+        text = mbs.decode("latin-1")
+        ctx.args[3].display = text
 
-            n = len(text) + 1
-            if wcstr:
-                if n > sizeInWords:
-                    if not is_truncated:
-                        self.mem_write(wcstr, b"\x00\x00")
-                        return ERANGE
-                    n = sizeInWords
-                    rv = STRUNCATE
-                self.mem_write(wcstr, (text[: n - 1] + "\x00").encode("utf-16le"))
-            if pReturnValue:
-                self.write_ptr(pReturnValue, n)
-
+        rv = 0
+        n = len(text) + 1
+        if wcstr:
+            if n > sizeInWords:
+                if not is_truncated:
+                    return ERANGE
+                n = sizeInWords
+                rv = STRUNCATE
+            self.mem_write(wcstr, (text[: n - 1] + "\x00").encode("utf-16le"))
+        if pReturnValue:
+            self.write_ptr(pReturnValue, n)
         return rv
 
     @apihook("_wcsnicmp", argc=3, conv=e_arch.CALL_CONV_CDECL)
