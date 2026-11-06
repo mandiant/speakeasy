@@ -178,15 +178,6 @@ class WinKernelEmulator(WindowsEmulator):
         process.init_peb(self.get_peb_modules())
         return process.peb
 
-    def set_current_process(self, process):
-        """Set the current process."""
-        self.curr_process = process
-
-    def get_current_process(self):
-        """Get the current process."""
-        self.get_object_manager("kernel current-process resolution")
-        return self.curr_process
-
     def get_handle_table(self) -> HandleTable:
         """Get the handle table of the emulator. The kernel emulator keeps all handles in one table."""
         return self.handles
