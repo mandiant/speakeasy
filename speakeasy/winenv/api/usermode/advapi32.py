@@ -1962,6 +1962,8 @@ class AdvApi32(api.ApiHandler):
         elif dwParam == adv32defs.KP_PADDING and self.read_dword(pbData) != adv32defs.PKCS5_PADDING:
             emu.set_last_error(adv32defs.NTE_BAD_DATA)
             return 0
+        else:
+            return 1
         key.reset()
         return 1
 
