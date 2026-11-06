@@ -8,8 +8,18 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv.api.usermode.msvcrt import Msvcrt
+from speakeasy.winenv.defs.enums import TOKEN_INFORMATION_CLASS
 from speakeasy.winenv.defs.nt import ddk
-from tests.handler_harness import alloc, ansi_string, call, get_kernel_emu, load_emu, object_attributes, unicode_string
+from tests.handler_harness import (
+    alloc,
+    ansi_string,
+    call,
+    get_kernel_emu,
+    load_emu,
+    object_attributes,
+    start_process,
+    unicode_string,
+)
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -485,6 +495,87 @@ def test_nt_open_section_opens_a_named_section(dll_emu: Speakeasy) -> None:
     fman = dll_emu.emu.get_file_manager()
     mapping = fman.get_mapping(int.from_bytes(handle, "little"))
     assert mapping is fman.get_mapping(int.from_bytes(dll_emu.mem_read(phnd, 4), "little"))
+
+
+def read_ptr(se: Speakeasy, addr: int) -> int:
+    return int.from_bytes(se.mem_read(addr, se.emu.get_ptr_size()), "little")
+
+
+def open_process(se: Speakeasy, dll: str, pid: int | None) -> tuple[int, int]:
+    ptr_size = se.emu.get_ptr_size()
+    out = alloc(se, b"\xcc" * ptr_size)
+    cid = 0 if pid is None else alloc(se, pid.to_bytes(ptr_size, "little") + bytes(ptr_size))
+    rv, _ = call(se, dll, "NtOpenProcess", [out, 0x400, alloc(se, bytes(0x30)), cid])
+    return rv, read_ptr(se, out)
+
+
+def open_process_token(se: Speakeasy, dll: str, process: int) -> int:
+    out = alloc(se, b"\xcc" * se.emu.get_ptr_size())
+    rv, _ = call(se, dll, "NtOpenProcessToken", [process, 8, out])
+    assert rv == ddk.STATUS_SUCCESS
+    return read_ptr(se, out)
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_nt_query_information_token_gives_the_user_sid_of_an_opened_process(
+    request: pytest.FixtureRequest, fixture: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    ptr_size = se.emu.get_ptr_size()
+    rv, process = open_process(se, "ntdll", se.emu.get_current_process().pid)
+    assert rv == ddk.STATUS_SUCCESS
+    token = open_process_token(se, "ntdll", process)
+
+    ret_len = alloc(se, bytes(4))
+    argv = [token, TOKEN_INFORMATION_CLASS.TokenUser, 0, 0, ret_len]
+    rv, _ = call(se, "ntdll", "NtQueryInformationToken", argv)
+    size = int.from_bytes(se.mem_read(ret_len, 4), "little")
+    assert (rv, size) == (ddk.STATUS_BUFFER_TOO_SMALL, 2 * ptr_size + 28)
+
+    info = alloc(se, b"\xcc" * size)
+    rv, _ = call(
+        se, "ntdll", "NtQueryInformationToken", [token, TOKEN_INFORMATION_CLASS.TokenUser, info, size, ret_len]
+    )
+    sid = read_ptr(se, info)
+    assert (rv, sid) == (ddk.STATUS_SUCCESS, info + 2 * ptr_size)
+    authority = bytes([1, 5]) + (5).to_bytes(6, "big")
+    assert se.mem_read(sid, 28) == authority + struct.pack("<5I", 21, 1111111111, 2222222222, 3333333333, 1001)
+
+
+@pytest.mark.parametrize(
+    ("pid", "status"), [(0xFFF0, ddk.STATUS_INVALID_CID), (None, ddk.STATUS_INVALID_PARAMETER_MIX)]
+)
+def test_nt_open_process_rejects_a_missing_process(dll_emu: Speakeasy, pid: int | None, status: int) -> None:
+    start_process(dll_emu)
+    assert open_process(dll_emu, "ntdll", pid) == (status, 0xCCCCCCCC)
+
+
+@pytest.mark.parametrize(
+    ("length", "status"),
+    [(4, ddk.STATUS_SUCCESS), (0, ddk.STATUS_INFO_LENGTH_MISMATCH), (8, ddk.STATUS_INFO_LENGTH_MISMATCH)],
+)
+def test_nt_query_information_token_needs_the_exact_elevation_size(
+    dll_emu: Speakeasy, length: int, status: int
+) -> None:
+    start_process(dll_emu)
+    token = open_process_token(dll_emu, "ntdll", 0xFFFFFFFF)
+    info = alloc(dll_emu, b"\xcc" * 8)
+    argv = [token, TOKEN_INFORMATION_CLASS.TokenElevation, info, length, alloc(dll_emu, bytes(4))]
+    rv, _ = call(dll_emu, "ntdll", "NtQueryInformationToken", argv)
+    elevated = struct.pack("<I", dll_emu.emu.config.user.is_admin)
+    expected = elevated if status == ddk.STATUS_SUCCESS else b"\xcc" * 4
+    assert (rv, dll_emu.mem_read(info, 4)) == (status, expected)
+
+
+def test_zw_open_process_opens_the_system_process(driver_emu: Speakeasy) -> None:
+    rv, process = open_process(driver_emu, "ntoskrnl", 4)
+    assert rv == ddk.STATUS_SUCCESS
+    token = open_process_token(driver_emu, "ntoskrnl", process)
+    ret_len = alloc(driver_emu, bytes(4))
+    argv = [token, TOKEN_INFORMATION_CLASS.TokenIntegrityLevel, 0, 0, ret_len]
+    assert call(driver_emu, "ntoskrnl", "ZwQueryInformationToken", argv)[0] == ddk.STATUS_BUFFER_TOO_SMALL
+    assert driver_emu.mem_read(ret_len, 4) == struct.pack("<I", 20)
 
 
 def test_x86_ke_query_performance_counter_returns_in_edx_eax(driver_emu: Speakeasy) -> None:
