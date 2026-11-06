@@ -53,11 +53,6 @@ class FrameInfo:
     handler_data: int = 0  # VA of the handler's data (e.g. the C scope table)
 
 
-def _u16(read: Reader, addr: int) -> int:
-    value: int = struct.unpack("<H", read(addr, 2))[0]
-    return value
-
-
 def _u32(read: Reader, addr: int) -> int:
     value: int = struct.unpack("<I", read(addr, 4))[0]
     return value
