@@ -31,12 +31,19 @@ class ApiExportSpec:
     forwarder: str | None = None
 
 
+def encode_jump(arch: int, address: int, target: int) -> bytes:
+    """Encode a jump at address to target. The jump does not change the registers, the stack or the flags."""
+    if arch == _arch.ARCH_X86:
+        return b"\xe9" + struct.pack("<I", (target - address - 5) & 0xFFFFFFFF)
+    return b"\xff\x25\x00\x00\x00\x00" + struct.pack("<Q", target)
+
+
 def encode_api_stub(arch: int, entry_address: int, trap_address: int) -> bytes:
     """Encode the entry code that jumps to the API token. The code does not change the stack or the flags."""
     if arch == _arch.ARCH_X86:
         # Inline hooks look for the Windows hot-patch prologue. pop ebp undoes it before the jump.
-        return b"\x8b\xff\x55\x8b\xec\x5d\xe9" + struct.pack("<I", (trap_address - entry_address - 11) & 0xFFFFFFFF)
-    return b"\x66\x90\xff\x25\x00\x00\x00\x00" + struct.pack("<Q", trap_address)
+        return b"\x8b\xff\x55\x8b\xec\x5d" + encode_jump(arch, entry_address + 6, trap_address)
+    return b"\x66\x90" + encode_jump(arch, entry_address + 2, trap_address)
 
 
 def _ascii_string(value: str, label: str) -> None:

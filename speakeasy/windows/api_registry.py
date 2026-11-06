@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from speakeasy import common
 from speakeasy.errors import WindowsEmuError
-from speakeasy.windows.api_image import API_ENTRY_OFFSET, API_SLOT_SIZE, encode_api_stub
+from speakeasy.windows.api_image import API_ENTRY_OFFSET, API_SLOT_SIZE, encode_api_stub, encode_jump
 from speakeasy.windows.loaders import ExportEntry, RuntimeModule
 
 if TYPE_CHECKING:
@@ -142,20 +142,7 @@ class ApiRegistry:
         if module._image.source != "synthetic":
             raise WindowsEmuError("cannot synthesize an export in a guest PE")
         reference = symbol_ref(reference)
-        arena = next((s for s in module.sections if s.name == ".dyn"), None)
-        offset = self.dynamic_offsets.get(id(module), 0)
-        if arena is None or offset + API_SLOT_SIZE > arena.virtual_size:
-            raise WindowsEmuError(f"dynamic API arena exhausted for {module.name}")
-        slot = module.base + arena.virtual_address + offset
-        # Do not write over a guest patch, and do not restore a protection that the guest changed.
-        perms = next(
-            (p for start, end, p in self.emu.get_mem_regions() if start <= slot and slot + API_SLOT_SIZE <= end + 1), 0
-        )
-        if (
-            not perms & self.emu.emu_eng.perms[common.PERM_MEM_EXEC]
-            or self.emu.mem_read(slot, API_SLOT_SIZE) != b"\xcc" * API_SLOT_SIZE
-        ):
-            raise WindowsEmuError(f"dynamic API arena modified by guest for {module.name}")
+        slot = self._get_free_slot(module)
         address = slot + API_ENTRY_OFFSET
         export = ExportEntry(
             name=reference if isinstance(reference, str) else None,
@@ -174,8 +161,47 @@ class ApiRegistry:
             self.names.setdefault(id(module), {})[reference] = entry
         else:
             self.ordinals.setdefault(id(module), {})[reference] = entry
-        self.dynamic_offsets[id(module)] = offset + API_SLOT_SIZE
+        self.dynamic_offsets[id(module)] += API_SLOT_SIZE
         return entry
+
+    def add_jump(self, module: RuntimeModule, target: int) -> int:
+        """
+        Write a jump to target in the next free slot of the ``.dyn`` section of a synthetic module.
+
+        The jump has no export entry. Return the address of the jump.
+
+        Raises:
+            WindowsEmuError: if the module is a guest PE, the section is full, or the guest changed the section.
+        """
+        if module._image.source != "synthetic":
+            raise WindowsEmuError("cannot add code to a guest PE")
+        slot = self._get_free_slot(module)
+        self.emu.mem_write(slot, encode_jump(module.arch, slot, target).ljust(API_SLOT_SIZE, b"\xcc"))
+        self.dynamic_offsets[id(module)] += API_SLOT_SIZE
+        return slot
+
+    def _get_free_slot(self, module: RuntimeModule) -> int:
+        """
+        Get the address of the next free slot of the ``.dyn`` section of a module.
+
+        Raises:
+            WindowsEmuError: if the section is full, or the guest changed the slot or its protection.
+        """
+        arena = next((s for s in module.sections if s.name == ".dyn"), None)
+        offset = self.dynamic_offsets.setdefault(id(module), 0)
+        if arena is None or offset + API_SLOT_SIZE > arena.virtual_size:
+            raise WindowsEmuError(f"dynamic API arena exhausted for {module.name}")
+        slot = module.base + arena.virtual_address + offset
+        # Do not write over a guest patch, and do not restore a protection that the guest changed.
+        perms = next(
+            (p for start, end, p in self.emu.get_mem_regions() if start <= slot and slot + API_SLOT_SIZE <= end + 1), 0
+        )
+        if (
+            not perms & self.emu.emu_eng.perms[common.PERM_MEM_EXEC]
+            or self.emu.mem_read(slot, API_SLOT_SIZE) != b"\xcc" * API_SLOT_SIZE
+        ):
+            raise WindowsEmuError(f"dynamic API arena modified by guest for {module.name}")
+        return slot
 
     def symbol(self, address: int) -> str | None:
         entry = self.entries.get(address)
