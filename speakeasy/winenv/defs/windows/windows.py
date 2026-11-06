@@ -103,6 +103,8 @@ CREATE_EVENT_INITIAL_SET = 0x00000002
 VER_PLATFORM_WIN32_NT = 2
 VER_NT_WORKSTATION = 1
 
+SE_GROUP_INTEGRITY = 0x20
+
 
 class GUID(EmuStruct):
     Data1: Annotated[int, ct.c_uint32]
@@ -289,9 +291,6 @@ class CONTEXT64(EmuStruct):
     LastBranchFromRip: Annotated[int, ct.c_uint64]
     LastExceptionToRip: Annotated[int, ct.c_uint64]
     LastExceptionFromRip: Annotated[int, ct.c_uint64]
-
-
-SE_GROUP_INTEGRITY = 0x20
 
 
 def convert_sid_str_to_struct(ptr_size, sid_str):
