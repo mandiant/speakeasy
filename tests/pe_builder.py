@@ -11,14 +11,18 @@ def build_pe(
     imports=None,
     nxcompat=False,
     extra_dirs=None,
-) -> tuple[bytes, dict[tuple[str, str], int]]:
-    """Return file bytes and {(DLL, function): IAT RVA}, with no relocations."""
+) -> tuple[bytes, dict[tuple[str, str | int], int]]:
+    """
+    Return file bytes and {(DLL, function): IAT RVA}, with no relocations.
+
+    An int function in ``imports`` is an import by ordinal.
+    """
     assert arch in (32, 64)
     is64 = arch == 64
     width = arch // 8
     base = 0x140000000 if is64 else 0x400000
     import_rva = 0x3000
-    iat_map: dict[tuple[str, str], int] = {}
+    iat_map: dict[tuple[str, str | int], int] = {}
     idata = bytearray()
     import_size = 0
     if imports:
@@ -37,6 +41,8 @@ def build_pe(
         dll_names = {}
         for dll, names, _, _ in layout:
             for name in names:
+                if isinstance(name, int):
+                    continue
                 blob = b"\0\0" + name.encode("ascii") + b"\0"
                 blob += b"\0" * (len(blob) & 1)
                 hint_names[dll, name] = offset
@@ -52,7 +58,7 @@ def build_pe(
                 "<5I", idata, index * 20, import_rva + lookup, 0, 0, import_rva + dll_names[dll], import_rva + iat
             )
             for slot, name in enumerate(names):
-                value = import_rva + hint_names[dll, name]
+                value = (1 << (arch - 1)) | name if isinstance(name, int) else import_rva + hint_names[dll, name]
                 for table in (lookup, iat):
                     struct.pack_into("<Q" if is64 else "<I", idata, table + slot * width, value)
                 iat_map[dll, name] = import_rva + iat + slot * width
