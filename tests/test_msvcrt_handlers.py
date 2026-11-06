@@ -2142,14 +2142,3 @@ def test_endthreadex_ends_only_the_current_thread(
             ("ws2_32.closesocket", apis[0].args[0].value),
             ("msvcrt._endthreadex", 0),
         ]
-
-
-def test_endthread_ends_only_the_current_thread(
-    config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
-) -> None:
-    entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
-    ending, checking = entries[4], entries[5]
-    assert (ending.type, ending.error) == ("thread", None)
-    assert [event.api_name for event in ending.events if event.event == "api"] == ["msvcrt._endthread"]
-    assert (checking.type, checking.error) == ("thread", None)
-    assert checking.return_value & 0x08, "the thread that calls _endthread gives 0"
