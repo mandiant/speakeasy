@@ -1,4 +1,5 @@
 include speakeasy/resources/win32/win32json_signatures.json.gz
 include speakeasy/resources/win32/phnt_signatures.json.gz
 recursive-include speakeasy/resources/win32/exports *.json
+recursive-include speakeasy/resources/win32/system_dlls *.txt
 prune tests
