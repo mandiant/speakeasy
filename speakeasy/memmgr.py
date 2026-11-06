@@ -206,10 +206,6 @@ class MemoryManager:
         """Change the protection of a range."""
         self.emu_eng.mem_protect(addr, size, perms)
 
-    def _mem_unmap_region(self, base, size):
-        """Unmap a range in the engine, also a range that has no allocations."""
-        self.emu_eng.mem_unmap(base, size)
-
     def get_address_map(self, address):
         """Get the ``MemMap`` of the mapped allocation that contains an address, or ``None``."""
         for m in self.maps:
@@ -246,10 +242,6 @@ class MemoryManager:
 
         self.mem_reserves.append(mm)
         return base
-
-    def mem_unreserve(self, base):
-        """Release the reserved range at ``base`` without a map."""
-        self.mem_reserves = [r for r in self.mem_reserves if r.base != base]
 
     def get_mem_maps(self) -> list[MemMap]:
         """Get the ``MemMap`` objects of the mapped allocations."""
