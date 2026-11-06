@@ -500,10 +500,10 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         DllHandle, ResourcePath, Count, ResourceDataEntry = argv
 
         # Reusing some functions from kernel32 module that are used to
-        # handle the very similar function FindResourceA
+        # handle the very similar function FindResourceW
         k32 = emu.api.load_api_handler("kernel32")
 
-        cw = 1  # Always ASCII for this function
+        cw = 2
         if DllHandle == 0:
             pe = emu.modules[0] if emu.modules else None
         else:
