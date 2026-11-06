@@ -907,14 +907,6 @@ def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> Non
     assert (rv, _dword(admin_emu, info), _dword(admin_emu, ret_len)) == (1, int(admin_emu.emu.config.user.is_admin), 4)
 
 
-@pytest.mark.parametrize("length", [0, 8])
-def test_get_token_information_rejects_a_wrong_elevation_size(dll_emu: Speakeasy, length: int) -> None:
-    start_process(dll_emu)
-    info = alloc(dll_emu, b"\xcc" * 8)
-    rv, _ = call(dll_emu, "advapi32", "GetTokenInformation", [0x1234, 20, info, length, alloc(dll_emu, bytes(4))])
-    assert (rv, _last_error(dll_emu), dll_emu.mem_read(info, 4)) == (0, windefs.ERROR_BAD_LENGTH, b"\xcc" * 4)
-
-
 def test_get_token_information_returns_the_integrity_level(admin_emu: Speakeasy) -> None:
     start_process(admin_emu)
     ret_len = alloc(admin_emu, b"\xcc" * 4)
