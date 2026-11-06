@@ -2284,6 +2284,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         lpString1, lpString2 = argv
+        if not lpString1:
+            return 0 if not lpString2 else -1
+        if not lpString2:
+            return 1
 
         cs1 = self.read_mem_string(lpString1, cw)
         cs2 = self.read_mem_string(lpString2, cw)
@@ -2305,6 +2309,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
 
         lpString1, lpString2 = argv
+        if not lpString1:
+            return 0 if not lpString2 else -1
+        if not lpString2:
+            return 1
 
         cs1 = self.read_mem_string(lpString1, cw)
         cs2 = self.read_mem_string(lpString2, cw)

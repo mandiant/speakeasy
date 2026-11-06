@@ -345,6 +345,16 @@ def test_lstrcmp_exports_without_suffix_read_ansi(dll_emu: Speakeasy, api: str, 
     assert rv == 0
 
 
+@pytest.mark.parametrize("api, cw", [("lstrcmpA", 1), ("lstrcmpW", 2), ("lstrcmpiA", 1), ("lstrcmpiW", 2)])
+@pytest.mark.parametrize(("null1", "null2", "expected"), [(True, True, 0), (True, False, -1), (False, True, 1)])
+def test_lstrcmp_sorts_a_null_string_first(
+    dll_emu: Speakeasy, api: str, cw: int, null1: bool, null2: bool, expected: int
+) -> None:
+    s = alloc(dll_emu, encode("before\0", cw))
+    rv, _ = call(dll_emu, "kernel32", api, [0 if null1 else s, 0 if null2 else s])
+    assert rv == expected
+
+
 def test_lstrlen_w_counts_a_lone_surrogate(dll_emu: Speakeasy) -> None:
     s = alloc(dll_emu, encode("C:\\a", 2) + b"\x00\xd8" + encode(".txt\0", 2))
     rv, _ = call(dll_emu, "kernel32", "lstrlenW", [s])
