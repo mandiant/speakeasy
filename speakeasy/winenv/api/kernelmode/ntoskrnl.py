@@ -3429,6 +3429,8 @@ class Ntoskrnl(api.ApiHandler):
             PRTL_HEAP_PARAMETERS Parameters
         );
         """
+        Flags, HeapBase, ReserveSize, CommitSize, Lock, Parameters = argv
+
         return self.create_heap(emu)
 
     @apihook("RtlDestroyHeap", argc=1)
@@ -3437,7 +3439,11 @@ class Ntoskrnl(api.ApiHandler):
         PVOID RtlDestroyHeap(
             PVOID HeapHandle
         );
+
+        RtlDestroyHeap returns NULL on success and the heap handle on failure.
         """
+        (HeapHandle,) = argv
+
         return 0
 
     @apihook("RtlAllocateHeap", argc=3)
