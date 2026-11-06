@@ -149,6 +149,11 @@ def get_raw_smbios_data() -> bytes:
     return struct.pack("<BBBBI", 0, 3, 3, 0, len(tables)) + tables
 
 
+def is_same_res_identifier(a: int | str, b: int | str) -> bool:
+    """Compare two resource types or names as Windows does: integer IDs by value, strings without case."""
+    return a == b if isinstance(a, int) else isinstance(b, str) and a.upper() == b.upper()
+
+
 class Snapshot:
     """Represents a toolhelp snapshot: the process, thread and module lists and the read index of each."""
 
@@ -365,38 +370,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not pe_metadata:
             return None
 
-        # The logic here changes to use pe_metadata.resources list
-        # We need to filter by type, then name/id.
-
-        candidates = []
-
-        # Normalize type_
-        target_type = str(type_) if isinstance(type_, int) else type_
-
-        # Find resources matching type
         for res in pe_metadata.resources:
-            # Check type
-            # pefile types can be int or string. PeMetadata stores them as stored in PE.
-            # Compare normalized as string if possible or int.
-
-            # Simple matching for now:
-            is_match = False
-            if str(res.type_id) == str(target_type):
-                is_match = True
-
-            if is_match:
-                candidates.append(res)
-
-        if not candidates:
-            return None
-
-        # Find resource matching name
-        target_name = str(name) if isinstance(name, int) else name.lower() if isinstance(name, str) else str(name)
-
-        for res in candidates:
-            res_name = str(res.id).lower() if isinstance(res.id, str) else str(res.id)
-            if res_name == target_name:
-                return res  # Returns ResourceEntry
+            if is_same_res_identifier(type_, res.type_id) and is_same_res_identifier(name, res.id):
+                return res
 
         return None
 
@@ -6096,6 +6072,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hModule, hResInfo = argv
+        if not hResInfo:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
 
         if hModule == 0:
             pe = emu.modules[0] if emu.modules else None
@@ -6107,10 +6086,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not pe:
             return 0
 
-        res_rva = self.mem_read(hResInfo, 4)
-        if res_rva:
-            return pe.base + int.from_bytes(res_rva, "little")
-        return 0
+        return pe.base + self.read_dword(hResInfo)
 
     @apihook("LockResource", argc=1)
     def LockResource(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6132,16 +6108,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hModule, hResInfo = argv
+        if not hResInfo:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
 
         # We don't strictly need pe here for SizeofResource if we trust hResInfo,
         # but the API takes hModule.
         # Just use hResInfo which points to IMAGE_RESOURCE_DATA_ENTRY
-        if hResInfo:
-            res_size = self.mem_read(hResInfo + 4, 4)
-            if res_size:
-                return int.from_bytes(res_size, "little")
-
-        return 0
+        return self.read_dword(hResInfo + 4)
 
     def get_resources(self, emu, hModule, type_=None, name=None, lang=0):
         """
@@ -6163,16 +6137,13 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_RESOURCE_DATA_NOT_FOUND)
             return None
 
-        def matches(a, b):
-            return a == b if isinstance(a, int) else isinstance(b, str) and a.upper() == b.upper()
-
         if type_ is not None:
-            resources = [r for r in resources if matches(type_, r.type_id)]
+            resources = [r for r in resources if is_same_res_identifier(type_, r.type_id)]
             if not resources:
                 emu.set_last_error(windefs.ERROR_RESOURCE_TYPE_NOT_FOUND)
                 return None
         if name is not None:
-            resources = [r for r in resources if matches(name, r.id)]
+            resources = [r for r in resources if is_same_res_identifier(name, r.id)]
             if not resources:
                 emu.set_last_error(windefs.ERROR_RESOURCE_NAME_NOT_FOUND)
                 return None
