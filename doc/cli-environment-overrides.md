@@ -64,7 +64,7 @@ jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}'
 
 ## Module load policy and module directories
 
-By default, `LoadLibrary` fails for a DLL that Speakeasy does not know. With `--modules-always-exist`, the emulator makes a synthetic module for the DLL.
+By default, `LoadLibrary` fails for a DLL that Speakeasy does not know, except when the system directory of a clean Windows install has the DLL. For such a DLL, the emulator makes a synthetic module without exports, and `GetProcAddress` fails for its functions. `speakeasy/resources/win32/system_dlls/` lists these DLLs for x86 and x64. With `--modules-always-exist`, the emulator makes a synthetic module for each DLL that it does not know.
 
 By default, `GetProcAddress` fails for a function that Speakeasy does not know, and a call to such a function ends the run with an `unsupported_api` error. With `--modules-functions-always-exist`, `GetProcAddress` gives an address for the function, and a call to it returns 1.
 

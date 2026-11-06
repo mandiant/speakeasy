@@ -1320,3 +1320,47 @@ def test_load_library_records_a_module_load_event(dll_emu: Speakeasy) -> None:
     # A second load of a loaded module maps nothing, so it adds no event.
     call(dll_emu, "kernel32", "LoadLibraryA", [name])
     assert [(e.name, e.base) for e in run.events if isinstance(e, ModuleLoadEvent)] == loads
+
+
+def load_library(se: Speakeasy, name: str) -> int:
+    return call(se, "kernel32", "LoadLibraryA", [alloc(se, name.encode() + b"\0")])[0]
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+@pytest.mark.parametrize("name", ["eappgnui.dll", "EAPPGNUI.DLL", "eappgnui", r"C:\Windows\System32\eappgnui.dll"])
+def test_load_library_of_a_system32_dll_without_handlers_maps_a_pe_image(
+    request: pytest.FixtureRequest, fixture: str, name: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    base = load_library(se, name)
+    assert base
+    e_lfanew = struct.unpack("<I", se.mem_read(base + 0x3C, 4))[0]
+    assert se.mem_read(base, 2) == b"MZ"
+    assert se.mem_read(base + e_lfanew, 4) == b"PE\0\0"
+
+
+@pytest.mark.parametrize("name", ["sappgnui.dlltrdefgyuerdvfrea", "eappgnui.exe", "nosuchsystemdll.dll"])
+def test_load_library_of_an_unknown_dll_fails(dll_emu: Speakeasy, name: str) -> None:
+    start_process(dll_emu)
+    assert load_library(dll_emu, name) == 0
+
+
+@pytest.mark.parametrize(
+    "fixture, name, other",
+    [("dll_emu", "ctl3d32.dll", "aadcloudap.dll"), ("dll64_emu", "aadcloudap.dll", "ctl3d32.dll")],
+)
+def test_load_library_uses_the_system_directory_of_the_process_architecture(
+    request: pytest.FixtureRequest, fixture: str, name: str, other: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    assert load_library(se, name)
+    assert load_library(se, other) == 0
+
+
+def test_get_proc_address_on_a_system32_dll_without_handlers_returns_zero(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    base = load_library(dll_emu, "eappgnui.dll")
+    assert base
+    assert call(dll_emu, "kernel32", "GetProcAddress", [base, alloc(dll_emu, b"EapPeerGetInfo\0")])[0] == 0
