@@ -6062,6 +6062,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hModule, hResInfo = argv
+        if not hResInfo:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
 
         if hModule == 0:
             pe = emu.modules[0] if emu.modules else None
@@ -6073,10 +6076,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not pe:
             return 0
 
-        res_rva = self.mem_read(hResInfo, 4)
-        if res_rva:
-            return pe.base + int.from_bytes(res_rva, "little")
-        return 0
+        return pe.base + self.read_dword(hResInfo)
 
     @apihook("LockResource", argc=1)
     def LockResource(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -6098,16 +6098,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hModule, hResInfo = argv
+        if not hResInfo:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
 
-        # We don't strictly need pe here for SizeofResource if we trust hResInfo,
-        # but the API takes hModule.
-        # Just use hResInfo which points to IMAGE_RESOURCE_DATA_ENTRY
-        if hResInfo:
-            res_size = self.mem_read(hResInfo + 4, 4)
-            if res_size:
-                return int.from_bytes(res_size, "little")
-
-        return 0
+        return self.read_dword(hResInfo + 4)
 
     def get_resources(self, emu, hModule, type_=None, name=None, lang=0):
         """

@@ -1583,3 +1583,10 @@ def test_find_resource_ignores_the_case_of_a_string_type(config: dict, api: str)
         data, _ = call(se, "kernel32", "LoadResource", [base, hres])
         assert se.mem_read(data, 8) == b"payload!"
         assert call(se, "kernel32", "SizeofResource", [base, hres])[0] == 8
+
+
+@pytest.mark.parametrize("api", ["LoadResource", "SizeofResource"])
+def test_resource_functions_reject_a_null_hrsrc(emu: Speakeasy, api: str) -> None:
+    emu.emu.set_last_error(windefs.ERROR_SUCCESS)
+    assert call(emu, "kernel32", api, [emu.emu.modules[0].base, 0])[0] == 0
+    assert emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
