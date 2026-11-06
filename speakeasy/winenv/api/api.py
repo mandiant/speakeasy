@@ -157,9 +157,9 @@ class HandlerArgs:
         params = self._params or []
         return HandlerArg(self._args[key], params[key] if key < len(params) else None)
 
-    def append(self, display: str, type: ApiArgType = ApiArgType.TEXT) -> HandlerArg:
+    def append(self, display: str) -> HandlerArg:
         """Add an argument without a raw value, such as the output of a printf call."""
-        arg = ApiArg(type=type, display=display)
+        arg = ApiArg(type=ApiArgType.TEXT, display=display)
         if not self._discard:
             self._args.append(arg)
         return HandlerArg(arg)
