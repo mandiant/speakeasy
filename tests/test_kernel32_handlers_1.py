@@ -974,7 +974,7 @@ def test_open_event_opens_a_named_event(dll_emu: Speakeasy, cw: str) -> None:
     assert emu.get_last_error() == windefs.ERROR_SUCCESS
 
 
-@pytest.mark.parametrize("feature, present", [(42, 0)])
+@pytest.mark.parametrize("feature, present", [(10, 1), (42, 0)])
 def test_is_processor_feature_present_knows_unlisted_features(dll_emu: Speakeasy, feature: int, present: int) -> None:
     rv, _ = call(dll_emu, "kernel32", "IsProcessorFeaturePresent", [feature])
     assert rv == present
