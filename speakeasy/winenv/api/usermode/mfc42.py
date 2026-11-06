@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 AFX_MODULE_STATE_SIZE = 0x1090
 
 
-class mfc42(api.ApiHandler):
+class Mfc42(api.ApiHandler):
     """
     Emulates functions from mfc42.dll
     """
