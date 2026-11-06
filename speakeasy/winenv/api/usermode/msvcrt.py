@@ -2568,6 +2568,21 @@ class Msvcrt(api.ApiHandler):
         """
         return int(seh32.is_abnormal_termination(emu))
 
+    @apihook("_unwind_handler", argc=4, conv=e_arch.CALL_CONV_CDECL)
+    def _unwind_handler(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        EXCEPTION_DISPOSITION _unwind_handler(
+            PEXCEPTION_RECORD ExceptionRecord,
+            PEXCEPTION_REGISTRATION_RECORD EstablisherFrame,
+            PCONTEXT ContextRecord,
+            PVOID DispatcherContext
+        );
+
+        The handler of the registration that the x86 local unwind adds while a __finally block runs.
+        An unwind continues to the frame of the __finally block, which continues its local unwind.
+        """
+        return windefs.ExceptionContinueSearch
+
     @apihook("_seh_filter_dll", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def _seh_filter_dll(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
