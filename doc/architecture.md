@@ -14,7 +14,7 @@ Each emulated DLL has one handler class in `speakeasy/winenv/api/`. Each handler
 
 ## Runs
 
-A `Run` is one call into guest code: the entry point, a DLL export, a thread, a TLS callback or a DllMain. The emulator keeps a queue of runs. `start()` adds the DllMain and TLS callbacks of the imported DLLs to the front of the queue, and `_execute_runs` runs the queue in order. `_prepare_next_run` sets up the stack and registers for the next run.
+A `Run` is one call into guest code: the entry point, a DLL export, a thread, a TLS callback or a DllMain. The emulator keeps a queue of runs. `start()` adds the DllMain and TLS callbacks of the imported DLLs to the front of the queue, and `_execute_runs` runs the queue in order. `_start_next_run` sets up the stack and registers for the next run.
 
 The return address of a run is the return hook, an address in a reserved range that is not mapped while the guest runs. When the guest returns to it, the fetch fails and the emulator records `RunReturn`. In user mode, the entry point of an EXE and the start routine of a thread return to a `jmp` in the `.dyn` section of the synthetic kernel32. The `jmp` goes to the return hook. On Windows, `BaseThreadInitThunk` in kernel32 calls these routines, and some code searches down from its return address for the `MZ` header of kernel32. The `jmp` is not an export, so it has no symbol and no API event. It adds one instruction to the run. If kernel32 is a real PE from the module directory, these runs also use the return hook. The other runs, for example DllMain, TLS callbacks, exports, shellcode and drivers, always use it.
 
@@ -23,13 +23,21 @@ The return address of a run is the return hook, an address in a reserved range t
 - `SuspendedApiCall`: the guest called an API. The loop calls the handler of the API next.
 - `RunReturn`: the guest returned from the run. The run is complete.
 - `CallbackReturn`: a guest callback returned. The API handler that called it continues.
-- `FaultReturn`: a fault ended the run.
+- `RunEnd`: a fault, an API handler, a hook or `stop()` ended the run. See [The end of a run](#the-end-of-a-run).
 - `ExecRecovery`: the guest ran code in a guest PE page without execute permission. The loop adds the permission.
 - `RaisedCpuException`: a CPU exception or a memory fault that the loop sends to the guest SEH handlers.
 
 If two hooks record an exit before Unicorn stops, the emulator keeps the first.
 
-`RunLimits` has the time and instruction limits of a run. The loop checks all limits before each start of Unicorn and before each API handler. Before `RunReturn`, `CallbackReturn`, `FaultReturn` and `ExecRecovery`, it checks only the total time.
+`RunLimits` has the time and instruction limits of a run. The loop checks all limits before each start of Unicorn and before each API handler. Before `RunReturn`, `CallbackReturn`, `RunEnd` and `ExecRecovery`, it checks only the total time.
+
+### The end of a run
+
+Only the run loop completes a run and starts the next run. An API handler or a hook that must end the run calls `end_run(error)`. `end_run` records the `RunEnd` native exit and stops Unicorn. If the run already ended, `end_run` keeps the first error. A fault calls `end_run_on_fault`, which also stops the debugger, if one is attached.
+
+When the loop handles `RunReturn` or `RunEnd`, or when the run reaches a limit, `_complete_run` records the result of the run with `on_run_complete`. The user mode emulator records the return value, the exit code of the thread and the memory layout. The kernel emulator records the return value and adds the next routine of the driver to the queue. Then `_start_next_run` prepares the next run in the queue. If the queue is empty, it completes the emulation.
+
+`is_run_complete` is true from the call of `end_run` until the next run starts. `stop()` ends the current run, removes the runs in the queue, and ends the emulation.
 
 ## API calls
 
@@ -93,7 +101,7 @@ If the emulator cancels the runs in the queue, for example when emulation reache
 - `_hook_code_coverage` when `analysis.coverage` is set.
 - `_hook_code_deferred_work`, which runs at the next instruction after an API call, a fault or a request to end the run, and then disables itself.
 
-If a hook raises a Python exception, the hook catches it and calls `_end_run_on_hook_error`, which saves the error on the run and stops emulation.
+If a hook raises a Python exception, the hook catches it and calls `_end_run_on_hook_error`, which saves the error on the run and calls `stop()`.
 
 A hook that detects a fault calls `raise_cpu_exception`, which records the exception as a native exit and stops Unicorn. Unmapped reads, writes and fetches use this path, and so do invalid instructions, interrupts and most protection faults. An access to the reserved range of the API tokens that is not an API call also uses it.
 
