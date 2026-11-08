@@ -3592,8 +3592,7 @@ class Ntoskrnl(api.ApiHandler):
         error = emu.get_error_info(ErrorType.BUG_CHECK, emu.get_ret_address(), api_name=ctx.func_name)
         error.api_name = ctx.func_name
         error.context_summary = f"{error.context_summary}: {reason}"
-        emu.get_current_run().error = error
-        emu.is_run_complete = True
+        emu.end_run(error)
 
     @apihook("IoBuildDeviceIoControlRequest", argc=9)
     def IoBuildDeviceIoControlRequest(

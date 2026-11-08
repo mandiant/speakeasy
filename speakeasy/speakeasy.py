@@ -556,7 +556,6 @@ class Speakeasy:
         """
         output_active_config(self.config, logger)
         self._init_hooks()
-        self.emu.is_run_complete = False
         self.emu.resume(addr, count=count)
 
     def stop(self) -> None:
