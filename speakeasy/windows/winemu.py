@@ -132,8 +132,15 @@ class CallbackReturn:
 
 
 @dataclass(frozen=True)
-class FaultReturn:
-    """A fault ended the run. The run loop completes the run after Unicorn stops, also if Unicorn raises an error."""
+class RunEnd:
+    """
+    A fault, an API handler, a hook or the user ended the run. See ``WindowsEmulator.end_run``.
+
+    The run loop completes the run after Unicorn stops, also if Unicorn raises an error. If ``stop_emulation`` is
+    set, the loop then ends the emulation and does not start the next run.
+    """
+
+    stop_emulation: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,7 +171,7 @@ class RaisedCpuException:
 # The reason why Unicorn stopped. A hook records the exit and stops Unicorn, or _get_exit_at_pc gets the exit from
 # the PC after Unicorn stops. Then the run loop handles the exit. If two hooks record an exit, the emulator keeps the
 # first.
-NativeExit = SuspendedApiCall | RunReturn | CallbackReturn | FaultReturn | ExecRecovery | RaisedCpuException
+NativeExit = SuspendedApiCall | RunReturn | CallbackReturn | RunEnd | ExecRecovery | RaisedCpuException
 
 
 @dataclass
@@ -374,7 +381,9 @@ class WindowsEmulator(BinaryEmulator):
         # of a run. The emulator enables the hook only when there is such work.
         self.deferred_work_hook: Any | None = None
 
-        self.is_run_complete: bool = False
+        # Only the run loop writes these two fields. To end a run, call end_run.
+        # _run_completed: the result of curr_run is recorded, and the next run is not prepared yet.
+        self._run_completed: bool = False
         self.is_emu_complete: bool = False
         self.processes: list[Any] = []
         # The processes that the guest creates with CreateProcess. self.processes does not include them.
@@ -475,8 +484,45 @@ class WindowsEmulator(BinaryEmulator):
         return self.om
 
     def on_run_complete(self):
-        """Record the result of the current run and prepare the next run from the queue."""
+        """
+        Record the result of the current run. Only the run loop calls this, from ``_complete_run``.
+
+        A subclass can add runs to the queue here. The run loop starts the next run after this.
+        """
         raise NotImplementedError()
+
+    @property
+    def end_requested(self) -> bool:
+        """Get whether a fault, an API handler, a hook or the user ended the current run with ``end_run``."""
+        return isinstance(self._native_exit, RunEnd)
+
+    @property
+    def is_run_complete(self) -> bool:
+        """Get whether the current run ended: ``end_run`` was called, or the run loop completed the run."""
+        return self._run_completed or self.end_requested
+
+    def end_run(self, error: ErrorInfo | None = None, *, stop_emulation: bool = False) -> None:
+        """
+        End the current run, with ``error`` as its error. API handlers and hooks use this to end a run.
+
+        The run loop completes the run after the handler or the hook returns and Unicorn stops. Then it starts the
+        next run, or, if ``stop_emulation`` is set, it ends the emulation. If the run already ended, keep its error.
+        """
+        if self.end_requested:
+            if stop_emulation:
+                self._native_exit = RunEnd(stop_emulation=True)
+            return
+        if error is not None:
+            self._set_run_error(error)
+        # An end replaces other native exits, such as a CPU exception that a hook raised before.
+        self._native_exit = RunEnd(stop_emulation=stop_emulation)
+        self.emu_eng.stop()
+
+    def stop(self) -> None:
+        """End the current run and the emulation. The runs in the queue do not run."""
+        self._cancel_execution_runs()
+        self.end_run(stop_emulation=True)
+        super().stop()
 
     def end_run_on_fault(self):
         """
@@ -491,7 +537,7 @@ class WindowsEmulator(BinaryEmulator):
         if not self._should_stop_on_faults or in_reserved:
             # The run loop goes to the next run only after Unicorn stops, also if Unicorn raises an error
             # after the stop. Otherwise the rest of the fault can change the next run.
-            self._record_exit(FaultReturn())
+            self.end_run()
             return
         self._pending_fault_stop = StopReason(signal=GDB_SIGSEGV, kind="exception", address=pc)
         self.emu_eng.stop()
@@ -753,27 +799,40 @@ class WindowsEmulator(BinaryEmulator):
         """Add a run to the emulation run queue."""
         self.run_queue.append(run)
 
-    def _prepare_next_run(self):
+    def _complete_run(self) -> None:
         """
-        Finish the current run, and prepare the next run from the queue.
+        Record the result of the current run. Only the run loop calls this. Then it calls ``_start_next_run``.
 
-        Return the prepared run. If the queue is empty, complete the emulation and return None.
+        If ``stop`` ended the run, also end the emulation.
         """
-        self._finish_run_initializers(self.curr_run)
+        run = self.curr_run
+        stop_emulation = isinstance(self._native_exit, RunEnd) and self._native_exit.stop_emulation
         self._native_exit = None
-        try:
-            run = self.run_queue.pop(0)
-        except IndexError:
+        self._run_completed = True
+        self.on_run_complete()
+        if run is not None:
+            self._finish_run_initializers(run)
+        if stop_emulation:
+            # on_run_complete can add runs, for example the next routine of a driver.
+            self._cancel_execution_runs()
+            self.on_emu_complete()
+
+    def _start_next_run(self) -> Run | None:
+        """
+        Prepare the next run from the queue. Only the run loop calls this, after ``_complete_run``.
+
+        Return the prepared run. If the queue is empty or the emulation is complete, complete the emulation and
+        return None.
+        """
+        if self.is_emu_complete or not self.run_queue:
             self.on_emu_complete()
             return None
-
-        self.is_run_complete = False
+        run = self.run_queue.pop(0)
         self.reset_stack(self.stack_base)
         self.reset_cpu_context()
         mm = self.get_address_map(self.stack_base - 1)
         self.mem_write(mm.base, b"\x00" * mm.size)
-        prepared = self._prepare_run_context(run)
-        self.emu_eng.stop()
+        prepared: Run = self._prepare_run_context(run)
         return prepared
 
     def _queue_startup_initializers(self):
@@ -853,6 +912,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.info("* exec: %s", run.get_label())
 
         self.curr_run = run
+        self._run_completed = False
         self._seh_last_fault = None
         self._seh_repeat_count = 0
         self._seh_resume_pc = None
@@ -999,7 +1059,7 @@ class WindowsEmulator(BinaryEmulator):
         stepping = debugger is not None and count == 1
 
         try:
-            while not self.is_emu_complete:
+            while not self.is_emu_complete and not self._run_completed:
                 if self.exit_event and self.exit_event.is_set():
                     self.emu_eng.stop()
                     return
@@ -1013,8 +1073,6 @@ class WindowsEmulator(BinaryEmulator):
                     if self._native_exit is None:
                         self._native_exit = self._get_exit_at_pc()
                     if not isinstance(self._native_exit, RaisedCpuException):
-                        if self.curr_run is not origin_run or self.is_emu_complete:
-                            return
                         if debugger is not None and debugger.has_pending_stop():
                             return
                         if self._native_exit is None:
@@ -1024,7 +1082,7 @@ class WindowsEmulator(BinaryEmulator):
                 if not self._handle_exit(limits, origin_run, debugger):
                     return
                 address = self.get_pc()
-                if self._pending_fault_stop is not None or self.curr_run is not origin_run:
+                if self._pending_fault_stop is not None:
                     return
                 if debugger is not None and (debugger.has_pending_stop() or stepping):
                     return
@@ -1067,9 +1125,7 @@ class WindowsEmulator(BinaryEmulator):
                 return False
             if not self._exit_explains_error(exc):
                 raise
-        if self.curr_run is origin_run and self._stopped_at_hlt(
-            limits.deadline, limits.last_executed, native_count, debugger
-        ):
+        if self._stopped_at_hlt(limits.deadline, limits.last_executed, native_count, debugger):
             self.raise_cpu_exception(
                 cpu_exceptions.privileged_instruction(self.get_pc() - 1), ErrorType.PRIVILEGED_INSTRUCTION
             )
@@ -1080,7 +1136,7 @@ class WindowsEmulator(BinaryEmulator):
         match self._native_exit:
             case None:
                 return False
-            case RaisedCpuException() | FaultReturn():
+            case RaisedCpuException() | RunEnd():
                 return True
             case ExecRecovery() if exc.errno == uc.UC_ERR_FETCH_PROT:
                 return True
@@ -1137,7 +1193,7 @@ class WindowsEmulator(BinaryEmulator):
         elapsed = time.monotonic() - limits.started
         origin_run.execution_elapsed = limits.spent + elapsed
         stopped = self.exit_event is not None and self.exit_event.is_set()
-        if stopped and debugger is None and self.curr_run is origin_run and not self.is_run_complete:
+        if stopped and debugger is None and not self.is_run_complete:
             if origin_run.error is None:
                 origin_run.error = ErrorInfo(type=ErrorType.TIMEOUT, pc=self.get_pc())
             self._cancel_execution_runs()
@@ -1149,20 +1205,8 @@ class WindowsEmulator(BinaryEmulator):
                     logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
                 total_budget.exhausted = True
                 self._cancel_execution_runs()
-                prepared = self.curr_run
-                if prepared is origin_run:
-                    if not self.is_run_complete and origin_run.error is None:
-                        origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
-                elif prepared is not None:
-                    # on_run_complete prepared the next run. If that run did not
-                    # execute, remove it from the list of runs.
-                    self._cancel_execution_runs(prepared)
-                    if prepared.execution_elapsed == 0 and prepared.get_api_count() == 0:
-                        self.runs[:] = [run for run in self.runs if run is not prepared]
-                        if self.profiler:
-                            self.profiler.runs[:] = [run for run in self.profiler.runs if run is not prepared]
-                        self.curr_run = origin_run
-                        self.is_run_complete = True
+                if not self.is_run_complete and origin_run.error is None:
+                    origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
                 if debugger is not None:
                     debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
 
@@ -1191,11 +1235,11 @@ class WindowsEmulator(BinaryEmulator):
         if limits.is_total_time_reached():
             self._stop_at_limit("max_total_time", limits, origin_run, debugger)
             return False
+        if isinstance(native_exit, (RunReturn, RunEnd)):
+            self._complete_run()
+            return False
         self._native_exit = None
         match native_exit:
-            case RunReturn() | FaultReturn():
-                self.on_run_complete()
-                return False
             case ExecRecovery(page=page, perms=perms):
                 self.mem_protect(page, self.page_size, perms)
             case CallbackReturn():
@@ -1206,7 +1250,7 @@ class WindowsEmulator(BinaryEmulator):
         self, entry: ApiEntry, limits: RunLimits, origin_run: Run, debugger: GdbServer | None
     ) -> bool:
         """
-        Call the handler of the API that the guest called, and end the run if the handler completed it.
+        Call the handler of the API that the guest called, and complete the run if the handler ended it.
 
         Return False if the call of the run loop must return, because the debugger stops at an API with no
         implementation, a fault stops the debugger, or the total execution time ran out.
@@ -1224,11 +1268,11 @@ class WindowsEmulator(BinaryEmulator):
         self.dispatch_api_call(entry.dll, entry.name)
         if self._pending_fault_stop is not None:
             return False
-        if self.is_run_complete and not self.is_emu_complete and self.curr_run is origin_run:
+        if self.end_requested:
             if limits.is_total_time_reached():
                 self._stop_at_limit("max_total_time", limits, origin_run, debugger)
                 return False
-            self.on_run_complete()
+            self._complete_run()
         return True
 
     def _stop_without_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
@@ -1244,7 +1288,7 @@ class WindowsEmulator(BinaryEmulator):
         elif debugger is None and not self.is_run_complete:
             logger.error("0x%x: Emulation engine stopped", self.get_pc())
             origin_run.error = self.get_error_info(ErrorType.ENGINE_STOPPED, self.get_pc())
-            self.on_run_complete()
+            self._complete_run()
 
     def _stop_at_limit(self, kind: str, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
@@ -1265,18 +1309,18 @@ class WindowsEmulator(BinaryEmulator):
             limits.total_budget.exhausted = True
             self._cancel_execution_runs()
             # If the run already has an error, such as a fault, keep that error.
-            if self.curr_run is origin_run and origin_run.error is None:
+            if not self._run_completed and origin_run.error is None:
                 origin_run.error = ErrorInfo(type=ErrorType(kind), pc=self.get_pc())
         else:
             logger.error("* Instruction limit of %d reached.", limits.budget)
         if debugger is not None:
             debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
-        elif self.curr_run is origin_run:
+        elif not self._run_completed:
             if origin_run.error is None:
                 origin_run.error = ErrorInfo(
                     type=ErrorType(kind), pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
                 )
-            self.on_run_complete()
+            self._complete_run()
 
     def _drop_stale_exit(self, address: int) -> int:
         """
@@ -1297,7 +1341,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._native_exit = None
                 address = entry.address
                 self.set_pc(address)
-        elif isinstance(native_exit, (RunReturn, CallbackReturn, FaultReturn)) and address not in (
+        elif isinstance(native_exit, (RunReturn, CallbackReturn, RunEnd)) and address not in (
             winemu.GUEST_CALLBACK_RETURN_ADDR,
             self.return_hook,
             self.exit_hook,
@@ -1329,11 +1373,14 @@ class WindowsEmulator(BinaryEmulator):
         """
         Continue the current run at addr, without the GDB server.
 
-        With the GDB server, use ``start``.
+        The current run continues also if it ended before. With the GDB server, use ``start``.
         """
         if self.curr_run is None:
             self.curr_run = Run()
         self.is_emu_complete = False
+        self._run_completed = False
+        if self.end_requested:
+            self._native_exit = None
         timeout = 0 if self.gdb_port is not None else self.config.max_run_time
         self._execute_current_run(addr, timeout=timeout, count=count)
 
@@ -1351,7 +1398,8 @@ class WindowsEmulator(BinaryEmulator):
         except IndexError:
             return
 
-        self.is_run_complete = False
+        # An exit that a stop() before the emulation recorded does not end the first run.
+        self._native_exit = None
         self.is_emu_complete = False
         self.set_hooks()
         self._unmap_reserved_range()
@@ -1421,6 +1469,9 @@ class WindowsEmulator(BinaryEmulator):
                 if debugger is None and total_budget.exhausted:
                     self._end_at_total_budget()
                     break
+                completed = self._run_completed
+                if completed and not total_budget.exhausted:
+                    self._start_next_run()
                 if debugger is not None:
                     stop_reason = debugger.finish_run(debug_action)
                     if stop_reason is not None and stop_reason.kind == "step" and self.is_emu_complete:
@@ -1441,13 +1492,14 @@ class WindowsEmulator(BinaryEmulator):
                             self._end_at_total_budget(debugger if not debug_action.kill else None)
                             return True
                         if fault_stop is not None:
-                            if not self.on_run_complete():
+                            self._complete_run()
+                            if self._start_next_run() is None:
                                 break
                             terminal_signal = 0
                         if debugger is None:
                             detached_resume_addr = self.get_pc()
                         continue
-                if self.curr_run is not executing_run and not self.is_emu_complete:
+                if completed and not self.is_emu_complete:
                     continue
             except KeyboardInterrupt:
                 logger.error("* User exited.")
@@ -1489,8 +1541,9 @@ class WindowsEmulator(BinaryEmulator):
                         self._detach_debugger(debugger)
                         debugger = None
 
-                run = self.on_run_complete()
-                if not run:
+                if not self._run_completed:
+                    self._complete_run()
+                if self._start_next_run() is None:
                     break
                 terminal_signal = 0
                 continue
@@ -1519,8 +1572,8 @@ class WindowsEmulator(BinaryEmulator):
             debugger: the GDB session to send the exit reply to, if the client still waits for one.
         """
         self._cancel_execution_runs()
-        if not self.is_run_complete:
-            self.on_run_complete()
+        if not self._run_completed:
+            self._complete_run()
         if debugger is not None:
             debugger.notify_exit(0)
         self.on_emu_complete()
@@ -2530,7 +2583,7 @@ class WindowsEmulator(BinaryEmulator):
             return True
 
         # The fetch is the rest of an instruction that crosses into the next page. The fault at its start ends the run.
-        if isinstance(self._native_exit, FaultReturn) or self._pending_fault_stop is not None:
+        if isinstance(self._native_exit, RunEnd) or self._pending_fault_stop is not None:
             return False
 
         return self._raise_memory_fault(address, "fetch")
@@ -3079,8 +3132,7 @@ class WindowsEmulator(BinaryEmulator):
                 error = self.get_error_info(
                     desc, address, traceback=traceback.format_exc(), access_type=access_type, message=message
                 )
-                self._set_run_error(error)
-                self.on_run_complete()
+                self.end_run(error)
                 return False
 
         if isinstance(rv, Generator):
@@ -3170,20 +3222,20 @@ class WindowsEmulator(BinaryEmulator):
         logger.error("Unsupported API: %s (ret: 0x%x)", call.api_name, call.return_address)
         self.log_api(call.call_pc, call.api_name, None, [], run=call.run)
         error.api_name = call.api_name
-        self._set_run_error(error)
-        self.on_run_complete()
+        self.end_run(error)
 
     def _check_api_limit(self, origin_run, imp_api):
         run = self.get_current_run()
-        if run is origin_run and run and run.get_api_count() > self.config.max_api_calls:
+        if run is origin_run and run and not self.end_requested and run.get_api_count() > self.config.max_api_calls:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
-            run.error = ErrorInfo(
-                type=ErrorType.MAX_API_COUNT,
-                pc=self.get_pc(),
-                count=self.config.max_api_calls,
-                last_api=imp_api,
+            self.end_run(
+                ErrorInfo(
+                    type=ErrorType.MAX_API_COUNT,
+                    pc=self.get_pc(),
+                    count=self.config.max_api_calls,
+                    last_api=imp_api,
+                )
             )
-            self.on_run_complete()
 
     def start_guest_callback(self, frame, function, args, sp=None):
         """Call function with args as a guest callback of frame, on the stack of frame or below sp."""
@@ -3359,7 +3411,7 @@ class WindowsEmulator(BinaryEmulator):
             message=str(exception) or type(exception).__name__,
         )
         self._set_run_error(error)
-        self.on_emu_complete()
+        self.stop()
         return False
 
     def _count_symbol_access(self, counter: str, address: int, symbol: str) -> None:
@@ -3486,13 +3538,13 @@ class WindowsEmulator(BinaryEmulator):
 
     def _hook_code_deferred_work(self, emu, addr, size):
         """
-        Code hook that runs at the next instruction after an API call, a fault or a request to end the run.
+        Code hook that runs at the next instruction after an API call or a fault.
 
-        End the run if it is complete, and unmap the reserved range. Disable the hook when there is no more work.
+        End the run at the return hook, and unmap the reserved range. Disable the hook when there is no more work.
         """
         try:
-            if addr == self.return_hook or self.is_run_complete:
-                self.on_run_complete()
+            if addr == self.return_hook:
+                self._record_exit(RunReturn())
                 return False
 
             # A guest exception handler continued at the fault address. Clear the repeat count of the fault
@@ -3884,9 +3936,5 @@ class WindowsEmulator(BinaryEmulator):
         error = self.get_error_info(ErrorType.UNHANDLED_INTERRUPT, pc)
         error.interrupt_num = intnum
         self._set_run_error(error)
-
-        if self._should_stop_on_faults:
-            self.end_run_on_fault()
-            return False
-        self.on_run_complete()
+        self.end_run_on_fault()
         return False

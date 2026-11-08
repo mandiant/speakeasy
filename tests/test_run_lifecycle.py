@@ -135,7 +135,7 @@ def test_stop_in_a_code_hook_ends_the_emulation(emu):
     assert emu.emu.is_emu_complete
 
 
-def test_stop_in_an_api_hook_ends_the_current_run(emu):
+def test_stop_in_an_api_hook_ends_the_emulation(emu):
     def stop(e, api, original, args):
         emu.stop()
         return 5
@@ -146,10 +146,11 @@ def test_stop_in_an_api_hook_ends_the_current_run(emu):
 
     emu.emu.start()
 
-    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", None), ("b", None)]
+    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", None)]
+    assert emu.emu.is_emu_complete
 
 
-def test_stop_in_a_code_hook_in_kernel_mode(config, load_test_bin):
+def test_stop_in_a_code_hook_in_kernel_mode_ends_the_emulation(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin("wdm_test_x86.sys.xz"))
         entry = module.base + module.ep
@@ -157,4 +158,4 @@ def test_stop_in_a_code_hook_in_kernel_mode(config, load_test_bin):
         se.run_module(module, all_entrypoints=True)
         eps = se.get_report().entry_points
 
-    assert [(ep.type, ep.error.type if ep.error else None) for ep in eps] == [("driver_entry", "engine_stopped")]
+    assert [(ep.type, ep.error.type if ep.error else None) for ep in eps] == [("driver_entry", None)]

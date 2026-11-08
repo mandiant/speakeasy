@@ -15,6 +15,7 @@ import speakeasy.windows.common as winemu
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
+from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
 from speakeasy.report import EntryPointType, FileType
@@ -624,9 +625,12 @@ class Win32Emulator(WindowsEmulator):
         return process
 
     def exit_process(self):
-        """End the current run, because the guest ended its process."""
-        self.enable_deferred_work_hook()
-        self.is_run_complete = True
+        """
+        End the current run, because the guest ended its process.
+
+        The other runs of the process still run. Speakeasy does not model an exited process.
+        """
+        self.end_run()
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
         _access = self.emu_eng.mem_access.get(access)
@@ -658,10 +662,6 @@ class Win32Emulator(WindowsEmulator):
         self.set_coverage_hooks()
         self.set_debug_hooks()
 
-    def stop(self) -> None:
-        self.is_run_complete = True
-        super().stop()
-
     def on_emu_complete(self):
         """Find the decoded strings if the config asks for them, then stop the emulation."""
         if not self.is_emu_complete:
@@ -674,11 +674,11 @@ class Win32Emulator(WindowsEmulator):
                 dec_unicode = list(dict.fromkeys(s for _, s in dec_unicode if s not in static_unicode))
                 self.profiler.decoded_strings["ansi"] = dec_ansi
                 self.profiler.decoded_strings["unicode"] = dec_unicode
-        self.stop()
+        # Stop the engine and the run clock. WindowsEmulator.stop also ends the run.
+        BinaryEmulator.stop(self)
 
     def on_run_complete(self):
-        """Record the result of the run, then prepare the next run in the queue."""
-        self.is_run_complete = True
+        """Record the result of the run: the return value, the exit code of the thread, and the memory layout."""
         run = self.curr_run
         if run is not None:
             run.return_value = self.get_return_val()
@@ -688,8 +688,6 @@ class Win32Emulator(WindowsEmulator):
             if self.profiler:
                 self.profiler.record_dropped_files_event(run, self.get_dropped_files())
                 self._capture_memory_layout(run)
-
-        return self._prepare_next_run()
 
     def _capture_memory_layout(self, run: Run) -> None:
         """Record the memory layout and the loaded modules in the report of the run."""

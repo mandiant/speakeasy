@@ -7,6 +7,7 @@ import os
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
+from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
 from speakeasy.report import EntryPointType
@@ -438,6 +439,7 @@ class WinKernelEmulator(WindowsEmulator):
         self.add_run(run)
 
     def on_run_complete(self):
+        """Record the return value of the run, then add the next routine of the driver to the queue."""
         if self.curr_run is not None:
             self.curr_run.return_value = self.get_return_val()
 
@@ -445,8 +447,6 @@ class WinKernelEmulator(WindowsEmulator):
             drv.read_back()
             if drv.pe == self.curr_mod:
                 self.next_driver_func(drv)
-
-        return self._prepare_next_run()
 
     def on_emu_complete(self):
         if not self.is_emu_complete:
@@ -460,7 +460,8 @@ class WinKernelEmulator(WindowsEmulator):
                 dec_unicode = list(dict.fromkeys(s for _, s in dec_unicode if s not in static_unicode))
                 self.profiler.decoded_strings["ansi"] = dec_ansi
                 self.profiler.decoded_strings["unicode"] = dec_unicode
-        self.stop()
+        # Stop the engine and the run clock. WindowsEmulator.stop also ends the run.
+        BinaryEmulator.stop(self)
 
     def set_hooks(self):
         """Add the hooks of the kernel emulator, then the tracing, coverage and debug hooks."""

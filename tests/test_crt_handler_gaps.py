@@ -108,14 +108,12 @@ def test_qsort_sorts_with_the_guest_comparator(shellcode_emu: Speakeasy, width: 
 
 def test_crtdll_raise_with_the_default_action_ends_the_process(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    emu.is_run_complete = False
     call(dll_emu, "crtdll", "raise", [SIGABRT])
     assert emu.is_run_complete
 
 
 def test_raise_of_an_ignored_signal_returns_zero(dll_emu: Speakeasy) -> None:
     emu = dll_emu.emu
-    emu.is_run_complete = False
     call(dll_emu, "crtdll", "signal", [SIGABRT, SIG_IGN])
     assert call(dll_emu, "crtdll", "raise", [SIGABRT])[0] == 0
     assert not emu.is_run_complete
@@ -144,7 +142,6 @@ def test_raise_calls_the_signal_handler_once(dll_emu: Speakeasy, sig: int, args:
 )
 def test_fatal_error_functions_end_the_process(dll_emu: Speakeasy, dll: str, api: str, argv: list[int]) -> None:
     emu = dll_emu.emu
-    emu.is_run_complete = False
     call(dll_emu, dll, api, argv)
     assert emu.is_run_complete
 
@@ -161,7 +158,6 @@ def test_assert_shows_the_message_and_the_file(dll_emu: Speakeasy) -> None:
 def test_invalid_parameter_noinfo_returns_without_a_handler(dll_emu: Speakeasy, api: str) -> None:
     start_process(dll_emu)
     emu = dll_emu.emu
-    emu.is_run_complete = False
     assert call(dll_emu, "api-ms-win-crt-private-l1-1-0", api, [])[0] is None
     assert not emu.is_run_complete
     assert not emu.get_current_run().guest_callbacks
