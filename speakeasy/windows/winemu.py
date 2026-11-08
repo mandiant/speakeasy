@@ -13,9 +13,10 @@ from abc import abstractmethod
 from collections import deque
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
+from enum import Enum
 from functools import wraps
 from types import MethodType
-from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Concatenate, ParamSpec, TypeVar
 
 import capstone as cs
 import pefile
@@ -243,6 +244,47 @@ def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list
     return runs
 
 
+class LimitKind(str, Enum):
+    """A limit that ends a run. The value is the type of the error of the run, and the kind of the debugger stop."""
+
+    TIMEOUT = "timeout"
+    MAX_TOTAL_TIME = "max_total_time"
+    MAX_INSTRUCTIONS = "max_instructions"
+
+
+@dataclass
+class _SehRepeat:
+    """
+    The last fault that the guest SEH handlers took, and how many times in a row it occurred.
+
+    A handler that does not fix a fault can make an infinite loop, so the emulator stops the dispatch after the same
+    fault occurs ``MAX_REPEAT`` times in a row.
+    """
+
+    MAX_REPEAT: ClassVar[int] = 4
+
+    # (pc, faulting address) of the last fault, or None.
+    fault: tuple[int, int | None] | None = None
+    count: int = 0
+    # A guest handler continued at the pc of the fault. The deferred work hook clears the count when pc leaves it.
+    resume_pc: int | None = None
+
+    def reset(self) -> None:
+        self.fault = None
+        self.count = 0
+        self.resume_pc = None
+
+    def record(self, fault: tuple[int, int | None]) -> bool:
+        """Count the fault. Return False if it occurred ``MAX_REPEAT`` times in a row."""
+        self.resume_pc = None
+        if fault == self.fault:
+            self.count += 1
+            return self.count < self.MAX_REPEAT
+        self.fault = fault
+        self.count = 1
+        return True
+
+
 @dataclass
 class RunLimits:
     """The time and instruction limits of one call of the run loop, and the instruction count of the call."""
@@ -255,8 +297,8 @@ class RunLimits:
     timeout: float
     # When the call must stop, from time.monotonic(), or None for no time limit.
     deadline: float | None
-    # "max_total_time" if the total execution time gives the deadline, otherwise "timeout".
-    deadline_kind: str
+    # MAX_TOTAL_TIME if the total execution time gives the deadline, otherwise TIMEOUT.
+    deadline_kind: LimitKind
     # The total execution time of all runs, or None for no total limit.
     total_budget: _ExecutionBudget | None
     # The instruction limit of the run, or 0 or less for no limit.
@@ -272,27 +314,29 @@ class RunLimits:
         started = time.monotonic()
         spent = run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
-        deadline_kind = "timeout"
+        deadline_kind = LimitKind.TIMEOUT
         if total_budget is not None and total_budget.limit > 0:
             total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
             if deadline is None or total_deadline < deadline:
                 deadline = total_deadline
-                deadline_kind = "max_total_time"
+                deadline_kind = LimitKind.MAX_TOTAL_TIME
         remaining = max(budget - run.budget_instructions, 0) if budget > 0 else -1
         return cls(started, spent, timeout, deadline, deadline_kind, total_budget, budget, remaining)
 
-    def get_reached_limit(self) -> str | None:
+    def get_reached_limit(self) -> LimitKind | None:
         """Get the kind of the limit that the run reached, or None if it reached no limit."""
         if self.deadline is not None and time.monotonic() >= self.deadline:
             return self.deadline_kind
         if self.budget > 0 and self.remaining <= 0:
-            return "max_instructions"
+            return LimitKind.MAX_INSTRUCTIONS
         return None
 
     def is_total_time_reached(self) -> bool:
         """Get whether the run reached the total execution time of all runs."""
         return (
-            self.deadline_kind == "max_total_time" and self.deadline is not None and time.monotonic() >= self.deadline
+            self.deadline_kind == LimitKind.MAX_TOTAL_TIME
+            and self.deadline is not None
+            and time.monotonic() >= self.deadline
         )
 
     def get_native_timeout(self) -> float:
@@ -377,8 +421,8 @@ class WindowsEmulator(BinaryEmulator):
         self.is_kernel_mode: bool = False
         self.virtual_mem_base: int = 0x50000
 
-        # Code hook for work that must wait until the next instruction, such as the end
-        # of a run. The emulator enables the hook only when there is such work.
+        # Code hook for work that must wait until the next instruction: unmap the reserved range,
+        # and clear the SEH repeat count. The emulator enables the hook only when there is such work.
         self.deferred_work_hook: Any | None = None
 
         # Only the run loop writes these two fields. To end a run, call end_run.
@@ -397,9 +441,7 @@ class WindowsEmulator(BinaryEmulator):
         self.veh_handlers: list[int] = []
         self.unhandled_exception_filter: int = 0
         self.function_tables: list[unwind.FunctionTable] = []
-        self._seh_last_fault: tuple[int, int | None] | None = None
-        self._seh_repeat_count: int = 0
-        self._seh_resume_pc: int | None = None
+        self._seh_repeat: _SehRepeat = _SehRepeat()
 
         self.fs_addr: int = 0
         self.gs_addr: int = 0
@@ -913,9 +955,7 @@ class WindowsEmulator(BinaryEmulator):
 
         self.curr_run = run
         self._run_completed = False
-        self._seh_last_fault = None
-        self._seh_repeat_count = 0
-        self._seh_resume_pc = None
+        self._seh_repeat.reset()
         self.curr_mod = self.get_module_from_addr(run.start_addr)
         if self.profiler:
             self.profiler.add_run(run)
@@ -961,11 +1001,8 @@ class WindowsEmulator(BinaryEmulator):
                 self.init_tls(thread)
 
         if winemu.EMU_RESERVED <= run.start_addr <= winemu.EMU_RESERVED_END:
-            try:
-                self.mem_unmap(winemu.EMU_RESERVED, winemu.EMU_RESERVE_SIZE)
-            except Exception:
-                pass
-            self.is_reserved_range_unmapped = True
+            # A run that starts in the reserved range must fault at its first fetch.
+            self._unmap_reserved_range()
 
         self.set_pc(run.start_addr)
         return run
@@ -1208,7 +1245,7 @@ class WindowsEmulator(BinaryEmulator):
                 if not self.is_run_complete and origin_run.error is None:
                     origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
                 if debugger is not None:
-                    debugger._request_stop(StopReason(kind="max_total_time", address=self.get_pc()))
+                    debugger._request_stop(StopReason(kind=LimitKind.MAX_TOTAL_TIME.value, address=self.get_pc()))
 
     def _handle_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
         """
@@ -1233,7 +1270,7 @@ class WindowsEmulator(BinaryEmulator):
         if debugger is not None and debugger.has_pending_stop():
             return False
         if limits.is_total_time_reached():
-            self._stop_at_limit("max_total_time", limits, origin_run, debugger)
+            self._stop_at_limit(LimitKind.MAX_TOTAL_TIME, limits, origin_run, debugger)
             return False
         if isinstance(native_exit, (RunReturn, RunEnd)):
             self._complete_run()
@@ -1270,7 +1307,7 @@ class WindowsEmulator(BinaryEmulator):
             return False
         if self.end_requested:
             if limits.is_total_time_reached():
-                self._stop_at_limit("max_total_time", limits, origin_run, debugger)
+                self._stop_at_limit(LimitKind.MAX_TOTAL_TIME, limits, origin_run, debugger)
                 return False
             self._complete_run()
         return True
@@ -1290,7 +1327,7 @@ class WindowsEmulator(BinaryEmulator):
             origin_run.error = self.get_error_info(ErrorType.ENGINE_STOPPED, self.get_pc())
             self._complete_run()
 
-    def _stop_at_limit(self, kind: str, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
+    def _stop_at_limit(self, kind: LimitKind, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
         Stop origin_run at the limit of the given kind.
 
@@ -1299,26 +1336,28 @@ class WindowsEmulator(BinaryEmulator):
         """
         if isinstance(self._native_exit, SuspendedApiCall):
             self.set_pc(self._native_exit.entry.address)
-        if kind == "timeout":
+        if kind == LimitKind.TIMEOUT:
             # Each debugger resume of a timed out run stops at once; log only the first stop.
             if limits.spent < limits.timeout:
                 logger.error("* Timeout of %d sec(s) reached.", limits.timeout)
-        elif kind == "max_total_time":
+        elif kind == LimitKind.MAX_TOTAL_TIME:
             assert limits.total_budget is not None
             logger.error("* Total execution time of %d sec(s) reached.", limits.total_budget.limit)
             limits.total_budget.exhausted = True
             self._cancel_execution_runs()
             # If the run already has an error, such as a fault, keep that error.
             if not self._run_completed and origin_run.error is None:
-                origin_run.error = ErrorInfo(type=ErrorType(kind), pc=self.get_pc())
+                origin_run.error = ErrorInfo(type=ErrorType(kind.value), pc=self.get_pc())
         else:
             logger.error("* Instruction limit of %d reached.", limits.budget)
         if debugger is not None:
-            debugger._request_stop(StopReason(kind=kind, address=self.get_pc()))
+            debugger._request_stop(StopReason(kind=kind.value, address=self.get_pc()))
         elif not self._run_completed:
             if origin_run.error is None:
                 origin_run.error = ErrorInfo(
-                    type=ErrorType(kind), pc=self.get_pc(), count=limits.budget if kind == "max_instructions" else None
+                    type=ErrorType(kind.value),
+                    pc=self.get_pc(),
+                    count=limits.budget if kind == LimitKind.MAX_INSTRUCTIONS else None,
                 )
             self._complete_run()
 
@@ -3549,13 +3588,11 @@ class WindowsEmulator(BinaryEmulator):
 
             # A guest exception handler continued at the fault address. Clear the repeat count of the fault
             # when PC leaves that address.
-            if self._seh_resume_pc is not None and addr != self._seh_resume_pc:
-                self._seh_last_fault = None
-                self._seh_repeat_count = 0
-                self._seh_resume_pc = None
+            if self._seh_repeat.resume_pc is not None and addr != self._seh_repeat.resume_pc:
+                self._seh_repeat.reset()
 
             self._unmap_reserved_range()
-            if self._seh_resume_pc is None:
+            if self._seh_repeat.resume_pc is None:
                 self.disable_deferred_work_hook()
             return True
         except Exception as e:
@@ -3816,25 +3853,15 @@ class WindowsEmulator(BinaryEmulator):
                 stack=self.get_stack_trace(),
             )
 
-    _SEH_MAX_REPEAT = 4
-
     def dispatch_seh(self, faulting_address, exception, error):
         """
         Send exception to the guest handlers with SEH dispatch. Return True if a handler takes it.
 
-        Return False if the same fault occurs ``_SEH_MAX_REPEAT`` times in a row, so that a handler that does not fix
-        the fault cannot make an infinite loop.
+        Return False if the same fault occurs ``_SehRepeat.MAX_REPEAT`` times in a row, so that a handler that does not
+        fix the fault cannot make an infinite loop.
         """
-        self._seh_resume_pc = None
-        fault_key = (self.get_pc(), faulting_address)
-        if fault_key == self._seh_last_fault:
-            self._seh_repeat_count += 1
-            if self._seh_repeat_count >= self._SEH_MAX_REPEAT:
-                return False
-        else:
-            self._seh_last_fault = fault_key
-            self._seh_repeat_count = 1
-
+        if not self._seh_repeat.record((self.get_pc(), faulting_address)):
+            return False
         return self.exception_dispatcher().dispatch_fault(self, exception, error)
 
     @property
@@ -3853,15 +3880,14 @@ class WindowsEmulator(BinaryEmulator):
         If pc is not the address of the last fault, clear the repeat count. If pc is the address of the fault, keep the
         count until the deferred work hook sees PC move away.
         """
-        if self._seh_last_fault is None:
+        fault = self._seh_repeat.fault
+        if fault is None:
             return
-        if pc == self._seh_last_fault[0]:
-            self._seh_resume_pc = pc
+        if pc == fault[0]:
+            self._seh_repeat.resume_pc = pc
             self.enable_deferred_work_hook()
         else:
-            self._seh_last_fault = None
-            self._seh_repeat_count = 0
-            self._seh_resume_pc = None
+            self._seh_repeat.reset()
 
     def _new_object_handle(self, otype, name):
         """
