@@ -192,7 +192,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.start_time: int = emu.start_time
         self.boot_time: int = self.start_time - self.tick_counter * 10000
 
-        self.command_lines: list[int | None] = [None] * 3
         self.startup_info: dict[tuple[objman.Process, int], list[int]] = {}
 
         self.k32types = k32defs
@@ -3176,21 +3175,16 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         LPTSTR GetCommandLine();
         """
-        fn = ctx.func_name
         cw = self.get_char_width(ctx)
-        curr_proc = emu.get_current_process()
+        proc = emu.get_current_process()
 
-        cmdline = curr_proc.cmdline
-
-        cmd_ptr = self.command_lines[cw]
-        if not cmd_ptr:
-            cmd_ptr = self.mem_alloc((len(cmdline) + 1) * cw, tag=f"api.command_line.{fn}")
-            self.command_lines[cw] = cmd_ptr
-
-        cl = self.encode_string(cmdline, cw)
-
-        self.mem_write(cmd_ptr, cl)
-
+        # Each process has its own buffer, and each call returns the same buffer, as on Windows.
+        cmd_ptr = proc.command_line_buffers.get(cw)
+        if cmd_ptr is None:
+            data = self.encode_string(proc.cmdline + "\x00", cw)
+            cmd_ptr = self.mem_alloc(len(data), tag=f"api.command_line.{ctx.func_name}")
+            self.mem_write(cmd_ptr, data)
+            proc.command_line_buffers[cw] = cmd_ptr
         return cmd_ptr
 
     @apihook("ExpandEnvironmentStrings", argc=3)
