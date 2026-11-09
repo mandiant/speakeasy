@@ -1154,6 +1154,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
         mm = emu.get_address_map(lpAddress)
         if mm and mm.tag and mm.tag.startswith(tag_prefix) and (mm.free or not flAllocationType & windefs.MEM_RESERVE):
+            mm.free = False
             buf = lpAddress
             if flAllocationType & windefs.MEM_COMMIT:
                 buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
@@ -1218,9 +1219,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD flProtect
         );
 
-        All processes share one address space. When memory of the target process uses the range at lpAddress,
-        the call fails with ERROR_INVALID_ADDRESS, as on Windows. When other memory uses it, for example the image
-        of the caller, the allocation goes to the next free range, and the call returns that address.
+        All processes share one address space. When the target is another process and memory that is not memory of
+        the target uses the range at lpAddress, for example the image of the caller, the allocation goes to the next
+        free range. On Windows, that range is free in the target, so the call returns lpAddress.
         """
         hProcess, lpAddress, dwSize, flAllocationType, flProtect = argv
         flProtect &= 0xFFFFFFFF
@@ -1241,10 +1242,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
         ctx.args["flProtect"].display = "|".join(prot_def)
 
-        # A commit in an allocation of the caller changes its pages in place. A reservation needs free
+        # A commit in an allocation of the target changes its pages in place. A reservation needs free
         # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
         mm = emu.get_address_map(lpAddress)
         if mm and mm.tag and mm.tag.startswith(tag_prefix) and (mm.free or not flAllocationType & windefs.MEM_RESERVE):
+            mm.free = False
             buf = lpAddress
             if flAllocationType & windefs.MEM_COMMIT:
                 buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
@@ -1261,8 +1263,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 return 0
             if lpAddress and base != test:
                 # All processes share one address space, so memory of the caller can take the range in another
-                # process. Only memory of the target process fails the call. For other memory the allocation
-                # moves, so that a process hollowing sample still writes its payload and resumes the target.
+                # process. The allocation then moves, so that a process hollowing sample still writes its payload
+                # and resumes the target.
                 end = test + size
                 taken = [m for m in emu.get_mem_maps() if m.base < end and test < m.base + m.size]
                 if obj is emu.get_current_process() or any(m.process is obj for m in taken):
