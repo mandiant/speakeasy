@@ -587,6 +587,25 @@ def test_find_files_set_the_last_error(strict_fs_emu: Speakeasy) -> None:
     assert last_error(se) == windefs.ERROR_FILE_NOT_FOUND
 
 
+def test_find_files_list_the_configured_modules(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    data = alloc(se, b"\x00" * 0x260)
+    pattern = alloc(se, "C:\\Windows\\System32\\*.dll\x00".encode("utf-16le"))
+    hnd, _ = call(se, "kernel32", "FindFirstFileW", [pattern, data])
+    assert hnd != invalid_handle(se)
+    names = []
+    while True:
+        # WIN32_FIND_DATAW: WCHAR cFileName[260] at 44
+        names.append(se.mem_read(data + 44, 520).decode("utf-16le").split("\x00")[0])
+        if not call(se, "kernel32", "FindNextFileW", [hnd, data])[0]:
+            break
+    assert {"kernel32.dll", "ntdll.dll"} <= set(names)
+
+    # The names come from the listing, so their case can differ from the configured paths.
+    for name in names:
+        assert open_file(se, f"C:\\Windows\\System32\\{name}") != invalid_handle(se)
+
+
 @pytest.mark.parametrize("fixture, invalid", [("strict_fs_emu", 0xFFFFFFFF), ("strict_fs_emu64", 0xFFFFFFFFFFFFFFFF)])
 def test_invalid_handle_value_is_pointer_sized(request: pytest.FixtureRequest, fixture: str, invalid: int) -> None:
     se: Speakeasy = request.getfixturevalue(fixture)

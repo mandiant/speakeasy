@@ -974,7 +974,7 @@ def test_findfirst_and_findnext_list_the_matching_files(
         if call(se, "msvcrt", "_findnext", [handle, buf])[0] != 0:
             break
     assert get_errno(se) == ENOENT
-    assert sorted(names) == [b"cmd.exe", b"svchost.exe"]
+    assert sorted(names) == [b"cmd.exe", b"ntoskrnl.exe", b"svchost.exe"]
     assert call(se, "msvcrt", "_findclose", [handle])[0] == 0
     assert call(se, "msvcrt", "_findnext", [handle, buf])[0] == -1
 
