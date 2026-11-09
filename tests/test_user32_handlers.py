@@ -70,6 +70,79 @@ def test_timer_messages_rotate_and_stop_after_kill_timer(dll_emu: Speakeasy) -> 
     assert not call(dll_emu, "user32", "GetMessageA", [alloc(dll_emu, b"\x00" * 0x30), 0, 0, 0])[0]
 
 
+WM_QUIT = 0x12
+WM_USER = 0x400
+PM_REMOVE = 0x1
+
+
+def read_msg(se: Speakeasy, buf: int) -> tuple[int, int, int, int]:
+    ps = se.emu.get_ptr_size()
+    hwnd, message, wparam, lparam = (int.from_bytes(se.mem_read(buf + i * ps, ps), "little") for i in range(4))
+    return hwnd, message & 0xFFFFFFFF, wparam, lparam
+
+
+def get_message(se: Speakeasy, hwnd: int = 0, low: int = 0, high: int = 0) -> tuple[int, tuple[int, int, int, int]]:
+    buf = alloc(se, b"\x00" * 0x30)
+    rv, _ = call(se, "user32", "GetMessageA", [buf, hwnd, low, high])
+    return rv, read_msg(se, buf)
+
+
+def test_get_message_returns_a_posted_message(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hwnd = create_window(dll_emu)
+    assert call(dll_emu, "user32", "PostMessageA", [hwnd, WM_USER, 0x64, 0x1F4])[0]
+    assert call(dll_emu, "user32", "PostMessageW", [0, WM_USER + 1, 1, 2])[0]
+    assert get_message(dll_emu) == (1, (hwnd, WM_USER, 0x64, 0x1F4))
+    assert get_message(dll_emu) == (1, (0, WM_USER + 1, 1, 2))
+    assert get_message(dll_emu)[0] == 0
+
+
+def test_post_message_to_an_unknown_window_fails(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    assert call(dll_emu, "user32", "PostMessageA", [0x41420000, WM_USER, 0, 0])[0] == 0
+    assert dll_emu.emu.get_last_error() == 1400
+    assert get_message(dll_emu)[0] == 0
+
+
+def test_post_thread_message_queues_a_message_without_a_window(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    tid, _ = call(dll_emu, "kernel32", "GetCurrentThreadId", [])
+    assert call(dll_emu, "user32", "PostThreadMessageA", [tid, WM_USER, 3, 4])[0]
+    assert call(dll_emu, "user32", "PostThreadMessageW", [tid + 0x1000, WM_USER, 5, 6])[0] == 0
+    assert dll_emu.emu.get_last_error() == 1444
+    assert get_message(dll_emu) == (1, (0, WM_USER, 3, 4))
+    assert get_message(dll_emu)[0] == 0
+
+
+def test_get_message_returns_zero_for_wm_quit(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    call(dll_emu, "user32", "PostQuitMessage", [5])
+    assert get_message(dll_emu, low=WM_USER, high=WM_USER) == (0, (0, WM_QUIT, 5, 0))
+
+
+def test_get_message_takes_the_first_message_that_matches_the_filter(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    first, second = create_window(dll_emu), create_window(dll_emu)
+    call(dll_emu, "user32", "PostMessageA", [first, WM_USER, 1, 0])
+    call(dll_emu, "user32", "PostMessageA", [second, WM_USER + 1, 2, 0])
+    call(dll_emu, "user32", "PostThreadMessageA", [call(dll_emu, "kernel32", "GetCurrentThreadId", [])[0], 0x10, 3, 0])
+    assert get_message(dll_emu, hwnd=second) == (1, (second, WM_USER + 1, 2, 0))
+    assert get_message(dll_emu, hwnd=0xFFFFFFFF) == (1, (0, 0x10, 3, 0))
+    assert get_message(dll_emu, low=WM_USER + 1, high=WM_USER + 2)[0] == 0
+    assert get_message(dll_emu, low=WM_USER, high=WM_USER) == (1, (first, WM_USER, 1, 0))
+
+
+def test_peek_message_removes_the_message_only_with_pm_remove(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    hwnd = create_window(dll_emu)
+    call(dll_emu, "user32", "PostMessageA", [hwnd, WM_USER, 7, 8])
+    buf = alloc(dll_emu, b"\x00" * 0x30)
+    assert call(dll_emu, "user32", "PeekMessageA", [buf, 0, 0, 0, 0])[0]
+    assert read_msg(dll_emu, buf) == (hwnd, WM_USER, 7, 8)
+    assert call(dll_emu, "user32", "PeekMessageW", [buf, hwnd, 0, 0, PM_REMOVE])[0]
+    assert not call(dll_emu, "user32", "PeekMessageA", [buf, 0, 0, 0, PM_REMOVE])[0]
+
+
 def register_class(se: Speakeasy, name: bytes | int, wndproc: int) -> int:
     wc = u32defs.WNDCLASSEX(se.get_ptr_size())
     wc.cbSize = wc.sizeof()
