@@ -977,6 +977,19 @@ def test_get_file_type_tells_consoles_pipes_and_files_apart(dll_emu: Speakeasy) 
     assert call(dll_emu, "kernel32", "GetFileType", [handle])[0] == 1
 
 
+def test_create_pipe_ends_close_independently(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    pipes = alloc(dll_emu, b"\0" * 16)
+    assert call(dll_emu, "kernel32", "CreatePipe", [pipes, pipes + 8, 0, 0])[0] == 1
+    read_pipe = struct.unpack("<I", dll_emu.mem_read(pipes, 4))[0]
+    write_pipe = struct.unpack("<I", dll_emu.mem_read(pipes + 8, 4))[0]
+    assert read_pipe != write_pipe
+
+    assert call(dll_emu, "kernel32", "CloseHandle", [write_pipe])[0] == 1
+    assert call(dll_emu, "kernel32", "PeekNamedPipe", [read_pipe, 0, 0, 0, 0, 0])[0] == 1
+    assert call(dll_emu, "kernel32", "CloseHandle", [read_pipe])[0] == 1
+
+
 def test_read_file_on_stdin_reads_end_of_input(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     stdin = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF6])[0]

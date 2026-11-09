@@ -5483,9 +5483,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not hnd:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
+        fileman = emu.get_file_manager()
+        hwrite = fileman.new_handle(fileman.get_pipe(hnd))
 
         self.write_ptr(hReadPipe, hnd)
-        self.write_ptr(hWritePipe, hnd)
+        self.write_ptr(hWritePipe, hwrite)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
 
