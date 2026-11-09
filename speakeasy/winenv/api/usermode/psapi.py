@@ -242,7 +242,7 @@ class Psapi(api.ApiHandler):
             LPDWORD lpcbNeeded
         );
 
-        The handler reports no drivers.
+        Speakeasy does not model loaded drivers, so the list is empty.
         """
         lpImageBase, cb, lpcbNeeded = argv
         if lpcbNeeded:

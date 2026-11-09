@@ -687,16 +687,14 @@ def test_setlocale_reports_the_c_locale(dll_emu: Speakeasy) -> None:
 @pytest.mark.parametrize("emu_name", ["dll_emu", "dll64_emu"])
 def test_create_locale_returns_the_c_locale(request: pytest.FixtureRequest, emu_name: str) -> None:
     se: Speakeasy = request.getfixturevalue(emu_name)
-    ptr = "<I" if se.emu.get_ptr_size() == 4 else "<Q"
+    ptr_size = se.emu.get_ptr_size()
     locale, displays = call(se, "msvcrt", "_create_locale", [0, alloc(se, b"de-DE\x00")])
     assert displays[1] == "de-DE"
 
-    locinfo, mbcinfo = struct.unpack(ptr[0] + ptr[1] * 2, se.mem_read(locale, 2 * struct.calcsize(ptr)))
-    assert mbcinfo
-    (pctype,) = struct.unpack(ptr, se.mem_read(locinfo, struct.calcsize(ptr)))
-    mb_cur_max, codepage = struct.unpack("<iI", se.mem_read(locinfo + struct.calcsize(ptr), 8))
-    assert pctype == call(se, "msvcrt", "__pctype_func", [])[0]
-    assert (mb_cur_max, codepage) == (1, 0)
+    locinfo = se.emu.read_ptr(locale)
+    assert se.emu.read_ptr(locale + ptr_size)
+    assert se.emu.read_ptr(locinfo) == call(se, "msvcrt", "__pctype_func", [])[0]
+    assert struct.unpack("<iI", se.mem_read(locinfo + ptr_size, 8)) == (1, 0)
 
     assert call(se, "msvcrt", "_wcreate_locale", [0, alloc(se, "C\x00".encode("utf-16le"))])[0] == locale
     call(se, "msvcrt", "_free_locale", [locale])

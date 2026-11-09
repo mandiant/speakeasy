@@ -34,7 +34,8 @@ THRD_SUCCESS = 0
 THRD_TIMEDOUT = 2
 # Size of the _Cnd_internal_imp_t that _Cnd_init allocates, on x64
 CND_SIZE = 0x48
-# Offsets in the C locale block: the __crt_locale_pointers, the locale data and the multibyte data
+# The C locale block has the __crt_locale_pointers at offset 0, then the locale data and the
+# multibyte data, each with room for the full UCRT struct on x64
 C_LOCALE_LOCINFO = 0x10
 C_LOCALE_MBCINFO = 0x400
 C_LOCALE_SIZE = 0x1000
@@ -4551,8 +4552,8 @@ class Msvcrt(api.ApiHandler):
             _Thrd_t thr
         );
 
-        The handler does not close the thread handle. On x86, the struct argument uses
-        two stack slots, and the call shows only the first.
+        Speakeasy does not close the thread handle. On x86, the _Thrd_t struct uses two
+        stack slots, and the call shows only the first.
         """
         return THRD_SUCCESS
 
@@ -6997,7 +6998,6 @@ class Msvcrt(api.ApiHandler):
         """
         if not self.c_locale:
             locale = self.mem_alloc(C_LOCALE_SIZE, tag="api.msvcrt._create_locale")
-            self.mem_write(locale, b"\x00" * C_LOCALE_SIZE)
             locinfo = locale + C_LOCALE_LOCINFO
             self.write_ptr(locale, locinfo)
             self.write_ptr(locale + self.get_ptr_size(), locale + C_LOCALE_MBCINFO)
