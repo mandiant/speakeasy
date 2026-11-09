@@ -133,7 +133,7 @@ class File:
     def get_hash(self):
         return hashlib.sha256(self.get_contents()).hexdigest()
 
-    def get_size(self):
+    def get_size(self) -> int:
         return self.get_buffer().seek(0, io.SEEK_END)
 
     def get_data(self, size=-1, reset_pointer=False):
@@ -230,8 +230,17 @@ class NullDevice(File):
         pass
 
 
+def is_pipe_path(path: str) -> bool:
+    return path.lower().startswith("\\\\.\\pipe\\")
+
+
 class Pipe(File):
-    """Represents a named pipe."""
+    """
+    Represents one end of a pipe.
+
+    The server and client ends of a named pipe are peers: a write to one end adds data that the other end reads.
+    An anonymous pipe has no peer, so a read gets the data of the writes to the same pipe.
+    """
 
     def __init__(self, name, mode, num_instances, out_size, in_size, config=None):
         super().__init__(path=name, config=config)
@@ -240,6 +249,20 @@ class Pipe(File):
         self.num_instances: int = num_instances
         self.out_size: int = out_size
         self.in_size: int = in_size
+        self.peer: Pipe | None = None
+        self.ref_cnt: int = 0
+        self.opened: bool = False
+
+    def has_data(self) -> bool:
+        return self.pos < self.get_size()
+
+    def is_ready(self) -> bool:
+        """Get whether a read completes now: a client connected, and the pipe has data or the peer closed."""
+        return self.peer is None or (self.peer.opened and (self.has_data() or self.is_broken()))
+
+    def is_broken(self) -> bool:
+        """Get whether the peer had a handle and all its handles are closed."""
+        return self.peer is not None and self.peer.opened and self.peer.ref_cnt <= 0
 
 
 class FileManager:
@@ -260,6 +283,8 @@ class FileManager:
 
         # When the input is a PE, load_module adds it as the first file.
         self.files: list[File] = []
+        # Server ends of named pipe instances that no client opened
+        self.pipe_servers: list[Pipe] = []
         self.deleted_paths: set[str] = set()
         self.created_dirs: set[str] = set()
         self.removed_dirs: set[str] = set()
@@ -541,11 +566,47 @@ class FileManager:
         return None
 
     def pipe_open(self, path, mode, num_instances, out_size, in_size):
+        """
+        Create a pipe and open a handle to it.
+
+        A named pipe also gets a client end, which the next open of the name connects to. If no client in
+        the process connects before the server reads, the server reads the configured file of the name, as
+        if a client outside the process wrote it.
+        """
         fconf = self.get_emu_file(path)
         if not fconf:
             fconf = {}
         p = Pipe(path, mode, num_instances, out_size, in_size, config=fconf)
+        p.opened = True
+        if path:
+            p.peer = Pipe(path, mode, num_instances, in_size, out_size)
+            p.peer.peer = p
+            self.pipe_servers.append(p)
         return self.new_handle(p)
+
+    def get_pipe_server(self, path) -> Pipe | None:
+        """Get the server end of a named pipe instance of the name that no client opened, or None."""
+        key = path.lower()
+        return next((p for p in self.pipe_servers if p.name.lower() == key), None)
+
+    def open_pipe_client(self, path, disposition=None, access=None) -> int | None:
+        """
+        Open the client end of a named pipe instance of the name that no client opened.
+
+        The instance stays open after the server closes its handle, so the client still reads the data
+        that the server wrote. Return None if no instance waits for a client.
+        """
+        server = self.get_pipe_server(path)
+        if server is None or server.peer is None:
+            return None
+        self.pipe_servers.remove(server)
+        # The configured data stands for a client outside the process, so a client in the process replaces it
+        if server.data is None:
+            server.config = {}
+        server.peer.opened = True
+        hnd = self.new_handle(server.peer)
+        self.record_open(path, handle=hnd, disposition=disposition, access=access)
+        return hnd
 
     def get_directories(self):
         """

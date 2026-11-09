@@ -7,6 +7,7 @@ import os
 import string
 import struct
 import zlib
+from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.windows.common as winemu
@@ -16,6 +17,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.profiler_events import EventType
+from speakeasy.report import EntryPointType
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
@@ -4486,11 +4488,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cd = decode(FILE_CREATION_DISPOSITION, dwCreationDisposition)
         ctx.args["dwCreationDisposition"].display = cd
 
+        fm = emu.get_file_manager()
+        open_flags = {"disposition": [cd] if cd else None, "access": ad}
+        if fileman.is_pipe_path(target) and fm.get_pipe_server(target) is None and self.get_unstarted_thread(emu):
+            return self.wait_for_pipe_server(emu, argv, ctx, target)
+        pipe = fm.open_pipe_client(target, **open_flags) if fileman.is_pipe_path(target) else None
+
         obj = self.get_object_from_name(target)
-        if obj:
+        if pipe:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            hnd = pipe
+        elif obj:
             hnd = self.get_object_handle(obj)
         else:
-            open_flags = {"disposition": [cd] if cd else None, "access": ad}
             if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                 exists = emu.get_file_manager().does_file_exist_by_path(target)
             else:
@@ -4539,6 +4549,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if f and dwDesiredAccess & FILE_ACCESS_FLAGS.FILE_APPEND_DATA and not dwDesiredAccess & write_access:
                 f.append = True
         return hnd
+
+    def wait_for_pipe_server(self, emu, argv, ctx, path):
+        """Run the threads that have not started until one creates the named pipe, then open the pipe."""
+        fm = emu.get_file_manager()
+        yield from self.run_threads_until(emu, lambda: fm.get_pipe_server(path) is not None)
+        return self.CreateFile(emu, argv, ctx)
 
     @apihook("DeleteFile", argc=1)
     def DeleteFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4600,9 +4616,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return rv
         if isinstance(f, fileman.Pipe):
+            if not f.is_ready() and self.get_unstarted_thread(emu):
+                return self.wait_for_pipe_data(emu, argv, ctx, f)
             data = f.get_data(nNumberOfBytesToRead)
             if data and lpBuffer:
                 _write_output(emu, data, lpBuffer, lpNumberOfBytesRead)
+            if not data and f.is_broken():
+                emu.set_last_error(windefs.ERROR_BROKEN_PIPE)
+                return False
             emu.set_last_error(windefs.ERROR_SUCCESS)
             return bool(data)
 
@@ -4615,6 +4636,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         else:
             f.get_data(nNumberOfBytesToRead)
         return rv
+
+    def wait_for_pipe_data(self, emu, argv, ctx, pipe):
+        """Run the threads that have not started until a read of the pipe completes, then read."""
+        yield from self.run_threads_until(emu, pipe.is_ready)
+        return self.ReadFile(emu, argv, ctx)
 
     @apihook("WriteFile", argc=5)
     def WriteFile(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -4651,7 +4677,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return 0
         if isinstance(f, fileman.Pipe):
             if data:
-                f.add_data(data)
+                (f.peer or f).add_data(data)
         elif data:
             emu.get_file_manager().write_file(f, data, buffer=lpBuffer)
 
@@ -7374,6 +7400,34 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if objs and all(isinstance(obj, objman.Event) for obj in objs):
             return self.wait_for_events(emu, objs, bool(bWaitAll), dwMilliseconds)
         return 0
+
+    def get_unstarted_thread(self, emu):
+        """Get the queued run of a thread of the current process that has not started, or None."""
+        proc = emu.get_current_process()
+        return next(
+            (r for r in emu.run_queue if r.type == EntryPointType.THREAD and r.process_context is proc),
+            None,
+        )
+
+    def run_threads_until(self, emu, done: Callable[[], bool]) -> Generator[GuestCall, int, None]:
+        """
+        Run the threads of the current process that have not started, one at a time, until done() is true.
+
+        Threads run one after another, so a call that blocks until another thread acts runs that thread
+        to its end first. The thread runs on the stack of the calling thread and shares its TEB.
+        """
+        waiter = emu.get_current_thread()
+        while not done():
+            run = self.get_unstarted_thread(emu)
+            if run is None:
+                return
+            emu.run_queue.remove(run)
+            emu.set_current_thread(run.thread)
+            try:
+                rv = yield GuestCall(run.start_addr, tuple(run.args or ()))
+            finally:
+                emu.set_current_thread(waiter)
+            run.thread.exit_code = rv & 0xFFFFFFFF
 
     def wait_for_events(self, emu, events, wait_all, timeout):
         """
