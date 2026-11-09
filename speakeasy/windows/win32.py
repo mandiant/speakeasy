@@ -10,6 +10,7 @@ import subprocess
 import time
 from typing import Any
 
+import pefile
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
 
 import speakeasy.windows.common as winemu
@@ -328,12 +329,12 @@ class Win32Emulator(WindowsEmulator):
                 self.curr_process = child
                 self.curr_thread = child.threads[0]
 
-                image = PeLoader(data=child.pe_data).make_image()
-                image.name = os.path.splitext(ntpath.basename(child.path))[0]
-                image.emu_path = child.path
                 try:
+                    image = PeLoader(data=child.pe_data).make_image()
+                    image.name = os.path.splitext(ntpath.basename(child.path))[0]
+                    image.emu_path = child.path
                     child.pe = self.load_image(image)
-                except (WindowsEmuError, ValueError) as error:
+                except (WindowsEmuError, ValueError, pefile.PEFormatError) as error:
                     logger.warning("skipping child process %s: %s", child.path, error)
                     continue
 

@@ -1608,7 +1608,7 @@ class AdvApi32(api.ApiHandler):
             ctx.args["lpCurrentDirectory"].display = cdstr
 
         try:
-            proc = emu.create_process(path=appstr, cmdline=cmdstr, cd=cdstr)
+            proc = emu.create_process(path=appstr, cmdline=cmdstr, child=True, cd=cdstr)
         except IsADirectoryError:
             emu.set_last_error(windefs.ERROR_ACCESS_DENIED)
             return 0

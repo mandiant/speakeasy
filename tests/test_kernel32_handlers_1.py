@@ -655,10 +655,8 @@ def test_process32_fills_every_field(dll_emu: Speakeasy, first: str, step: str, 
 
 def test_process32_lists_a_new_process_by_its_image_name(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
-    fn = alloc(dll_emu, b"C:\\Windows\\system32\\calc.exe\x00")
-    assert call(dll_emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, 0, 1])[0] == 33
-    pid = dll_emu.emu.get_processes()[-1].pid
-    assert list_processes(dll_emu)[pid] == "calc.exe"
+    proc = dll_emu.emu.create_process(path="C:\\Windows\\system32\\calc.exe")
+    assert list_processes(dll_emu)[proc.pid] == "calc.exe"
 
 
 def test_close_handle_closes_a_toolhelp_snapshot(dll_emu: Speakeasy) -> None:
