@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from speakeasy import Speakeasy
 from speakeasy.config import SpeakeasyConfig
+from tests.test_emulate_children import CHILD, CHILD_PATH, PARENT
 from tests.test_guest_dependency_loading import make_native_dll
 
 
@@ -148,3 +149,48 @@ def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog)
         (run,) = se.get_report().entry_points
         assert run.error is not None and run.error.type == "max_api_count"
         assert sum("Total execution time" in record.message for record in caplog.records) == 1
+
+
+def run_parent_with_child(se, load_test_bin):
+    module = se.load_module(data=load_test_bin(PARENT))
+    se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
+    se.run_module(module, emulate_children=True)
+    return module
+
+
+def test_children_do_not_load_after_the_cap(config, load_test_bin):
+    config.update(max_run_time=5, max_total_time=0.05)
+    with Speakeasy(config=config) as se:
+
+        def slow_create_process(e, api, original, args):
+            rv = original(args)
+            time.sleep(0.1)
+            return rv
+
+        se.add_api_hook(slow_create_process, "kernel32", "CreateProcessA")
+        module = run_parent_with_child(se, load_test_bin)
+        report = se.get_report()
+
+        assert se.emu.get_current_process().path == module.emu_path
+        assert [run.error.type if run.error else None for run in report.entry_points] == ["max_total_time"]
+        assert [(error.type, error.context_summary) for error in report.errors] == [
+            ("max_total_time", "1 child process did not run")
+        ]
+
+
+def test_load_of_a_child_counts_against_the_cap(config, load_test_bin):
+    config.update(max_run_time=5, max_total_time=0.25)
+    with Speakeasy(config=config) as se:
+
+        def slow_child_image_map(e, base, size, tag, perms, flags):
+            if tag.startswith("emu.module.child."):
+                time.sleep(0.3)
+
+        se.add_mem_map_hook(slow_child_image_map)
+        run_parent_with_child(se, load_test_bin)
+        report = se.get_report()
+
+        assert len(report.entry_points) == 1
+        assert [(error.type, error.context_summary) for error in report.errors] == [
+            ("max_total_time", "1 child process did not run")
+        ]

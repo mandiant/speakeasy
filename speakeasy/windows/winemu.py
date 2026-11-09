@@ -106,6 +106,16 @@ class _ExecutionBudget:
     elapsed: float = 0.0
     exhausted: bool = False
 
+    def add(self, seconds: float) -> bool:
+        """Add seconds to the elapsed time. Return True if the elapsed time is at the limit."""
+        self.elapsed += seconds
+        if self.limit <= 0 or self.elapsed < self.limit:
+            return False
+        if not self.exhausted:
+            logger.error("* Total execution time of %d sec(s) reached.", self.limit)
+        self.exhausted = True
+        return True
+
 
 @dataclass(frozen=True)
 class SuspendedApiCall:
@@ -1246,17 +1256,12 @@ class WindowsEmulator(BinaryEmulator):
                 origin_run.error = ErrorInfo(type=ErrorType.TIMEOUT, pc=self.get_pc())
             self._cancel_execution_runs()
         total_budget = limits.total_budget
-        if total_budget is not None:
-            total_budget.elapsed += elapsed
-            if total_budget.limit > 0 and total_budget.elapsed >= total_budget.limit:
-                if not total_budget.exhausted:
-                    logger.error("* Total execution time of %d sec(s) reached.", total_budget.limit)
-                total_budget.exhausted = True
-                self._cancel_execution_runs()
-                if not self.is_run_complete and origin_run.error is None:
-                    origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
-                if debugger is not None:
-                    debugger._request_stop(StopReason(kind=LimitKind.MAX_TOTAL_TIME.value, address=self.get_pc()))
+        if total_budget is not None and total_budget.add(elapsed):
+            self._cancel_execution_runs()
+            if not self.is_run_complete and origin_run.error is None:
+                origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
+            if debugger is not None:
+                debugger._request_stop(StopReason(kind=LimitKind.MAX_TOTAL_TIME.value, address=self.get_pc()))
 
     def _handle_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
         """
