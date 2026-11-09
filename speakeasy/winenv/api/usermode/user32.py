@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.user32 as u32defs
-from speakeasy.windows import guest_callbacks, sessman
+from speakeasy.windows import guest_callbacks, objman, sessman
 from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.defs.enums import WINDOWS_HOOK_ID
 from speakeasy.winenv.defs.lookup import decode
@@ -893,7 +893,8 @@ class User32(api.ApiHandler):
 
     def get_thread(self, emu, tid):
         """Get the thread with the ID ``tid``, else None."""
-        return next((t for p in emu.get_processes() for t in p.threads if t.tid == tid), None)
+        thread = emu.get_object_from_id(tid)
+        return thread if isinstance(thread, objman.Thread) else None
 
     def post_message(self, emu, thread, hwnd, message, wparam, lparam):
         msg = u32defs.MSG(emu.get_ptr_size())
