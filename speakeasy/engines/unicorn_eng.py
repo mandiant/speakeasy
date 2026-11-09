@@ -273,7 +273,9 @@ class EmuEngine:
     def invalidate_translations(self, begin, end):
         """Drop the translated code of [begin, end), so that the next run of it uses the current hooks."""
         assert self.emu is not None
-        self.emu.ctl_remove_cache(begin, end)
+        # Unicorn rejects an empty range with UC_ERR_ARG, and an empty range has no translated code.
+        if begin < end:
+            self.emu.ctl_remove_cache(begin, end)
 
     def flush_translations(self):
         """Drop all translated code, so that the next run uses the current hooks."""
