@@ -244,10 +244,12 @@ class Shell32(api.ApiHandler):
         if dn and fn:
             fn = ntpath.join(dn, fn)
 
+        # lpFile can be in quotes. The command line of the new process starts with the quoted path.
         path = fn.strip().strip('"')
         cmdline = f'"{path}" {param}' if param else f'"{path}"'
+        is_program = path.lower().endswith(PROGRAM_EXTENSIONS)
         try:
-            proc = emu.create_process(path=fn, cmdline=cmdline, child=path.lower().endswith(PROGRAM_EXTENSIONS))
+            proc = emu.create_process(path=path, cmdline=cmdline, child=is_program)
         except IsADirectoryError:
             # Explorer opens the folder. Any value above 32 means success.
             return 33, None

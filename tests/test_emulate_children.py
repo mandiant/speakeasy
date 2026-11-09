@@ -211,7 +211,7 @@ def get_args(se, api):
 )
 def test_child_started_without_create_process_runs(config, load_test_bin, dll, api):
     # parent.c starts the child with CreateProcessA. The hook starts it with another API.
-    def create_process(e, api_name, original, argv):
+    def create_process(e, api_name, original, args):
         call(se, dll, api, get_args(se, api))
         return 1
 
