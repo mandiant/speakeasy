@@ -1,4 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
+import re
 import struct
 from typing import TYPE_CHECKING
 
@@ -109,18 +110,44 @@ class Shell32(api.ApiHandler):
 
         super().__get_hook_attrs__(self)
 
+    def expand_folder_path(self, emu, template):
+        """
+        Expand the environment variables in a folder path template with the
+        environment of the emulated machine. A config env can leave out variables,
+        so these get their Windows defaults under the profile and the system drive.
+        """
+        env = emu.env
+        drive = env.get("systemdrive", "C:")
+        profile = env.get("userprofile", f"{drive}\\Users\\{emu.config.user.name}")
+        values = {
+            "systemdrive": drive,
+            "windir": env.get("systemroot", f"{drive}\\Windows"),
+            "userprofile": profile,
+            "appdata": f"{profile}\\AppData\\Roaming",
+            "localappdata": f"{profile}\\AppData\\Local",
+            "allusersprofile": f"{drive}\\ProgramData",
+            "public": f"{drive}\\Users\\Public",
+            "programfiles": f"{drive}\\Program Files",
+            **env,
+        }
+        return re.sub(r"%([^%]+)%", lambda m: values.get(m.group(1).lower(), m.group(0)), template)
+
     def get_folder_path(self, emu, csidl):
         path = shell32_defs.CSIDL_PATHS.get(csidl, "C:\\Windows\\Temp")
         if emu.get_ptr_size() == 8:
             path = shell32_defs.CSIDL_PATHS_X64.get(csidl, path)
-        return path.format(user=emu.config.user.name)
+        return self.expand_folder_path(emu, path)
 
     def get_known_folder(self, emu, rfid):
+        """Get the GUID string of ``rfid``, and the name and path of the folder, or None for an unknown folder."""
         guid = comdefs.convert_guid_bytes_to_str(self.mem_read(rfid, 16)).strip("{}")
         folder = shell32_defs.KNOWN_FOLDERS.get(guid)
         if emu.get_ptr_size() == 8:
             folder = shell32_defs.KNOWN_FOLDERS_X64.get(guid, folder)
-        return guid, folder
+        if folder is None:
+            return guid, None
+        name, path = folder
+        return guid, (name, self.expand_folder_path(emu, path))
 
     def new_pidl(self, path):
         """
@@ -431,7 +458,7 @@ class Shell32(api.ApiHandler):
         rfid, dwFlags, hToken, ppidl = argv
         guid, folder = self.get_known_folder(emu, rfid)
         ctx.args["rfid"].display = folder[0] if folder else guid
-        pidl = self.new_pidl(folder[1].format(user=emu.config.user.name)) if folder else 0
+        pidl = self.new_pidl(folder[1]) if folder else 0
         if ppidl:
             self.write_ptr(ppidl, pidl)
         return windefs.S_OK if folder else windefs.E_FILE_NOT_FOUND
@@ -469,7 +496,7 @@ class Shell32(api.ApiHandler):
         ctx.args["rfid"].display = folder[0] if folder else guid
         ptr = 0
         if folder:
-            path = (folder[1].format(user=emu.config.user.name) + "\x00").encode("utf-16le")
+            path = (folder[1] + "\x00").encode("utf-16le")
             ptr = self.mem_alloc(len(path), tag="api.SHGetKnownFolderPath")
             self.mem_write(ptr, path)
         if ppszPath:

@@ -110,6 +110,10 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   // programfiles and commonprogramfiles also give the ProgramFilesDir and CommonFilesDir
   // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion. A value for that
   // key in registry.keys replaces the value of the environment.
+  // The shell folder APIs, such as SHGetKnownFolderPath and SHGetFolderPath, give
+  // paths under userprofile, appdata, localappdata, allusersprofile, public,
+  // programfiles and windir. When one of these is not in env, its Windows default
+  // under userprofile or systemdrive is used.
   "env": {
     "comspec": "C:\\Windows\\system32\\cmd.exe",
     "systemroot": "C:\\Windows",
