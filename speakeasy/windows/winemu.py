@@ -2033,6 +2033,7 @@ class WindowsEmulator(BinaryEmulator):
             loaded = mod.loaded_data
             if loaded is None:
                 continue
+            # The guest can unmap its image and allocate new memory at the same base. That memory is not the image.
             mmap = self.get_address_map(mod.base)
             if mmap is None or mmap.base != mod.base or not (mmap.tag or "").startswith("emu.module."):
                 continue
