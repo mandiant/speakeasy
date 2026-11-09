@@ -3352,16 +3352,14 @@ class Msvcrt(api.ApiHandler):
         );
         """
         (retval,) = argv
-        emu.get_current_thread().exit_code = retval
-        self.exit_process()
+        emu.exit_thread(retval)
 
     @apihook("_endthread", argc=0, conv=e_arch.CALL_CONV_CDECL)
     def _endthread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
         void _endthread();
         """
-        emu.get_current_thread().exit_code = 0
-        self.exit_process()
+        emu.exit_thread(0)
 
     @apihook("system", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def system(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

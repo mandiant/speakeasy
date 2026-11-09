@@ -19,7 +19,7 @@ from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
 from speakeasy.report import EntryPointType, FileType
-from speakeasy.windows import objman
+from speakeasy.windows import guest_callbacks, objman
 from speakeasy.windows.com import COM
 from speakeasy.windows.loaders import (
     DLL_PROCESS_ATTACH,
@@ -631,6 +631,53 @@ class Win32Emulator(WindowsEmulator):
         The other runs of the process still run. Speakeasy does not model an exited process.
         """
         self.end_run()
+
+    def get_unstarted_run(self, obj) -> Run | None:
+        """Get the queued run of obj if obj is a thread of the current process that has not started."""
+        if not isinstance(obj, objman.Thread) or obj.process is not self.curr_process:
+            return None
+        return next((run for run in self.run_queue if run.thread is obj), None)
+
+    def join_thread(self, run: Run) -> guest_callbacks.GeneratorHandler:
+        """
+        Run the start routine of the queued run of a thread to its end, in a generator handler of a wait for the thread.
+
+        Threads run one after another, so a wait for a thread that has not started runs the thread in the waiting
+        thread's run. The start routine uses the stack below the wait call and its own TEB. Return the exit code.
+        """
+        thread, process, start = run.thread, run.process_context, run.start_addr
+        assert thread is not None and process is not None and start is not None
+        if run not in self.run_queue:
+            return thread.exit_code or 0
+        self.run_queue.remove(run)
+        waiter = self.get_current_thread()
+        teb = waiter.get_teb()
+        frame = self.get_current_run().guest_callbacks[-1]
+        frame.thread = thread
+        self.set_current_thread(thread)
+        self.init_teb(thread, process.peb)
+        self.init_tls(thread, start)
+        code = yield guest_callbacks.GuestCall(start, tuple(run.args or ()), tuple(run.registers.items()))
+        frame.thread = None
+        thread.exit_code = code & 0xFFFFFFFF
+        self.set_current_thread(waiter)
+        teb.write_back()
+        return thread.exit_code
+
+    def exit_thread(self, code: int) -> None:
+        """
+        End the current thread with an exit code.
+
+        If a wait runs the thread, continue the wait. Otherwise end the current run.
+        """
+        thread = self.get_current_thread()
+        thread.exit_code = code & 0xFFFFFFFF
+        run = self.get_current_run()
+        frame = next((f for f in reversed(run.guest_callbacks) if f.thread is thread), None)
+        if frame is None:
+            self.end_run()
+        else:
+            guest_callbacks.end_call(self, frame, code)
 
     def _hook_mem_unmapped(self, emu, access, address, size, value):
         _access = self.emu_eng.mem_access.get(access)

@@ -141,6 +141,20 @@ def resume(emu, frame: GuestCallbackFrame) -> None:
         fail(emu, e)
 
 
+def end_call(emu, frame: GuestCallbackFrame, value: int) -> None:
+    """
+    End the guest call of frame as if it returned value, for example when the thread that it runs exits.
+
+    Drop the frames of the guest calls inside it.
+    """
+    callbacks = emu.get_current_run().guest_callbacks
+    del callbacks[callbacks.index(frame) + 1 :]
+    try:
+        _step(emu, frame, value)
+    except CallbackError as e:
+        fail(emu, e)
+
+
 def fail(emu, e: CallbackError) -> None:
     """End the run with the error of ``e``."""
     run = emu.get_current_run()
@@ -234,6 +248,10 @@ def unwind_frame(emu, ctx) -> None:
         ctx.Rip = 0
         return
     frame = min(frames, key=lambda f: f.stack_pointer)
+    # A thread start routine is the first frame of its thread. The frames below it belong to the waiting thread.
+    if frame.thread is not None:
+        ctx.Rip = 0
+        return
     if frame.handler is not None and frame.handler.context:
         ctx.cast(emu.mem_read(frame.handler.context, ctx.sizeof()))
     else:

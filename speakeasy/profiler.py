@@ -102,6 +102,8 @@ class GuestCallbackFrame:
     handler: Any = None
     # (register, value) pairs of the nonvolatile registers before the first guest call.
     saved_registers: tuple[tuple[int, int], ...] | None = None
+    # The thread whose start routine the guest call runs, when a wait runs a thread that has not started.
+    thread: "Thread | None" = None
 
 
 class DynCodeMapping(TypedDict):

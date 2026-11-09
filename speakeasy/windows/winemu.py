@@ -188,6 +188,9 @@ class _ApiCallState:
     return_address: int
     # The address of the call, or None if the emulator does not know it.
     call_pc: int | None
+    # The thread that calls the API. The API can switch to a different thread, for example to run the start routine
+    # of a thread that the caller waits for.
+    thread: objman.Thread | None
 
     @property
     def api_name(self) -> str:
@@ -1007,7 +1010,7 @@ class WindowsEmulator(BinaryEmulator):
                 thread.exit_code = None
                 if self.curr_process is not None:
                     self.init_teb(thread, self.curr_process.peb)
-                self.init_tls(thread)
+                self.init_tls(thread, run.start_addr)
 
         if winemu.EMU_RESERVED <= run.start_addr <= winemu.EMU_RESERVED_END:
             # A run that starts in the reserved range must fault at its first fetch.
@@ -1836,16 +1839,13 @@ class WindowsEmulator(BinaryEmulator):
         elif self.get_arch() == _arch.ARCH_AMD64:
             thread.init_teb(self.gs_addr, peb.address)
 
-    def init_tls(self, thread):
+    def init_tls(self, thread, start_addr: int):
         """
-        Copy the static TLS data of the module of the current run to thread.
+        Copy the static TLS data of the module that holds start_addr, the start of the code of thread, to thread.
 
         Call this after init_teb.
         """
-        run = self.curr_run
-        if run is None:
-            return
-        module = self.get_mod_from_addr(run.start_addr)
+        module = self.get_mod_from_addr(start_addr)
 
         if module:
             if isinstance(module, RuntimeModule):
@@ -1861,8 +1861,6 @@ class WindowsEmulator(BinaryEmulator):
                 tls_dirp += module.OPTIONAL_HEADER.ImageBase
                 data = self.read_tls_template(tls_dirp)
                 thread.init_tls(data, os.path.splitext(modname)[0])
-
-        return
 
     def read_tls_template(self, tls_dirp: int) -> bytes:
         """
@@ -2843,8 +2841,9 @@ class WindowsEmulator(BinaryEmulator):
         *,
         run=None,
         return_address: int | None = None,
+        thread: objman.Thread | None = None,
     ) -> None:
-        """Log an API call and record it in the report."""
+        """Log an API call of thread, or of the current thread, and record it in the report."""
         call_str = f"{imp_api}({', '.join(self.format_api_arg(arg) for arg in args)})"
 
         rv = self.get_machine_word(rv)
@@ -2853,7 +2852,7 @@ class WindowsEmulator(BinaryEmulator):
         run = self.curr_run if run is None else run
         if self.profiler and run:
             tick = run.instr_cnt
-            thread = run.thread or self.curr_thread
+            thread = thread or self.curr_thread or run.thread
             process = run.process_context or (thread.process if thread else None) or self.curr_process
             tid = thread.tid if thread else 0
             pid = process.id if process else 0
@@ -3134,6 +3133,7 @@ class WindowsEmulator(BinaryEmulator):
             sp=self.get_stack_ptr(),
             return_address=ret,
             call_pc=self.prev_pc or None,
+            thread=self.curr_thread,
         )
         impl = self.resolve_api_implementation(dll, name)
         api_name = call.api_name
@@ -3229,7 +3229,13 @@ class WindowsEmulator(BinaryEmulator):
             self._fire_dyn_code_hooks(ret)
 
         self.log_api(
-            call.call_pc, imp_api, rv, ctx.args.get_report_args(), run=call.run, return_address=call.return_address
+            call.call_pc,
+            imp_api,
+            rv,
+            ctx.args.get_report_args(),
+            run=call.run,
+            return_address=call.return_address,
+            thread=call.thread,
         )
 
         if (

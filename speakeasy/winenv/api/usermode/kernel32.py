@@ -935,8 +935,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         hLibModule, dwExitCode = argv
-        emu.get_current_thread().exit_code = dwExitCode
-        emu.exit_process()
+        emu.exit_thread(dwExitCode)
 
     @apihook("ExitThread", argc=1)
     def ExitThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -946,8 +945,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         (dwExitCode,) = argv
-        emu.get_current_thread().exit_code = dwExitCode
-        emu.exit_process()
+        emu.exit_thread(dwExitCode)
 
     @apihook("WinExec", argc=2)
     def WinExec(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5249,25 +5247,36 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwMilliseconds
         );
 
-        Speakeasy models only events. A wait on another object succeeds, except with a timeout of 1 ms, which times out.
+        Speakeasy models events and threads. A wait on a thread that has not started runs the thread to its end,
+        unless the timeout is 0. A wait on another object succeeds, except with a timeout of 1 ms, which times out.
         """
         hHandle, dwMilliseconds = argv
+        return self.wait_for_object(emu, hHandle, dwMilliseconds)
 
+    def wait_for_object(self, emu, handle, timeout):
+        """Wait on one object, as WaitForSingleObject does."""
         obj = None
-        if not self.is_std_handle(emu, hHandle):
-            obj = emu.get_handle_table().get(hHandle)
+        if not self.is_std_handle(emu, handle):
+            obj = emu.get_handle_table().get(handle)
             if obj is None:
                 emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
                 return windefs.WAIT_FAILED
         if isinstance(obj, objman.Event):
-            return self.wait_for_events(emu, [obj], False, dwMilliseconds)
+            return self.wait_for_events(emu, [obj], False, timeout)
 
-        if dwMilliseconds == 1:
-            rv = windefs.WAIT_TIMEOUT
-        else:
-            rv = windefs.WAIT_OBJECT_0
+        run = emu.get_unstarted_run(obj) if timeout else None
+        if run is not None:
+            return self.join_threads(emu, [run], windefs.WAIT_OBJECT_0)
 
-        return rv
+        if timeout == 1:
+            return windefs.WAIT_TIMEOUT
+        return windefs.WAIT_OBJECT_0
+
+    def join_threads(self, emu, runs, result):
+        """Run the threads of the queued runs to their end, then return result from the wait."""
+        for run in runs:
+            yield from emu.join_thread(run)
+        return result
 
     @apihook("GetConsoleMode", argc=2)
     def GetConsoleMode(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -7353,6 +7362,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             BOOL bWaitAll,
             DWORD dwMilliseconds
         );
+
+        Speakeasy models events and threads. A wait on a thread that has not started runs the thread to its end,
+        unless the timeout is 0. Other objects are signaled.
         """
         nCount, lpHandles, bWaitAll, dwMilliseconds = argv
 
@@ -7373,7 +7385,20 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         if objs and all(isinstance(obj, objman.Event) for obj in objs):
             return self.wait_for_events(emu, objs, bool(bWaitAll), dwMilliseconds)
-        return 0
+
+        runs = [emu.get_unstarted_run(obj) for obj in objs] if dwMilliseconds else []
+        if not any(runs):
+            return windefs.WAIT_OBJECT_0
+        if bWaitAll:
+            return self.join_threads(emu, [run for run in runs if run], windefs.WAIT_OBJECT_0)
+        for i, (obj, run) in enumerate(zip(objs, runs)):
+            if run is None and not (isinstance(obj, objman.Event) and not obj.signaled):
+                if isinstance(obj, objman.Event) and not obj.manual_reset:
+                    obj.signaled = False
+                return windefs.WAIT_OBJECT_0 + i
+        # No object is signaled, so the wait returns when the first thread ends.
+        index = next(i for i, run in enumerate(runs) if run)
+        return self.join_threads(emu, [runs[index]], windefs.WAIT_OBJECT_0 + index)
 
     def wait_for_events(self, emu, events, wait_all, timeout):
         """
@@ -7628,7 +7653,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return False
         if lpExitCode:
             # Threads run one after another, so a thread that has not run yet has ended
-            # when another run asks, as for a wait on it.
+            # when another run asks. A wait on the thread runs it first.
             if obj is emu.get_current_thread():
                 exit_code = windefs.STILL_ACTIVE
             else:
@@ -8181,8 +8206,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwMilliseconds,
             BOOL bAlertable
         );
+
+        The wait is as for WaitForSingleObject. Speakeasy does not queue APCs, so an alertable wait is not alerted.
         """
-        return 0  # = WAIT_OBJECT_0
+        hHandle, dwMilliseconds, bAlertable = argv
+        return self.wait_for_object(emu, hHandle, dwMilliseconds)
 
     @apihook("GetProfileInt", argc=3)
     def GetProfileInt(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
