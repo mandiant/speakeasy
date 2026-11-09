@@ -233,7 +233,9 @@ class Shell32(api.ApiHandler):
             dn = self.read_mem_string(lpDirectory, cw)
             ctx.args["lpDirectory"].display = dn
 
-        if dn and fn and not ntpath.isabs(fn):
+        # lpDirectory is the working directory of the new process. ntpath.join keeps an absolute lpFile as is,
+        # and puts a root-relative lpFile on the drive of lpDirectory.
+        if dn and fn:
             fn = ntpath.join(dn, fn)
 
         try:

@@ -1378,6 +1378,7 @@ def test_shell_execute_uses_the_file_as_the_path(emu: Speakeasy) -> None:
     "file, directory",
     [
         (PROGRAM_FILES_APP, "C:\\Windows\\temp"),
+        (ntpath.splitdrive(PROGRAM_FILES_APP)[1], "C:\\Windows\\temp"),
         (ntpath.basename(PROGRAM_FILES_APP), ntpath.dirname(PROGRAM_FILES_APP) + "\\"),
     ],
 )
