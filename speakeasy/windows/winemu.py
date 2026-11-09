@@ -3017,7 +3017,10 @@ class WindowsEmulator(BinaryEmulator):
             if not size or size < 0:
                 continue
             if param.kind in sigdb.STRING_KINDS or (param.kind == "a" and param.pointee in ("u8", "u16")):
+                # An empty string needs only its terminator. The database codes PSTR and PWSTR Out buffers as
+                # a:u8 and a:u16, so a byte or WCHAR buffer also gets only one zero element.
                 size = min(size, param.elem_size(ptr_size) or 1)
+            # mem_write ignores page protection, so stop before a page that the guest cannot write
             size = self._get_writable_size(value, min(size, self.MAX_OUT_ZERO_FILL))
             if size:
                 self.mem_write(value, b"\x00" * size)
