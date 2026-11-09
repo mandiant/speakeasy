@@ -1684,6 +1684,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         lpAddress, dwSize, flNewProtect, lpflOldProtect = argv
 
+        # NtProtectVirtualMemory rejects a size of 0 before it looks at the address.
+        if not dwSize:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+
         maps = emu.get_mem_maps()
         for m in maps:
             if m.base <= lpAddress < m.base + m.size:
