@@ -159,12 +159,12 @@ def run_parent_with_child(se, load_test_bin):
 
 
 def test_children_do_not_load_after_the_cap(config, load_test_bin):
-    config.update(max_run_time=5, max_total_time=0.05)
+    config.update(max_run_time=5, max_total_time=0.25)
     with Speakeasy(config=config) as se:
 
         def slow_create_process(e, api, original, args):
             rv = original(args)
-            time.sleep(0.1)
+            time.sleep(0.3)
             return rv
 
         se.add_api_hook(slow_create_process, "kernel32", "CreateProcessA")
@@ -190,7 +190,7 @@ def test_load_of_a_child_counts_against_the_cap(config, load_test_bin):
         run_parent_with_child(se, load_test_bin)
         report = se.get_report()
 
-        assert len(report.entry_points) == 1
+        assert [run.error for run in report.entry_points] == [None]
         assert [(error.type, error.context_summary) for error in report.errors] == [
             ("max_total_time", "1 child process did not run")
         ]

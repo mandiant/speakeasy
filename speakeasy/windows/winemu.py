@@ -107,7 +107,7 @@ class _ExecutionBudget:
     exhausted: bool = False
 
     def add(self, seconds: float) -> bool:
-        """Add seconds to the elapsed time. Return True if the elapsed time is at the limit."""
+        """Add seconds to the elapsed time. Return True if the elapsed time is at or past the limit."""
         self.elapsed += seconds
         if self.limit <= 0 or self.elapsed < self.limit:
             return False

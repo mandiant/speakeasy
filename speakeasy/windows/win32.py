@@ -345,6 +345,7 @@ class Win32Emulator(WindowsEmulator):
                 exhausted = budget.add(time.monotonic() - started)
 
             if exhausted:
+                # The load used up the time, so the queued runs of this child do not start.
                 self._cancel_execution_runs()
                 not_run = 1
                 break
