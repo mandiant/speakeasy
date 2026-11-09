@@ -940,6 +940,25 @@ def test_write_file_writes_at_the_file_pointer(strict_fs_emu: Speakeasy) -> None
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"ABAA"]
 
 
+def test_create_file_truncate_existing_removes_the_old_data(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"c:\\log.txt\x00")
+    written = alloc(se, b"\x00" * 4)
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"A" * 16), 16, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, TRUNCATE_EXISTING, 0, 0])
+    assert hnd != invalid_handle(se)
+    assert call(se, "kernel32", "GetFileSize", [hnd, 0])[0] == 0
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"BBBB"), 4, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    assert [f.get_contents() for f in se.get_dropped_files()] == [b"BBBB"]
+    events = [e.event.value for e in se.emu.get_current_run().events]
+    assert events == ["file_create", "file_write", "file_open"]
+
+
 def test_each_handle_to_a_file_has_its_own_position(strict_fs_emu: Speakeasy) -> None:
     se = strict_fs_emu
     first = open_file(se, BYTE_FILL_PATH)
