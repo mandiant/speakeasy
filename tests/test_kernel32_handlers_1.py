@@ -517,6 +517,7 @@ def test_resume_thread_does_not_run_the_headers_of_a_program_without_code(dll_em
     queued = len(dll_emu.emu.run_queue)
     assert call(dll_emu, "kernel32", "ResumeThread", [hthread])[0] == 1
     assert len(dll_emu.emu.run_queue) == queued
+    assert len(dll_emu.emu.child_processes) == 1
 
 
 def test_resume_thread_leaves_a_modified_child_without_a_start_address_for_child_emulation(
