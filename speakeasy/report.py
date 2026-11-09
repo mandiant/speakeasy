@@ -75,6 +75,7 @@ class ErrorType(str, Enum):
     GUARD_PAGE_VIOLATION = "guard_page_violation"
     PRIVILEGED_INSTRUCTION = "privileged_instruction"
     INVALID_INSTRUCTION = "invalid_instruction"
+    UNSUPPORTED_CPU_FEATURE = "unsupported_cpu_feature"
     UNHANDLED_INTERRUPT = "unhandled_interrupt"
     UNHANDLED_EXCEPTION = "unhandled_exception"
     HARDWARE_BREAKPOINT = "hardware_breakpoint"

@@ -23,6 +23,10 @@ PAGE_EXECUTE_READ = 0x20
 PAGE_EXECUTE_READWRITE = 0x40
 PAGE_GUARD = 0x100
 
+# AVX instructions that Unicorn cannot run
+VMOVUPS_YMM = b"\xc5\xfc\x10\xc1"  # vmovups ymm0, ymm1
+VMOVUPS_ZMM = b"\x62\xf1\x7c\x48\x10\xc1"  # vmovups zmm0, zmm1
+
 # name: (code, exception code, ExceptionAddress - start, the Rip adjustment a handler makes to continue)
 CASES = {
     "int3": (b"\xcc", STATUS_BREAKPOINT, 0, 1),
@@ -452,16 +456,27 @@ def test_engine_stop_without_a_cause_ends_the_run_with_an_error(config):
         assert (run.error.type, run.error.pc) == ("engine_stopped", code + 1)
 
 
-def test_invalid_instruction_without_handler_dispatch_ends_the_run(config):
-    config["exceptions"]["dispatch_handlers"] = False
+@pytest.mark.parametrize(
+    "arch, insn, error, instruction",
+    [
+        ("x86", b"\x0f\x0b", "invalid_instruction", "ud2"),
+        ("amd64", VMOVUPS_YMM, "unsupported_cpu_feature", "vmovups ymm0, ymm1"),
+        # on x86, 0x62 also starts bound
+        ("x86", VMOVUPS_ZMM, "unsupported_cpu_feature", "vmovups zmm0, zmm1"),
+    ],
+)
+@pytest.mark.parametrize("dispatch_handlers", [True, False])
+def test_invalid_instruction_ends_the_run(config, arch, insn, error, instruction, dispatch_handlers):
+    """A valid VEX or EVEX instruction that Unicorn cannot run is an unsupported CPU feature, not junk code."""
+    config["exceptions"]["dispatch_handlers"] = dispatch_handlers
     with Speakeasy(config=config) as se:
-        code = se.load_shellcode(data=b"\x90\x0f\x0b" + RETURN_42, arch="x86")  # nop; ud2
+        code = se.load_shellcode(data=b"\x90" + insn + RETURN_42, arch=arch)
 
         se.run_shellcode(code)
 
         run = se.get_report().entry_points[0]
         assert run.error is not None
-        assert (run.error.type, run.error.pc) == ("invalid_instruction", code + 1)
+        assert (run.error.type, run.error.pc, run.error.instruction.strip()) == (error, code + 1, instruction)
 
 
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):

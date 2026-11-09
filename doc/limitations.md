@@ -46,6 +46,10 @@ The ANSI code page is 1252 and the OEM code page is 437. Speakeasy reads and wri
 
 The `HCRYPTKEY` functions support RC4 keys, and AES keys of 128, 192 and 256 bits. `CryptImportKey` accepts a `PLAINTEXTKEYBLOB` and the `PUBLICKEYBLOB` of an RSA key. `CryptEncrypt` with an RSA public key uses PKCS#1 v1.5 padding. No key has a private part, so `CryptImportKey` fails a `SIMPLEBLOB` with `NTE_BAD_PUBLIC_KEY`, and `CryptDecrypt` fails with an RSA key. `CryptExportKey` gives only a `PLAINTEXTKEYBLOB`. `CryptDeriveKey` derives only RC4 keys. An AES key supports the CBC, ECB and CFB modes and PKCS#5 padding. `CryptSetKeyParam` sets `KP_IV`, `KP_MODE` and `KP_PADDING`, and returns `TRUE` for other parameters without a change to the key. `CryptGenKey` gets the key bytes from the random source of the emulator, so the key is the same in each run with the same `random_seed`.
 
+## CPU features
+
+Unicorn 2.1.4 does not emulate AVX. It runs the VEX forms of the SSE instructions with 128-bit registers. It does not run the 256-bit forms, the EVEX (AVX-512) forms or the instructions that AVX, AVX2 and FMA add. CPUID and `IsProcessorFeaturePresent` report no AVX. A binary that is compiled for AVX, for example with `/arch:AVX2`, can use these instructions without a CPUID check. When such an instruction cannot run, the guest gets `STATUS_ILLEGAL_INSTRUCTION`, as on a CPU without AVX. If no handler takes the exception, the error type of the run is `unsupported_cpu_feature`, and `instruction` in the error has the instruction. Other instructions that Unicorn cannot run, such as `ud2` or data that is not code, give `invalid_instruction`.
+
 ## Environmental requirements
 
 A sample can expect files, registry keys, network responses, loaded modules or system structures that the config does not have. When one is missing, the sample can act as if it found an analysis environment, but the cause is the config. Before you decide that Speakeasy does not support a sample, add the missing items with the config file and the CLI overrides.
