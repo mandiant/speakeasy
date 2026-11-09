@@ -972,7 +972,8 @@ def test_unlink_deletes_a_written_file(dll_emu: Speakeasy, api: str, enc: str) -
 
     path = alloc(dll_emu, (name + "\x00").encode(enc))
     assert call(dll_emu, "msvcrt", api, [path])[0] == 0
-    assert dll_emu.get_dropped_files() == []
+    mode = alloc(dll_emu, b"rb\x00")
+    assert call(dll_emu, "msvcrt", "fopen", [alloc(dll_emu, name.encode() + b"\x00"), mode])[0] == 0
 
 
 def test_unlink_sets_enoent_for_a_missing_file(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:

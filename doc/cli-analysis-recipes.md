@@ -77,7 +77,7 @@ Without string extraction, the report is smaller and Speakeasy finishes sooner.
 speakeasy -t sample.exe --dropped-files-path dropped.zip
 ```
 
-`dropped.zip` has the files that the sample wrote and `speakeasy_manifest.json`, which gives the emulated path, size and SHA-256 of each file. If the sample wrote no files, the CLI does not make the archive. To list the archive:
+`dropped.zip` has the files that the sample wrote, also the files that it deleted after the write, and `speakeasy_manifest.json`, which gives the emulated path, size and SHA-256 of each file. If the sample wrote no files, the CLI does not make the archive. To list the archive:
 
 ```bash
 unzip -l dropped.zip
