@@ -29,7 +29,7 @@ class DummyHook:
     def add(self):
         self.added = True
 
-    def remove(self):
+    def detach(self):
         self.enabled = False
         self.added = False
 

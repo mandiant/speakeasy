@@ -102,8 +102,13 @@ class Hook:
         # add() does not change the flag.
         self.enabled = False
 
-    def remove(self):
-        """Remove the hook from the engine, so that the engine does not call it again."""
+    def detach(self):
+        """
+        Remove the hook from the engine, so that the engine does not call it again.
+
+        The hook stays in the hook lists of the emulator, and ``set_hooks`` can add it to the engine again. To remove a
+        hook, use ``BinaryEmulator.remove_hook``.
+        """
         if self.added and self.native_hook:
             self.emu_eng.hook_remove(self.handle)
         self.handle = 0
@@ -291,7 +296,7 @@ class InstructionHook(Hook):
                 self.handles.append(self.emu_eng.hook_add(htype=HOOK_INSN, cb=cb, arg1=insn))
         self.added = True
 
-    def remove(self):
+    def detach(self):
         for handle in self.handles:
             self.emu_eng.hook_remove(handle)
         self.handles.clear()

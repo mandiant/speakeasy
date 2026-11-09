@@ -180,14 +180,9 @@ class GdbServer:
             self.emu.module_change_listeners.remove(self._on_module_change)
         for hook in self._hooks:
             try:
-                hook.remove()
+                self.emu.remove_hook(hook)
             except Exception:
                 pass
-        # ``BinaryEmulator.set_hooks`` adds each removed hook in ``emu.hooks`` again when an emulation
-        # starts, so remove the debugger hooks from these lists.
-        for registered_hooks in getattr(self.emu, "hooks", {}).values():
-            if isinstance(registered_hooks, list):
-                registered_hooks[:] = [hook for hook in registered_hooks if hook not in self._hooks]
 
     @staticmethod
     def _extract_packet(buffer: bytearray) -> tuple[bytes, bytes, bool] | None:
@@ -377,7 +372,7 @@ class GdbServer:
             hook.enable()
         elif not enabled and hook.added:
             # A disabled hook still calls Python for each event, so remove the Unicorn hook.
-            hook.remove()
+            hook.detach()
 
     def _breakpoint_ranges(self) -> set[tuple[int, int]]:
         """
