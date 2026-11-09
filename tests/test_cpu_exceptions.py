@@ -398,6 +398,30 @@ def test_exception_continued_at_the_fault_can_repeat_after_the_code_moves_on(con
         assert len([e for e in run.events if e.event == "exception"]) == 6
 
 
+def test_handler_that_reads_its_return_address_returns(config):
+    # The handler reads the byte at its return address in the reserved range, then returns from a block that the
+    # deferred work hook did not see.
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="x86")
+        handler = code + 0x1000
+        se.mem_write(
+            handler,
+            b"\xeb\x00"  # jmp next
+            + b"\x8b\x04\x24\x8a\x00"  # next: mov eax, [esp]; mov al, [eax]
+            + b"\x8b\x44\x24\x04\x8b\x40\x04"  # mov eax, [esp + 4]; mov eax, [eax + 4]  (ContextRecord)
+            + b"\x83\x80\xb8\x00\x00\x00\x02"  # add dword [eax + Eip], 2
+            + b"\xb8\xff\xff\xff\xff\xc2\x04\x00",  # return EXCEPTION_CONTINUE_EXECUTION
+        )
+        setup = guest_call(4, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
+        se.mem_write(code, setup + b"\x0f\x0b" + RETURN_42)  # ud2
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert run.return_value == 42
+
+
 def test_contributory_exception_can_repeat(config, load_test_bin):
     """
     0260bad6 (x86): the SEH handler of the far call runs a far jump under the same handler.
