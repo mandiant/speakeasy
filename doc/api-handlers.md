@@ -56,7 +56,7 @@ A call to an import without an `@apihook` does not always stop the run. Speakeas
 - It decodes `PSTR`, `PWSTR` and `BOOL` arguments for the trace.
 - It shows enum and flag parameters by name (`dwCreationDisposition: CREATE_ALWAYS`, `dwShareMode: FILE_SHARE_WRITE|FILE_SHARE_READ`).
 - It shows a pointer to a known struct as its typed fields (`lpSecurityAttributes: {nLength: 0xc, lpSecurityDescriptor: 0x0, bInheritHandle: TRUE}`). It follows nested pointers one level, so `OBJECT_ATTRIBUTES.ObjectName` shows its string.
-- It writes zeros to the `Out` buffers whose size the prototype declares.
+- It writes zeros to the `Out` buffers whose size the prototype declares, up to 4 KiB and only to pages that the guest can write. A string buffer gets only a terminator.
 - It returns a success value for the return type and removes the arguments from the stack as the calling convention requires.
 
 Each argument in the event of such a call has the parameter name, the type, the raw value and the rendering (see [reporting](reporting.md)).
