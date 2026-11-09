@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, PrivateAttr
 
 from speakeasy.report_types import HexInt, HexIntOptional
 
@@ -131,9 +131,12 @@ class ApiEvent(Event):
     """
     One call to an API.
 
-    The profiler leaves out a call that repeats the API, pc, shown arguments and return value of
-    one of the last 3 events of the run.
+    The profiler leaves out a call that repeats the API, pc, return address, shown arguments and
+    return value of one of the last 3 events of the run.
     """
+
+    # The return address of the call. The report does not show it.
+    _return_address: int | None = PrivateAttr(default=None)
 
     event: Literal[EventType.API] = Field(default=EventType.API, description="Event type of an API call.")
     api_name: str = Field(description="API name in ``module.function`` form, such as ``kernel32.CreateFileA``.")

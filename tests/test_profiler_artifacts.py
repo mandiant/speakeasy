@@ -196,6 +196,17 @@ def test_repeated_api_call_with_same_rendering_is_recorded_once():
     assert [e.args for e in run.events if isinstance(e, ApiEvent)] == [lib_name(0x2000), unnamed]
 
 
+def test_repeated_api_call_from_another_caller_is_recorded():
+    profiler = Profiler()
+    run = Run()
+    pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401000)
+
+    for return_address in (0x402005, 0x403005, 0x403005):
+        profiler.record_api_event(run, pos, "kernel32.GetCurrentProcessId", 4, [], return_address=return_address)
+
+    assert len(run.events) == 2
+
+
 @pytest.mark.parametrize("event_type", [EventType.MEM_WRITE, EventType.MEM_READ])
 def test_memory_event_does_not_merge_into_another_run_or_process(event_type: EventType) -> None:
     profiler = Profiler()

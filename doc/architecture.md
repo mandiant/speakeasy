@@ -107,6 +107,7 @@ If the emulator cancels the runs in the queue, for example when emulation reache
 
 - `_hook_mem_unmapped` for unmapped and protected memory. This hook also finds API calls and returns to the reserved range.
 - Hooks for interrupts, invalid instructions, `in` and `out`.
+- `_hook_block_call_site`, a block hook that keeps the start and size of the last block. When a block jumps to an API, the last instruction of that block is the call site, and the API event gives it as `pc`. If Unicorn started again between the two blocks, or the block does not decode to its end, the event has no `pc`.
 - `_hook_code_tracing`, `_hook_mem_read` and `_hook_mem_write` when `analysis.memory_tracing` is set. They count reads, writes and executes for each symbol, section and memory map.
 - `_hook_code_coverage` when `analysis.coverage` is set.
 - `_hook_code_deferred_work`, which runs at the next instruction after an API call, a fault or a request to end the run, and then disables itself.
