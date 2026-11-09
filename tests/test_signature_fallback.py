@@ -299,14 +299,15 @@ CURRENT_PROCESS = 0xFFFFFFFF
 
 
 def test_out_buffer_zero_fill_is_capped(config: dict[str, Any]) -> None:
-    """The emulator zeroes at most 4 KiB of an Out buffer, also if the count is larger."""
+    """The emulator zeroes at most 4 KiB of an Out buffer, also if the count is larger and the pages are writable."""
     report, _, pages = _run_x86_call(
-        config, "K32QueryWorkingSet", [CURRENT_PROCESS, PAGES_BASE, 3 * PAGE_SIZE], [common.PERM_MEM_RW] * 3
+        config, "K32QueryWorkingSet", [CURRENT_PROCESS, PAGES_BASE + 0x800, 3 * PAGE_SIZE], [common.PERM_MEM_RW] * 3
     )
 
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
-    assert pages == b"\x00" * 0x1000 + b"\xcc" * (3 * PAGE_SIZE - 0x1000)
+    # the fill crosses from the first page into the second, which is a separate region
+    assert pages == b"\xcc" * 0x800 + b"\x00" * 0x1000 + b"\xcc" * (3 * PAGE_SIZE - 0x1800)
 
 
 def test_out_buffer_zero_fill_stops_at_page_the_guest_cannot_write(config: dict[str, Any]) -> None:
