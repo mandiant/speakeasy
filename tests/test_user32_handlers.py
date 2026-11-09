@@ -114,6 +114,15 @@ def test_post_thread_message_queues_a_message_without_a_window(dll_emu: Speakeas
     assert get_message(dll_emu)[0] == 0
 
 
+def test_post_thread_message_accepts_a_thread_from_create_thread(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    tid_ptr = alloc(dll_emu, b"\x00" * 4)
+    assert call(dll_emu, "kernel32", "CreateThread", [0, 0, 0x1000, 0, 0, tid_ptr])[0]
+    tid = int.from_bytes(dll_emu.mem_read(tid_ptr, 4), "little")
+    assert call(dll_emu, "user32", "PostThreadMessageA", [tid, WM_USER, 3, 4])[0]
+    assert not get_message(dll_emu)[0]
+
+
 def test_get_message_returns_zero_for_wm_quit(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     call(dll_emu, "user32", "PostQuitMessage", [5])
