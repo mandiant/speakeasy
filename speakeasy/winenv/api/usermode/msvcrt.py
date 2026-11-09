@@ -711,6 +711,8 @@ class Msvcrt(api.ApiHandler):
         _onexit_t _onexit(
             _onexit_t function
         );
+
+        Speakeasy does not keep the function, and exit does not call it.
         """
         (function,) = argv
         return function
@@ -721,6 +723,8 @@ class Msvcrt(api.ApiHandler):
         int atexit(
             void (*func)(void)
         );
+
+        Speakeasy does not keep the function, and exit does not call it.
         """
         return 0
 
@@ -5895,6 +5899,8 @@ class Msvcrt(api.ApiHandler):
         int _crt_atexit(
             _PVFV function
         );
+
+        Speakeasy does not keep the function, and exit does not call it.
         """
         return 0
 

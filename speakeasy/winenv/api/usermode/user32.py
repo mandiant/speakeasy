@@ -495,6 +495,8 @@ class User32(api.ApiHandler):
         VOID PostQuitMessage(
             int nExitCode
         );
+
+        Speakeasy does not post WM_QUIT. A message loop ends at a run limit.
         """
         return
 
@@ -504,6 +506,8 @@ class User32(api.ApiHandler):
         BOOL DestroyWindow(
             HWND hWnd
         );
+
+        Speakeasy does not model the lifetime of windows, so the window and its timers stay.
         """
         return True
 
