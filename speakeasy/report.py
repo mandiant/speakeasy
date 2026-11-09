@@ -282,7 +282,7 @@ class MemoryRegion(BaseModel):
         default=None,
         description=(
             "Key in the top-level ``data`` of the region data. Only with ``snapshot_memory_regions``, "
-            "and never for the stack and the heaps."
+            "and never for the stack."
         ),
     )
 

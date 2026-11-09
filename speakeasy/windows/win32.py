@@ -715,7 +715,7 @@ class Win32Emulator(WindowsEmulator):
 
     def _capture_memory_layout(self, run: Run) -> None:
         """Record the memory layout and the loaded modules in the report of the run."""
-        EXCLUDED_TAG_PREFIXES = ("emu.stack", "api.heap", "emu.process_heap")
+        EXCLUDED_TAG_PREFIXES = ("emu.stack",)
 
         prot_map = {
             common.PERM_MEM_NONE: "---",
