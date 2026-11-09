@@ -367,6 +367,37 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
         assert len([e for e in run.events if e.event == "exception"]) == 6
 
 
+def test_exception_continued_at_the_fault_can_repeat_after_the_code_moves_on(config):
+    # rax = 0; for (ecx = 6; ecx; ecx--) { eax = [rax]; rax = 0; }  under a handler that sets rax and continues at the
+    # read. The read begins a block that ran before the handler continued at it.
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        handler = code + 0x1000
+        nt_continue = get_api(se, "ntdll", "NtContinue")
+        se.mem_write(
+            handler,
+            b"\x48\x8b\x49\x08"  # mov rcx, [rcx + 8]  (ContextRecord)
+            + b"\x48\xb8"
+            + struct.pack("<Q", code)
+            + b"\x48\x89\x41\x78"  # mov rax, code; mov [rcx + Rax], rax
+            + b"\x31\xd2\x48\x83\xec\x28"  # xor edx, edx; sub rsp, 0x28
+            + b"\x48\xb8"
+            + struct.pack("<Q", nt_continue)
+            + b"\xff\xd0",  # call NtContinue
+        )
+        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
+        # xor eax, eax; mov ecx, 6; read: mov eax, [rax]; xor eax, eax; dec ecx; jnz read
+        loop = b"\x31\xc0\xb9\x06\x00\x00\x00\x8b\x00\x31\xc0\xff\xc9\x75\xf8"
+        se.mem_write(code, setup + loop + RETURN_42)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().entry_points[0]
+        assert run.error is None
+        assert run.return_value == 42
+        assert len([e for e in run.events if e.event == "exception"]) == 6
+
+
 def test_contributory_exception_can_repeat(config, load_test_bin):
     """
     0260bad6 (x86): the SEH handler of the far call runs a far jump under the same handler.
