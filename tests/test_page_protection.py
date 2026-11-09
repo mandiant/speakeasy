@@ -33,6 +33,15 @@ def test_runs_keep_perm_changes_separate():
     ]
 
 
+def test_protecting_an_empty_range_changes_nothing(dll_emu: Speakeasy) -> None:
+    emu = dll_emu.emu
+    base = emu.mem_map(PAGE, perms=RW, tag="test.empty_protect")
+    before = list(emu.get_mem_regions())
+
+    emu.mem_protect(base, 0, RX)
+    assert list(emu.get_mem_regions()) == before
+
+
 @pytest.mark.parametrize("bin_name", ["dll_test_x86.dll.xz", "dll_test_x64.dll.xz"])
 def test_loaded_sections_have_expected_page_protections(config, load_test_bin, bin_name):
     se = Speakeasy(config=config)
