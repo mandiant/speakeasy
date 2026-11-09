@@ -6,7 +6,7 @@ This page tells you how to move code and scripts from Speakeasy 1.x to 2.0. It c
 
 The report of 2.0 has `report_version` `6.0.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
 
-In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. `dynamic_code_segments` and `dropped_files` do not change.
+In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. Each entry of `dynamic_code_segments` has the new `pos`, and a `data_ref` with `--analysis-dynamic-code-snapshots`. `dropped_files` does not change.
 
 Before:
 
