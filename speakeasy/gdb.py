@@ -367,7 +367,7 @@ class GdbServer:
         if hook is None:
             return
         if enabled and not hook.added:
-            # A removed hook is disabled, and ``add`` keeps that state.
+            # A detached hook is disabled, and ``add`` keeps that state.
             hook.add()
             hook.enable()
         elif not enabled and hook.added:

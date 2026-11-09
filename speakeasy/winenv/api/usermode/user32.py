@@ -496,7 +496,7 @@ class User32(api.ApiHandler):
             int nExitCode
         );
 
-        Speakeasy does not post WM_QUIT. A message loop ends at a run limit.
+        Speakeasy does not post WM_QUIT. A message loop ends when no message or timer is pending, or at a run limit.
         """
         return
 

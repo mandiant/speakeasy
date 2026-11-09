@@ -51,9 +51,9 @@ def test_each_process_has_its_own_command_line_buffer(dll_emu, api, width):
     parent.cmdline = "parent.exe a"
     first, _ = call(dll_emu, "kernel32", api, [])
 
-    emu.curr_process = objman.Process(emu, cmdline="child.exe " + "x" * 100)
+    emu.set_current_process(objman.Process(emu, cmdline="child.exe " + "x" * 100))
     second, _ = call(dll_emu, "kernel32", api, [])
-    emu.curr_process = parent
+    emu.set_current_process(parent)
 
     assert dll_emu.read_mem_string(first, width) == "parent.exe a"
     assert dll_emu.read_mem_string(second, width) == "child.exe " + "x" * 100
