@@ -58,6 +58,8 @@ RT_STRING = 6
 WS_POPUP = 0x80000000
 WS_CHILD = 0x40000000
 
+HWND_BROADCAST = 0xFFFF
+
 # The devices that EnumDisplayDevices lists under each parent device name: one Intel adapter, as in an
 # OptiPlex 7090, with one monitor. Each entry gives DeviceName, DeviceString, StateFlags, DeviceID and DeviceKey.
 DISPLAY_DEVICES = {
@@ -496,9 +498,10 @@ class User32(api.ApiHandler):
             int nExitCode
         );
 
-        Speakeasy does not post WM_QUIT. A message loop ends when no message or timer is pending, or at a run limit.
+        WM_QUIT goes to the end of the message queue of the thread, after the messages that are already posted.
         """
-        return
+        (nExitCode,) = argv
+        self.post_message(emu, emu.get_current_thread(), 0, u32defs.WM_QUIT, nExitCode, 0)
 
     @apihook("DestroyWindow", argc=1)
     def DestroyWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -832,8 +835,16 @@ class User32(api.ApiHandler):
             UINT wMsgFilterMax,
             UINT wRemoveMsg
         );
+
+        Only posted messages are in the queue. PeekMessage does not give timer messages.
         """
-        return False
+        lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg = argv
+        msg = self.get_posted_message(emu, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg & u32defs.PM_REMOVE)
+        if msg is None:
+            return False
+        if lpMsg:
+            self.mem_write(lpMsg, msg.get_bytes())
+        return True
 
     @apihook("PostMessage", argc=4)
     def PostMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -844,8 +855,74 @@ class User32(api.ApiHandler):
             WPARAM wParam,
             LPARAM lParam
         );
+
+        The message goes to the queue of the thread that created the window. Speakeasy drops a message for
+        HWND_BROADCAST, and for a window of a thread that does not run in Speakeasy.
         """
+        hWnd, Msg, wParam, lParam = argv
+        if not hWnd:
+            self.post_message(emu, emu.get_current_thread(), hWnd, Msg, wParam, lParam)
+            return True
+        window = self.sessman.get_window(hWnd)
+        if window:
+            thread = self.get_thread(emu, window.thread_id)
+            if thread:
+                self.post_message(emu, thread, hWnd, Msg, wParam, lParam)
+        elif hWnd != HWND_BROADCAST:
+            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
+            return False
         return True
+
+    @apihook("PostThreadMessage", argc=4)
+    def PostThreadMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL PostThreadMessage(
+            DWORD idThread,
+            UINT Msg,
+            WPARAM wParam,
+            LPARAM lParam
+        );
+        """
+        idThread, Msg, wParam, lParam = argv
+        thread = self.get_thread(emu, idThread)
+        if not thread:
+            emu.set_last_error(windefs.ERROR_INVALID_THREAD_ID)
+            return False
+        self.post_message(emu, thread, 0, Msg, wParam, lParam)
+        return True
+
+    def get_thread(self, emu, tid):
+        """Get the thread with the ID ``tid``, else None."""
+        return next((t for p in emu.get_processes() for t in p.threads if t.tid == tid), None)
+
+    def post_message(self, emu, thread, hwnd, message, wparam, lparam):
+        msg = u32defs.MSG(emu.get_ptr_size())
+        msg.hwnd = hwnd
+        msg.message = message
+        msg.wParam = wparam
+        msg.lParam = lparam
+        thread.message_queue.append(msg)
+
+    def get_posted_message(self, emu, hwnd, filter_min, filter_max, remove):
+        """
+        Get the first message in the queue of the current thread that matches the filter, else None.
+
+        WM_QUIT matches every filter. An HWND filter matches only the messages of that window, not of its children.
+        """
+        queue = emu.get_current_thread().message_queue
+        for i, msg in enumerate(queue):
+            if msg.message != u32defs.WM_QUIT:
+                if hwnd == (1 << 8 * emu.get_ptr_size()) - 1:
+                    if msg.hwnd:
+                        continue
+                elif hwnd and msg.hwnd != hwnd:
+                    continue
+                if (filter_min or filter_max) and not filter_min <= msg.message <= filter_max:
+                    continue
+            if remove:
+                queue.pop(i)
+            return msg
+        return None
 
     @apihook("SendMessage", argc=4)
     def SendMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -986,12 +1063,8 @@ class User32(api.ApiHandler):
         """
         lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax = argv
 
-        t = emu.get_current_thread()
-        msg = None
-
-        try:
-            msg = t.message_queue.pop(0)
-        except IndexError:
+        msg = self.get_posted_message(emu, hWnd, wMsgFilterMin, wMsgFilterMax, remove=True)
+        if msg is None:
             if self.timers:
                 hwnd, tid, proc = self.timers[self.next_timer % len(self.timers)]
                 self.next_timer += 1
@@ -1017,7 +1090,7 @@ class User32(api.ApiHandler):
         if lpMsg:
             self.mem_write(lpMsg, msg.get_bytes())
 
-        return True
+        return msg.message != u32defs.WM_QUIT
 
     @apihook("TranslateMessage", argc=1)
     def TranslateMessage(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

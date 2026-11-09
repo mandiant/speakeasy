@@ -8,6 +8,9 @@ from speakeasy.struct import EmuStruct, Ptr
 WM_KEYDOWN = 0x0100
 WM_SYSKEYDOWN = 0x0104
 WM_TIMER = 0x0113
+WM_QUIT = 0x12
+
+PM_REMOVE = 0x1
 
 WM_CREATE = 0x01
 WM_PAINT = 0x0F
