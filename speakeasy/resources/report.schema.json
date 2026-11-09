@@ -301,12 +301,30 @@
           "description": "Size of the region in bytes.",
           "title": "Size",
           "type": "integer"
+        },
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Position when the emulator first found code that ran in the region. ``pc`` is in the region."
+        },
+        "data_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Key in the top-level ``data`` of the region data at ``pos``. Only with ``analysis.dynamic_code_snapshots``.",
+          "title": "Data Ref"
         }
       },
       "required": [
         "tag",
         "base",
-        "size"
+        "size",
+        "pos"
       ],
       "title": "DynamicCodeSegment",
       "type": "object"

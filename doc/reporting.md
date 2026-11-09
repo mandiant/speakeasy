@@ -27,7 +27,7 @@ Each entry point has these fields:
 - `api_hash`: the SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.
 - `events`: the events of the run, in order. The `record_*_event` methods of `Profiler` add them.
 - `symbol_accesses`: the read, write and execute counts of each symbol, only if `analysis.memory_tracing=true`.
-- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran.
+- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `analysis.dynamic_code_snapshots=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later.
 - `coverage`: the addresses of the instructions that ran, only if `analysis.coverage=true`.
 - `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
 - `memory`: in user mode, the memory regions and the modules at the end of the run. If `snapshot_memory_regions=true`, each region also has a `data_ref` to its contents.
@@ -85,6 +85,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 - `--analysis-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
 - `--analysis-memory-tracing` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
 - `--snapshot-memory-regions` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
+- `--analysis-dynamic-code-snapshots` fills `entry_points[*].dynamic_code_segments[*].data_ref`.
 - `entry_points[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 
 ## Annotated report schema example
@@ -410,7 +411,11 @@ Each event has `pos`, the position of the thread that did the operation, so the 
         {
           "tag": "emu.alloc.0x10000000",
           "base": "0x10000000",
-          "size": 4096
+          "size": 4096,
+          // Position when code first ran in the region.
+          "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
+          // Only with analysis.dynamic_code_snapshots: the region contents at pos.
+          "data_ref": "4444444444444444444444444444444444444444444444444444444444444444"
         }
       ],
 

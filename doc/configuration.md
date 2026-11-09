@@ -65,7 +65,12 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
     // Record the address of each instruction that a run executes.
     // Use it to compare runs or to see which code ran.
-    "coverage": false
+    "coverage": false,
+
+    // If true, the report has the contents of each dynamic code region, for example
+    // from VirtualAlloc, at the first time that code runs in the region.
+    // Use it to keep the stages of an unpacker that overwrites its buffers.
+    "dynamic_code_snapshots": false
   },
 
   // If true, the memory manager keeps a freed region mapped, so you can read

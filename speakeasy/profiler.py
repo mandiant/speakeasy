@@ -108,6 +108,8 @@ class DynCodeMapping(TypedDict):
     tag: str
     base: int
     size: int
+    pos: TracePosition
+    data_ref: str | None
 
 
 class DynCode(TypedDict):
@@ -614,10 +616,11 @@ class Profiler:
         """Record a module that the guest loads at run time."""
         run.events.append(ModuleLoadEvent(pos=pos, name=name, path=path, base=base, size=size))
 
-    def record_dyn_code_event(self, run, tag, base, size):
+    def record_dyn_code_event(self, run, pos: TracePosition, tag, base, size, data: bytes | None):
         """Record a dynamic code region that the guest runs. The profiler adds each base address once per run."""
         if base not in run.dyn_code["base_addrs"]:
-            entry: DynCodeMapping = {"tag": tag, "base": base, "size": size}
+            data_ref = self.artifact_store.put_bytes(data) if data is not None else None
+            entry: DynCodeMapping = {"tag": tag, "base": base, "size": size, "pos": pos, "data_ref": data_ref}
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
 
@@ -694,7 +697,10 @@ class Profiler:
                 ]
 
             dyn_code_segments = [
-                DynamicCodeSegment(tag=seg["tag"], base=seg["base"], size=seg["size"]) for seg in r.dyn_code["mmap"]
+                DynamicCodeSegment(
+                    tag=seg["tag"], base=seg["base"], size=seg["size"], pos=seg["pos"], data_ref=seg["data_ref"]
+                )
+                for seg in r.dyn_code["mmap"]
             ]
 
             dropped_files = [
