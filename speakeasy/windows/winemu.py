@@ -79,12 +79,9 @@ MAX_EXPORTS_TO_EMULATE = 10
 # The signal number that the GDB server reports for memory faults
 GDB_SIGSEGV = 11
 
-# The first bytes of the VEX and EVEX encodings. On x86, these bytes also start les, lds and bound.
-VEX_ESCAPES = (0xC4, 0xC5, 0x62)
-LEGACY_VEX_ESCAPE_MNEMONICS = ("les", "lds", "bound")
-
-# The maximum length of an x86 instruction
-MAX_INSN_SIZE = 15
+# The first bytes of the VEX and EVEX prefixes. On x86, these bytes also start les, lds and bound.
+VEX_PREFIXES = (0xC4, 0xC5, 0x62)
+LEGACY_VEX_PREFIX_MNEMONICS = ("les", "lds", "bound")
 
 # The maximum size of the static TLS data that the emulator copies for each thread
 TLS_TEMPLATE_MAX = 0x1000000
@@ -1627,9 +1624,8 @@ class WindowsEmulator(BinaryEmulator):
                     logger.error(str(dis_err))
 
                 if isinstance(e, uc.UcError) and e.errno == uc.UC_ERR_INSN_INVALID:
-                    error = self.get_error_info(
-                        self._get_invalid_instruction_error(self.get_pc()), self.get_pc(), traceback=stack_trace
-                    )
+                    pc = self.get_pc()
+                    error = self.get_error_info(self._get_invalid_instruction_error(pc), pc, traceback=stack_trace)
                 else:
                     error = self.get_error_info(
                         ErrorType.INTERNAL_ERROR,
@@ -2707,10 +2703,10 @@ class WindowsEmulator(BinaryEmulator):
         engine = cs.Cs(cs.CS_ARCH_X86, self.disasm_eng.mode)
         engine.detail = True
         try:
-            insn = next(engine.disasm(self.mem_read(pc, MAX_INSN_SIZE), pc, 1), None)
+            insn = next(engine.disasm(self.mem_read(pc, _arch.DISASM_SIZE), pc, 1), None)
         except uc.UcError:
             return ErrorType.INVALID_INSTRUCTION
-        if insn and insn.opcode[0] in VEX_ESCAPES and insn.mnemonic not in LEGACY_VEX_ESCAPE_MNEMONICS:
+        if insn and insn.opcode[0] in VEX_PREFIXES and insn.mnemonic not in LEGACY_VEX_PREFIX_MNEMONICS:
             return ErrorType.UNSUPPORTED_CPU_FEATURE
         return ErrorType.INVALID_INSTRUCTION
 
