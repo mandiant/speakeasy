@@ -1098,6 +1098,8 @@ class Ntoskrnl(api.ApiHandler):
             KPRIORITY Increment,
             BOOLEAN Wait
         );
+
+        Speakeasy does not model kernel events, so the event does not change.
         """
         Event, Increment, Wait = argv
         rv = 0
@@ -1177,6 +1179,8 @@ class Ntoskrnl(api.ApiHandler):
 
         DueTime is passed by value: two stack slots on x86, one register on
         x64. argc=4 covers the x86 layout; on x64 the fourth slot is unused.
+
+        Speakeasy does not model kernel timers, so the DPC of the timer does not run.
         """
         return True
 
@@ -1326,6 +1330,8 @@ class Ntoskrnl(api.ApiHandler):
         VOID KeUnstackDetachProcess(
             PRKAPC_STATE ApcState
         );
+
+        Speakeasy does not save the process that KeStackAttachProcess replaced, so the attached process stays current.
         """
         # ApcState = argv[0]
         return
@@ -2284,6 +2290,9 @@ class Ntoskrnl(api.ApiHandler):
             PDEVICE_OBJECT DeviceObject,
             PIRP Irp
         );
+
+        Speakeasy does not call the dispatch routine of the target driver or the completion routines. The IRP completes
+        with STATUS_SUCCESS.
         """
         DeviceObject, Irp = argv
         rv = ddk.STATUS_SUCCESS
@@ -2323,6 +2332,8 @@ class Ntoskrnl(api.ApiHandler):
             PWORK_QUEUE_ITEM WorkItem,
             WORK_QUEUE_TYPE QueueType
         );
+
+        Speakeasy does not run the work item.
         """
         WorkItem, QueueType = argv
 

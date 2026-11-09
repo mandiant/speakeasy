@@ -785,6 +785,8 @@ class AdvApi32(api.ApiHandler):
             DWORD dwNumServiceArgs,
             LPCTSTR *lpServiceArgVectors
         );
+
+        Speakeasy does not model the state of services. StartService only returns success.
         """
         hService, dwNumServiceArgs, lpServiceArgVectors = argv
 
@@ -813,6 +815,8 @@ class AdvApi32(api.ApiHandler):
             DWORD dwControl,
             LPSERVICE_STATUS lpServiceStatus
         );
+
+        Speakeasy does not model the state of services. ControlService only returns success.
         """
         hService, dwControl, lpServiceStatus = argv
 
@@ -829,6 +833,8 @@ class AdvApi32(api.ApiHandler):
             SC_HANDLE hService,
             LPSERVICE_STATUS lpServiceStatus
         );
+
+        Speakeasy does not model the state of services. Each service is SERVICE_RUNNING.
         """
         hService, lpServiceStatus = argv
 
@@ -1786,6 +1792,8 @@ class AdvApi32(api.ApiHandler):
         BOOL CryptDestroyHash(
             HCRYPTHASH hHash
         );
+
+        Speakeasy does not model the lifetime of hash objects, so the handle stays valid.
         """
         return 1
 
@@ -2211,5 +2219,7 @@ class AdvApi32(api.ApiHandler):
         BOOL DeleteService(
             SC_HANDLE hService
         );
+
+        Speakeasy does not model the state of services. DeleteService only returns success.
         """
         return 1

@@ -1474,6 +1474,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         DWORD SuspendThread(
             HANDLE hThread
         );
+
+        Speakeasy does not stop the current thread. The current run continues, and only a queued run of another thread
+        waits for ResumeThread.
         """
         (hThread,) = argv
         obj = emu.get_handle_table().get(hThread, objman.Thread)
@@ -1497,6 +1500,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hThread,
             DWORD dwExitCode
         );
+
+        Speakeasy does not model thread termination. The queued run of the thread still runs.
         """
         hThread, dwExitCode = argv
         rv = 0
@@ -1737,6 +1742,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             SIZE_T dwSize,
             DWORD dwFreeType
         );
+
+        Speakeasy marks the region as free for the report, but does not unmap it, and always returns success.
         """
         rv = 0
 
@@ -5127,6 +5134,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         BOOL TlsFree(
             DWORD dwTlsIndex
         );
+
+        Speakeasy does not reuse TLS indexes, so TlsFree does nothing.
         """
         return True
 
@@ -5227,6 +5236,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         BOOL FreeLibrary(
             HMODULE hLibModule
         );
+
+        Speakeasy does not count module references and does not unload modules, so DllMain does not get
+        DLL_PROCESS_DETACH.
         """
         return True
 
@@ -5237,6 +5249,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hHandle,
             DWORD dwMilliseconds
         );
+
+        Speakeasy models only events. A wait on another object succeeds, except with a timeout of 1 ms, which times out.
         """
         hHandle, dwMilliseconds = argv
 
@@ -6691,6 +6705,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         BOOL ReleaseMutex(
             HANDLE hMutex
         );
+
+        Speakeasy does not model the owner or the count of a mutex.
         """
         return 1
 
