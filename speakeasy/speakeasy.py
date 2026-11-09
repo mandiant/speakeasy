@@ -219,6 +219,16 @@ class Speakeasy:
             if not pe.is_exe():
                 user_emu.load_container()
 
+    def _validate_no_input(self) -> None:
+        """
+        Check that no load created the emulator yet. A ``Speakeasy`` object emulates one input.
+
+        Raises:
+            InputError: if a load already created the emulator.
+        """
+        if self._emu is not None:
+            raise InputError("An input is already loaded; use a new Speakeasy object for each input")
+
     def _init_user_emulator(self) -> Win32Emulator:
         emu = Win32Emulator(
             config=self.config,
@@ -349,10 +359,12 @@ class Speakeasy:
             The module of the input image.
 
         Raises:
-            InputError: if neither ``path`` nor ``data`` is given, the file does not exist,
-                the input is not a valid PE, or its architecture is not x86 or x64.
+            InputError: if an input is already loaded, neither ``path`` nor ``data`` is given,
+                the file does not exist, the input is not a valid PE, or its architecture is not
+                x86 or x64.
             NotSupportedError: if the PE is a .NET assembly.
         """
+        self._validate_no_input()
         if not path and not data:
             raise InputError("No emulation target supplied")
 
@@ -457,9 +469,10 @@ class Speakeasy:
             Address of the loaded shellcode in the emulation space.
 
         Raises:
-            InputError: if neither ``fpath`` nor ``data`` is given, the file does not exist,
-                or ``arch`` is not one of the values above.
+            InputError: if an input is already loaded, neither ``fpath`` nor ``data`` is given,
+                the file does not exist, or ``arch`` is not one of the values above.
         """
+        self._validate_no_input()
         sc_arch = SHELLCODE_ARCH.get(arch.lower() if isinstance(arch, str) else arch)
         if sc_arch is None:
             raise InputError(f"Unsupported shellcode architecture: {arch!r}")

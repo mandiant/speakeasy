@@ -415,6 +415,22 @@ def test_load_module_rejects_a_pe_with_a_bad_machine(config, machine) -> None:
         se.load_module(data=pe.write())
 
 
+LOADS = {
+    "module": lambda se: se.load_module(data=build_pe(32, text=b"\x90\xc3")[0]),
+    "shellcode": lambda se: se.load_shellcode(data=b"\xc3", arch="x86"),
+}
+
+
+@pytest.mark.parametrize(("first", "second"), [("module", "shellcode"), ("shellcode", "module")])
+def test_second_load_on_one_object_raises_input_error(config, first, second) -> None:
+    with Speakeasy(config=config) as se:
+        LOADS[first](se)
+        emu = se.emu
+        with pytest.raises(InputError):
+            LOADS[second](se)
+        assert se.emu is emu
+
+
 def test_section_raw_data_past_end_of_file_keeps_file_bytes(load_test_bin):
     """
     04ca62db gives ``.text`` a SizeOfRawData that is far past the end of the file.
