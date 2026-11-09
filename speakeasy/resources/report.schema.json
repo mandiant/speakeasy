@@ -929,6 +929,7 @@
         "guard_page_violation",
         "privileged_instruction",
         "invalid_instruction",
+        "unsupported_cpu_feature",
         "unhandled_interrupt",
         "unhandled_exception",
         "hardware_breakpoint",
