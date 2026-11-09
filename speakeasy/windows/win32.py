@@ -317,9 +317,12 @@ class Win32Emulator(WindowsEmulator):
 
                 # All processes share one address space. The process that ran
                 # before gives up its image, PEB and heap, so that the child loads
-                # at its preferred base and gets its own PEB and heap.
+                # at its preferred base and gets its own PEB and heap. It also
+                # closes its handles, so a named object that only it had open,
+                # such as a mutex, is gone when the child looks for it.
                 if finished is not None:
                     self._free_process_memory(finished)
+                    finished.handles.close_all()
                     finished = None
 
                 self.curr_process = child
@@ -651,7 +654,8 @@ class Win32Emulator(WindowsEmulator):
         """
         End the current run, because the guest ended its process.
 
-        The other runs of the process still run. Speakeasy does not model an exited process.
+        The other runs of the process still run. With emulate_children, the process closes its handles after its last
+        run, before the next child process starts.
         """
         self.end_run()
 

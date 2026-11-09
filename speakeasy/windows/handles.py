@@ -82,5 +82,10 @@ class HandleTable:
         self._release(obj)
         return True
 
+    def close_all(self) -> None:
+        """Close each open handle and release its reference, as Windows does when the process of the table ends."""
+        for handle in list(self._objects):
+            self.close(handle)
+
     def __contains__(self, handle: int) -> bool:
         return (handle & HANDLE_MASK) in self._objects
