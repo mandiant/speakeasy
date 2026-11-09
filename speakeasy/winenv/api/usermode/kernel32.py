@@ -955,7 +955,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             cmd = self.read_mem_string(lpCmdLine, 1)
             ctx.args["lpCmdLine"].display = cmd
             try:
-                proc = emu.create_process(cmdline=cmd)
+                proc = emu.create_process(cmdline=cmd, child=True)
             except IsADirectoryError:
                 return windefs.ERROR_ACCESS_DENIED
             except FileSystemEmuError:

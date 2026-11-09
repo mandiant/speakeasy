@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from speakeasy.windows.win32 import Win32Emulator
 
 DLLVER_PLATFORM_NT = 2
+# ShellExecute runs a file with one of these extensions as a program
+PROGRAM_EXTENSIONS = (".exe", ".com", ".scr")
 
 
 def write_dll_version(handler: api.ApiHandler, pdvi: int, major: int, minor: int, build: int) -> int:
@@ -214,6 +216,10 @@ class Shell32(api.ApiHandler):
         """
         Start the program of ``lpFile`` and return the HINSTANCE result
         and the new process, or None when no process starts.
+
+        A file with a program extension becomes a child process. Any other file, such as a document or
+        a URL, gets a process for the file itself, which does not run, in place of the program that
+        opens it.
         """
         cw = self.get_char_width(ctx)
 
@@ -238,8 +244,10 @@ class Shell32(api.ApiHandler):
         if dn and fn:
             fn = ntpath.join(dn, fn)
 
+        path = fn.strip().strip('"')
+        cmdline = f'"{path}" {param}' if param else f'"{path}"'
         try:
-            proc = emu.create_process(path=fn, cmdline=param)
+            proc = emu.create_process(path=fn, cmdline=cmdline, child=path.lower().endswith(PROGRAM_EXTENSIONS))
         except IsADirectoryError:
             # Explorer opens the folder. Any value above 32 means success.
             return 33, None

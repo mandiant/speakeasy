@@ -1366,12 +1366,27 @@ def test_create_process_uses_the_application_name_as_the_path(
     assert proc.cmdline == (cmdline or "")
 
 
-def test_shell_execute_uses_the_file_as_the_path(emu: Speakeasy) -> None:
+@pytest.mark.parametrize(
+    "params, cmdline",
+    [
+        (b"--app=http://127.0.0.1:27870/", f'"{PROGRAM_FILES_APP}" --app=http://127.0.0.1:27870/'),
+        (None, f'"{PROGRAM_FILES_APP}"'),
+    ],
+)
+def test_shell_execute_starts_a_program_as_a_child(emu: Speakeasy, params: bytes | None, cmdline: str) -> None:
     fn = alloc(emu, PROGRAM_FILES_APP.encode() + b"\x00")
-    params = alloc(emu, b"--app=http://127.0.0.1:27870/\x00")
-    assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, params, 0, 1])[0] == 33
-    proc = emu.emu.processes[-1]
-    assert (proc.path, proc.cmdline) == (PROGRAM_FILES_APP, "--app=http://127.0.0.1:27870/")
+    params_addr = alloc(emu, params + b"\x00") if params else 0
+    assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, params_addr, 0, 1])[0] == 33
+    proc = emu.emu.child_processes[-1]
+    assert (proc.path, proc.cmdline) == (PROGRAM_FILES_APP, cmdline)
+
+
+def test_shell_execute_does_not_run_a_document(emu: Speakeasy) -> None:
+    name = "C:\\Users\\user\\report.pdf"
+    fn = alloc(emu, name.encode() + b"\x00")
+    assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, 0, 1])[0] == 33
+    assert emu.emu.child_processes == []
+    assert emu.emu.processes[-1].path == name
 
 
 @pytest.mark.parametrize(
@@ -1388,13 +1403,13 @@ def test_shell_execute_resolves_only_a_relative_file_in_the_directory(
     fn = alloc(emu, file.encode() + b"\x00")
     dn = alloc(emu, directory.encode() + b"\x00")
     assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, dn, 1])[0] == 33
-    assert emu.emu.processes[-1].path == PROGRAM_FILES_APP
+    assert emu.emu.child_processes[-1].path == PROGRAM_FILES_APP
 
 
 def test_win_exec_parses_the_command_line(emu: Speakeasy) -> None:
     cmd = alloc(emu, f'"{PROGRAM_FILES_APP}" --x\x00'.encode())
     assert call(emu, "kernel32", "WinExec", [cmd, 1])[0] == 32
-    assert emu.emu.processes[-1].path == PROGRAM_FILES_APP
+    assert emu.emu.child_processes[-1].path == PROGRAM_FILES_APP
 
 
 def get_open_file_size(se: Speakeasy, path: str) -> int:

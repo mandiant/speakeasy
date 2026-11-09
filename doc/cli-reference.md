@@ -28,7 +28,7 @@ These flags do not come from the config schema.
 - `--entry-point`: RVA where a PE starts, in place of its entry point
 - `--arch`: shellcode architecture (`x86`, `x64` or `amd64`, in any case). `--raw` needs it, and other modes ignore it
 - `--dropped-files-path`: path of the dropped-files archive
-- `-k, --emulate-children`: after the input finishes, emulate the processes that it created with the CreateProcess APIs
+- `-k, --emulate-children`: after the input finishes, emulate the processes that it created with the CreateProcess APIs, `CreateProcessAsUser`, `WinExec` and `ShellExecute`
 - `--no-mp`: run the emulation in the CLI process instead of a child process
 - `-v, --verbose`: DEBUG logging
 - `--gdb`: start a GDB server and stop before the first instruction. See [GDB debugging](gdb.md)

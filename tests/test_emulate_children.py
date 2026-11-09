@@ -4,8 +4,11 @@ import hashlib
 import logging
 import struct
 
+import pytest
+
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.windows import windows as windefs
+from tests.handler_harness import call
 from tests.pe_builder import build_pe
 
 CHILD_PATH = "c:\\child.exe"
@@ -189,3 +192,45 @@ def test_child_does_not_find_a_mutex_that_only_its_exited_parent_had_open(config
     # The parent's thread runs after ExitProcess, and its handle is still open
     assert entries[1].return_value == windefs.WAIT_OBJECT_0
     assert entries[2].return_value == 0
+
+
+def get_args(se, api):
+    name = se.mem_alloc(0x100)
+    se.mem_write(name, f"{CHILD_PATH}\x00".encode())
+    pi = se.mem_alloc(0x10)
+    return {
+        "ShellExecuteA": [0, 0, name, 0, 0, 1],
+        "WinExec": [name, 1],
+        "CreateProcessAsUserA": [0, name, 0, 0, 0, 0, 0, 0, 0, pi, pi],
+    }[api]
+
+
+@pytest.mark.parametrize(
+    "dll, api",
+    [("shell32", "ShellExecuteA"), ("kernel32", "WinExec"), ("advapi32", "CreateProcessAsUserA")],
+)
+def test_child_started_without_create_process_runs(config, load_test_bin, dll, api):
+    # parent.c starts the child with CreateProcessA. The hook starts it with another API.
+    def create_process(e, api_name, original, argv):
+        call(se, dll, api, get_args(se, api))
+        return 1
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
+        se.add_api_hook(create_process, "kernel32", "CreateProcessA")
+        se.run_module(module, emulate_children=True)
+        entries = se.get_report().entry_points
+
+    assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
+    assert entries[1].return_value == module.base
+
+
+def test_child_that_is_not_a_pe_is_skipped(config, load_test_bin):
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.emu.fileman.add_existing_file(CHILD_PATH, b"@echo off\r\n")
+        se.run_module(module, emulate_children=True)
+        report = se.get_report()
+
+    assert [(ep.type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
