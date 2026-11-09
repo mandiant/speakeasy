@@ -44,6 +44,8 @@ The `HCRYPTKEY` functions support RC4 keys, and AES keys of 128, 192 and 256 bit
 
 A sample can expect files, registry keys, network responses, loaded modules or system structures that the config does not have. When one is missing, the sample can act as if it found an analysis environment, but the cause is the config. Before you decide that Speakeasy does not support a sample, add the missing items with the config file and the CLI overrides.
 
+The `cpuid` instruction gives the values of the Unicorn CPU model, except that leaf 1 does not set the bit that tells that a hypervisor is present (bit 31 of ECX). The hypervisor leaves from 0x40000000 give zeros. So a check for a hypervisor finds a physical machine.
+
 ## Repeatable runs
 
 Two runs of the same sample with the same config give the same random bytes, GUIDs and times to the sample. The `random_seed` and `start_time` options in the [configuration](configuration.md) set these values.

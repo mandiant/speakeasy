@@ -1,6 +1,8 @@
 import struct
 
 import pytest
+import unicorn as uc
+import unicorn.x86_const as ux
 
 import speakeasy.windows.common as winemu
 from speakeasy import Speakeasy
@@ -52,6 +54,48 @@ def test_teb_client_id_has_the_process_and_thread_ids(emulator, arch):
     run = emulator.get_report().entry_points[0]
     assert tid != 0
     assert (pid, tid) == (run.pid, run.tid)
+
+
+def get_unicorn_cpuid(arch, leaf):
+    """Get the registers that cpuid gives for a leaf in Unicorn with no hooks."""
+    probe = uc.Uc(uc.UC_ARCH_X86, uc.UC_MODE_32 if arch == "x86" else uc.UC_MODE_64)
+    probe.mem_map(0x1000, 0x1000)
+    probe.mem_write(0x1000, b"\x0f\xa2")
+    probe.reg_write(ux.UC_X86_REG_EAX, leaf)
+    probe.emu_start(0x1000, 0x1002)
+    return tuple(
+        probe.reg_read(r) for r in (ux.UC_X86_REG_EAX, ux.UC_X86_REG_EBX, ux.UC_X86_REG_ECX, ux.UC_X86_REG_EDX)
+    )
+
+
+def run_cpuid(emulator, arch, leaf):
+    """Run cpuid for a leaf in the guest, and get the full registers that it gives."""
+    code = emulator.load_shellcode(data=b"\xc3" * 0x100, arch=arch)
+    out = emulator.mem_alloc(0x1000, base=0x20000000)
+    if arch == "x86":
+        cpuid = b"\xb8" + struct.pack("<I", leaf) + b"\x0f\xa2\xbf" + struct.pack("<I", out)
+        cpuid += b"\x89\x07\x89\x5f\x04\x89\x4f\x08\x89\x57\x0c\xc3"
+    else:
+        # mov rbx, -1; mov rcx, -1; mov rdx, -1, so that a value with the high bits set shows up
+        cpuid = b"\x48\xc7\xc3\xff\xff\xff\xff\x48\xc7\xc1\xff\xff\xff\xff\x48\xc7\xc2\xff\xff\xff\xff"
+        cpuid += b"\xb8" + struct.pack("<I", leaf) + b"\x0f\xa2\x48\xbf" + struct.pack("<Q", out)
+        cpuid += b"\x48\x89\x07\x48\x89\x5f\x08\x48\x89\x4f\x10\x48\x89\x57\x18\xc3"
+    emulator.mem_write(code, cpuid)
+    emulator.run_shellcode(code)
+    assert emulator.get_report().entry_points[0].error is None
+    fmt = "<4I" if arch == "x86" else "<4Q"
+    return struct.unpack(fmt, emulator.mem_read(out, struct.calcsize(fmt)))
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_cpuid_leaf_1_has_no_hypervisor_bit(emulator, arch):
+    eax, ebx, ecx, edx = get_unicorn_cpuid(arch, 1)
+    assert run_cpuid(emulator, arch, 1) == (eax, ebx, ecx & ~(1 << 31), edx)
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_cpuid_hypervisor_leaf_is_empty(emulator, arch):
+    assert run_cpuid(emulator, arch, 0x40000000) == (0, 0, 0, 0)
 
 
 @pytest.mark.parametrize("name", ["dll_test_x86.dll.xz", "argv_test_x86.exe.xz"])
