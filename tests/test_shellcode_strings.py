@@ -1,4 +1,4 @@
-"""Public shellcode reports retain input literals and runtime stack strings."""
+"""Public shellcode reports retain input literals and the strings that the shellcode writes at run time."""
 
 from speakeasy import Speakeasy
 
