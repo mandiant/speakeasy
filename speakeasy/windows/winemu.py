@@ -1109,7 +1109,7 @@ class WindowsEmulator(BinaryEmulator):
         # ImageNumberLow, ImageNumberHigh (offset 0x02C)
         machine = self.get_native_machine()
         struct.pack_into("<HH", data, 0x02C, machine, machine)
-        # NtSystemRoot (offset 0x030): WCHAR[260], without a trailing backslash, as in "C:\\Windows"
+        # NtSystemRoot (offset 0x030): WCHAR[260] that ends with a NUL, without a trailing backslash, as in C:\Windows
         root = self.get_system_root().rstrip("\\")[:259].encode("utf-16le")
         data[0x030 : 0x030 + len(root)] = root
         # NtBuildNumber (offset 0x260), a reserved field before Windows 10
