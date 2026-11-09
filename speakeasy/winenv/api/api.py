@@ -347,6 +347,24 @@ class ApiHandler:
                 new |= common.PERM_MEM_WRITE
         return new
 
+    def emu_perms_to_win_perms(self, emu_perms):
+        """Get the Windows page protection for emulator permissions."""
+        if emu_perms & common.PERM_MEM_WRITE:
+            if emu_perms & common.PERM_MEM_EXEC:
+                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE
+            else:
+                new = PAGE_PROTECTION_FLAGS.PAGE_READWRITE
+        elif emu_perms & common.PERM_MEM_EXEC:
+            if emu_perms & common.PERM_MEM_READ:
+                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ
+            else:
+                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE
+        elif emu_perms & common.PERM_MEM_READ:
+            new = PAGE_PROTECTION_FLAGS.PAGE_READONLY
+        else:
+            new = PAGE_PROTECTION_FLAGS.PAGE_NOACCESS
+        return new
+
     def mem_reserve(self, size, base=None, tag=None):
         return self.emu.mem_reserve(size, base=base, tag=tag)
 
