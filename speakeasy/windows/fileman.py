@@ -652,6 +652,7 @@ class FileManager:
         """
         Open or create a file, and return a new handle.
 
+        ``truncate`` replaces the file with an empty file, and records an open event.
         Return None when no file or handler has the path, and record the event with no
         handle. ``disposition`` and ``access`` are the names of the open flags that the
         caller gives, for the event.
@@ -666,6 +667,8 @@ class FileManager:
         elif create:
             f = self.create_file(self.get_full_path(path))
             event_type = EventType.FILE_CREATE
+        elif truncate:
+            f = self.create_file(self.get_full_path(path))
         else:
             f = self.get_file_from_path(path)
             if f:
