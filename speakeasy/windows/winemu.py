@@ -1076,16 +1076,14 @@ class WindowsEmulator(BinaryEmulator):
             self._user_shared_data_bases.append(base)
 
     def update_user_shared_time(self, tick_ms: int) -> None:
-        """Write the time of the tick count tick_ms to every mapped copy of KUSER_SHARED_DATA."""
+        """Write the time fields for the tick count tick_ms to each mapped copy of KUSER_SHARED_DATA."""
         data = bytearray(0x400)
         self._pack_user_shared_time(data, tick_ms)
         for base in self._user_shared_data_bases:
-            self.mem_write(base + 0x004, bytes(data[0x004:0x020]))
+            self.mem_write(base + 0x008, bytes(data[0x008:0x020]))
             self.mem_write(base + 0x320, bytes(data[0x320:0x32C]))
 
     def _pack_user_shared_time(self, data: bytearray, tick_ms: int) -> None:
-        # TickCountMultiplier (offset 0x004) is 1.0 in 8.24 fixed point, so TickCount counts milliseconds.
-        struct.pack_into("<I", data, 0x004, 1 << 24)
         # InterruptTime (offset 0x008): KSYSTEM_TIME {LowPart, High1Time, High2Time}
         interrupt_100ns = tick_ms * 10000
         struct.pack_into(
@@ -1105,6 +1103,8 @@ class WindowsEmulator(BinaryEmulator):
 
     def _build_user_shared_data(self):
         data = bytearray(0x400)
+        # TickCountMultiplier (offset 0x004) is 1.0 in 8.24 fixed point, so TickCount counts milliseconds.
+        struct.pack_into("<I", data, 0x004, 1 << 24)
         self._pack_user_shared_time(data, winemu.START_TICK_COUNT)
         # ImageNumberLow, ImageNumberHigh (offset 0x02C)
         machine = self.get_native_machine()
