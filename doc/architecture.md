@@ -47,7 +47,7 @@ When the loop handles `RunReturn` or `RunEnd`, or when the run reaches a limit, 
 2. The IRP handlers that DriverEntry registered: `IRP_MJ_CREATE`, `IRP_MJ_DEVICE_CONTROL`, `IRP_MJ_READ`, `IRP_MJ_WRITE`, `IRP_MJ_CLOSE` and `IRP_MJ_CLEANUP`. Each handler gets one IRP for the first device of the driver. The `IRP_MJ_DEVICE_CONTROL` IRP has the IOCTL code `0x5D5D5D5D`.
 3. The unload routine.
 
-If DriverEntry returns an error status, Windows does not call the other routines, and the emulator adds no runs. If DriverEntry ends with an emulator error, for example an unsupported API, the emulator adds the runs, because they show more of the driver. A driver with no entry point gets these runs at once. Each kernel run starts at `PASSIVE_LEVEL`.
+If DriverEntry returns a status that fails `NT_SUCCESS`, Windows does not call the other routines, and the emulator adds no runs. If DriverEntry ends with an emulator error, for example an unsupported API, the emulator adds the runs, because they show more of the driver. A driver with no entry point gets these runs at once. Each kernel run starts at `PASSIVE_LEVEL`.
 
 ## API calls
 
