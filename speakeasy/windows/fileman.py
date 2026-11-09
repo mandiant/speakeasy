@@ -336,9 +336,9 @@ class FileManager:
 
     def get_dropped_files(self) -> list[File]:
         """
-        Get the files that the guest wrote completely, also the files that it deleted after a write.
+        Get the files that the guest wrote completely, also the files that the guest wrote and then deleted.
 
-        A deleted file also has the data that an open handle writes after the delete.
+        A deleted file also has the writes of the handles that stay open after the delete.
         """
         return [f for f in [*self.deleted_files, *self.files] if f.bytes_written >= f.get_size()]
 
@@ -436,7 +436,8 @@ class FileManager:
         """Delete a file, and return False when no file has the path."""
         exists = self.does_file_exist(path)
         f = self.remove_file(path)
-        if f is not None and f.bytes_written:
+        # A file that the guest did not write is not a dropped file, and get_size on it can load host data.
+        if f and f.bytes_written:
             self.deleted_files.append(f)
         if not exists:
             return False
