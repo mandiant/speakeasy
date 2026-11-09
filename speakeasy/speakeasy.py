@@ -67,8 +67,8 @@ class Speakeasy:
     Emulate a Windows PE file or shellcode.
 
     ``load_module``, ``load_shellcode`` or ``load_image`` creates the emulator for the input:
-    ``WinKernelEmulator`` for a driver, else ``Win32Emulator``. Use the object as a context
-    manager, or call ``shutdown`` at the end.
+    ``WinKernelEmulator`` for a driver, else ``Win32Emulator``. One object emulates one input.
+    Use the object as a context manager, or call ``shutdown`` at the end.
     """
 
     config: SpeakeasyConfig
@@ -221,7 +221,10 @@ class Speakeasy:
 
     def _validate_no_input(self) -> None:
         """
-        Check that no load created the emulator yet. A ``Speakeasy`` object emulates one input.
+        Check that no load created the emulator yet.
+
+        ``_init_hooks`` moves the pending hooks to the first emulator, so a second emulator would
+        not have the user hooks.
 
         Raises:
             InputError: if a load already created the emulator.
