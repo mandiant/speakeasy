@@ -654,8 +654,8 @@ class Win32Emulator(WindowsEmulator):
         """
         End the current run, because the guest ended its process.
 
-        The other runs of the process still run. With emulate_children, the process closes its handles after its last
-        run, before the next child process starts.
+        The other runs of the process still run, and they can use the handles of the process. So with emulate_children,
+        run_module closes the handles after the last run, before the next child process starts.
         """
         self.end_run()
 
