@@ -72,6 +72,20 @@ class SYSTEM_MODULE(EmuStruct):
     ImageName: Annotated[bytes, ct.c_uint8 * 256]
 
 
+class SYSTEM_BASIC_INFORMATION(EmuStruct):
+    Reserved: Annotated[int, ct.c_uint32]
+    TimerResolution: Annotated[int, ct.c_uint32]
+    PageSize: Annotated[int, ct.c_uint32]
+    NumberOfPhysicalPages: Annotated[int, ct.c_uint32]
+    LowestPhysicalPageNumber: Annotated[int, ct.c_uint32]
+    HighestPhysicalPageNumber: Annotated[int, ct.c_uint32]
+    AllocationGranularity: Annotated[int, ct.c_uint32]
+    MinimumUserModeAddress: Annotated[int, Ptr]
+    MaximumUserModeAddress: Annotated[int, Ptr]
+    ActiveProcessorsAffinityMask: Annotated[int, Ptr]
+    NumberOfProcessors: Annotated[int, ct.c_uint8]
+
+
 class SYSTEM_TIMEOFDAY_INFORMATION(EmuStruct):
     BootTime: Annotated[int, ct.c_uint64]
     CurrentTime: Annotated[int, ct.c_uint64]
