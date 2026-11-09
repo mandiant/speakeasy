@@ -2945,7 +2945,7 @@ class WindowsEmulator(BinaryEmulator):
         return [self._render_signature_arg(param, value, i) for i, (param, value) in enumerate(zip(sig.params, values))]
 
     # The maximum number of bytes that the emulator zeroes for one Out parameter
-    MAX_OUT_ZERO_FILL = 0x10000
+    MAX_OUT_ZERO_FILL = 0x1000
 
     def _read_uint_for_signature(self, addr: int, size: int) -> int | None:
         try:
@@ -2953,12 +2953,26 @@ class WindowsEmulator(BinaryEmulator):
         except Exception:
             return None
 
+    def _get_writable_size(self, addr: int, size: int) -> int:
+        """Get the number of bytes at ``addr``, up to ``size``, that the guest can write without a fault."""
+        write = self.emu_eng.perms[common.PERM_MEM_WRITE]
+        regions = self.get_mem_regions()
+        end = addr
+        while end < addr + size:
+            last = next((last for first, last, perms in regions if first <= end <= last and perms & write), None)
+            if last is None:
+                break
+            end = last + 1
+        return min(end, addr + size) - addr
+
     def _zero_fill_out_params(self, sig: sigdb.FuncSig, values: list[int], ptr_size: int) -> None:
         """
         Zero the buffers of the Out parameters that are not also In parameters.
 
         A call from a signature returns success but writes no data. So the caller reads zeros, such as empty strings,
-        NULL handles and zero counts, and not old stack data.
+        NULL handles and zero counts, and not old stack data. A string buffer gets only a terminator. The fill is at
+        most MAX_OUT_ZERO_FILL bytes, and it stops at the first page that the guest cannot write, because the size
+        can come from a count that the guest gives.
         """
         db = self.get_signature_db()
         for index, (param, value) in enumerate(zip(sig.params, values)):
@@ -2967,13 +2981,11 @@ class WindowsEmulator(BinaryEmulator):
             size = sigdb.out_buffer_size(sig, index, values, ptr_size, db.lookup_struct, self._read_uint_for_signature)
             if not size or size < 0:
                 continue
-            size = min(size, self.MAX_OUT_ZERO_FILL)
-            try:
+            if param.kind in sigdb.STRING_KINDS or (param.kind == "a" and param.pointee in ("u8", "u16")):
+                size = min(size, param.elem_size(ptr_size) or 1)
+            size = self._get_writable_size(value, min(size, self.MAX_OUT_ZERO_FILL))
+            if size:
                 self.mem_write(value, b"\x00" * size)
-            except Exception:
-                logger.debug(
-                    "%s: could not zero %d bytes at %s for Out param %s", sig.name, size, hex(value), param.name
-                )
 
     def _default_return_for_signature(self, sig: sigdb.FuncSig) -> int | None:
         """Get a success value for the return type of a call from a signature."""

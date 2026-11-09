@@ -8,11 +8,12 @@ fallback cleaned up exactly the right number of stack slots.
 """
 
 import struct
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
 
-from speakeasy import Speakeasy
+from speakeasy import Speakeasy, common
 from speakeasy.profiler_events import ApiArg, ApiEvent
 from speakeasy.report import Report
 from speakeasy.winenv.api import sigdb
@@ -109,8 +110,19 @@ def _build_x86_call(api: str, args: list[int | bytes]) -> tuple[bytes, dict[str,
     return bytes(code), {api: (api_off, 4), "ExitProcess": (exit_off, 4)}, offsets
 
 
-def _run_x86_call(config: dict[str, Any], api: str, args: list[int | bytes]) -> tuple[Report, dict[int, bytes]]:
-    """Run ``api(*args)`` on x86 and return (report, memory reader for blob arguments)."""
+PAGES_BASE = 0x30000000
+PAGE_SIZE = 0x1000
+
+
+def _run_x86_call(
+    config: dict[str, Any], api: str, args: list[int | bytes], page_perms: Sequence[int] = ()
+) -> tuple[Report, dict[int, bytes], bytes]:
+    """
+    Run ``api(*args)`` on x86.
+
+    Before the run, the emulator maps one page at ``PAGES_BASE`` for each item of ``page_perms``, filled with 0xcc.
+    Returns the report, the memory of each bytes argument by index, and the contents of the pages after the run.
+    """
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated")
     code, patches, offsets = _build_x86_call(api, args)
@@ -121,6 +133,10 @@ def _run_x86_call(config: dict[str, Any], api: str, args: list[int | bytes]) -> 
         for name, (offset, width) in patches.items():
             stub = emu.get_proc("kernel32", name)
             emu.mem_write(sc_addr + offset, stub.to_bytes(width, "little"))
+        for index, perms in enumerate(page_perms):
+            page = PAGES_BASE + index * PAGE_SIZE
+            emu.mem_map(PAGE_SIZE, base=page, perms=perms, tag="test.pages")
+            emu.mem_write(page, b"\xcc" * PAGE_SIZE)
         se.run_shellcode(sc_addr)
         report = se.get_report()
         blobs = {}
@@ -128,9 +144,10 @@ def _run_x86_call(config: dict[str, Any], api: str, args: list[int | bytes]) -> 
             blob = args[index]
             assert isinstance(blob, bytes)
             blobs[index] = emu.mem_read(sc_addr + off, len(blob))
+        pages = emu.mem_read(PAGES_BASE, len(page_perms) * PAGE_SIZE) if page_perms else b""
     finally:
         se.shutdown()
-    return report, blobs
+    return report, blobs, pages
 
 
 PROFILE_BUFFER_CHARS = 8
@@ -240,8 +257,8 @@ def test_unhooked_import_is_emulated_from_signature_on_x64(config: dict[str, Any
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
-def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
-    """An Out buffer sized by a sibling parameter is zeroed; memory past it is untouched."""
+def test_out_string_buffer_gets_only_a_terminator(config: dict[str, Any]) -> None:
+    """An Out string buffer sized by a sibling parameter gets an empty string; the rest of the buffer is untouched."""
     buffer = b"\xcc" * (PROFILE_BUFFER_CHARS * 2 + 4)  # buffer plus a sentinel that must survive
     args: list[int | bytes] = [
         _wstr("app"),
@@ -251,7 +268,7 @@ def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
         PROFILE_BUFFER_CHARS,
         _wstr("C:\\x.ini"),
     ]
-    report, blobs = _run_x86_call(config, "GetPrivateProfileStringW", args)
+    report, blobs, _ = _run_x86_call(config, "GetPrivateProfileStringW", args)
 
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
@@ -274,15 +291,48 @@ def test_out_buffer_is_zero_filled(config: dict[str, Any]) -> None:
     assert [a.type for a in call.args] == ["str", "str", "str", "ptr", "int", "str"]
     # "0 characters copied" and an empty string in the buffer agree with each other
     assert call.return_value == 0
-    assert blobs[3] == b"\x00" * (PROFILE_BUFFER_CHARS * 2) + b"\xcc" * 4
+    assert blobs[3] == b"\x00\x00" + b"\xcc" * (PROFILE_BUFFER_CHARS * 2 + 2)
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
+
+
+CURRENT_PROCESS = 0xFFFFFFFF
+
+
+def test_out_buffer_zero_fill_is_capped(config: dict[str, Any]) -> None:
+    """The emulator zeroes at most 4 KiB of an Out buffer, also if the count is larger."""
+    report, _, pages = _run_x86_call(
+        config, "K32QueryWorkingSet", [CURRENT_PROCESS, PAGES_BASE, 3 * PAGE_SIZE], [common.PERM_MEM_RW] * 3
+    )
+
+    ep = report.entry_points[0]
+    assert ep.error is None, ep.error
+    assert pages == b"\x00" * 0x1000 + b"\xcc" * (3 * PAGE_SIZE - 0x1000)
+
+
+def test_out_buffer_zero_fill_stops_at_page_the_guest_cannot_write(config: dict[str, Any]) -> None:
+    """
+    The zero fill stops at the first page that the guest cannot write, such as a read-only import table.
+
+    The run continues after the call.
+    """
+    report, _, pages = _run_x86_call(
+        config,
+        "K32QueryWorkingSet",
+        [CURRENT_PROCESS, PAGES_BASE + PAGE_SIZE - 8, 0x10],
+        [common.PERM_MEM_RW, common.PERM_MEM_READ],
+    )
+
+    ep = report.entry_points[0]
+    assert ep.error is None, ep.error
+    assert [e.api_name for e in _api_events(report)] == ["kernel32.K32QueryWorkingSet", "kernel32.ExitProcess"]
+    assert pages == b"\xcc" * (PAGE_SIZE - 8) + b"\x00" * 8 + b"\xcc" * PAGE_SIZE
 
 
 def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     """A pointer to a known struct renders as {field: value, ...} with typed fields."""
     security_attributes = struct.pack("<III", 12, 0, 1)  # nLength, lpSecurityDescriptor, bInheritHandle
     args: list[int | bytes] = [_wstr("C:\\tmpl"), _wstr("C:\\new"), security_attributes]
-    report, _ = _run_x86_call(config, "CreateDirectoryExW", args)
+    report, _, _ = _run_x86_call(config, "CreateDirectoryExW", args)
 
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
@@ -314,7 +364,7 @@ def test_handled_api_args_are_named(config: dict[str, Any]) -> None:
         FILE_ATTRIBUTE_NORMAL,
         0,
     ]
-    report, _ = _run_x86_call(config, "CreateFileW", args)
+    report, _, _ = _run_x86_call(config, "CreateFileW", args)
 
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
@@ -408,7 +458,7 @@ def test_api_set_declarations_belong_to_the_host_module(config: dict[str, Any]) 
 
 def test_struct_argument_passed_by_value_is_emulated(config: dict[str, Any]) -> None:
     """A COORD passed by value takes one stack slot and renders as a struct."""
-    report, _ = _run_x86_call(config, "SetConsoleScreenBufferSize", [0x7, 0x00190050])
+    report, _, _ = _run_x86_call(config, "SetConsoleScreenBufferSize", [0x7, 0x00190050])
 
     ep = report.entry_points[0]
     assert ep.error is None, ep.error
