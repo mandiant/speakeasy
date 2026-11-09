@@ -1,4 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
+import ntpath
 import re
 import struct
 from typing import TYPE_CHECKING
@@ -232,8 +233,8 @@ class Shell32(api.ApiHandler):
             dn = self.read_mem_string(lpDirectory, cw)
             ctx.args["lpDirectory"].display = dn
 
-        if dn and fn:
-            fn = f"{dn}\\{fn}"
+        if dn and fn and not ntpath.isabs(fn):
+            fn = ntpath.join(dn, fn)
 
         try:
             proc = emu.create_process(path=fn, cmdline=param)
