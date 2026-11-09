@@ -49,7 +49,7 @@ When a sample writes a PE into a child process with `WriteProcessMemory`, the lo
 
 ## Memory snapshots in the report
 
-The `snapshot_memory_regions` config field (`--snapshot-memory-regions` on the command line) adds the memory content at the end of each run to the report. At the end of each run, for example a module entry, a TLS callback or an export, Speakeasy records the memory layout. When this field is set, each region gets a `data_ref`, except the stack and heap regions. The `data_ref` is a key of the top-level `data` mapping, which stores each payload one time, compressed with zlib and encoded with base64.
+The `snapshot_memory_regions` config field (`--snapshot-memory-regions` on the command line) adds the memory content at the end of each run to the report. At the end of each run, for example a module entry, a TLS callback or an export, Speakeasy records the memory layout. When this field is set, each region gets a `data_ref`, except the stack regions. The `data_ref` is a key of the top-level `data` mapping, which stores each payload one time, compressed with zlib and encoded with base64.
 
 Speakeasy stores dropped files and other binary data in the same `data` mapping, so the report holds each payload one time, even when many runs or files contain it.
 

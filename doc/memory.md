@@ -12,7 +12,7 @@ Set `keep_memory_on_free` (or `--keep-memory-on-free`) to keep a region mapped a
 
 ## Memory snapshots
 
-With `--snapshot-memory-regions`, the report includes the content of each memory region at the end of a run. Each region in the report has a `data_ref`, which is a SHA-256 key in the top-level `data` section. The `data` section keeps the bytes as `base64(zlib(raw_bytes))`. The report keeps one copy of bytes that repeat across regions or runs, and it does not need other files.
+With `--snapshot-memory-regions`, the report includes the content of each memory region at the end of a run. Each region in the report, except the stack, has a `data_ref`, which is a SHA-256 key in the top-level `data` section. The `data` section keeps the bytes as `base64(zlib(raw_bytes))`. The report keeps one copy of bytes that repeat across regions or runs, and it does not need other files.
 
 ## Memory tracing
 

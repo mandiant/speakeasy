@@ -9,7 +9,7 @@ Each recipe gives the flags for one kind of analysis output and a command that c
 speakeasy -t sample.exe --snapshot-memory-regions -o report.json
 ```
 
-The memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack and heap regions do not get one. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
+The memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
 ```bash
 jq '.entry_points[].memory.layout[] | select(.data_ref != null) | .tag' report.json
