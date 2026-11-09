@@ -176,6 +176,35 @@ def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_ex
             assert api_names(entry) == [f"kernel32.{unknown}"]
 
 
+def test_shfolder_iat_call_runs_the_shell32_handler():
+    def text(base, iat):
+        buf = struct.pack("<I", base + 0x2000)
+        # SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, buf)
+        prefix = b"\x68" + buf + b"\x6a\x00\x6a\x00\x6a\x1a\x6a\x00"
+        return calls(32, [("SHFolder.dll", "SHGetFolderPathA")], prefix=prefix)(base, iat)
+
+    data, _ = build_pe(32, text=text, data=b"\0" * 0x104, imports={"SHFolder.dll": ["SHGetFolderPathA"]})
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        entry = se.get_report().entry_points[0]
+        path = se.read_mem_string(module.base + 0x2000, 1)
+    assert entry.error is None
+    assert api_names(entry) == ["shell32.SHGetFolderPathA"]
+    assert path.endswith("\\AppData\\Roaming")
+
+
+def test_icmp_iat_call_runs_from_the_iphlpapi_prototype():
+    imports = {"ICMP.dll": ["IcmpCreateFile"]}
+    data, _ = build_pe(32, text=calls(32, [("ICMP.dll", "IcmpCreateFile")]), imports=imports)
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        entry = se.get_report().entry_points[0]
+    assert entry.error is None
+    assert api_names(entry) == ["iphlpapi.IcmpCreateFile"]
+
+
 def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bin):
     unknown = "SpeakeasyNoSuchExport"
     with Speakeasy(config=configured()) as se:
