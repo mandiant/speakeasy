@@ -134,6 +134,7 @@ def test_virtual_alloc_reserves_only_free_memory(dll_emu: Speakeasy, api: str, p
     assert alloc_at(base, MEM_COMMIT) == base
     call(dll_emu, "kernel32", "VirtualFree", [base, 0, MEM_RELEASE])
     assert alloc_at(base, MEM_COMMIT | MEM_RESERVE) == base
+    assert alloc_at(base, MEM_COMMIT | MEM_RESERVE) == 0
 
 
 def test_virtual_alloc_ex_fails_only_at_memory_of_the_target(dll_emu: Speakeasy) -> None:
@@ -145,12 +146,12 @@ def test_virtual_alloc_ex_fails_only_at_memory_of_the_target(dll_emu: Speakeasy)
         )
         return rv
 
-    taken, _ = call(dll_emu, "kernel32", "VirtualAlloc", [0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
-    assert alloc_at(0xFFFFFFFF, taken) == 0
+    image = dll_emu.emu.get_current_process().base
+    assert alloc_at(0xFFFFFFFF, image) == 0
     assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
     # All processes share one address space, so the allocation in the child moves.
-    moved = alloc_at(hproc, taken)
-    assert moved not in (0, taken)
+    moved = alloc_at(hproc, image)
+    assert moved not in (0, image)
     assert alloc_at(hproc, moved) == 0
 
 
