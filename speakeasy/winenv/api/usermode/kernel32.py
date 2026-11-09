@@ -1511,7 +1511,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return rv
 
         rv = 1
-        # Thread termination not implemented
 
         return rv
 
@@ -5263,7 +5262,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if isinstance(obj, objman.Event):
             return self.wait_for_events(emu, [obj], False, dwMilliseconds)
 
-        # TODO
         if dwMilliseconds == 1:
             rv = windefs.WAIT_TIMEOUT
         else:

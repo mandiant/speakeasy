@@ -160,7 +160,7 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Object
         );
 
-        The emulator does not model the reference count of kernel objects, so it does not change the count.
+        Speakeasy counts only the references of the object manager and of handles, so the count does not change.
         """
         return 0
 
@@ -1998,7 +1998,7 @@ class Ntoskrnl(api.ApiHandler):
             PVOID Object
         );
 
-        The emulator does not model the reference count of kernel objects, so it does not change the count.
+        Speakeasy counts only the references of the object manager and of handles, so the count does not change.
         """
         return 0
 
