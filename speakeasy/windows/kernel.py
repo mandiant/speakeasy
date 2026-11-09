@@ -21,6 +21,21 @@ from speakeasy.winenv.defs.nt import ddk
 # The IOCTL code of the IRP_MJ_DEVICE_CONTROL IRP that the emulator sends to a driver. It is not a real IOCTL code.
 DISPATCH_IOCTL = 0x5D5D5D5D
 
+# The IRPs that the emulator sends to the first device of a driver, in this order.
+DISPATCH_IRPS = (
+    (ddk.IRP_MJ_CREATE, "IRP_MJ_CREATE"),
+    (ddk.IRP_MJ_DEVICE_CONTROL, "IRP_MJ_DEVICE_CONTROL"),
+    (ddk.IRP_MJ_READ, "IRP_MJ_READ"),
+    (ddk.IRP_MJ_WRITE, "IRP_MJ_WRITE"),
+    (ddk.IRP_MJ_CLOSE, "IRP_MJ_CLOSE"),
+    (ddk.IRP_MJ_CLEANUP, "IRP_MJ_CLEANUP"),
+)
+
+
+def is_nt_error(status: int) -> bool:
+    """Get whether an NTSTATUS has the error severity, as the NT_ERROR macro does."""
+    return (status & 0xFFFFFFFF) >> 30 == 3
+
 
 class WinKernelEmulator(WindowsEmulator):
     """Emulate a Windows driver in kernel mode."""
@@ -35,7 +50,6 @@ class WinKernelEmulator(WindowsEmulator):
         self.all_entrypoints: bool = False
         self.is_kernel_mode: bool = True
         self.irql: int = ddk.PASSIVE_LEVEL
-        self.delayed_runs: list[Run] = []
         self.ktypes = ntos
 
     def get_system_process(self):
@@ -215,7 +229,7 @@ class WinKernelEmulator(WindowsEmulator):
         Add a DriverEntry run for a loaded driver, and run the queue.
 
         If ``all_entrypoints`` is true, the emulator also runs the exports, the IRP handlers and the unload
-        routine of the driver.
+        routine of the driver after DriverEntry. See ``_queue_driver_routines``.
         """
         self.all_entrypoints = all_entrypoints
 
@@ -241,24 +255,8 @@ class WinKernelEmulator(WindowsEmulator):
             run.instr_cnt = 0
             run.args = [drv.address, drv.reg_path_ptr]
             self.add_run(run)
-
-        if self.all_entrypoints:
-            # Limit the number of export runs, because some modules, such as the Windows kernel, have
-            # thousands of exports.
-            exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
-
-            if exports:
-                args = [self.mem_map(8, tag=f"emu.export_arg_{i}") for i in range(4)]
-                for exp in exports:
-                    run = Run()
-                    run.type = EntryPointType.EXPORT
-                    run.name = exp.name or None
-                    run.start_addr = exp.address
-                    # Each export gets the same placeholder arguments.
-                    run.args = args
-                    # The export runs wait in delayed_runs until the run queue is empty after DriverEntry,
-                    # because an export can depend on the state that DriverEntry sets up.
-                    self.delayed_runs.append(run)
+        else:
+            self._queue_driver_routines(drv, None)
 
         self.start()
 
@@ -332,7 +330,7 @@ class WinKernelEmulator(WindowsEmulator):
 
         An ``IRP_MJ_DEVICE_CONTROL`` IRP has the IOCTL code ``DISPATCH_IOCTL``.
         """
-        irp = self.new_irp()
+        irp: objman.Irp = self.new_irp()
         ios = irp.get_next_stack_loc()
         ios.object.MajorFunction = major
         if major == ddk.IRP_MJ_DEVICE_CONTROL:
@@ -340,124 +338,63 @@ class WinKernelEmulator(WindowsEmulator):
         irp.dispatch_to(dev.address)
         return irp
 
-    def _call_driver_dispatch(self, func, dev_addr, irp_addr):
-        """Set the arguments and the pc for a call to a dispatch function with an IRP."""
-        stk_ptr = self.get_stack_ptr()
-        self.set_func_args(stk_ptr, self.return_hook, dev_addr, irp_addr, conv=_arch.CALL_CONV_STDCALL)
-        self.set_pc(func)
+    def _queue_driver_routines(self, drv: objman.Driver, entry: Run | None) -> None:
+        """
+        Add the runs that follow DriverEntry: the exports, the IRP handlers, then the unload routine.
 
-    def irp_mj_create(self, func, dev):
-        irp = self.new_dispatch_irp(ddk.IRP_MJ_CREATE, dev)
-        self._call_driver_dispatch(func, dev.address, irp.address)
-        return irp
+        ``entry`` is the DriverEntry run, or None if the driver has no entry point. The IRP handlers are the ones that
+        DriverEntry registered.
 
-    def irp_mj_close(self, func, dev):
-        irp = self.new_dispatch_irp(ddk.IRP_MJ_CLOSE, dev)
-        self._call_driver_dispatch(func, dev.address, irp.address)
-        return irp
+        Windows unloads a driver whose DriverEntry returns an error status, and does not call its unload routine.
+        Then the emulator adds no runs. If DriverEntry ended with an emulator error, such as an unsupported API, the
+        return value is not the result of DriverEntry, so the emulator adds the runs: they show more of the driver.
 
-    def irp_mj_dev_io(self, func, dev):
-        irp = self.new_dispatch_irp(ddk.IRP_MJ_DEVICE_CONTROL, dev)
-        self._call_driver_dispatch(func, dev.address, irp.address)
-        return irp
-
-    def irp_mj_read(self, func, dev):
-        irp = self.new_dispatch_irp(ddk.IRP_MJ_READ, dev)
-        self._call_driver_dispatch(func, dev.address, irp.address)
-        return irp
-
-    def irp_mj_write(self, func, dev):
-        irp = self.new_dispatch_irp(ddk.IRP_MJ_WRITE, dev)
-        self._call_driver_dispatch(func, dev.address, irp.address)
-        return irp
-
-    def irp_mj_cleanup(self, func, dev):
-        irp = self.new_dispatch_irp(ddk.IRP_MJ_CLEANUP, dev)
-        self._call_driver_dispatch(func, dev.address, irp.address)
-        return irp
-
-    def driver_unload(self, drv):
-        """Add a run for the unload routine of a driver. If there is none, or it ran, end the emulation."""
-        if not drv.on_unload or drv.unload_called:
-            self.on_emu_complete()
-            return
-
-        stk_ptr = self.get_stack_ptr()
-        self.set_func_args(stk_ptr, self.exit_hook, drv.address, conv=_arch.CALL_CONV_STDCALL)
-        self.set_pc(drv.on_unload)
-
-        run = Run()
-        run.type = EntryPointType.DRIVER_UNLOAD
-        run.start_addr = drv.on_unload
-        run.instr_cnt = 0
-        run.args = (drv.address,)
-        run.return_value = None
-        self.add_run(run)
-        drv.unload_called = True
-
-    def next_driver_func(self, drv):
-        func_addr = None
-        func_handler = None
-
-        if self.curr_run is not None and self.curr_run.type is not None:
-            self.curr_run.return_value = self.get_return_val()
-
-        if len(self.run_queue):
-            return
-
+        The IRP handlers get one IRP each, for the first device of the driver.
+        """
         if not self.all_entrypoints:
             return
-
-        # TODO: send the IRPs to each device, not only the first device.
-        dev = None
-        if len(drv.devices):
-            dev = drv.devices[0]
-
-        # Find the first IRP major function that has no run yet.
-        for hdlr, major, irp_name in (
-            (self.irp_mj_create, ddk.IRP_MJ_CREATE, "IRP_MJ_CREATE"),
-            (self.irp_mj_dev_io, ddk.IRP_MJ_DEVICE_CONTROL, "IRP_MJ_DEVICE_CONTROL"),
-            (self.irp_mj_read, ddk.IRP_MJ_READ, "IRP_MJ_READ"),
-            (self.irp_mj_write, ddk.IRP_MJ_WRITE, "IRP_MJ_WRITE"),
-            (self.irp_mj_close, ddk.IRP_MJ_CLOSE, "IRP_MJ_CLOSE"),
-            (self.irp_mj_cleanup, ddk.IRP_MJ_CLEANUP, "IRP_MJ_CLEANUP"),
-        ):
-            if not any(r.type == EntryPointType.IRP and r.name == irp_name for r in self.runs):
-                func_handler = hdlr
-                func_addr = int(drv.mj_funcs[major])
-
-                if not func_addr:
-                    continue
-                break
-
-        if len(self.delayed_runs):
-            [self.add_run(r) for r in self.delayed_runs]
-            self.delayed_runs = []
-
-        if not func_addr or not dev or func_handler is None:
-            # No IRP handler is left, so run the unload routine.
-            self.driver_unload(drv)
+        if entry is not None and entry.error is None and is_nt_error(entry.return_value or 0):
             return
 
-        irp = func_handler(func_addr, dev)
+        exports = drv.pe.get_exports()[:MAX_EXPORTS_TO_EMULATE] if drv.pe else []
+        if exports:
+            # Each export gets the same placeholder arguments.
+            args = [self.mem_map(8, tag=f"emu.export_arg_{i}") for i in range(4)]
+            for exp in exports:
+                self._add_driver_run(EntryPointType.EXPORT, exp.name or None, exp.address, args)
 
+        if drv.devices:
+            dev = drv.devices[0]
+            for major, irp_name in DISPATCH_IRPS:
+                func = drv.mj_funcs[major]
+                if func:
+                    irp = self.new_dispatch_irp(major, dev)
+                    self._add_driver_run(EntryPointType.IRP, irp_name, int(func), (dev.address, irp.address))
+
+        if drv.on_unload:
+            self._add_driver_run(EntryPointType.DRIVER_UNLOAD, None, drv.on_unload, (drv.address,))
+
+    def _add_driver_run(self, kind: EntryPointType, name: str | None, address: int, args) -> None:
         run = Run()
-        run.type = EntryPointType.IRP
-        run.name = irp_name
-        run.start_addr = func_addr
-        run.instr_cnt = 0
-        run.args = (dev.address, irp.address)
+        run.type = kind
+        run.name = name
+        run.start_addr = address
+        run.args = args
         self.add_run(run)
 
     def on_run_complete(self):
-        """Record the return value of the run, then add the next routine of the driver to the queue."""
-        if self.curr_run is not None:
-            self.curr_run.return_value = self.get_return_val()
+        """Record the return value of the run. After DriverEntry, add the runs of the other driver routines."""
+        run = self.curr_run
+        if run is None:
+            return
+        run.return_value = self.get_return_val()
 
         for drv in self.drivers:
             drv.read_back()
-            if drv.pe == self.curr_mod:
-                self.next_driver_func(drv)
+        if run.type == EntryPointType.DRIVER_ENTRY:
+            entered = next((d for d in self.drivers if run.args and d.address == run.args[0]), None)
+            if entered is not None:
+                self._queue_driver_routines(entered, run)
 
     def on_emu_complete(self):
         if not self.is_emu_complete:

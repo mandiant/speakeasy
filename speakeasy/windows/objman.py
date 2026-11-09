@@ -121,7 +121,6 @@ class Driver(KernelObject):
         self.ldr_entries: list[LdrDataTableEntry] = []
         self.mj_funcs: list[int | None] = [None] * (ddk.IRP_MJ_MAXIMUM_FUNCTION + 1)
         self.on_unload: int | None = None
-        self.unload_called: bool = False
         self.reg_path_ptr: int = 0
         self.reg_path: str = ""
         self.name: str = ""
