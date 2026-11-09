@@ -52,6 +52,12 @@ class WinKernelEmulator(WindowsEmulator):
         """Set the current interrupt request level."""
         self.irql = irql
 
+    def _prepare_run_context(self, run):
+        """Set the registers, the stack and the IRQL for run. Each run starts at ``PASSIVE_LEVEL``."""
+        # A run that ended while it held a spin lock does not change the IRQL of the next run.
+        self.irql = ddk.PASSIVE_LEVEL
+        return super()._prepare_run_context(run)
+
     def create_driver_object(self, pe, name=None):
         """Create a driver object for a loaded driver image."""
         drv = objman.Driver(emu=self)
