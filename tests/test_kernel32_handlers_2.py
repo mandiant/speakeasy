@@ -601,7 +601,7 @@ def test_find_files_list_the_configured_modules(strict_fs_emu: Speakeasy) -> Non
             break
     assert {"kernel32.dll", "ntdll.dll"} <= set(names)
 
-    # The names come from the listing, so their case can differ from the configured paths.
+    # The configured paths are in system32, so a path in System32 opens only if the lookup ignores case.
     for name in names:
         assert open_file(se, f"C:\\Windows\\System32\\{name}") != invalid_handle(se)
 

@@ -298,7 +298,7 @@ class FileManager:
         return self.new_handle(fm)
 
     def walk_files(self):
-        """Yield the paths of the configured files and of the configured modules, which exist on disk."""
+        """Yield the paths of the configured files, then the paths of the configured modules."""
         for f in self.file_config.files:
             path = getattr(f, "emu_path", None)
             if not path:
@@ -530,7 +530,8 @@ class FileManager:
 
     def get_emu_file(self, path):
         path = self.get_full_path(path)
-        if get_path_key(path) in self.deleted_paths:
+        key = get_path_key(path)
+        if key in self.deleted_paths:
             return None
 
         # A full_path entry matches first, then a configured module, then a by_ext entry, then the default entry.
@@ -540,7 +541,6 @@ class FileManager:
                     return f
 
         # Configured modules exist on disk, without content.
-        key = get_path_key(path)
         if any(get_path_key(p) == key for p in self.get_module_paths()):
             return FileEntryFullPath(mode="full_path", emu_path=path)
 
