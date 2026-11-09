@@ -292,12 +292,11 @@ class InstructionHook(Hook):
             for insn in self.insns:
                 if insn == UC_X86_INS_IN:
                     continue
-                if insn == UC_X86_INS_OUT:
-                    cb: Callable[..., None] = self._wrap_out_insn_cb
-                elif insn in (UC_X86_INS_SYSCALL, UC_X86_INS_SYSENTER):
-                    cb = self._wrap_syscall_insn_cb
-                else:
+                # The engine also accepts CPUID, but a CPUID callback must return whether Unicorn skips
+                # the instruction, and these wrappers return nothing.
+                if insn not in (UC_X86_INS_OUT, UC_X86_INS_SYSCALL, UC_X86_INS_SYSENTER):
                     raise ValueError(f"unsupported instruction for an instruction hook: {insn}")
+                cb = self._wrap_out_insn_cb if insn == UC_X86_INS_OUT else self._wrap_syscall_insn_cb
                 self.handles.append(self.emu_eng.hook_add(htype=HOOK_INSN, cb=cb, arg1=insn))
         self.added = True
 

@@ -1023,7 +1023,7 @@ class BinaryEmulator(MemoryManager, ABC):
         Add a hook that fires for an IN, OUT, SYSCALL, or SYSENTER instruction.
 
         Raises:
-            ValueError: if the engine does not support hooks on ``insn``.
+            ValueError: if ``insn`` is not IN, OUT, SYSCALL, or SYSENTER.
         """
         return self.add_hook(common.InstructionHook(cb, begin, end, insns=(insn,)))
 
