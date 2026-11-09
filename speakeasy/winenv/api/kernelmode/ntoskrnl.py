@@ -747,8 +747,10 @@ class Ntoskrnl(api.ApiHandler):
         elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemBasicInformation:
             k32 = emu.api.load_api_handler("kernel32")
             sbi = self.win.SYSTEM_BASIC_INFORMATION(emu.get_ptr_size())
+            # The default clock interval of 15.625 ms, in 100 ns units
             sbi.TimerResolution = 156250
             sbi.PageSize = 0x1000
+            # 8 GB of 4 KB pages, the physical memory that GlobalMemoryStatus reports
             sbi.NumberOfPhysicalPages = 0x200000
             sbi.LowestPhysicalPageNumber = 1
             sbi.HighestPhysicalPageNumber = 0x200000
@@ -759,6 +761,7 @@ class Ntoskrnl(api.ApiHandler):
             sbi.NumberOfProcessors = PROCESSOR_COUNT
 
             size = self.sizeof(sbi)
+            # Windows accepts only the exact size for this class
             if SystemInformationLength == size:
                 self.mem_write(SystemInformation, self.get_bytes(sbi))
                 nts = ddk.STATUS_SUCCESS
