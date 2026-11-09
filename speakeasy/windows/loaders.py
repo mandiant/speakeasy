@@ -399,12 +399,11 @@ class PeLoader:
             name_table, _, _, name, iat = struct.unpack_from("<5I", mapped_image, offset)
             if not name or not iat:
                 return None
-            fields = (("a DLL name", name), ("an import name table", name_table), ("an IAT", iat))
-            for field_name, value in fields:
+            for field_name, value in (("DLL name", name), ("import name table", name_table), ("IAT", iat)):
                 if value >= pe.image_size:
                     return (
-                        f"import descriptor {index} has {field_name} RVA {value:#x} "
-                        f"outside the image (size {pe.image_size:#x})"
+                        f"{field_name} RVA {value:#x} of import descriptor {index} "
+                        f"is outside the image (size {pe.image_size:#x})"
                     )
         return None
 
