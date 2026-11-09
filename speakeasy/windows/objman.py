@@ -309,8 +309,28 @@ class Irp(KernelObject):
         self.object.Size = self.sizeof()
         self.write_back()
 
-    def get_curr_stack_loc(self):
+    def get_next_stack_loc(self):
+        """
+        Get the stack location that the caller fills before ``IoCallDriver``.
+
+        ``CurrentStackLocation`` points after it, as in a new IRP that ``IoAllocateIrp`` gives.
+        """
         return self.stack_locations[0]
+
+    def dispatch_to(self, device_address: int) -> None:
+        """
+        Do the work of ``IoCallDriver``: make the next stack location the current location, for ``device_address``.
+
+        The emulator calls this before it calls a dispatch routine with the IRP, so that
+        ``IoGetCurrentIrpStackLocation`` in the driver gets the location that the emulator filled.
+        """
+        ios = self.get_next_stack_loc()
+        ios.object.DeviceObject = device_address
+        ios.write_back()
+        self.object.StackCount = 1
+        self.object.CurrentLocation = 1
+        self.object.Tail.Overlay.CurrentStackLocation = ios.address
+        self.write_back()
 
 
 class Thread(KernelObject):
