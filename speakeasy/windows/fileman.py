@@ -298,11 +298,18 @@ class FileManager:
         return self.new_handle(fm)
 
     def walk_files(self):
+        """Yield the paths of the configured files and of the configured modules, which exist on disk."""
         for f in self.file_config.files:
             path = getattr(f, "emu_path", None)
             if not path:
                 continue
             yield path
+        yield from self.get_module_paths()
+
+    def get_module_paths(self) -> list[str]:
+        """Get the paths of the configured user and system modules."""
+        modules = self.config.modules
+        return [m.path for m in modules.user_modules if m.path] + [m.path for m in modules.system_modules if m.path]
 
     def find_matching_entries(self, search):
         r"""
@@ -533,8 +540,8 @@ class FileManager:
                     return f
 
         # Configured modules exist on disk, without content.
-        modules = self.config.modules
-        if any(m.path == path for m in modules.user_modules) or any(m.path == path for m in modules.system_modules):
+        key = get_path_key(path)
+        if any(get_path_key(p) == key for p in self.get_module_paths()):
             return FileEntryFullPath(mode="full_path", emu_path=path)
 
         for f in self.file_config.files:
@@ -567,10 +574,7 @@ class FileManager:
         dirs = [self.config.current_dir, *self.created_dirs]
         for name in DIRECTORY_ENV_VARS:
             dirs.extend(self.config.env.get(name, "").split(";"))
-        modules = self.config.modules
         files = [*self.walk_files(), *(f.path for f in self.files)]
-        files += [m.path for m in modules.user_modules if m.path]
-        files += [m.path for m in modules.system_modules if m.path]
         dirs.extend(ntpath.dirname(f) for f in files)
 
         keys = set()

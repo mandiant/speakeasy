@@ -113,6 +113,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   // programfiles and commonprogramfiles also give the ProgramFilesDir and CommonFilesDir
   // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion. A value for that
   // key in registry.keys replaces the value of the environment.
+  // systemroot also gives NtSystemRoot in KUSER_SHARED_DATA.
   // The shell folder APIs, such as SHGetKnownFolderPath and SHGetFolderPath, give
   // paths under systemdrive, userprofile, appdata, localappdata, allusersprofile,
   // public, programfiles and windir. When env does not have one of these, the APIs
@@ -366,6 +367,8 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     "module_directory_x64": null,
 
     // User mode modules that the emulator loads at their base_addr.
+    // The path of each user and system module is a file that exists, so
+    // CreateFile opens it and FindFirstFile lists it. The file has no content.
     "user_modules": [
       {
         "name": "ntdll",

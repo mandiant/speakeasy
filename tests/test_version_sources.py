@@ -65,3 +65,13 @@ def test_user_shared_data_reads_the_config(
         # BOOLEAN ProductTypeIsValid at 0x268, ULONG NtMajorVersion at 0x26C, ULONG NtMinorVersion at 0x270
         build, product_type, is_valid, major, minor = struct.unpack("<IIBxxxII", se.mem_read(base + 0x260, 20))
         assert (build, product_type, is_valid, major, minor) == (19045, 1, 1, 10, 0)
+
+
+@pytest.mark.parametrize("bin_name, base", [("dll_test_x86.dll.xz", 0x7FFE0000), ("wdm_test_x86.sys.xz", 0xFFDF0000)])
+def test_user_shared_data_has_the_system_root(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], bin_name: str, base: int
+) -> None:
+    config["env"]["systemroot"] = "D:\\WINNT"
+    for se in load_emu(config, load_test_bin(bin_name)):
+        # KUSER_SHARED_DATA: WCHAR NtSystemRoot[260] at 0x30
+        assert se.mem_read(base + 0x30, 18) == "D:\\WINNT\x00".encode("utf-16le")
