@@ -164,6 +164,26 @@ def test_x64_environment_names_the_x86_program_files(dll64_emu: Speakeasy) -> No
         assert dll64_emu.mem_read(out, rv) == expected.encode()
 
 
+def test_shell_folders_are_in_the_configured_profile(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    config["env"]["userprofile"] = "D:\\Profiles\\analyst"
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        rfid = alloc(se, uuid.UUID("5cd7aee2-2219-4a67-b85d-6c9ce15660cb").bytes_le)
+        out = alloc(se, b"\xcc" * 4)
+        kf_flag_create = 0x8000
+        rv, _ = call(se, "shell32", "SHGetKnownFolderPath", [rfid, kf_flag_create, 0, out])
+        assert rv == 0
+        path = struct.unpack("<I", se.mem_read(out, 4))[0]
+        assert read_wstr(se, path) == "D:\\Profiles\\analyst\\AppData\\Local\\Programs"
+
+        buf = alloc(se, b"\x00" * 520)
+        csidl_local_appdata = 0x1C
+        rv, _ = call(se, "shell32", "SHGetFolderPathW", [0, csidl_local_appdata, 0, 0, buf])
+        assert rv == 0
+        assert read_wstr(se, buf) == "D:\\Profiles\\analyst\\AppData\\Local"
+
+
 def test_sh_get_known_folder_path_fails_for_an_unknown_folder(dll_emu: Speakeasy) -> None:
     rfid = alloc(dll_emu, uuid.UUID("00000000-1111-2222-3333-444444444444").bytes_le)
     out = alloc(dll_emu, b"\xcc" * 4)
