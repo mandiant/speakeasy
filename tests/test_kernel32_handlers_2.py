@@ -913,7 +913,7 @@ def test_virtual_protect_of_zero_bytes_fails(emu: Speakeasy) -> None:
     old = alloc(emu, b"\xff" * 4)
     rv, _ = call(emu, "kernel32", "VirtualProtect", [base, 0, PAGE_PROTECTION_FLAGS.PAGE_READONLY, old])
     assert rv == 0
-    assert emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
     assert emu.mem_read(old, 4) == b"\xff" * 4
     rw = unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
     assert next(p for start, end, p in emu.emu.get_mem_regions() if start <= base <= end) == rw
