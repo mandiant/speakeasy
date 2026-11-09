@@ -3,6 +3,7 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy, common
+from speakeasy.profiler_events import EventType
 from speakeasy.windows.winemu import get_page_protection_runs
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
@@ -122,6 +123,16 @@ def test_ntdll_protect_virtual_memory_spans_pages(dll64_emu: Speakeasy) -> None:
     rv, base, size, _ = protect(se, page + 0xFF0, 0x20, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
     assert (rv, base, size) == (ddk.STATUS_SUCCESS, page, 2 * PAGE)
     assert get_perms(se, page + PAGE) == se.emu.emu_eng.perms[RW]
+
+
+def test_ntdll_protect_virtual_memory_records_a_mem_protect_event(dll64_emu: Speakeasy) -> None:
+    se = dll64_emu
+    start_process(se)
+    page = get_rx_page(se)
+
+    protect(se, page + 0x10, 0x10, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+    events = [e for e in se.emu.get_current_run().events if e.event == EventType.MEM_PROTECT]
+    assert [(e.base, e.size, e.protect, e.pid) for e in events] == [(page + 0x10, 0x10, ["PAGE_READWRITE"], None)]
 
 
 def test_ntdll_protect_virtual_memory_fails_for_an_empty_or_unmapped_range(dll64_emu: Speakeasy) -> None:

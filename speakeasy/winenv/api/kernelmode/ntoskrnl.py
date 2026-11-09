@@ -1352,26 +1352,34 @@ class Ntoskrnl(api.ApiHandler):
             ULONG NewProtection,
             PULONG OldProtection
         );
+
+        Speakeasy does not check that the range is in one allocation.
         """
         ProcessHandle, BaseAddress, RegionSize, NewProtection, OldProtection = argv
 
-        if not emu.get_handle_table().get(ProcessHandle, objman.Process):
+        proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc:
             return ddk.STATUS_INVALID_HANDLE
 
         addr = self.read_ptr(BaseAddress)
         size = self.read_ptr(RegionSize)
         ctx.args["BaseAddress"].display = hex(addr)
         ctx.args["RegionSize"].display = hex(size)
+        prot_def = decode_flags(PAGE_PROTECTION_FLAGS, NewProtection)
+        ctx.args["NewProtection"].display = "|".join(prot_def)
         if not size:
             return ddk.STATUS_INVALID_PARAMETER
 
+        # Windows changes whole pages, and returns the page-aligned range to the caller.
         page_mask = emu.page_size - 1
         base = addr & ~page_mask
-        size = ((addr + size + page_mask) & ~page_mask) - base
+        region_size = ((addr + size + page_mask) & ~page_mask) - base
+        # get_first_unmapped also returns the start of the range when the first page is unmapped.
         perms = next((p for start, end, p in emu.get_mem_regions() if start <= base <= end), None)
-        if perms is None or get_first_unmapped(emu, base, size) != base:
+        if perms is None or get_first_unmapped(emu, base, region_size) != base:
             return ddk.STATUS_CONFLICTING_ADDRESSES
 
+        # Windows returns the protection of the first page.
         if base in emu.guard_pages:
             old = self.emu_perms_to_win_perms(emu.guard_pages[base]) | PAGE_PROTECTION_FLAGS.PAGE_GUARD
         else:
@@ -1379,15 +1387,17 @@ class Ntoskrnl(api.ApiHandler):
             old = self.emu_perms_to_win_perms(uc_to_perms[perms])
 
         new = self.win_perms_to_emu_perms(NewProtection)
-        emu.mem_protect(base, size, new)
-        emu.clear_guard_pages(base, size)
+        emu.mem_protect(base, region_size, new)
+        emu.clear_guard_pages(base, region_size)
         if NewProtection & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
-            emu.set_guard_pages(base, size, new)
+            emu.set_guard_pages(base, region_size, new)
 
         self.write_ptr(BaseAddress, base)
-        self.write_ptr(RegionSize, size)
+        self.write_ptr(RegionSize, region_size)
         if OldProtection:
             self.write_dword(OldProtection, old)
+
+        self.record_process_event(proc, EventType.MEM_PROTECT, base=addr, size=size, protect=prot_def or None)
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwWriteVirtualMemory", argc=5)

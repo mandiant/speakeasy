@@ -1565,7 +1565,7 @@
     },
     "MemProtectEvent": {
       "additionalProperties": false,
-      "description": "A change of page protection with ``VirtualProtectEx``.",
+      "description": "A change of page protection with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
