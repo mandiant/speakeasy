@@ -1,6 +1,7 @@
 """kernel32 handlers return what Windows returns and write what Windows writes."""
 
 import datetime
+import ntpath
 import struct
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -1371,6 +1372,22 @@ def test_shell_execute_uses_the_file_as_the_path(emu: Speakeasy) -> None:
     assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, params, 0, 1])[0] == 33
     proc = emu.emu.processes[-1]
     assert (proc.path, proc.cmdline) == (PROGRAM_FILES_APP, "--app=http://127.0.0.1:27870/")
+
+
+@pytest.mark.parametrize(
+    "file, directory",
+    [
+        (PROGRAM_FILES_APP, "C:\\Windows\\temp"),
+        (ntpath.basename(PROGRAM_FILES_APP), ntpath.dirname(PROGRAM_FILES_APP) + "\\"),
+    ],
+)
+def test_shell_execute_resolves_only_a_relative_file_in_the_directory(
+    emu: Speakeasy, file: str, directory: str
+) -> None:
+    fn = alloc(emu, file.encode() + b"\x00")
+    dn = alloc(emu, directory.encode() + b"\x00")
+    assert call(emu, "shell32", "ShellExecuteA", [0, 0, fn, 0, dn, 1])[0] == 33
+    assert emu.emu.processes[-1].path == PROGRAM_FILES_APP
 
 
 def test_win_exec_parses_the_command_line(emu: Speakeasy) -> None:
