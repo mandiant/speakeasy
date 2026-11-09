@@ -906,6 +906,19 @@ def test_virtual_protect_write_copy_is_readable_and_writable(emu: Speakeasy, pro
     assert next(p for start, end, p in emu.emu.get_mem_regions() if start <= base <= end) == expected
 
 
+def test_virtual_protect_of_zero_bytes_fails(emu: Speakeasy) -> None:
+    base, _ = call(
+        emu, "kernel32", "VirtualAlloc", [0, 0x1000, windefs.MEM_COMMIT, PAGE_PROTECTION_FLAGS.PAGE_READWRITE]
+    )
+    old = alloc(emu, b"\xff" * 4)
+    rv, _ = call(emu, "kernel32", "VirtualProtect", [base, 0, PAGE_PROTECTION_FLAGS.PAGE_READONLY, old])
+    assert rv == 0
+    assert emu.emu.get_last_error() == windefs.ERROR_INVALID_PARAMETER
+    assert emu.mem_read(old, 4) == b"\xff" * 4
+    rw = unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
+    assert next(p for start, end, p in emu.emu.get_mem_regions() if start <= base <= end) == rw
+
+
 GENERIC_WRITE = 0x40000000
 
 
