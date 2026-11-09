@@ -415,7 +415,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
           // Position when code first ran in the region.
           "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
           // Only with analysis.dynamic_code_snapshots: the region contents at pos.
-          "data_ref": "4444444444444444444444444444444444444444444444444444444444444444"
+          "data_ref": "data-dyn-code"
         }
       ],
 
