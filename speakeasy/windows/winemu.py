@@ -465,6 +465,7 @@ class WindowsEmulator(BinaryEmulator):
         self.cryptman: CryptoManager = CryptoManager(self.handle_allocator)
         self.rng: random.Random = random.Random(self.config.random_seed)
         self.start_time: int = winemu.get_filetime(parse_start_time(self.config.start_time))
+        self._user_shared_data_bases: list[int] = []
         self.hammer: ApiHammer = ApiHammer(self)
         self._io_manager: Any | None = None
 
@@ -1035,6 +1036,7 @@ class WindowsEmulator(BinaryEmulator):
         kuser_tag = "emu.struct.KUSER_SHARED_DATA"
 
         data = self._build_user_shared_data()
+        self._user_shared_data_bases = []
         for base in bases:
             mm = self.get_address_map(base)
             if mm and not (mm.tag or "").startswith(kuser_tag):
@@ -1044,6 +1046,29 @@ class WindowsEmulator(BinaryEmulator):
             if not mm:
                 self.mem_map(self.page_size, base=base, tag=kuser_tag)
             self.mem_write(base, data)
+            self._user_shared_data_bases.append(base)
+
+    def update_user_shared_time(self, tick_ms: int) -> None:
+        """Write the time of the tick count tick_ms to every mapped copy of KUSER_SHARED_DATA."""
+        data = bytearray(0x400)
+        self._pack_user_shared_time(data, tick_ms)
+        for base in self._user_shared_data_bases:
+            self.mem_write(base + 0x004, bytes(data[0x004:0x020]))
+            self.mem_write(base + 0x320, bytes(data[0x320:0x32C]))
+
+    def _pack_user_shared_time(self, data: bytearray, tick_ms: int) -> None:
+        # TickCountMultiplier (offset 0x004) is 1.0 in 8.24 fixed point, so TickCount counts milliseconds.
+        struct.pack_into("<I", data, 0x004, 1 << 24)
+        # InterruptTime (offset 0x008): KSYSTEM_TIME {LowPart, High1Time, High2Time}
+        interrupt_100ns = tick_ms * 10000
+        struct.pack_into(
+            "<IiI", data, 0x008, interrupt_100ns & 0xFFFFFFFF, interrupt_100ns >> 32, interrupt_100ns >> 32
+        )
+        # SystemTime (offset 0x014): KSYSTEM_TIME
+        now_100ns = self.start_time + (tick_ms - winemu.START_TICK_COUNT) * 10000
+        struct.pack_into("<IiI", data, 0x014, now_100ns & 0xFFFFFFFF, now_100ns >> 32, now_100ns >> 32)
+        # TickCount (offset 0x320): KSYSTEM_TIME
+        struct.pack_into("<IiI", data, 0x320, tick_ms & 0xFFFFFFFF, tick_ms >> 32, tick_ms >> 32)
 
     def get_native_machine(self) -> int:
         """Get the IMAGE_FILE_MACHINE value of the emulated host, which matches the guest architecture."""
@@ -1052,18 +1077,8 @@ class WindowsEmulator(BinaryEmulator):
         return windefs.IMAGE_FILE_MACHINE_I386
 
     def _build_user_shared_data(self):
-        now_100ns = self.start_time
-        tick_ms = winemu.START_TICK_COUNT
-
         data = bytearray(0x400)
-
-        # InterruptTime (offset 0x008): KSYSTEM_TIME {LowPart, High1Time, High2Time}
-        interrupt_100ns = winemu.START_TICK_COUNT * 10000
-        struct.pack_into(
-            "<IiI", data, 0x008, interrupt_100ns & 0xFFFFFFFF, interrupt_100ns >> 32, interrupt_100ns >> 32
-        )
-        # SystemTime (offset 0x014): KSYSTEM_TIME
-        struct.pack_into("<IiI", data, 0x014, now_100ns & 0xFFFFFFFF, now_100ns >> 32, now_100ns >> 32)
+        self._pack_user_shared_time(data, winemu.START_TICK_COUNT)
         # ImageNumberLow, ImageNumberHigh (offset 0x02C)
         machine = self.get_native_machine()
         struct.pack_into("<HH", data, 0x02C, machine, machine)
@@ -1073,8 +1088,6 @@ class WindowsEmulator(BinaryEmulator):
         struct.pack_into("<IB", data, 0x264, 1, 1)
         # NtMajorVersion (offset 0x26C), NtMinorVersion (offset 0x270)
         struct.pack_into("<II", data, 0x26C, self.config.os_ver.major or 0, self.config.os_ver.minor or 0)
-        # TickCount (offset 0x320): KSYSTEM_TIME
-        struct.pack_into("<IiI", data, 0x320, tick_ms, 0, 0)
         # QpcFrequency (offset 0x3B8)
         struct.pack_into("<q", data, 0x3B8, 10_000_000)
 
