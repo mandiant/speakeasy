@@ -1934,10 +1934,7 @@ class WindowsEmulator(BinaryEmulator):
     def get_mod_from_addr(self, addr):
         if self.curr_mod and self.curr_mod.base <= addr < self.curr_mod.base + self.curr_mod.image_size:
             return self.curr_mod
-        for m in self.modules:
-            if m.base <= addr < m.base + m.image_size:
-                return m
-        return None
+        return self.get_module_from_addr(addr)
 
     def ensure_pe_import_hooks(self, base_addr):
         """
