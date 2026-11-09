@@ -958,7 +958,9 @@ class BinaryEmulator(MemoryManager, ABC):
         profiler = self.get_profiler()
         mm = self.get_address_map(addr)
         run = self.get_current_run()
+        # The hooks fire again when an API returns into the region, so read the region only the first time.
         if profiler and mm.base not in run.dyn_code["base_addrs"]:
+            # After an API returns into the region, the pc is still at the API, so use the address in the region.
             pos = self.get_trace_position().model_copy(update={"pc": addr})
             data = self.mem_read(mm.base, mm.size) if self.config.analysis.dynamic_code_snapshots else None
             profiler.record_dyn_code_event(run, pos, mm.tag, mm.base, mm.size, data)
