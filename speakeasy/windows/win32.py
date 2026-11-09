@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import subprocess
+import time
 from typing import Any
 
 from unicorn.x86_const import UC_X86_INS_IN, UC_X86_INS_OUT
@@ -18,7 +19,7 @@ from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType, FileType
+from speakeasy.report import EntryPointType, ErrorInfo, ErrorType, FileType
 from speakeasy.windows import objman
 from speakeasy.windows.com import COM
 from speakeasy.windows.loaders import (
@@ -29,7 +30,7 @@ from speakeasy.windows.loaders import (
     get_prot_string,
 )
 from speakeasy.windows.sessman import SessionManager
-from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, REPORT_ARCHES, WindowsEmulator
+from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, REPORT_ARCHES, WindowsEmulator, execution_scope
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 from speakeasy.winenv.codepage import encode_ansi
 
@@ -255,6 +256,7 @@ class Win32Emulator(WindowsEmulator):
 
         return startup
 
+    @execution_scope
     def run_module(self, module, *, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
         """
         Add the runs of a loaded module to the run queue, and run the queue.
@@ -299,44 +301,64 @@ class Win32Emulator(WindowsEmulator):
         if not emulate_children or len(self.child_processes) == 0:
             return
 
+        budget = self._execution_budget
+        assert budget is not None
+        not_run = 0
         finished = self.curr_process
-        while len(self.child_processes) > 0:
+        while self.child_processes and not budget.exhausted:
             child = self.child_processes.pop(0)
-            if not child.pe_data:
-                logger.warning("skipping child process %s: no image in the emulated file system", child.path)
-                continue
-
-            # All processes share one address space. The process that ran
-            # before gives up its image, PEB and heap, so that the child loads
-            # at its preferred base and gets its own PEB and heap.
-            if finished is not None:
-                self._free_process_memory(finished)
-                finished = None
-
-            self.curr_process = child
-            self.curr_thread = child.threads[0]
-
-            image = PeLoader(data=child.pe_data).make_image()
-            image.name = os.path.splitext(ntpath.basename(child.path))[0]
-            image.emu_path = child.path
+            # The load of a child counts against max_total_time. Each load maps and
+            # protects memory, and this gets slow when many children ran before.
+            started = time.monotonic()
             try:
-                child.pe = self.load_image(image)
-            except (WindowsEmuError, ValueError) as error:
-                logger.warning("skipping child process %s: %s", child.path, error)
-                continue
+                if not child.pe_data:
+                    logger.warning("skipping child process %s: no image in the emulated file system", child.path)
+                    continue
 
-            child.base = child.pe.base
-            self.curr_thread.stack_base = self.stack_base
-            self.curr_thread.stack_commit = child.pe.stack_commit
-            self.alloc_peb(child)
-            self.init_peb([m for m in self.get_peb_modules() if m.is_dll()], proc=child)
-            for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
-                run.thread = self.curr_thread
+                # All processes share one address space. The process that ran
+                # before gives up its image, PEB and heap, so that the child loads
+                # at its preferred base and gets its own PEB and heap.
+                if finished is not None:
+                    self._free_process_memory(finished)
+                    finished = None
 
+                self.curr_process = child
+                self.curr_thread = child.threads[0]
+
+                image = PeLoader(data=child.pe_data).make_image()
+                image.name = os.path.splitext(ntpath.basename(child.path))[0]
+                image.emu_path = child.path
+                try:
+                    child.pe = self.load_image(image)
+                except (WindowsEmuError, ValueError) as error:
+                    logger.warning("skipping child process %s: %s", child.path, error)
+                    continue
+
+                child.base = child.pe.base
+                self.curr_thread.stack_base = self.stack_base
+                self.curr_thread.stack_commit = child.pe.stack_commit
+                self.alloc_peb(child)
+                self.init_peb([m for m in self.get_peb_modules() if m.is_dll()], proc=child)
+                for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
+                    run.thread = self.curr_thread
+            finally:
+                exhausted = budget.add(time.monotonic() - started)
+
+            if exhausted:
+                self._cancel_execution_runs()
+                not_run = 1
+                break
             self.command_line = child.cmdline
             self.get_object_manager("thread registration").add_object(self.curr_thread)
             self.start()
             finished = child
+
+        not_run += len(self.child_processes)
+        if not_run and self.profiler:
+            noun = "process" if not_run == 1 else "processes"
+            self.profiler.record_error_event(
+                ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, context_summary=f"{not_run} child {noun} did not run")
+            )
 
     def _free_process_memory(self, process):
         """
