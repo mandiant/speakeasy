@@ -32,7 +32,7 @@ from speakeasy.hooks import (
 )
 from speakeasy.memmgr import MemoryManager
 from speakeasy.profiler import Profiler
-from speakeasy.profiler_events import StackEntry
+from speakeasy.profiler_events import StackEntry, TracePosition
 from speakeasy.report import Report
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
@@ -120,6 +120,11 @@ class BinaryEmulator(MemoryManager, ABC):
     @abstractmethod
     def get_current_run(self) -> Any:
         """Get the current run."""
+        ...
+
+    @abstractmethod
+    def get_trace_position(self) -> TracePosition:
+        """Get the position of the current run, thread, process and program counter."""
         ...
 
     @abstractmethod
@@ -952,9 +957,11 @@ class BinaryEmulator(MemoryManager, ABC):
     def _fire_dyn_code_hooks(self, addr):
         profiler = self.get_profiler()
         mm = self.get_address_map(addr)
-        if profiler:
-            run = self.get_current_run()
-            profiler.record_dyn_code_event(run, mm.tag, mm.base, mm.size)
+        run = self.get_current_run()
+        if profiler and mm.base not in run.dyn_code["base_addrs"]:
+            pos = self.get_trace_position().model_copy(update={"pc": addr})
+            data = self.mem_read(mm.base, mm.size) if self.config.analysis.dynamic_code_snapshots else None
+            profiler.record_dyn_code_event(run, pos, mm.tag, mm.base, mm.size, data)
 
         # Copy the list, because a callback can remove its hook.
         for h in list(self.hooks.get(common.HOOK_DYN_CODE, [])):

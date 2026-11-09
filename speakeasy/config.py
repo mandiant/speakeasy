@@ -299,6 +299,11 @@ class AnalysisConfig(BaseModel):
         default=True, description="Add the strings of the input and of emulated memory to the report."
     )
     coverage: bool = Field(default=False, description="Record the address of each instruction that a run executes.")
+    dynamic_code_snapshots: bool = Field(
+        default=False,
+        description="Add the contents of each dynamic code region, at the first time that code runs in it,"
+        " to the report.",
+    )
 
 
 class ExceptionsConfig(BaseModel):

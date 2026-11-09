@@ -57,7 +57,7 @@ The CLI makes the flag name from the config path. `analysis.memory_tracing` give
 
 A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to the mapping or replaces its value, and the other keys of the mapping do not change. A list flag takes one `VALUE` and is repeatable. The values replace the whole list.
 
-Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form.
+Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form.
 
 Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--api-hammering-threshold`, `--module-directory-x86` and `--module-directory-x64`.
 

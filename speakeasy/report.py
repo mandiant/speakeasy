@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from speakeasy.profiler_events import AnyEvent, StackEntry
+from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
 
 REPORT_VERSION = "6.0.0"
@@ -202,6 +202,16 @@ class DynamicCodeSegment(BaseModel):
     tag: str = Field(description="Tag of the memory region.")
     base: HexInt = Field(description="Base address of the region.")
     size: int = Field(description="Size of the region in bytes.")
+    pos: TracePosition = Field(
+        description="Position when the emulator first found code that ran in the region. ``pc`` is in the region."
+    )
+    data_ref: str | None = Field(
+        default=None,
+        description=(
+            "Key in the top-level ``data`` of the region data at ``pos``."
+            " Only with ``analysis.dynamic_code_snapshots``."
+        ),
+    )
 
 
 class ArtifactCompression(str, Enum):
