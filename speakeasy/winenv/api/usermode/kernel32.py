@@ -202,7 +202,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         Advance the tick count by 1 ms and return it.
         """
-        self.tick_counter += 1
+        self.advance_tick_count(1)
         return self.tick_counter
 
     def get_system_time(self):
@@ -222,14 +222,22 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         Advance the tick count by 1 ms and return the performance counter, which counts 100 ns units.
         """
-        self.tick_counter += 1
+        self.advance_tick_count(1)
         return self.perf_base + self.tick_counter * 10000
+
+    def advance_tick_count(self, millisec):
+        """
+        Move the tick count, the system time and the performance counter forward, and write the new time to
+        KUSER_SHARED_DATA.
+        """
+        self.tick_counter += millisec
+        self.emu.update_user_shared_time(self.tick_counter)
 
     def advance_clock(self, millisec):
         """
         Move the tick count, the system time, the performance counter and the time stamp counter forward.
         """
-        self.tick_counter += millisec
+        self.advance_tick_count(millisec)
         self.emu.emu_eng.advance_tsc(millisec * TSC_FREQUENCY // 1000)
 
     def get_system_time_struct(self, quad):
@@ -2794,7 +2802,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetTickCount();
         """
-        self.tick_counter += 20
+        self.advance_tick_count(20)
 
         return self.tick_counter
 
@@ -2803,7 +2811,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         ULONGLONG GetTickCount64();
         """
-        self.tick_counter += 20
+        self.advance_tick_count(20)
 
         if emu.get_arch() == e_arch.ARCH_X86:
             emu.reg_write(e_arch.X86_REG_EDX, self.tick_counter >> 32)

@@ -47,7 +47,9 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   // The system time, the file times, the msvcrt time functions, timeGetTime,
   // KUSER_SHARED_DATA and the kernel-mode system time count from it.
   // The emulated system booted one day before this time. In user mode, each
-  // time query and each Sleep or wait moves the clock forward.
+  // time query and each Sleep or wait moves the clock forward. The time fields
+  // of KUSER_SHARED_DATA change only when an API moves the clock, so a loop
+  // that only reads them does not see time pass.
   // The default is fixed so that runs give the same times to the sample.
   "start_time": "2026-10-31T15:15:00Z",
 

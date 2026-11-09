@@ -56,7 +56,7 @@ def test_random_seed_changes_the_random_values(
 
 def get_clock_values(se: Speakeasy) -> list[int]:
     buf = alloc(se, b"\x00" * 260)
-    values = []
+    values = [int.from_bytes(se.mem_read(KUSER_SYSTEM_TIME, 8), "little")]
     for dll, name, argv in [
         ("kernel32", "GetSystemTimeAsFileTime", [buf]),
         ("kernel32", "QueryPerformanceCounter", [buf]),
@@ -75,8 +75,8 @@ def get_clock_values(se: Speakeasy) -> list[int]:
 def test_clock_apis_repeat_across_emulators(dll_emu: Speakeasy, other_dll_emu: Speakeasy) -> None:
     values = get_clock_values(dll_emu)
     assert values == get_clock_values(other_dll_emu)
-    assert values[3] == START_TIME_UNIX
-    assert values[-1] == START_TIME_FILETIME
+    assert values[0] == START_TIME_FILETIME
+    assert values[4] == START_TIME_UNIX
 
 
 def test_start_time_sets_the_system_time(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> None:
