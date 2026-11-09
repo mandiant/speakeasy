@@ -159,12 +159,10 @@ class Ntoskrnl(api.ApiHandler):
         LONG_PTR ObfDereferenceObject(
             PVOID Object
         );
-        """
-        (Object,) = argv
 
-        obj = self.get_object_from_addr(Object)
-        if obj:
-            obj.ref_cnt -= 1
+        The emulator does not model the reference count of kernel objects, so it does not change the count.
+        """
+        return 0
 
     @apihook("ZwClose", argc=1)
     def ZwClose(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1197,7 +1195,6 @@ class Ntoskrnl(api.ApiHandler):
 
         if ProcessId == 4:
             proc = emu.get_system_process()
-            proc.ref_cnt += 1
             self.write_ptr(Process, proc.address)
             return rv
 
@@ -1205,7 +1202,6 @@ class Ntoskrnl(api.ApiHandler):
         if not proc:
             rv = ddk.STATUS_INVALID_CID
         else:
-            proc.ref_cnt += 1
             self.write_ptr(Process, proc.address)
 
         return rv
@@ -1439,7 +1435,6 @@ class Ntoskrnl(api.ApiHandler):
 
         obj = self.get_object_from_id(ThreadId)
         if obj:
-            obj.ref_cnt += 1
             rv = ddk.STATUS_SUCCESS
             ethread_addr = obj.address
         self.write_ptr(Thread, ethread_addr)
@@ -1996,6 +1991,8 @@ class Ntoskrnl(api.ApiHandler):
         LONG_PTR ObfReferenceObject(
             PVOID Object
         );
+
+        The emulator does not model the reference count of kernel objects, so it does not change the count.
         """
         return 0
 
