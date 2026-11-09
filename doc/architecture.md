@@ -63,7 +63,7 @@ Each export of an emulated DLL has 32 bytes of code in the DLL image. The code j
 
 `get_handler_candidates(dll, name)` gives the related names, in order: for example, the name without the `A` or `W` suffix, the `Zw` name for an `Nt` name, or the modules that implement an API set (`get_dll_hosts`). `get_api_handler` uses the first related name that has a handler. `get_proc` asks `get_import_host` for the module of an import. When more than one module implements an API set, `get_import_host` returns the first module that has a handler for the name.
 
-A handler can call guest code, for example a window procedure, with `setup_callback` or by yielding `GuestCall`. `speakeasy/windows/guest_callbacks.py` keeps track of these calls.
+A handler can call guest code, for example a window procedure, with `setup_callback` or by yielding `GuestCall`. `speakeasy/windows/guest_callbacks.py` keeps track of these calls. `Kernel32.run_threads_until` uses a `GuestCall` to run the start routine of a queued thread inside a named pipe call, and removes the run of the thread from the queue.
 
 ## Machine setup
 

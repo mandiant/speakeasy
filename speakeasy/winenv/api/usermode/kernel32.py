@@ -4490,9 +4490,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         fm = emu.get_file_manager()
         open_flags = {"disposition": [cd] if cd else None, "access": ad}
-        if fileman.is_pipe_path(target) and fm.get_pipe_server(target) is None and self.get_unstarted_thread(emu):
-            return self.wait_for_pipe_server(emu, argv, ctx, target)
-        pipe = fm.open_pipe_client(target, **open_flags) if fileman.is_pipe_path(target) else None
+        pipe = None
+        if fileman.is_pipe_path(target):
+            if fm.get_pipe_server(target) is None and self.get_unstarted_thread(emu):
+                return self.wait_for_pipe_server(emu, argv, ctx, target)
+            pipe = fm.open_pipe_client(target, **open_flags)
 
         obj = self.get_object_from_name(target)
         if pipe:

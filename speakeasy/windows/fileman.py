@@ -283,7 +283,7 @@ class FileManager:
 
         # When the input is a PE, load_module adds it as the first file.
         self.files: list[File] = []
-        # Server ends of named pipe instances that no client opened
+        # Server ends of named pipe instances that no client opened.
         self.pipe_servers: list[Pipe] = []
         self.deleted_paths: set[str] = set()
         self.created_dirs: set[str] = set()
@@ -600,7 +600,7 @@ class FileManager:
         if server is None or server.peer is None:
             return None
         self.pipe_servers.remove(server)
-        # The configured data stands for a client outside the process, so a client in the process replaces it
+        # The configured data stands for a client outside the process, so a client in the process replaces it.
         if server.data is None:
             server.config = {}
         server.peer.opened = True
