@@ -232,3 +232,19 @@ class Psapi(api.ApiHandler):
         info = b"".join(v.to_bytes(ptr_size, "little") for v in (mod.base, mod.image_size, mod.get_ep()))
         self.mem_write(lpmodinfo, info)
         return 1
+
+    @apihook("EnumDeviceDrivers", argc=3)
+    def EnumDeviceDrivers(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumDeviceDrivers(
+            LPVOID *lpImageBase,
+            DWORD cb,
+            LPDWORD lpcbNeeded
+        );
+
+        The handler reports no drivers.
+        """
+        lpImageBase, cb, lpcbNeeded = argv
+        if lpcbNeeded:
+            self.write_dword(lpcbNeeded, 0)
+        return 1

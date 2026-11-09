@@ -34,6 +34,10 @@ THRD_SUCCESS = 0
 THRD_TIMEDOUT = 2
 # Size of the _Cnd_internal_imp_t that _Cnd_init allocates, on x64
 CND_SIZE = 0x48
+# Offsets in the C locale block: the __crt_locale_pointers, the locale data and the multibyte data
+C_LOCALE_LOCINFO = 0x10
+C_LOCALE_MBCINFO = 0x400
+C_LOCALE_SIZE = 0x1000
 O_APPEND = 0x8
 O_CREAT = 0x100
 O_TRUNC = 0x200
@@ -564,6 +568,7 @@ class Msvcrt(api.ApiHandler):
         self.pctype_table: int | None = None
         self.strerror_buf: int | None = None
         self.lc_locale_names: int | None = None
+        self.c_locale: int | None = None
         self.iob: int | None = None
         self.tm_buf: int | None = None
         self.new_mode: int = 0
@@ -4539,6 +4544,18 @@ class Msvcrt(api.ApiHandler):
         """
         return emu.get_current_thread().id
 
+    @apihook("_Thrd_detach", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _Thrd_detach(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _Thrd_result _Thrd_detach(
+            _Thrd_t thr
+        );
+
+        The handler does not close the thread handle. On x86, the struct argument uses
+        two stack slots, and the call shows only the first.
+        """
+        return THRD_SUCCESS
+
     @apihook("__telemetry_main_invoke_trigger", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __telemetry_main_invoke_trigger(
         self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT
@@ -6969,6 +6986,66 @@ class Msvcrt(api.ApiHandler):
             self.locale_name = self.mem_alloc(2, tag="api.msvcrt.setlocale")
             self.mem_write(self.locale_name, b"C\x00")
         return self.locale_name
+
+    def get_c_locale(self) -> int:
+        """
+        Return the _locale_t of the C locale, in the UCRT layout.
+
+        The locale data has the _pctype table, an MB_CUR_MAX of 1 and code page 0, which
+        the inline functions of the CRT headers read. Its other fields and the multibyte
+        data are zero.
+        """
+        if not self.c_locale:
+            locale = self.mem_alloc(C_LOCALE_SIZE, tag="api.msvcrt._create_locale")
+            self.mem_write(locale, b"\x00" * C_LOCALE_SIZE)
+            locinfo = locale + C_LOCALE_LOCINFO
+            self.write_ptr(locale, locinfo)
+            self.write_ptr(locale + self.get_ptr_size(), locale + C_LOCALE_MBCINFO)
+            self.write_ptr(locinfo, self.get_pctype_table())
+            self.write_dword(locinfo + self.get_ptr_size(), 1)
+            self.c_locale = locale
+        return self.c_locale
+
+    @apihook("_create_locale", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _create_locale(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _locale_t _create_locale(
+            int category,
+            const char *locale
+        );
+
+        The emulated CRT stays in the C locale, so every call returns the same C locale.
+        """
+        category, locale = argv
+        if locale:
+            ctx.args[1].display = decode_ansi(self.read_cstr(locale))
+        return self.get_c_locale()
+
+    @apihook("_wcreate_locale", argc=2, conv=e_arch.CALL_CONV_CDECL)
+    def _wcreate_locale(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        _locale_t _wcreate_locale(
+            int category,
+            const wchar_t *locale
+        );
+
+        The emulated CRT stays in the C locale, so every call returns the same C locale.
+        """
+        category, locale = argv
+        if locale:
+            ctx.args[1].display = self.read_wide_string(locale)
+        return self.get_c_locale()
+
+    @apihook("_free_locale", argc=1, conv=e_arch.CALL_CONV_CDECL)
+    def _free_locale(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        void _free_locale(
+            _locale_t locale
+        );
+
+        The C locale of _create_locale is not freed, because later calls return it again.
+        """
+        return
 
     @apihook("fopen", argc=2, conv=e_arch.CALL_CONV_CDECL)
     def fopen(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

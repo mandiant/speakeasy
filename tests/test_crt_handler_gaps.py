@@ -7,6 +7,7 @@ import pytest
 from speakeasy import Speakeasy
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.api.usermode.msvcrt import SIG_DFL, SIG_IGN, SIGABRT, SIGFPE, SIGSEGV
+from tests.guest_harness import guest_call
 from tests.handler_harness import alloc, call, start_process
 
 
@@ -104,6 +105,39 @@ def test_qsort_sorts_with_the_guest_comparator(shellcode_emu: Speakeasy, width: 
     assert get_api_names(se) == ["msvcrt.qsort"]
     expected = sorted(records, key=lambda r: struct.unpack("<i", r[:4])[0])
     assert se.mem_read(data, width * len(keys)) == b"".join(expected)
+
+
+def test_startup_imports_from_runtime_and_psapi_dlls_return_success(shellcode_emu: Speakeasy) -> None:
+    se = shellcode_emu
+    emu = se.emu
+    ptr_size = emu.get_ptr_size()
+    data = se.mem_alloc(0x1000)
+    results, name, thrd, bases, needed = data, data + 0x100, data + 0x200, data + 0x300, data + 0x400
+    se.mem_write(name, b"C\x00")
+    se.mem_write(results, b"\xcc" * 3 * ptr_size)
+    se.mem_write(needed, b"\xcc" * 4)
+    calls = [
+        ("api-ms-win-crt-locale-l1-1-0", "_create_locale", (0, name)),
+        ("msvcp140", "_Thrd_detach", (thrd,)),
+        ("psapi", "EnumDeviceDrivers", (bases, 0x40, needed)),
+    ]
+    main = b"\x55\x89\xe5" if ptr_size == 4 else b""
+    for index, (dll, api, args) in enumerate(calls):
+        main += guest_call(ptr_size, emu.get_proc(dll, api), *args, store=results + index * ptr_size)
+    main += b"\x89\xec\x5d\xc3" if ptr_size == 4 else b"\xc3"
+    code = se.mem_alloc(0x1000)
+    se.mem_write(code, main)
+
+    se.call(code)
+
+    assert get_api_names(se) == ["msvcrt._create_locale", "msvcrt._Thrd_detach", "psapi.EnumDeviceDrivers"]
+    locale, thrd_result, enum_result = struct.unpack(
+        f"<3{'I' if ptr_size == 4 else 'Q'}", se.mem_read(results, 3 * ptr_size)
+    )
+    assert locale
+    assert thrd_result & 0xFFFFFFFF == 0
+    assert enum_result & 0xFFFFFFFF == 1
+    assert se.mem_read(needed, 4) == b"\x00" * 4
 
 
 def test_crtdll_raise_with_the_default_action_ends_the_process(dll_emu: Speakeasy) -> None:
