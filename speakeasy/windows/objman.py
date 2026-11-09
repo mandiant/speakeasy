@@ -452,6 +452,9 @@ class Process(KernelObject):
         self.console: Console | None = None
         self.curr_thread: Thread | None = None
         self.cmdline: str = cmdline
+        # The command line buffers that GetCommandLineA/W and the msvcrt WinMain helpers return, by character width.
+        self.command_line_buffers: dict[int, int] = {}
+        self.winmain_command_line_buffers: dict[int, int] = {}
         self.session: int = session
         self.token: Token = Token(self.emu)
         emu.add_object(self.token)

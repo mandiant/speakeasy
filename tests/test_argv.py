@@ -1,7 +1,8 @@
 import pytest
 
 from speakeasy import Speakeasy
-from tests.handler_harness import call
+from speakeasy.windows import objman
+from tests.handler_harness import call, start_process
 
 
 @pytest.mark.parametrize("bin_file", ["argv_test_x86.exe.xz"])
@@ -40,3 +41,20 @@ def test_argv_goes_into_the_command_line(config, load_test_bin, api, width):
         se.run_module(module)
         rv, _ = call(se, "kernel32", api, [])
         assert se.read_mem_string(rv, width) == f'"{module.emu_path}" /run "x y" a\\"b'
+
+
+@pytest.mark.parametrize(("api", "width"), [("GetCommandLineA", 1), ("GetCommandLineW", 2)])
+def test_each_process_has_its_own_command_line_buffer(dll_emu, api, width):
+    start_process(dll_emu)
+    emu = dll_emu.emu
+    parent = emu.get_current_process()
+    parent.cmdline = "parent.exe a"
+    first, _ = call(dll_emu, "kernel32", api, [])
+
+    emu.curr_process = objman.Process(emu, cmdline="child.exe " + "x" * 100)
+    second, _ = call(dll_emu, "kernel32", api, [])
+    emu.curr_process = parent
+
+    assert dll_emu.read_mem_string(first, width) == "parent.exe a"
+    assert dll_emu.read_mem_string(second, width) == "child.exe " + "x" * 100
+    assert call(dll_emu, "kernel32", api, [])[0] == first

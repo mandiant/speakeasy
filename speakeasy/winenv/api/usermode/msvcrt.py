@@ -565,7 +565,6 @@ class Msvcrt(api.ApiHandler):
         self.strerror_buf: int | None = None
         self.lc_locale_names: int | None = None
         self.iob: int | None = None
-        self.winmain_command_lines: dict[int, int] = {}
         self.tm_buf: int | None = None
         self.new_mode: int = 0
         self.thread_locale: int = DISABLE_PER_THREAD_LOCALE
@@ -668,13 +667,15 @@ class Msvcrt(api.ApiHandler):
         return cmdln
 
     def get_winmain_command_line_ptr(self, emu, width: int) -> int:
-        ptr = self.winmain_command_lines.get(width)
+        """Get the command line of the current process without the program name, as WinMain gets it."""
+        proc = emu.get_current_process()
+        ptr: int | None = proc.winmain_command_line_buffers.get(width)
         if ptr is None:
-            tail = get_winmain_command_line(emu.get_current_process().cmdline)
+            tail = get_winmain_command_line(proc.cmdline)
             data = self.encode_string(tail + "\x00", width)
             ptr = self.mem_alloc(len(data), tag="api.msvcrt.winmain_command_line")
             self.mem_write(ptr, data)
-            self.winmain_command_lines[width] = ptr
+            proc.winmain_command_line_buffers[width] = ptr
         return ptr
 
     @apihook("_sleep", argc=1, conv=e_arch.CALL_CONV_CDECL)
