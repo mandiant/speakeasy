@@ -85,7 +85,7 @@ Use these flags when a sample stops early because a module or a function is miss
 
 ## API hammering controls
 
-Some samples call an API many times in a loop to make emulation slow. With `--api-hammering-enabled`, the emulator counts the calls to each API from each call site. When the count reaches `--api-hammering-threshold`, the emulator patches an x86 call site so that the call gives 0 and does not run the API. The emulator does not patch x64 code. `--api-hammering-allow-list` gives an API in the form `dll.name` that the emulator does not patch. The flag is repeatable, and its values replace the default allow list.
+Some samples call an API many times in a loop to make emulation slow. With `--api-hammering-enabled`, the emulator counts the calls to each API from each call site. When the count reaches `--api-hammering-threshold`, the emulator patches an x86 call site so that the call gives 0 and does not run the API. It can patch `call [mem]`, `call reg`, and a direct `call` to the API or to a `jmp [mem]` import thunk. If it cannot patch a call site, it logs this one time and stops counting the calls from that site. The emulator does not patch x64 code. `--api-hammering-allow-list` gives an API in the form `dll.name` that the emulator does not patch. The flag is repeatable, and its values replace the default allow list.
 
 ```bash
 speakeasy -t sample.exe \
