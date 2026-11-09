@@ -117,6 +117,8 @@ DLL_HOSTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
         ("msvcrt",),
     ),
     (("winsock", "wsock32"), ("ws2_32",)),
+    (("shfolder",), ("shell32",)),
+    (("icmp",), ("iphlpapi",)),
     (
         ("ext-ms-win-ntuser", "ext-ms-win-rtcore-ntuser", "api-ms-win-rtcore-ntuser", "api-ms-win-ntuser-"),
         ("user32",),
