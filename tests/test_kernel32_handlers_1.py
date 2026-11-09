@@ -10,7 +10,7 @@ import pytest
 
 from speakeasy import Speakeasy, common
 from speakeasy.profiler_events import MemFreeEvent, ModuleLoadEvent
-from speakeasy.windows import objman
+from speakeasy.windows import objman, thread_context
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.codepage import CP_ACP, CP_UTF8
 from speakeasy.winenv.defs.enums import CREATE_TOOLHELP_SNAPSHOT_FLAGS, PAGE_PROTECTION_FLAGS, PROCESS_CREATION_FLAGS
@@ -454,9 +454,9 @@ def test_win_exec_without_program_name_fails(dll_emu: Speakeasy) -> None:
     assert rv == windefs.ERROR_FILE_NOT_FOUND
 
 
-def create_suspended_child(se: Speakeasy) -> tuple[int, int]:
+def create_suspended_child(se: Speakeasy, path: bytes = b"c:\\Windows\\system32\\cmd.exe") -> tuple[int, int]:
     start_process(se)
-    app = alloc(se, b"c:\\Windows\\system32\\cmd.exe\x00")
+    app = alloc(se, path + b"\x00")
     si = alloc(se, b"\x00" * 0x44)
     pi = alloc(se, b"\x00" * 0x10)
     ok, _ = call(
@@ -467,8 +467,27 @@ def create_suspended_child(se: Speakeasy) -> tuple[int, int]:
     return hproc, hthread
 
 
+def get_thread_context(se: Speakeasy, hthread: int) -> int:
+    """Get the address of a CONTEXT with the integer registers of a thread."""
+    context = alloc(se, struct.pack("<I", thread_context.CONTEXT_i386 | thread_context.CONTEXT_INTEGER) + bytes(0x2C8))
+    assert call(se, "kernel32", "GetThreadContext", [hthread, context])[0]
+    return context
+
+
+def get_entry(se: Speakeasy, hthread: int) -> int:
+    """Get the start address that Eax gives in the context of a new thread, as an injector reads it."""
+    (eax,) = struct.unpack("<I", se.mem_read(get_thread_context(se, hthread) + 0xB0, 4))
+    return eax
+
+
+def put_code_at_entry(se: Speakeasy, hthread: int) -> None:
+    """Put code at the start address of a suspended child, and do not mark the child as modified."""
+    se.mem_write(get_entry(se, hthread), b"\x90" * 4)
+
+
 def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: Speakeasy) -> None:
     _, hthread = create_suspended_child(dll_emu)
+    put_code_at_entry(dll_emu, hthread)
     queued = len(dll_emu.emu.run_queue)
     rv, _ = call(dll_emu, "kernel32", "ResumeThread", [hthread])
     assert rv == 1
@@ -476,17 +495,42 @@ def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: S
     assert len(dll_emu.emu.child_processes) == 1
 
 
-def test_resume_thread_starts_a_child_after_write_process_memory(dll_emu: Speakeasy) -> None:
+def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Speakeasy) -> None:
     hproc, hthread = create_suspended_child(dll_emu)
     child = dll_emu.emu.child_processes[0]
+    entry = get_entry(dll_emu, hthread)
+    data = alloc(dll_emu, b"\x90" * 4)
+    ok, _ = call(dll_emu, "kernel32", "WriteProcessMemory", [hproc, entry, data, 4, 0])
+    assert ok
+    call(dll_emu, "kernel32", "ResumeThread", [hthread])
+    run = dll_emu.emu.run_queue[-1]
+    assert (run.start_addr, run.process_context) == (entry, child)
+    assert dll_emu.emu.child_processes == []
+
+
+def test_resume_thread_does_not_run_the_headers_of_a_program_without_code(dll_emu: Speakeasy) -> None:
+    # cmd.exe is not in the emulated file system, so its image has headers and no code
+    hproc, hthread = create_suspended_child(dll_emu)
+    data = alloc(dll_emu, b"\x90" * 4)
+    ok, _ = call(dll_emu, "kernel32", "WriteProcessMemory", [hproc, data + 0x100, data, 4, 0])
+    assert ok
+    queued = len(dll_emu.emu.run_queue)
+    assert call(dll_emu, "kernel32", "ResumeThread", [hthread])[0] == 1
+    assert len(dll_emu.emu.run_queue) == queued
+
+
+def test_resume_thread_leaves_a_modified_child_without_a_start_address_for_child_emulation(
+    dll_emu: Speakeasy, load_test_bin: Callable[[str], bytes]
+) -> None:
+    dll_emu.emu.fileman.add_existing_file("c:\\child.exe", load_test_bin("child_x86.exe.xz"))
+    hproc, hthread = create_suspended_child(dll_emu, b"c:\\child.exe")
     data = alloc(dll_emu, b"\x90" * 4)
     ok, _ = call(dll_emu, "kernel32", "WriteProcessMemory", [hproc, data + 0x100, data, 4, 0])
     assert ok
     queued = len(dll_emu.emu.run_queue)
     call(dll_emu, "kernel32", "ResumeThread", [hthread])
-    assert len(dll_emu.emu.run_queue) == queued + 1
-    assert dll_emu.emu.run_queue[-1].process_context is child
-    assert dll_emu.emu.child_processes == []
+    assert len(dll_emu.emu.run_queue) == queued
+    assert [p.path for p in dll_emu.emu.child_processes] == ["c:\\child.exe"]
 
 
 def write_with_nt_write_virtual_memory(se: Speakeasy, hproc: int, hthread: int) -> None:
@@ -497,8 +541,7 @@ def write_with_nt_write_virtual_memory(se: Speakeasy, hproc: int, hthread: int) 
 
 def set_context_with(dll: str, api: str) -> Callable[[Speakeasy, int, int], None]:
     def change(se: Speakeasy, hproc: int, hthread: int) -> None:
-        context = alloc(se, b"\x00" * 0x2CC)
-        rv, _ = call(se, dll, api, [hthread, context])
+        rv, _ = call(se, dll, api, [hthread, get_thread_context(se, hthread)])
         assert rv == (0 if dll == "ntdll" else 1)
 
     return change
@@ -530,6 +573,7 @@ def test_resume_thread_starts_a_child_after_an_ntdll_change(
 ) -> None:
     hproc, hthread = create_suspended_child(dll_emu)
     child = dll_emu.emu.child_processes[0]
+    put_code_at_entry(dll_emu, hthread)
     change(dll_emu, hproc, hthread)
     queued = len(dll_emu.emu.run_queue)
     call(dll_emu, "kernel32", "ResumeThread", [hthread])
@@ -539,6 +583,7 @@ def test_resume_thread_starts_a_child_after_an_ntdll_change(
 
 def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speakeasy) -> None:
     _, hthread = create_suspended_child(dll_emu)
+    put_code_at_entry(dll_emu, hthread)
     map_view_with_nt_map_view_of_section(dll_emu, 0xFFFFFFFF, hthread)
     queued = len(dll_emu.emu.run_queue)
     call(dll_emu, "kernel32", "ResumeThread", [hthread])

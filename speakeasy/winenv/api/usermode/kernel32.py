@@ -1471,10 +1471,18 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 if not start_addr and context.Eax:
                     start_addr = context.Eax
 
-            if start_addr:
-                mm = emu.get_address_map(start_addr)
-                if mm:
-                    emu.ensure_pe_import_hooks(mm.base)
+            # Without a new start address, the main thread has no code to run. The context of a child that has an image
+            # in the emulated file system gets its entry point only when child emulation loads the image. The image
+            # of any other program has no entry point, so the context gives its headers, unless the parent wrote code
+            # over them.
+            if not start_addr:
+                return rv
+            image = proc.pe
+            mm = emu.get_address_map(start_addr)
+            if mm and image and not image.ep and start_addr == image.base and self.mem_read(start_addr, 2) == b"MZ":
+                return rv
+            if mm:
+                emu.ensure_pe_import_hooks(mm.base)
 
             handle, obj = self.create_thread(start_addr, 0, proc, name=proc.name)
             emu.child_processes.remove(proc)
