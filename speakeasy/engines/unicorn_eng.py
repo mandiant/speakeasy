@@ -32,6 +32,8 @@ UNREACHABLE_ADDRESS = 0x8000000000000000
 UC_HOOK_INSN_IN_CB = ct.CFUNCTYPE(ct.c_uint32, uc_engine, ct.c_uint32, ct.c_int, ct.c_void_p)
 UC_HOOK_INSN_OUT_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_uint32, ct.c_int, ct.c_uint32, ct.c_void_p)
 UC_HOOK_INSN_SYSCALL_CB = ct.CFUNCTYPE(None, uc_engine, ct.c_void_p)
+UC_HOOK_INSN_CPUID_CB = ct.CFUNCTYPE(ct.c_int, uc_engine, ct.c_void_p)
+CPUID_HYPERVISOR_PRESENT = 1 << 31
 hook_id = uc_hook_h()
 
 
@@ -82,6 +84,24 @@ def get_tsc_offset_location(mode):
     probe.emu_start(0x1000, 0x1002)
     tsc = probe.reg_read(u.UC_X86_REG_EDX) << 32 | probe.reg_read(u.UC_X86_REG_EAX)
     return exception + 16 if tsc >= 1 << 62 else None
+
+
+@functools.cache
+def get_cpuid_leaf_1(mode):
+    """
+    Get the EAX, EBX, ECX and EDX values that ``cpuid`` leaf 1 gives to the guest.
+
+    The values are Unicorn's, without the bit in ECX that tells that a hypervisor is present.
+    """
+    probe = uc.Uc(uc.UC_ARCH_X86, mode)
+    probe.mem_map(0x1000, 0x1000)
+    probe.mem_write(0x1000, b"\x0f\xa2")  # cpuid
+    probe.reg_write(u.UC_X86_REG_EAX, 1)
+    probe.emu_start(0x1000, 0x1002)
+    eax, ebx, ecx, edx = (
+        probe.reg_read(r) for r in (u.UC_X86_REG_EAX, u.UC_X86_REG_EBX, u.UC_X86_REG_ECX, u.UC_X86_REG_EDX)
+    )
+    return eax, ebx, ecx & ~CPUID_HYPERVISOR_PRESENT, edx
 
 
 class EmuEngine:
@@ -206,6 +226,23 @@ class EmuEngine:
         # A probe creates a Unicorn instance, and that can make a running start with a timeout
         # stop as timed out. Probe now, while nothing runs.
         get_tsc_offset_location(_mode)
+        get_cpuid_leaf_1(_mode)
+        # Unicorn tells that a hypervisor is present, but has no hypervisor leaves. No real
+        # machine does this, and malware that sees it stops, so tell that no hypervisor is present.
+        self.hook_add(htype=common.HOOK_INSN, cb=self._hook_cpuid, arg1=u.UC_X86_INS_CPUID)
+
+    def _hook_cpuid(self, uc_engine, user_data):
+        """Give the leaf 1 values of ``get_cpuid_leaf_1``, and let Unicorn run ``cpuid`` for the other leaves."""
+        assert self.emu is not None
+        if self.emu.reg_read(u.UC_X86_REG_EAX) != 1:
+            return 0
+        if self.mode == uc.UC_MODE_64:
+            regs = (u.UC_X86_REG_RAX, u.UC_X86_REG_RBX, u.UC_X86_REG_RCX, u.UC_X86_REG_RDX)
+        else:
+            regs = (u.UC_X86_REG_EAX, u.UC_X86_REG_EBX, u.UC_X86_REG_ECX, u.UC_X86_REG_EDX)
+        for reg, value in zip(regs, get_cpuid_leaf_1(self.mode), strict=True):
+            self.emu.reg_write(reg, value)
+        return 1
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
         """Map memory in the engine."""
@@ -336,7 +373,8 @@ class EmuEngine:
 
         Raises:
             EngineError: if ``htype`` is not a known hook type.
-            ValueError: if ``htype`` is the instruction hook type and ``arg1`` is not IN, OUT, SYSCALL, or SYSENTER.
+            ValueError: if ``htype`` is the instruction hook type and ``arg1`` is not IN, OUT, SYSCALL, SYSENTER, or
+                CPUID.
             unicorn.UcError: if Unicorn rejects the hook.
         """
         assert self.emu is not None
@@ -355,6 +393,8 @@ class EmuEngine:
                 cb = ct.cast(UC_HOOK_INSN_OUT_CB(cb), UC_HOOK_INSN_OUT_CB)
             elif arg1 in (u.UC_X86_INS_SYSCALL, u.UC_X86_INS_SYSENTER):
                 cb = ct.cast(UC_HOOK_INSN_SYSCALL_CB(cb), UC_HOOK_INSN_SYSCALL_CB)
+            elif arg1 == u.UC_X86_INS_CPUID:
+                cb = ct.cast(UC_HOOK_INSN_CPUID_CB(cb), UC_HOOK_INSN_CPUID_CB)
             else:
                 raise ValueError(f"unsupported instruction for an instruction hook: {arg1}")
         elif hook_type in (uc.UC_HOOK_CODE, uc.UC_HOOK_BLOCK):

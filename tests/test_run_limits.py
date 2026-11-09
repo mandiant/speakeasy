@@ -8,7 +8,12 @@ import unicorn as uc
 
 from speakeasy import Speakeasy
 from speakeasy.engines.start_timer import StartTimer
-from speakeasy.engines.unicorn_eng import EmuEngine, get_exception_state_offset, get_tsc_offset_location
+from speakeasy.engines.unicorn_eng import (
+    EmuEngine,
+    get_cpuid_leaf_1,
+    get_exception_state_offset,
+    get_tsc_offset_location,
+)
 from speakeasy.profiler import Run
 from speakeasy.windows.winemu import RunLimits, _ExecutionBudget
 from speakeasy.winenv import arch
@@ -86,11 +91,13 @@ def test_engine_probes_the_cpu_context_before_it_starts():
     # instance initializes, so the probes cannot run from a hook.
     get_exception_state_offset.cache_clear()
     get_tsc_offset_location.cache_clear()
+    get_cpuid_leaf_1.cache_clear()
     eng = EmuEngine()
     eng.init_engine(arch.ARCH_X86, arch.BITS_64)
 
     assert get_exception_state_offset.cache_info().currsize == 1
     assert get_tsc_offset_location.cache_info().currsize == 1
+    assert get_cpuid_leaf_1.cache_info().currsize == 1
 
 
 def test_start_timer_repeats_a_stop_that_is_lost():
