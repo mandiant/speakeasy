@@ -133,7 +133,7 @@ class Shell32(api.ApiHandler):
         return re.sub(r"%([^%]+)%", lambda m: values.get(m.group(1).lower(), m.group(0)), template)
 
     def get_folder_path(self, emu, csidl):
-        path = shell32_defs.CSIDL_PATHS.get(csidl, "C:\\Windows\\Temp")
+        path = shell32_defs.CSIDL_PATHS.get(csidl, "%windir%\\Temp")
         if emu.get_ptr_size() == 8:
             path = shell32_defs.CSIDL_PATHS_X64.get(csidl, path)
         return self.expand_folder_path(emu, path)

@@ -148,7 +148,7 @@ KNOWN_FOLDERS = {
     ),
     "82A5EA35-D9CD-47C5-9629-E15D2F714E6E": (
         "FOLDERID_CommonStartup",
-        "%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp",
+        "%ALLUSERSPROFILE%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
     ),
     "B94237E7-57AC-4347-9151-B08C6C32D1F7": (
         "FOLDERID_CommonTemplates",
@@ -289,7 +289,7 @@ KNOWN_FOLDERS = {
     "625B53C3-AB48-4EC1-BA1F-A1EF4146FC19": ("FOLDERID_StartMenu", "%APPDATA%\\Microsoft\\Windows\\Start Menu"),
     "B97D20BB-F46A-4C97-BA10-5E3608430854": (
         "FOLDERID_Startup",
-        "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp",
+        "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
     ),
     "1AC14E77-02E7-4E5D-B744-2EB1AE5198B7": ("FOLDERID_System", "%windir%\\System32"),
     "D65231B0-B2F1-4857-A4CE-A8E7C6EA7D27": ("FOLDERID_SystemX86", "%windir%\\System32"),
