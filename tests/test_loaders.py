@@ -465,16 +465,24 @@ def test_last_section_raw_data_past_end_of_file_stays_inside_the_image(load_test
 
 @pytest.mark.parametrize(
     "mutation,invalid",
-    [("entry_point", True), ("truncated", True), ("import_directory", True), ("alignment_padding", False)],
+    [
+        ("entry_point", True),
+        ("truncated", True),
+        ("import_directory", True),
+        ("import_descriptor", True),
+        ("alignment_padding", False),
+    ],
 )
 def test_broken_input_image_is_reported_and_still_runs(mutation, invalid, config, run_test):
-    pe = pefile.PE(data=build_pe()[0])
+    pe = pefile.PE(data=build_pe(imports={"kernel32.dll": ["Sleep"]})[0])
     pe.sections[-1].Misc_VirtualSize = pe.sections[-1].SizeOfRawData
     if mutation == "entry_point":
         pe.OPTIONAL_HEADER.AddressOfEntryPoint = 0xFFC00001
     elif mutation == "import_directory":
         pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].VirtualAddress = 0x550000
         pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].Size = 20
+    elif mutation == "import_descriptor":
+        pe.DIRECTORY_ENTRY_IMPORT[0].struct.Name = 0x64323025
     data = pe.write()
     if mutation == "truncated":
         data = data[: pe.sections[1].PointerToRawData]
@@ -486,3 +494,28 @@ def test_broken_input_image_is_reported_and_still_runs(mutation, invalid, config
     assert [error.type for error in report.errors] == (["invalid_image"] if invalid else [])
     assert len(report.entry_points) == 1
     assert report.entry_points[0].start_address < 1 << 32
+
+
+@pytest.mark.parametrize(
+    "fields,reported",
+    [
+        ({1: {"FirstThunk": 0x4000}}, True),
+        ({0: {"FirstThunk": 0}, 1: {"Name": 0x64323025}}, False),
+        ({0: {"Name": 0}, 1: {"FirstThunk": 0x64323025}}, False),
+    ],
+    ids=["second_descriptor", "after_iat_terminator", "after_name_terminator"],
+)
+def test_import_descriptor_that_windows_cannot_resolve_is_an_image_problem(fields, reported):
+    """
+    The Windows loader reads the static import descriptors up to the first one without a Name or a FirstThunk.
+
+    It fails the load when a descriptor before that one points outside the image.
+    """
+    pe = pefile.PE(data=build_pe(imports={"kernel32.dll": ["Sleep"], "user32.dll": ["MessageBoxA"]})[0])
+    for index, values in fields.items():
+        for field, value in values.items():
+            setattr(pe.DIRECTORY_ENTRY_IMPORT[index].struct, field, value)
+
+    image = PeLoader(data=pe.write()).make_image()
+
+    assert bool(image.problems) == reported
