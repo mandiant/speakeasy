@@ -389,7 +389,26 @@ class PeLoader:
     def _optional_error(self, context: str, error: Exception) -> None:
         logger.warning("Skipping malformed PE %s: %s", context, error)
 
-    def _get_image_problems(self, pe: Any) -> list[str]:
+    def _get_import_descriptor_problem(self, pe: Any, mapped_image: bytes | bytearray) -> str | None:
+        # The Windows loader reads the descriptors up to the first one without a Name or a
+        # FirstThunk, and fails the load at the first one that points outside the image.
+        rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].VirtualAddress
+        if not rva:
+            return None
+        for index, offset in enumerate(range(rva, len(mapped_image) - 19, 20)):
+            name_table, _, _, name, iat = struct.unpack_from("<5I", mapped_image, offset)
+            if not name or not iat:
+                return None
+            fields = (("a DLL name", name), ("an import name table", name_table), ("an IAT", iat))
+            for field_name, value in fields:
+                if value >= pe.image_size:
+                    return (
+                        f"import descriptor {index} has {field_name} RVA {value:#x} "
+                        f"outside the image (size {pe.image_size:#x})"
+                    )
+        return None
+
+    def _get_image_problems(self, pe: Any, mapped_image: bytes | bytearray) -> list[str]:
         problems = []
         ep_rva = pe.OPTIONAL_HEADER.AddressOfEntryPoint
         if ep_rva >= pe.image_size:
@@ -411,6 +430,8 @@ class PeLoader:
             import_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[1].VirtualAddress
             if import_rva >= pe.image_size:
                 problems.append(f"import directory RVA {import_rva:#x} is outside the image (size {pe.image_size:#x})")
+            elif problem := self._get_import_descriptor_problem(pe, mapped_image):
+                problems.append(problem)
         for problem in problems:
             logger.warning("Invalid PE image: %s", problem)
         return problems
@@ -814,7 +835,7 @@ class PeLoader:
             sections=sections,
             pe_metadata=pe_metadata,
             relocations=relocations,
-            problems=self._get_image_problems(pe),
+            problems=self._get_image_problems(pe, mapped_image),
         )
 
 
