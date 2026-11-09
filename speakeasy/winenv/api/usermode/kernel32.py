@@ -1150,9 +1150,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
         ctx.args["flProtect"].display = "|".join(prot_def)
 
-        # Was this address already commited?
+        # A commit in an allocation of the caller changes its pages in place. A reservation needs free
+        # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
         mm = emu.get_address_map(lpAddress)
-        if mm and mm.tag and mm.tag.startswith(tag_prefix):
+        if mm and mm.tag and mm.tag.startswith(tag_prefix) and (mm.free or not flAllocationType & windefs.MEM_RESERVE):
             buf = lpAddress
             if flAllocationType & windefs.MEM_COMMIT:
                 buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
@@ -1216,6 +1217,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD flAllocationType,
             DWORD flProtect
         );
+
+        All processes share one address space. When memory of the target process uses the range at lpAddress,
+        the call fails with ERROR_INVALID_ADDRESS, as on Windows. When other memory uses it, for example the image
+        of the caller, the allocation goes to the next free range, and the call returns that address.
         """
         hProcess, lpAddress, dwSize, flAllocationType, flProtect = argv
         flProtect &= 0xFFFFFFFF
@@ -1236,9 +1241,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
         ctx.args["flProtect"].display = "|".join(prot_def)
 
-        # Was this address already commited?
+        # A commit in an allocation of the caller changes its pages in place. A reservation needs free
+        # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
         mm = emu.get_address_map(lpAddress)
-        if mm and mm.tag and mm.tag.startswith(tag_prefix):
+        if mm and mm.tag and mm.tag.startswith(tag_prefix) and (mm.free or not flAllocationType & windefs.MEM_RESERVE):
             buf = lpAddress
             if flAllocationType & windefs.MEM_COMMIT:
                 buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
@@ -1248,7 +1254,20 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             else:
                 test = emu.virtual_mem_base
             size = dwSize
-            base, size = emu.get_valid_ranges(size, addr=test)
+            try:
+                base, size = emu.get_valid_ranges(size, addr=test)
+            except OutOfMemoryError:
+                emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
+                return 0
+            if lpAddress and base != test:
+                # All processes share one address space, so memory of the caller can take the range in another
+                # process. Only memory of the target process fails the call. For other memory the allocation
+                # moves, so that a process hollowing sample still writes its payload and resumes the target.
+                end = test + size
+                taken = [m for m in emu.get_mem_maps() if m.base < end and test < m.base + m.size]
+                if obj is emu.get_current_process() or any(m.process is obj for m in taken):
+                    emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
+                    return 0
             while base and base & 0xFFF:
                 base, size = emu.get_valid_ranges(size, addr=test)
                 test += e_arch.PAGE_SIZE
