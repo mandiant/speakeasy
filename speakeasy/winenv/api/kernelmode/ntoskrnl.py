@@ -22,6 +22,7 @@ from speakeasy.windows import objman
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
 from speakeasy.winenv.api.token import query_token_information
+from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 from speakeasy.winenv.defs.enums import FILE_ACCESS_FLAGS, NT_CREATE_FILE_DISPOSITION, REG_VALUE_TYPE
 from speakeasy.winenv.defs.lookup import decode, decode_flags
@@ -741,6 +742,25 @@ class Ntoskrnl(api.ApiHandler):
                     sm.ModuleNameOffset = image_name.rfind(b"\\") + 1
                     self.mem_write(buf_ptr, self.get_bytes(sm))
                     buf_ptr += self.sizeof(sm)
+                nts = ddk.STATUS_SUCCESS
+
+        elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemBasicInformation:
+            k32 = emu.api.load_api_handler("kernel32")
+            sbi = self.win.SYSTEM_BASIC_INFORMATION(emu.get_ptr_size())
+            sbi.TimerResolution = 156250
+            sbi.PageSize = 0x1000
+            sbi.NumberOfPhysicalPages = 0x200000
+            sbi.LowestPhysicalPageNumber = 1
+            sbi.HighestPhysicalPageNumber = 0x200000
+            sbi.AllocationGranularity = 0x10000
+            sbi.MinimumUserModeAddress = 0x10000
+            sbi.MaximumUserModeAddress = k32.get_max_application_address(emu)
+            sbi.ActiveProcessorsAffinityMask = (1 << PROCESSOR_COUNT) - 1
+            sbi.NumberOfProcessors = PROCESSOR_COUNT
+
+            size = self.sizeof(sbi)
+            if SystemInformationLength == size:
+                self.mem_write(SystemInformation, self.get_bytes(sbi))
                 nts = ddk.STATUS_SUCCESS
 
         elif SystemInformationClass == ddk.SYSTEM_INFORMATION_CLASS.SystemTimeOfDayInformation:

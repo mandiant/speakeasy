@@ -9,6 +9,7 @@ from speakeasy import Speakeasy
 from speakeasy.windows import objman
 from speakeasy.winenv.api.usermode.msvcrt import Msvcrt
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from tests.handler_harness import alloc, ansi_string, call, get_kernel_emu, load_emu, object_attributes, unicode_string
 
 RET_ADDR = 0x41414141
@@ -425,9 +426,47 @@ def test_rtl_decompress_buffer_reports_bad_lznt1_data(driver_emu: Speakeasy, dat
 def test_zw_query_system_information_rejects_an_unhandled_class(driver_emu: Speakeasy) -> None:
     info = alloc(driver_emu, b"\x00" * 0x40)
     retlen = alloc(driver_emu, b"\xcc" * 4)
-    rv, _ = call(driver_emu, "ntoskrnl", "ZwQuerySystemInformation", [0, info, 0x40, retlen])
+    argv = [ddk.SYSTEM_INFORMATION_CLASS.SystemPathInformation, info, 0x40, retlen]
+    rv, _ = call(driver_emu, "ntoskrnl", "ZwQuerySystemInformation", argv)
     assert rv == ddk.STATUS_INVALID_INFO_CLASS
     assert driver_emu.mem_read(retlen, 4) == b"\xcc" * 4
+
+
+def query_basic_information(se: Speakeasy, length: int) -> tuple[int, int, bytes]:
+    buf = alloc(se, b"\xcc" * 0x48)
+    retlen = alloc(se, b"\0" * 4)
+    argv = [ddk.SYSTEM_INFORMATION_CLASS.SystemBasicInformation, buf, length, retlen]
+    rv, _ = call(se, "ntdll", "NtQuerySystemInformation", argv)
+    return rv, int.from_bytes(se.mem_read(retlen, 4), "little"), bytes(se.mem_read(buf, 0x48))
+
+
+@pytest.mark.parametrize(("fixture", "size", "fmt"), [("dll_emu", 0x2C, "<10IB"), ("dll64_emu", 0x40, "<7I4x3QB")])
+def test_query_system_basic_information_matches_get_system_info(
+    request: pytest.FixtureRequest, fixture: str, size: int, fmt: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    rv, retlen, data = query_basic_information(se, size)
+    assert (rv, retlen) == (ddk.STATUS_SUCCESS, size)
+
+    info = k32defs.SYSTEM_INFO(se.get_ptr_size())
+    addr = alloc(se, b"\x00" * info.sizeof())
+    call(se, "kernel32", "GetSystemInfo", [addr])
+    info = se.mem_cast(info, addr)
+    fields = struct.unpack_from(fmt, data)
+    assert (fields[2], fields[6], *fields[7:]) == (
+        info.dwPageSize,
+        info.dwAllocationGranularity,
+        info.lpMinimumApplicationAddress,
+        info.lpMaximumApplicationAddress,
+        info.dwActiveProcessorMask,
+        info.dwNumberOfProcessors,
+    )
+
+
+def test_query_system_basic_information_rejects_a_larger_buffer(dll64_emu: Speakeasy) -> None:
+    rv, retlen, data = query_basic_information(dll64_emu, 0x48)
+    assert (rv, retlen) == (ddk.STATUS_INFO_LENGTH_MISMATCH, 0x40)
+    assert data == b"\xcc" * 0x48
 
 
 def test_ob_reference_object_by_name_finds_a_configured_driver(driver_emu: Speakeasy) -> None:
