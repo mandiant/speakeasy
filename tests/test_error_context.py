@@ -1,6 +1,7 @@
 """Tests for enriched exception context in ErrorInfo and error dict parsing."""
 
 import copy
+import struct
 
 import pytest
 
@@ -141,3 +142,16 @@ def test_python_exception_in_speakeasy_is_internal_error(base_config):
         assert (e.type, e.message) == ("internal_error", "bad handler state")
         assert e.traceback is not None and e.traceback.endswith("ValueError: bad handler state\n")
         assert e.context_summary is not None and "bad handler state" in e.context_summary
+
+
+def test_fault_after_the_end_of_a_module_is_not_in_the_module(base_config):
+    with Speakeasy(config=copy.deepcopy(base_config)) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x10, arch="x86")
+        kernel32 = se.emu.get_mod_by_name("kernel32")
+        end = kernel32.base + kernel32.image_size
+        se.mem_write(code, b"\xb8" + struct.pack("<I", end) + b"\xff\xe0")  # mov eax, end; jmp eax
+        se.run_shellcode(code)
+
+        e = se.get_report().entry_points[0].error
+        assert e is not None
+        assert (e.type, e.pc, e.pc_module) == ("invalid_fetch", end, None)

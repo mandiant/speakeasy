@@ -819,7 +819,7 @@ class BinaryEmulator(MemoryManager, ABC):
         for mod in self.modules:
             base = mod.base
             size = mod.image_size
-            if addr >= base and addr <= base + size:
+            if base <= addr < base + size:
                 return mod
         return None
 
