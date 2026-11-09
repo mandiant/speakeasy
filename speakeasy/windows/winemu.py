@@ -186,7 +186,8 @@ class _ApiCallState:
     pc: int
     sp: int
     return_address: int
-    call_pc: int
+    # The address of the call, or None if the emulator does not know it.
+    call_pc: int | None
 
     @property
     def api_name(self) -> str:
@@ -409,7 +410,10 @@ class WindowsEmulator(BinaryEmulator):
         self._sigfmt: sigfmt.ArgFormatter | None = None
         self.api_registry: ApiRegistry = ApiRegistry(self)
         self._native_exit: NativeExit | None = None
-        self._api_call_site: tuple[int, int] | None = None
+        # The API entry that the last block jumped to, and the start and size of that block.
+        self._api_call_site: tuple[int, tuple[int, int]] | None = None
+        self._last_block: tuple[int, int] | None = None
+        self.call_site_hook: Any | None = None
         # Maps each guard page to the protection that its first access restores. Guard pages have no access.
         self.guard_pages: dict[int, int] = {}
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
@@ -608,6 +612,11 @@ class WindowsEmulator(BinaryEmulator):
             self.add_mem_read_hook(cb=self._hook_mem_read),
             self.add_mem_write_hook(cb=self._hook_mem_write),
         ]
+
+    def set_call_site_hook(self):
+        if self.call_site_hook:
+            return
+        self.call_site_hook = self.add_block_hook(cb=self._hook_block_call_site)
 
     def set_coverage_hooks(self):
         if not self.config.analysis.coverage:
@@ -1139,6 +1148,8 @@ class WindowsEmulator(BinaryEmulator):
         Raises:
             uc.UcError: if Unicorn fails and no native exit explains the failure.
         """
+        # A block of an earlier start of Unicorn did not jump to the code of this start.
+        self._last_block = None
         try:
             native_timeout = limits.get_native_timeout()
             native_count = limits.get_native_count()
@@ -1301,7 +1312,7 @@ class WindowsEmulator(BinaryEmulator):
             return False
         self._native_exit = None
         site, self._api_call_site = self._api_call_site, None
-        self.prev_pc = site[1] if site is not None and site[0] == entry.address else 0
+        self.prev_pc = self._get_last_instruction(*site[1]) if site is not None and site[0] == entry.address else 0
         self.dispatch_api_call(entry.dll, entry.name)
         if self._pending_fault_stop is not None:
             return False
@@ -2823,13 +2834,22 @@ class WindowsEmulator(BinaryEmulator):
             text = sigfmt.quote_string(text)
         return f"{arg.name}: {text}" if arg.name is not None else text
 
-    def log_api(self, pc: int, imp_api: str, rv: int | None, args: list[ApiArg], *, run=None) -> None:
+    def log_api(
+        self,
+        pc: int | None,
+        imp_api: str,
+        rv: int | None,
+        args: list[ApiArg],
+        *,
+        run=None,
+        return_address: int | None = None,
+    ) -> None:
         """Log an API call and record it in the report."""
         call_str = f"{imp_api}({', '.join(self.format_api_arg(arg) for arg in args)})"
 
         rv = self.get_machine_word(rv)
         rv_str = hex(rv) if rv is not None else None
-        logger.info("%s: %s -> %s", hex(pc), repr(call_str), rv_str)
+        logger.info("%s: %s -> %s", hex(pc) if pc is not None else "?", repr(call_str), rv_str)
         run = self.curr_run if run is None else run
         if self.profiler and run:
             tick = run.instr_cnt
@@ -2841,7 +2861,9 @@ class WindowsEmulator(BinaryEmulator):
             frame = self._active_api_frame
             if frame is not None and not any(item is frame for item in run.guest_callbacks):
                 frame = None
-            event = self.profiler.record_api_event(run, pos, imp_api, rv, args, deduplicate=frame is None)
+            event = self.profiler.record_api_event(
+                run, pos, imp_api, rv, args, deduplicate=frame is None, return_address=return_address
+            )
             if frame is not None:
                 frame.event = event
 
@@ -2990,7 +3012,7 @@ class WindowsEmulator(BinaryEmulator):
         # counts and pointers, 0 means no data.
         return 0
 
-    def _handle_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int) -> int | None:
+    def _handle_api_from_signature(self, dll: str, name: str, sig: sigdb.FuncSig, call_pc: int | None) -> int | None:
         """
         Run an API that has no handler from its signature.
 
@@ -3009,7 +3031,7 @@ class WindowsEmulator(BinaryEmulator):
         rv = self._default_return_for_signature(sig)
         logger.debug(
             "%s: no handler for %s; emulating from %s signature (%d params, %s, argc=%d)",
-            hex(call_pc),
+            hex(call_pc) if call_pc is not None else "?",
             imp_api,
             sig.source,
             len(sig.params),
@@ -3025,7 +3047,7 @@ class WindowsEmulator(BinaryEmulator):
                 set_last_error(0)
 
         ret = self.get_ret_address()
-        self.log_api(call_pc, imp_api, rv, args)
+        self.log_api(call_pc, imp_api, rv, args, return_address=ret)
         self.do_call_return(argc, ret, rv, conv=conv)
         if not self.is_run_complete:
             self.enable_deferred_work_hook()
@@ -3111,7 +3133,7 @@ class WindowsEmulator(BinaryEmulator):
             pc=self.get_pc(),
             sp=self.get_stack_ptr(),
             return_address=ret,
-            call_pc=self.prev_pc if self.prev_pc != 0 else ret,
+            call_pc=self.prev_pc or None,
         )
         impl = self.resolve_api_implementation(dll, name)
         api_name = call.api_name
@@ -3174,7 +3196,14 @@ class WindowsEmulator(BinaryEmulator):
                     raise
                 desc, address, access_type, message = guest_callbacks.get_handler_fault(self, e, self.get_pc())
                 if access_type and self._can_raise_api_fault():
-                    self.log_api(call.call_pc, imp_api, None, ctx.args.get_report_args(), run=call.run)
+                    self.log_api(
+                        call.call_pc,
+                        imp_api,
+                        None,
+                        ctx.args.get_report_args(),
+                        run=call.run,
+                        return_address=call.return_address,
+                    )
                     if self._raise_api_fault(frame, access_type, address):
                         return False
                 logger.exception("0x%x: Error while calling API handler for %s:", call.return_address, imp_api)
@@ -3199,7 +3228,9 @@ class WindowsEmulator(BinaryEmulator):
         if mm and mm.tag and any(name in mm.tag.lower() for name in ("virtualalloc", "allocatevirtualmemory")):
             self._fire_dyn_code_hooks(ret)
 
-        self.log_api(call.call_pc, imp_api, rv, ctx.args.get_report_args(), run=call.run)
+        self.log_api(
+            call.call_pc, imp_api, rv, ctx.args.get_report_args(), run=call.run, return_address=call.return_address
+        )
 
         if (
             self.curr_run is call.run
@@ -3238,7 +3269,14 @@ class WindowsEmulator(BinaryEmulator):
         rv = hook.cb(hook.emu, call.api_name, None, argv)
         call.frame.result = rv
         ret = self.get_ret_address()
-        self.log_api(call.call_pc, call.api_name, rv, sigfmt.get_slot_args(argv), run=call.run)
+        self.log_api(
+            call.call_pc,
+            call.api_name,
+            rv,
+            sigfmt.get_slot_args(argv),
+            run=call.run,
+            return_address=call.return_address,
+        )
         if (
             self.curr_run is call.run
             and self.get_pc() == call.pc
@@ -3262,14 +3300,16 @@ class WindowsEmulator(BinaryEmulator):
         call.frame.argc = argc
         call.frame.convention = conv
         call.frame.result = 1
-        self.log_api(call.call_pc, call.api_name, 1, sigfmt.get_slot_args(argv), run=call.run)
+        self.log_api(
+            call.call_pc, call.api_name, 1, sigfmt.get_slot_args(argv), run=call.run, return_address=call.return_address
+        )
         self.do_call_return(argc, call.return_address, 1, conv=conv)
 
     def _handle_unsupported_api(self, call: _ApiCallState) -> None:
         """End the run with an ``unsupported_api`` error."""
         error = self.get_error_info(ErrorType.UNSUPPORTED_API, call.return_address, api_name=call.api_name)
         logger.error("Unsupported API: %s (ret: 0x%x)", call.api_name, call.return_address)
-        self.log_api(call.call_pc, call.api_name, None, [], run=call.run)
+        self.log_api(call.call_pc, call.api_name, None, [], run=call.run, return_address=call.return_address)
         error.api_name = call.api_name
         self.end_run(error)
 
@@ -3617,6 +3657,25 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             return self._end_run_on_hook_error("Exception during code hook (coverage)", e)
 
+    def _hook_block_call_site(self, emu, addr, size):
+        """Record the block that jumps to an API entry. The last instruction of the block is the call site."""
+        entry = self.api_registry.entries.get(addr)
+        if entry is not None and entry.trap is not None and self._last_block is not None:
+            self._api_call_site = (addr, self._last_block)
+        self._last_block = (addr, size)
+        return True
+
+    def _get_last_instruction(self, block: int, size: int) -> int:
+        """Get the address of the last instruction of a block, or 0 if the block does not decode to its end."""
+        try:
+            code = self.mem_read(block, size)
+        except uc.UcError:
+            return 0
+        for address, insn_size, _, _ in self.disasm_eng.disasm_lite(bytes(code), block):
+            if address + insn_size == block + size:
+                return int(address)
+        return 0
+
     def _hook_code_tracing(self, emu, addr, size):
         """Count the instructions, and the executes of each symbol, section and memory map."""
         try:
@@ -3627,9 +3686,6 @@ class WindowsEmulator(BinaryEmulator):
             symbol = self.get_symbol_from_address(addr)
             if symbol:
                 self._count_symbol_access("execs", addr, symbol)
-                entry = self.api_registry.entries.get(addr)
-                if entry is not None and entry.trap is not None:
-                    self._api_call_site = (addr, self.prev_pc)
 
             self.prev_pc = addr
             run = self.curr_run

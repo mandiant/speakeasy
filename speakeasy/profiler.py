@@ -253,12 +253,15 @@ class Profiler:
         args: list[ApiArg],
         *,
         deduplicate: bool = True,
+        return_address: int | None = None,
     ) -> ApiEvent:
         """
         Record a call to an API, with the arguments and the return value.
 
         If ``deduplicate`` is true, the profiler does not add a call that has the same API, pc,
-        shown arguments and return value as one of the last 3 events of the run. The shown
+        return address, shown arguments and return value as one of the last 3 events of the run.
+        Calls through one thunk have the same pc, and the return address keeps the calls of
+        different callers apart. The shown
         argument values are compared, not the raw values, so a loop that passes the same string
         from a different buffer gives one event.
         """
@@ -269,11 +272,13 @@ class Profiler:
             run.unique_apis.append(name)
 
         event = ApiEvent(pos=pos, api_name=name, args=args, return_value=ret)
+        event._return_address = return_address
 
         shown = [(a.name, a.type, a.display) for a in args]
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
         if not deduplicate or not any(
             e.pos.pc == event.pos.pc
+            and e._return_address == return_address
             and e.api_name == event.api_name
             and [(a.name, a.type, a.display) for a in e.args] == shown
             and e.return_value == event.return_value

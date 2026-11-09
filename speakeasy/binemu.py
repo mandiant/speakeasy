@@ -235,6 +235,7 @@ class BinaryEmulator(MemoryManager, ABC):
         """Add the code, memory and interrupt hooks that the engine does not have yet."""
         for ht in (
             common.HOOK_CODE,
+            common.HOOK_BLOCK,
             common.HOOK_MEM_READ,
             common.HOOK_MEM_WRITE,
             common.HOOK_MEM_INVALID,
@@ -943,6 +944,10 @@ class BinaryEmulator(MemoryManager, ABC):
     def add_code_hook(self, cb: CodeHookCallback, begin=1, end=0) -> common.CodeHook:
         """Add a hook that fires for each instruction from ``begin`` to ``end``."""
         return self.add_hook(common.CodeHook(cb, begin, end))
+
+    def add_block_hook(self, cb: CodeHookCallback, begin=1, end=0) -> common.BlockHook:
+        """Add a hook that fires at the start of each translation block from ``begin`` to ``end``."""
+        return self.add_hook(common.BlockHook(cb, begin, end))
 
     def _fire_dyn_code_hooks(self, addr):
         profiler = self.get_profiler()

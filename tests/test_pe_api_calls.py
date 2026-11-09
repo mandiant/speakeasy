@@ -270,7 +270,7 @@ def test_api_event_pc_is_the_call_site(architecture, memory_tracing):
         se.run_module(module)
         (event,) = [event for event in se.get_report().entry_points[0].events if event.event == "api"]
     call = module.base + 0x1000 + (4 if architecture == 64 else 0)
-    assert event.pos.pc == (call if memory_tracing else call + 6)
+    assert event.pos.pc == call
 
 
 def test_nt_create_thread_ex_runs_the_thread(config, load_test_bin):
@@ -377,3 +377,16 @@ def test_report_clock_covers_every_start_of_the_run_queue():
 
     assert int(before) <= report.timestamp <= int(before) + 1
     assert report.emulation_total_runtime >= 0.6
+
+
+def test_api_events_of_one_thunk_keep_each_caller():
+    def text(base, iat):
+        jump = b"\xff\x25" + struct.pack("<I", base + iat["kernel32.dll", "GetCurrentProcessId"])
+        return b"\xe8\x06\0\0\0" + b"\xe8\x01\0\0\0" + b"\xc3" + jump
+
+    data, _ = build_pe(32, text=text, imports={"kernel32.dll": ["GetCurrentProcessId"]})
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        events = [event for event in se.get_report().entry_points[0].events if event.event == "api"]
+    assert [event.pos.pc for event in events] == [module.base + 0x100B] * 2

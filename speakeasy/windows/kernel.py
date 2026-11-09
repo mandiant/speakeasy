@@ -424,6 +424,7 @@ class WinKernelEmulator(WindowsEmulator):
             self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
             self.has_builtin_hooks = True
 
+        self.set_call_site_hook()
         self.set_mem_tracing_hooks()
         self.set_coverage_hooks()
         self.set_debug_hooks()

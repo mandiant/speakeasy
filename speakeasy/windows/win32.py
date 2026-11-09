@@ -658,6 +658,7 @@ class Win32Emulator(WindowsEmulator):
                 self.add_instruction_hook(cb=self._hook_out_instruction, insn=UC_X86_INS_OUT)
             self.has_builtin_hooks = True
 
+        self.set_call_site_hook()
         self.set_mem_tracing_hooks()
         self.set_coverage_hooks()
         self.set_debug_hooks()

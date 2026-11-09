@@ -167,6 +167,7 @@ class EmuEngine:
 
         self.hook_types: dict[int, int] = {
             common.HOOK_CODE: uc.UC_HOOK_CODE,
+            common.HOOK_BLOCK: uc.UC_HOOK_BLOCK,
             common.HOOK_MEM_ACCESS: uc.UC_HOOK_MEM_VALID,
             common.HOOK_MEM_INVALID: uc.UC_HOOK_MEM_INVALID,
             common.HOOK_MEM_PERM_EXEC: uc.UC_HOOK_MEM_FETCH_PROT,
@@ -339,7 +340,7 @@ class EmuEngine:
 
         handle = self.emu._uch
 
-        # The Python wrapper of the Unicorn bindings adds a call to each hook. For the code, memory,
+        # The Python wrapper of the Unicorn bindings adds a call to each hook. For the code, block, memory,
         # invalid memory and instruction hooks, add the callback to the C library directly.
         if hook_type == uc.UC_HOOK_INSN:
             if arg1 == u.UC_X86_INS_IN:
@@ -350,7 +351,7 @@ class EmuEngine:
                 cb = ct.cast(UC_HOOK_INSN_SYSCALL_CB(cb), UC_HOOK_INSN_SYSCALL_CB)
             else:
                 raise ValueError(f"unsupported instruction for an instruction hook: {arg1}")
-        elif hook_type == uc.UC_HOOK_CODE:
+        elif hook_type in (uc.UC_HOOK_CODE, uc.UC_HOOK_BLOCK):
             cb = ct.cast(UC_HOOK_CODE_CB(cb), UC_HOOK_CODE_CB)
         elif hook_type in (uc.UC_HOOK_MEM_READ, uc.UC_HOOK_MEM_WRITE):
             cb = ct.cast(UC_HOOK_MEM_ACCESS_CB(cb), UC_HOOK_MEM_ACCESS_CB)

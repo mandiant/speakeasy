@@ -26,6 +26,7 @@ HOOK_DYN_CODE = 1009
 HOOK_INSN = 1010
 HOOK_MEM_MAP = 1011
 HOOK_INSN_INVALID = 1012
+HOOK_BLOCK = 1013
 
 # Emulation memory protection types
 PERM_MEM_NONE = 0
@@ -188,6 +189,22 @@ class CodeHook(Hook):
     def add(self):
         if not self.added and self.native_hook:
             self.handle = self.emu_eng.hook_add(htype=HOOK_CODE, cb=self._wrap_code_cb, begin=self.begin, end=self.end)
+        self.added = True
+
+
+class BlockHook(Hook):
+    """Hook that fires at the start of each translation block in its address range."""
+
+    htype = HOOK_BLOCK
+
+    def __init__(self, cb, begin=1, end=0):
+        super().__init__(cb, native_hook=True)
+        self.begin: int = begin
+        self.end: int = end
+
+    def add(self):
+        if not self.added:
+            self.handle = self.emu_eng.hook_add(htype=HOOK_BLOCK, cb=self._wrap_code_cb, begin=self.begin, end=self.end)
         self.added = True
 
 
