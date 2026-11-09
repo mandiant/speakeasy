@@ -58,8 +58,6 @@ RT_STRING = 6
 WS_POPUP = 0x80000000
 WS_CHILD = 0x40000000
 
-HWND_BROADCAST = 0xFFFF
-
 # The devices that EnumDisplayDevices lists under each parent device name: one Intel adapter, as in an
 # OptiPlex 7090, with one monitor. Each entry gives DeviceName, DeviceString, StateFlags, DeviceID and DeviceKey.
 DISPLAY_DEVICES = {
@@ -498,7 +496,8 @@ class User32(api.ApiHandler):
             int nExitCode
         );
 
-        WM_QUIT goes to the end of the message queue of the thread, after the messages that are already posted.
+        Speakeasy adds WM_QUIT to the end of the message queue of the thread. On Windows, GetMessage gives WM_QUIT
+        after all posted messages, also after the messages that the thread posts after PostQuitMessage.
         """
         (nExitCode,) = argv
         self.post_message(emu, emu.get_current_thread(), 0, u32defs.WM_QUIT, nExitCode, 0)
@@ -839,7 +838,7 @@ class User32(api.ApiHandler):
         Only posted messages are in the queue. PeekMessage does not give timer messages.
         """
         lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg = argv
-        msg = self.get_posted_message(emu, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg & u32defs.PM_REMOVE)
+        msg = self.get_posted_message(emu, hWnd, wMsgFilterMin, wMsgFilterMax, remove=wRemoveMsg & u32defs.PM_REMOVE)
         if msg is None:
             return False
         if lpMsg:
@@ -868,7 +867,7 @@ class User32(api.ApiHandler):
             thread = self.get_thread(emu, window.thread_id)
             if thread:
                 self.post_message(emu, thread, hWnd, Msg, wParam, lParam)
-        elif hWnd != HWND_BROADCAST:
+        elif hWnd != u32defs.HWND_BROADCAST:
             emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
             return False
         return True
@@ -882,6 +881,9 @@ class User32(api.ApiHandler):
             WPARAM wParam,
             LPARAM lParam
         );
+
+        Each thread has a message queue, so the message goes to any thread that Speakeasy knows. On Windows, the
+        call fails for a thread that has not called a user32 or gdi32 function.
         """
         idThread, Msg, wParam, lParam = argv
         thread = self.get_thread(emu, idThread)
@@ -913,7 +915,8 @@ class User32(api.ApiHandler):
         queue = emu.get_current_thread().message_queue
         for i, msg in enumerate(queue):
             if msg.message != u32defs.WM_QUIT:
-                if hwnd == (1 << 8 * emu.get_ptr_size()) - 1:
+                # An hWnd of -1 selects the messages that have no window, such as those of PostThreadMessage
+                if hwnd == (1 << emu.get_ptr_size() * 8) - 1:
                     if msg.hwnd:
                         continue
                 elif hwnd and msg.hwnd != hwnd:
@@ -1061,6 +1064,10 @@ class User32(api.ApiHandler):
             UINT wMsgFilterMin,
             UINT wMsgFilterMax
         );
+
+        When no posted message matches the filter, GetMessage gives a timer message or a synthetic keyboard event,
+        and does not apply the filter to it. When no message is pending, GetMessage returns 0 and does not wait, so
+        the message loop ends.
         """
         lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax = argv
 
