@@ -18,6 +18,9 @@ from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
 
+# The IOCTL code of the IRP_MJ_DEVICE_CONTROL IRP that the emulator sends to a driver. It is not a real IOCTL code.
+DISPATCH_IOCTL = 0x5D5D5D5D
+
 
 class WinKernelEmulator(WindowsEmulator):
     """Emulate a Windows driver in kernel mode."""
@@ -313,55 +316,57 @@ class WinKernelEmulator(WindowsEmulator):
         """Add a symlink for a device."""
         self.get_object_manager("symlink creation").add_symlink(symlink, devname)
 
+    def new_irp(self):
+        """Create a new IRP."""
+        return objman.Irp(emu=self)
+
+    def new_dispatch_irp(self, major: int, dev) -> objman.Irp:
+        """
+        Create the IRP that the emulator sends to the dispatch routine of ``major`` for ``dev``.
+
+        An ``IRP_MJ_DEVICE_CONTROL`` IRP has the IOCTL code ``DISPATCH_IOCTL``.
+        """
+        irp = self.new_irp()
+        ios = irp.get_next_stack_loc()
+        ios.object.MajorFunction = major
+        if major == ddk.IRP_MJ_DEVICE_CONTROL:
+            ios.object.Parameters.DeviceIoControl.IoControlCode = DISPATCH_IOCTL
+        irp.dispatch_to(dev.address)
+        return irp
+
     def _call_driver_dispatch(self, func, dev_addr, irp_addr):
         """Set the arguments and the pc for a call to a dispatch function with an IRP."""
         stk_ptr = self.get_stack_ptr()
         self.set_func_args(stk_ptr, self.return_hook, dev_addr, irp_addr, conv=_arch.CALL_CONV_STDCALL)
         self.set_pc(func)
 
-    def new_irp(self):
-        """Create a new IRP."""
-        return objman.Irp(emu=self)
-
     def irp_mj_create(self, func, dev):
-        irp = self.new_irp()
-
+        irp = self.new_dispatch_irp(ddk.IRP_MJ_CREATE, dev)
         self._call_driver_dispatch(func, dev.address, irp.address)
         return irp
 
     def irp_mj_close(self, func, dev):
-        irp = self.new_irp()
+        irp = self.new_dispatch_irp(ddk.IRP_MJ_CLOSE, dev)
         self._call_driver_dispatch(func, dev.address, irp.address)
         return irp
 
     def irp_mj_dev_io(self, func, dev):
-        irp = self.new_irp()
-
-        ios = irp.get_curr_stack_loc()
-        ios.object.MajorFunction = ddk.IRP_MJ_DEVICE_CONTROL
-        ios.object.Parameters.DeviceIoControl.IoControlCode = 0x5D5D5D5D
-
-        ios.write_back()
-        irp.write_back()
-
+        irp = self.new_dispatch_irp(ddk.IRP_MJ_DEVICE_CONTROL, dev)
         self._call_driver_dispatch(func, dev.address, irp.address)
         return irp
 
     def irp_mj_read(self, func, dev):
-        irp = self.new_irp()
-
+        irp = self.new_dispatch_irp(ddk.IRP_MJ_READ, dev)
         self._call_driver_dispatch(func, dev.address, irp.address)
         return irp
 
     def irp_mj_write(self, func, dev):
-        irp = self.new_irp()
-
+        irp = self.new_dispatch_irp(ddk.IRP_MJ_WRITE, dev)
         self._call_driver_dispatch(func, dev.address, irp.address)
         return irp
 
     def irp_mj_cleanup(self, func, dev):
-        irp = self.new_irp()
-
+        irp = self.new_dispatch_irp(ddk.IRP_MJ_CLEANUP, dev)
         self._call_driver_dispatch(func, dev.address, irp.address)
         return irp
 

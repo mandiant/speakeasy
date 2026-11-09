@@ -3627,7 +3627,7 @@ class Ntoskrnl(api.ApiHandler):
         OutputBufferLength &= 0xFFFFFFFF
 
         irp = emu.new_irp()
-        ios = irp.get_curr_stack_loc()
+        ios = irp.get_next_stack_loc()
         ios.object.MajorFunction = (
             ddk.IRP_MJ_INTERNAL_DEVICE_CONTROL if InternalDeviceIoControl & 0xFF else ddk.IRP_MJ_DEVICE_CONTROL
         )
