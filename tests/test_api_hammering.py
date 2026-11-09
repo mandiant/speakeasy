@@ -38,7 +38,7 @@ def hammer_loop(form: str, dll: str, name: str, cdecl: bool, arg: int = 42):
         code += {
             "call_mem": b"\xff\x15" + struct.pack("<I", target),
             "call_reg": b"\xff\xd6",
-            "call_rel32": b"\xe8\0\0\0\0",
+            "call_rel32": b"\xe8" + struct.pack("<i", 0),
             "call_esi_mem": b"\xff\x16",
         }[form]
         if cdecl:

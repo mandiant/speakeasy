@@ -83,7 +83,7 @@ class ApiHammer:
             try:
                 patched = self._patch_x86_call(ret, conv, argc)
             except Exception:
-                logger.debug("api hammering disassembly failed at return address 0x%x", ret, exc_info=True)
+                logger.debug("api hammering patch failed at return address 0x%x", ret, exc_info=True)
                 patched = False
         else:
             # TODO: patch the call sites on x64.
@@ -104,17 +104,20 @@ class ApiHammer:
         if thunk[:2] != b"\xff\x25":
             return False
         ptr = int.from_bytes(thunk[2:], "little")
+        # The IAT slot holds the trap address of the API, and the trap address has a symbol.
         return self.emu.is_address_valid(ptr) and self.emu.get_symbol_from_address(self.emu.read_ptr(ptr)) is not None
 
     def _patch_x86_call(self, ret: int, conv: int, argc: int) -> bool:
         """Patch the x86 call that returns to ``ret``, so that it returns 0. Return ``False`` for an unknown form."""
-        # xor eax, eax, then remove the arguments of a stdcall API.
+        # xor eax, eax, then remove the arguments of a stdcall API. NOPs fill the rest of the call instruction.
         patch = None
         if conv == e_arch.CALL_CONV_CDECL:
             patch = b"\x31\xc0"
         elif conv == e_arch.CALL_CONV_STDCALL and 4 * argc <= 0x7F:
+            # add esp, imm8 sign-extends the immediate.
             patch = b"\x31\xc0\x83\xc4" + (4 * argc).to_bytes(1, "little")
 
+        # An E8 byte at ret - 5 can be part of a different instruction, so also check the target.
         call = self.emu.mem_read(ret - 5, 5)
         if patch and call[0] == 0xE8:
             target = (ret + int.from_bytes(call[1:], "little", signed=True)) & 0xFFFFFFFF
