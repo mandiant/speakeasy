@@ -2,8 +2,11 @@
 
 import hashlib
 import logging
+import struct
 
 from speakeasy import Speakeasy
+from speakeasy.winenv.defs.windows import windows as windefs
+from tests.pe_builder import build_pe
 
 CHILD_PATH = "c:\\child.exe"
 CHILD_BASE = 0x10000000
@@ -12,6 +15,8 @@ CHILD_BASE = 0x10000000
 PARENT = "parent_x86.exe.xz"
 CHILD = "child_x86.exe.xz"
 CHILD_AT_CHILD_BASE = "child_at_10000000_x86.exe.xz"
+MUTEX_NAME = b"parent_mutex\0"
+MUTEX_ALL_ACCESS = 0x1F0001
 
 
 def get_parent(se, module):
@@ -126,3 +131,61 @@ def test_child_gets_a_copy_of_the_directory_and_environment_of_the_parent(config
 
     assert parent == ("C:\\parent\\", True)
     assert child == ("C:\\parent\\", False)
+
+
+def push(value):
+    return b"\x68" + struct.pack("<I", value)
+
+
+def call_import(base, iat, name):
+    return b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", name])
+
+
+def build_mutex_parent():
+    """
+    Build a parent that creates a mutex, starts a thread that waits on it, starts the child, and calls ExitProcess.
+
+    The thread gets the mutex handle as its parameter and returns the result of WaitForSingleObject.
+    """
+    thread_offset = 0x100
+    # .data: the mutex name at 0, the child path at 0x20, STARTUPINFOA at 0x40, PROCESS_INFORMATION at 0x90
+    data = MUTEX_NAME.ljust(0x20, b"\0") + CHILD_PATH.encode() + b"\0"
+    data = data.ljust(0x40, b"\0") + struct.pack("<I", 0x44)
+    data = data.ljust(0xA0, b"\0")
+
+    def text(base, iat):
+        data_va = base + 0x2000
+        code = push(data_va) + push(1) + push(0) + call_import(base, iat, "CreateMutexA")
+        code += push(0) * 2 + b"\x50" + push(base + 0x1000 + thread_offset) + push(0) * 2
+        code += call_import(base, iat, "CreateThread")
+        code += push(data_va + 0x90) + push(data_va + 0x40) + push(0) * 7 + push(data_va + 0x20)
+        code += call_import(base, iat, "CreateProcessA")
+        code += push(0) + call_import(base, iat, "ExitProcess")
+        # push INFINITE; push [esp + 8]; call WaitForSingleObject; ret 4
+        thread = b"\x6a\xff\xff\x74\x24\x08" + call_import(base, iat, "WaitForSingleObject") + b"\xc2\x04\x00"
+        return code.ljust(thread_offset, b"\xcc") + thread
+
+    imports = {"kernel32.dll": ["CreateMutexA", "CreateThread", "CreateProcessA", "ExitProcess", "WaitForSingleObject"]}
+    return build_pe(32, text=text, data=data, imports=imports)[0]
+
+
+def build_mutex_child():
+    """Build a child that returns the handle that OpenMutexA gives for the mutex name of the parent."""
+
+    def text(base, iat):
+        return push(base + 0x2000) + push(0) + push(MUTEX_ALL_ACCESS) + call_import(base, iat, "OpenMutexA") + b"\xc3"
+
+    return build_pe(32, text=text, data=MUTEX_NAME, imports={"kernel32.dll": ["OpenMutexA"]})[0]
+
+
+def test_child_does_not_find_a_mutex_that_only_its_exited_parent_had_open(config):
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=build_mutex_parent())
+        se.emu.fileman.add_existing_file(CHILD_PATH, build_mutex_child())
+        se.run_module(module, emulate_children=True)
+        entries = se.get_report().entry_points
+
+    assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("thread", None), ("module_entry", None)]
+    # The parent's thread runs after ExitProcess, and its handle is still open
+    assert entries[1].return_value == windefs.WAIT_OBJECT_0
+    assert entries[2].return_value == 0
