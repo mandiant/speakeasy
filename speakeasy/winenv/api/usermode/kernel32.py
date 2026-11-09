@@ -5479,14 +5479,14 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
             return 0
 
-        hnd = emu.pipe_open("", 0, 1, nSize, nSize)
-        if not hnd:
+        hread = emu.pipe_open("", 0, 1, nSize, nSize)
+        if not hread:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0
-        fileman = emu.get_file_manager()
-        hwrite = fileman.new_handle(fileman.get_pipe(hnd))
 
-        self.write_ptr(hReadPipe, hnd)
+        table = emu.get_handle_table()
+        hwrite = table.new_handle(table.get(hread))
+        self.write_ptr(hReadPipe, hread)
         self.write_ptr(hWritePipe, hwrite)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
