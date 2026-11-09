@@ -23,6 +23,7 @@ from tests.handler_harness import alloc, call, invalid_handle, load_emu, start_p
 PAGE_READWRITE = 0x04
 MEM_COMMIT = 0x1000
 MEM_RESERVE = 0x2000
+MEM_RELEASE = 0x8000
 FILE_MAP_READ = 0x04
 FILE_MAP_ALL_ACCESS = 0xF001F
 GENERIC_READ = 0x80000000
@@ -115,6 +116,42 @@ def test_virtual_alloc_at_an_address_in_use_fails(dll_emu: Speakeasy) -> None:
 def test_virtual_alloc_at_a_free_address_uses_that_address(dll_emu: Speakeasy) -> None:
     rv, _ = call(dll_emu, "kernel32", "VirtualAlloc", [0x30000000, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
     assert rv == 0x30000000
+
+
+@pytest.mark.parametrize(
+    "api, process", [("VirtualAlloc", []), ("VirtualAllocEx", [0xFFFFFFFF])], ids=["VirtualAlloc", "VirtualAllocEx"]
+)
+def test_virtual_alloc_reserves_only_free_memory(dll_emu: Speakeasy, api: str, process: list[int]) -> None:
+    start_process(dll_emu)
+
+    def alloc_at(address: int, kind: int) -> int:
+        rv, _ = call(dll_emu, "kernel32", api, [*process, address, 0x1000, kind, PAGE_READWRITE])
+        return rv
+
+    base = alloc_at(0, MEM_COMMIT | MEM_RESERVE)
+    assert alloc_at(base, MEM_COMMIT | MEM_RESERVE) == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
+    assert alloc_at(base, MEM_COMMIT) == base
+    call(dll_emu, "kernel32", "VirtualFree", [base, 0, MEM_RELEASE])
+    assert alloc_at(base, MEM_COMMIT | MEM_RESERVE) == base
+
+
+def test_virtual_alloc_ex_fails_only_at_memory_of_the_target(dll_emu: Speakeasy) -> None:
+    hproc, _ = create_suspended_child(dll_emu)
+
+    def alloc_at(process: int, address: int) -> int:
+        rv, _ = call(
+            dll_emu, "kernel32", "VirtualAllocEx", [process, address, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE]
+        )
+        return rv
+
+    taken, _ = call(dll_emu, "kernel32", "VirtualAlloc", [0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
+    assert alloc_at(0xFFFFFFFF, taken) == 0
+    assert dll_emu.emu.get_last_error() == windefs.ERROR_INVALID_ADDRESS
+    # All processes share one address space, so the allocation in the child moves.
+    moved = alloc_at(hproc, taken)
+    assert moved not in (0, taken)
+    assert alloc_at(hproc, moved) == 0
 
 
 def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:
