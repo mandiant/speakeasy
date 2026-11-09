@@ -29,7 +29,7 @@ Each entry point has these fields:
 - `symbol_accesses`: the read, write and execute counts of each symbol, only if `analysis.memory_tracing=true`.
 - `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran.
 - `coverage`: the addresses of the instructions that ran, only if `analysis.coverage=true`.
-- `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. A file that the guest deleted after a write is also a dropped file.
+- `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
 - `memory`: in user mode, the memory regions and the modules at the end of the run. If `snapshot_memory_regions=true`, each region also has a `data_ref` to its contents.
 
 If the run ended abnormally, the entry point has an `error`. Its `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
