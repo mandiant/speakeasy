@@ -247,6 +247,8 @@ class RuntimeModule:
         self.visible_in_peb: bool = image.visible_in_peb
         self.name: str = image.name
         self.sections: list[SectionEntry] = image.sections
+        # The bytes of the image after the load, to find the strings that the guest writes in the image.
+        self.loaded_data: bytes | None = None
 
     def __repr__(self) -> str:
         return f"RuntimeModule({self._image.name!r} at {self.base:#x}, {self._image.source})"

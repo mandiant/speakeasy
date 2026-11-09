@@ -712,33 +712,13 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def get_ansi_strings(self, data, min_len=4):
         """Get the offset and the text of each ANSI string in a buffer."""
-        astrs = []
         pat = b"[\x20-\x7f]{%d,}" % (min_len)
-        res = re.compile(pat)
-        hits = res.findall(data)
-        offset = 0
-        for s in hits:
-            offset = data.find(s, offset)
-            astrs.append((offset, decode_ansi(s)))
-            offset += 1
-        return astrs
+        return [(m.start(), decode_ansi(m.group())) for m in re.finditer(pat, data)]
 
     def get_unicode_strings(self, data, min_len=4):
         """Get the offset and the text of each UTF-16LE string in a buffer."""
-        wstrs = []
         pat = b"(?:[\x20-\x7f]\x00){%d,}" % (min_len)
-        res = re.compile(pat)
-        hits = res.findall(data)
-        offset = 0
-        for ws in hits:
-            try:
-                offset = data.find(ws, offset)
-                ws = ws.decode("utf-16le")
-                wstrs.append((offset, ws))
-                offset += 1
-            except UnicodeDecodeError:
-                continue
-        return wstrs
+        return [(m.start(), m.group().decode("utf-16le")) for m in re.finditer(pat, data)]
 
     def mem_copy(self, dst, src, n):
         """Copy bytes from one emulated address to another."""

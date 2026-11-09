@@ -2022,6 +2022,31 @@ class WindowsEmulator(BinaryEmulator):
         }
         self.profiler.add_input_metadata(self.input)
 
+    def get_mem_strings(self):
+        """
+        Get ansi and unicode strings from emulated memory.
+
+        In the image of a guest module, get only the strings that contain a byte that changed after the load.
+        """
+        ansi_strings, unicode_strings = super().get_mem_strings()
+        for mod in self.modules:
+            loaded = mod.loaded_data
+            if loaded is None:
+                continue
+            mmap = self.get_address_map(mod.base)
+            if mmap is None or mmap.base != mod.base or not (mmap.tag or "").startswith("emu.module."):
+                continue
+            data = bytes(self.mem_read(mod.base, len(loaded)))
+            if data == loaded:
+                continue
+            for off, s in self.get_ansi_strings(data):
+                if data[off : off + len(s)] != loaded[off : off + len(s)]:
+                    ansi_strings.append((off, s))
+            for off, s in self.get_unicode_strings(data):
+                if data[off : off + 2 * len(s)] != loaded[off : off + 2 * len(s)]:
+                    unicode_strings.append((off, s))
+        return (list(dict.fromkeys(ansi_strings)), list(dict.fromkeys(unicode_strings)))
+
     def load_image(self, image, base: int | None = None, *, is_input: bool = False) -> RuntimeModule:
         """
         Load an image and its dependencies.
@@ -2120,15 +2145,12 @@ class WindowsEmulator(BinaryEmulator):
             for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
                 self.mem_protect(start, length, perms)
 
-        if (
-            image.source in ("guest_pe", "guest_shellcode")
-            and self.profiler
-            and self.config.analysis.strings
-            and image.regions
-        ):
-            raw = image.regions[0].data
-            self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
-            self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
+        if image.source in ("guest_pe", "guest_shellcode") and self.profiler and self.config.analysis.strings:
+            mod.loaded_data = bytes(self.mem_read(mod.base, mod.image_size))
+            if image.regions:
+                raw = image.regions[0].data
+                self.profiler.strings["ansi"] = [a[1] for a in self.get_ansi_strings(raw)]
+                self.profiler.strings["unicode"] = [u[1] for u in self.get_unicode_strings(raw)]
         process = self.get_current_process()
         is_before_peb = process is None or not process.is_peb_active
         if not self.is_kernel_mode and is_before_peb and mod.visible_in_peb and mod.is_dll():
