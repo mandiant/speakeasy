@@ -1,6 +1,6 @@
 # Python library usage
 
-To use Speakeasy from Python, create a `speakeasy.Speakeasy` object.
+To use Speakeasy from Python, create a `speakeasy.Speakeasy` object. One object emulates one input. After `load_module` or `load_shellcode`, a second load on the same object raises `InputError`. To emulate a different input, create a new object.
 
 ## Public interface
 

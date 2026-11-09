@@ -5,7 +5,7 @@ The `Speakeasy` class raises the exceptions that `speakeasy` exports, for exampl
 ```
 SpeakeasyError
 ├── ConfigError              the configuration or a volume is not valid
-├── InputError               the input is missing, is not a PE, or has an unsupported architecture
+├── InputError               the input is missing, is not a PE, has an unsupported architecture, or is a second input
 ├── EmulationError           base class of the errors at run time
 │   ├── ApiEmuError          an API handler failed
 │   ├── NotSupportedError    Speakeasy does not emulate this kind of sample, for example .NET
@@ -27,8 +27,8 @@ Each method that uses the emulator raises `SpeakeasyError` if no input is loaded
 | Method | Raises |
 |---|---|
 | `Speakeasy(...)` | `ConfigError` if the configuration is not valid, a volume is malformed or its host path does not exist, or `volumes` is set together with a `SpeakeasyConfig` |
-| `load_module` | `InputError` if neither `path` nor `data` is given, the file is missing, the input is not a valid PE or its architecture is not x86 or x64; `NotSupportedError` for a .NET assembly |
-| `load_shellcode` | `InputError` if neither `fpath` nor `data` is given, the file is missing or `arch` is not x86, x64 or amd64 |
+| `load_module` | `InputError` if the object already has an input, neither `path` nor `data` is given, the file is missing, the input is not a valid PE or its architecture is not x86 or x64; `NotSupportedError` for a .NET assembly |
+| `load_shellcode` | `InputError` if the object already has an input, neither `fpath` nor `data` is given, the file is missing or `arch` is not x86, x64 or amd64 |
 | `run_shellcode` | `SpeakeasyError` if the kernel mode emulator is loaded |
 | `disasm`, `mem_read`, `mem_write` | `SpeakeasyError` if the operation fails |
 | `mem_alloc` | `OutOfMemoryError` if no free range below the address limit can hold the block |

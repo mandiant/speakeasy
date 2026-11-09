@@ -151,6 +151,7 @@ The `Speakeasy` constructor, `load_module` and `load_shellcode` check their argu
 | `load_module` with a PE that pefile parses but the loader cannot map | `ValueError` | `InputError` |
 | `load_module` with an unknown machine type | `KeyError` | `InputError` |
 | `load_module` with a PE that is not x86 or x64 | `SpeakeasyError` | `InputError` |
+| `load_module` or `load_shellcode` on an object that already has an input | no error, and the new emulator does not have the user hooks | `InputError` |
 | `Speakeasy(volumes=...)` with a malformed volume | `ValueError` | `ConfigError` |
 | `Speakeasy(volumes=...)` with a missing host path | `FileNotFoundError` | `ConfigError` |
 
