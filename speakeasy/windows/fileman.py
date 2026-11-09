@@ -652,10 +652,12 @@ class FileManager:
         """
         Open or create a file, and return a new handle.
 
-        ``truncate`` replaces the file with an empty file, and records an open event.
         Return None when no file or handler has the path, and record the event with no
         handle. ``disposition`` and ``access`` are the names of the open flags that the
         caller gives, for the event.
+
+        ``truncate`` replaces the file with an empty file. The event is an open and not a
+        create, because the caller truncates only a file that exists.
 
         Raises:
             FileSystemEmuError: if the configuration names a host file that does not exist.
