@@ -260,6 +260,7 @@ class FileManager:
 
         # When the input is a PE, load_module adds it as the first file.
         self.files: list[File] = []
+        self.deleted_files: list[File] = []
         self.deleted_paths: set[str] = set()
         self.created_dirs: set[str] = set()
         self.removed_dirs: set[str] = set()
@@ -334,7 +335,12 @@ class FileManager:
                 yield (child, is_dir)
 
     def get_dropped_files(self) -> list[File]:
-        return [f for f in self.files if f.bytes_written >= f.get_size()]
+        """
+        Get the files that the guest wrote completely, also the files that it deleted after a write.
+
+        A deleted file also has the data that an open handle writes after the delete.
+        """
+        return [f for f in [*self.deleted_files, *self.files] if f.bytes_written >= f.get_size()]
 
     def open_mapping(self, name):
         """Open a new handle to the named file mapping, or return None when no mapping has the name."""
@@ -429,7 +435,9 @@ class FileManager:
     def delete_file(self, path):
         """Delete a file, and return False when no file has the path."""
         exists = self.does_file_exist(path)
-        self.remove_file(path)
+        f = self.remove_file(path)
+        if f is not None and f.bytes_written:
+            self.deleted_files.append(f)
         if not exists:
             return False
         self.emu.record_file_event(self.get_full_path(path), EventType.FILE_DELETE)

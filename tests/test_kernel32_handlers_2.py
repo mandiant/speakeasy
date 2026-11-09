@@ -1060,6 +1060,31 @@ def test_writes_to_an_append_only_handle_go_to_the_end(strict_fs_emu: Speakeasy)
     assert [f.get_contents() for f in se.get_dropped_files()] == [b"DAAABC"]
 
 
+def test_a_file_that_the_guest_deletes_is_a_dropped_file(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"c:\\payload.exe\x00")
+    written = alloc(se, b"\x00" * 4)
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"MZ"), 2, written, 0])[0]
+    assert call(se, "kernel32", "DeleteFileA", [name])[0]
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"\x90\x00"), 2, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+
+    assert [(f.path, f.get_contents()) for f in se.get_dropped_files()] == [("c:\\payload.exe", b"MZ\x90\x00")]
+
+
+def test_a_moved_file_is_one_dropped_file(strict_fs_emu: Speakeasy) -> None:
+    se = strict_fs_emu
+    name = alloc(se, b"c:\\src.txt\x00")
+    written = alloc(se, b"\x00" * 4)
+    hnd, _ = call(se, "kernel32", "CreateFileA", [name, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0])
+    assert call(se, "kernel32", "WriteFile", [hnd, alloc(se, b"data"), 4, written, 0])[0]
+    call(se, "kernel32", "CloseHandle", [hnd])
+    assert move_file_ex(se, "c:\\src.txt", "c:\\dst.txt", 0) == 1
+
+    assert [(f.path, f.get_contents()) for f in se.get_dropped_files()] == [("c:\\dst.txt", b"data")]
+
+
 def create_process(se: Speakeasy, path: str) -> k32defs.PROCESS_INFORMATION:
     ptr_size = se.get_ptr_size()
     cmd = alloc(se, path.encode() + b"\x00")
