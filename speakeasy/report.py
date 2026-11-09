@@ -35,8 +35,9 @@ class StringsReport(BaseModel):
     in_memory: StringCollection = Field(
         default_factory=StringCollection,
         description=(
-            "Strings in the stack and the heaps at the end of the emulation that are not in ``static``. "
-            "These strings often are decoded data."
+            "Strings at the end of the emulation that are not in ``static``. Speakeasy reads the stack, the "
+            "memory that API handlers allocate, and the images of the guest modules. In an image, it reads only "
+            "the strings that the guest changed after the load. These strings often are decoded data."
         ),
     )
 
