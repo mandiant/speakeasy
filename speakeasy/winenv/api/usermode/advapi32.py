@@ -904,11 +904,10 @@ class AdvApi32(api.ApiHandler):
         BOOL CloseServiceHandle(
             SC_HANDLE hSCObject
         );
+
+        Speakeasy does not model the state of services, so it does not free the handle. A free with mem_free would
+        free any guest allocation that contains the value.
         """
-        (hSCObject,) = argv
-
-        self.mem_free(hSCObject)
-
         rv = 1
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
