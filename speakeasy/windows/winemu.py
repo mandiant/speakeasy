@@ -3642,11 +3642,15 @@ class WindowsEmulator(BinaryEmulator):
         """
         Code hook that runs at the next instruction after an API call or a fault.
 
-        End the run at the return hook, and unmap the reserved range. Disable the hook when there is no more work.
+        Record the exit at a return address in the reserved range, and unmap the reserved range. Remove the hook when
+        there is no more work.
         """
         try:
-            if addr == self.return_hook:
-                self._record_exit(RunReturn())
+            # An access to the reserved range maps it until this hook runs. Unicorn does not call this hook in code that
+            # it translated without the hook, so a return to a reserved address can run before the range is unmapped.
+            native_exit = self._get_exit_at_pc()
+            if native_exit is not None:
+                self._record_exit(native_exit)
                 return False
 
             # A guest exception handler continued at the fault address. Clear the repeat count of the fault
