@@ -633,10 +633,14 @@ class Win32Emulator(WindowsEmulator):
         self.end_run()
 
     def get_unstarted_run(self, obj) -> Run | None:
-        """Get the queued run of obj if obj is a thread of the current process that has not started."""
+        """
+        Get the queued run of obj if obj is a thread of the current process that has not started.
+
+        Other runs of a thread, such as the TLS callbacks and the entry point of the main thread, do not start it.
+        """
         if not isinstance(obj, objman.Thread) or obj.process is not self.curr_process:
             return None
-        return next((run for run in self.run_queue if run.thread is obj), None)
+        return next((run for run in self.run_queue if run.thread is obj and run.type == EntryPointType.THREAD), None)
 
     def join_thread(self, run: Run) -> guest_callbacks.GeneratorHandler:
         """
@@ -647,10 +651,9 @@ class Win32Emulator(WindowsEmulator):
         """
         thread, process, start = run.thread, run.process_context, run.start_addr
         assert thread is not None and process is not None and start is not None
-        if run not in self.run_queue:
-            return thread.exit_code or 0
         self.run_queue.remove(run)
         waiter = self.get_current_thread()
+        # All threads have their TEB at the same address. Keep the TEB of the waiter to write it back at the end.
         teb = waiter.get_teb()
         frame = self.get_current_run().guest_callbacks[-1]
         frame.thread = thread

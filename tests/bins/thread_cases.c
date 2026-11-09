@@ -5,7 +5,7 @@
 //
 // main polls the exit code of the first thread while it is STILL_ACTIVE, and returns 1
 // when the poll ends. Speakeasy runs a queued thread only after main, so a queued thread
-// gives 0, as a wait on it completes.
+// gives 0.
 //
 // Built without a CRT or SDK; build_programs.sh in this directory builds it.
 

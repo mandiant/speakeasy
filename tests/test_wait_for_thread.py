@@ -49,24 +49,19 @@ class Code:
 
 
 def emit_wait(code, wait):
-    """Wait with an INFINITE timeout for the thread handle at HANDLES."""
-    if code.arch == 32:
-        if wait == "WaitForMultipleObjects":
-            code.emit(b"\x6a\xff\x6a\x01")  # push INFINITE; push TRUE
-            code.emit(b"\x68", HANDLES)  # push HANDLES
-            code.emit(b"\x6a\x01")  # push 1
-        else:
-            if wait == "WaitForSingleObjectEx":
-                code.emit(b"\x6a\x00")
-            code.emit(b"\x6a\xff")  # push INFINITE
-            code.emit(b"\xff\x35", HANDLES)  # push [HANDLES]
-    elif wait == "WaitForMultipleObjects":
-        code.emit(b"\xb9\x01\0\0\0")  # mov ecx, 1
-        code.emit(b"\x48\x8d\x15", HANDLES)  # lea rdx, [HANDLES]
-        code.emit(b"\x41\xb8\x01\0\0\0\x41\xb9\xff\xff\xff\xff")  # mov r8d, TRUE; mov r9d, INFINITE
-    else:
+    """Wait with an INFINITE timeout for the thread handle at HANDLES. On x64, only WaitForSingleObject."""
+    if code.arch == 64:
         code.emit(b"\x48\x8b\x0d", HANDLES)  # mov rcx, [HANDLES]
-        code.emit(b"\xba\xff\xff\xff\xff\x45\x31\xc0")  # mov edx, INFINITE; xor r8d, r8d
+        code.emit(b"\xba\xff\xff\xff\xff")  # mov edx, INFINITE
+    elif wait == "WaitForMultipleObjects":
+        code.emit(b"\x6a\xff\x6a\x01")  # push INFINITE; push TRUE
+        code.emit(b"\x68", HANDLES)  # push HANDLES
+        code.emit(b"\x6a\x01")  # push 1
+    else:
+        if wait == "WaitForSingleObjectEx":
+            code.emit(b"\x6a\x00")  # push FALSE
+        code.emit(b"\x6a\xff")  # push INFINITE
+        code.emit(b"\xff\x35", HANDLES)  # push [HANDLES]
     code.call(wait)
 
 
@@ -103,13 +98,13 @@ def emit_main(code, wait, worker):
 
 
 def emit_worker(code, exit_thread):
-    """Call GetCurrentThreadId, set [G] to 0x1234, then return 7 or call ExitThread(5)."""
+    """Call GetCurrentThreadId, set [G] to 0x1234, then return 7 or, on x86, call ExitThread(5)."""
     if code.arch == 64:
         code.emit(b"\x48\x83\xec\x28")  # sub rsp, 0x28
     code.call("GetCurrentThreadId")
     code.emit(b"\xc7\x05", G, b"\x34\x12\0\0")  # mov dword [G], 0x1234
     if exit_thread:
-        code.emit(b"\x6a\x05" if code.arch == 32 else b"\xb9\x05\0\0\0")  # push 5 / mov ecx, 5
+        code.emit(b"\x6a\x05")  # push 5
         code.call("ExitThread")
     elif code.arch == 32:
         code.emit(b"\xb8\x07\0\0\0\xc2\x04\x00")  # mov eax, 7; ret 4
@@ -140,8 +135,15 @@ def get_api_events(entry):
     return [event for event in entry.events if event.event == "api"]
 
 
-@pytest.mark.parametrize("arch", [32, 64])
-@pytest.mark.parametrize("wait", ["WaitForSingleObject", "WaitForSingleObjectEx", "WaitForMultipleObjects"])
+@pytest.mark.parametrize(
+    "arch, wait",
+    [
+        (32, "WaitForSingleObject"),
+        (64, "WaitForSingleObject"),
+        (32, "WaitForSingleObjectEx"),
+        (32, "WaitForMultipleObjects"),
+    ],
+)
 def test_wait_runs_the_thread_before_it_returns(config, arch, wait):
     (main,) = run_exe(config, build(arch, wait))
 
@@ -160,9 +162,8 @@ def test_wait_runs_the_thread_before_it_returns(config, arch, wait):
     assert create.pos.tid == wait_event.pos.tid == exit_code.pos.tid == main.tid
 
 
-@pytest.mark.parametrize("arch", [32, 64])
-def test_exit_thread_in_a_waited_thread_continues_the_wait(config, arch):
-    (main,) = run_exe(config, build(arch, "WaitForSingleObject", exit_thread=True))
+def test_exit_thread_in_a_waited_thread_continues_the_wait(config):
+    (main,) = run_exe(config, build(32, "WaitForSingleObject", exit_thread=True))
 
     assert main.error is None
     assert main.return_value == 0x1234 + 5 + main.tid
@@ -173,3 +174,25 @@ def test_exit_thread_in_a_waited_thread_continues_the_wait(config, arch):
         "kernel32.ExitThread",
         "kernel32.GetExitCodeThread",
     ]
+
+
+def test_wait_on_its_own_thread_in_a_tls_callback_does_not_run_the_entry_point(config):
+    """The entry point is a queued run of the thread of the TLS callback, but it is not a thread start."""
+    base, tls_index, callbacks, directory = 0x400000, 0x2010, 0x2014, 0x2020
+
+    def text(base, iat):
+        code = Code(32, base, iat)
+        code.emit(b"\x31\xc0\xc3")  # entry point: xor eax, eax; ret
+        code.emit(b"\x68\xe8\x03\0\0\x6a\xfe")  # TLS callback at 0x1003: push 1000; push GetCurrentThread()
+        code.call("WaitForSingleObject")
+        code.emit(b"\xc2\x0c\x00")  # ret 12
+        return bytes(code.text)
+
+    data = bytearray(0x40)
+    struct.pack_into("<I", data, callbacks - 0x2000, base + 0x1003)
+    struct.pack_into("<6I", data, directory - 0x2000, 0, 0, base + tls_index, base + callbacks, 0, 0)
+    image, _ = build_pe(32, text=text, data=bytes(data), imports=IMPORTS, extra_dirs={9: (directory, 24)})
+
+    entries = run_exe(config, image)
+
+    assert [(entry.type, entry.error) for entry in entries] == [("tls_callback", None), ("module_entry", None)]

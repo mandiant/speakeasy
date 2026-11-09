@@ -5275,7 +5275,9 @@ class Kernel32(ExceptionApis, api.ApiHandler):
     def join_threads(self, emu, runs, result):
         """Run the threads of the queued runs to their end, then return result from the wait."""
         for run in runs:
-            yield from emu.join_thread(run)
+            # A thread that ran before can wait for a later thread of the list, and run it.
+            if run in emu.run_queue:
+                yield from emu.join_thread(run)
         return result
 
     @apihook("GetConsoleMode", argc=2)
