@@ -35,9 +35,19 @@ If two hooks record an exit before Unicorn stops, the emulator keeps the first.
 
 Only the run loop completes a run and starts the next run. An API handler or a hook that must end the run calls `end_run(error)`. `end_run` records the `RunEnd` native exit and stops Unicorn. If the run already ended, `end_run` keeps the first error. A fault calls `end_run_on_fault`, which also stops the debugger, if one is attached.
 
-When the loop handles `RunReturn` or `RunEnd`, or when the run reaches a limit, `_complete_run` records the result of the run with `on_run_complete`. The user mode emulator records the return value, the exit code of the thread and the memory layout. The kernel emulator records the return value and adds the next routine of the driver to the queue. Then `_start_next_run` prepares the next run in the queue. If the queue is empty, it completes the emulation.
+When the loop handles `RunReturn` or `RunEnd`, or when the run reaches a limit, `_complete_run` records the result of the run with `on_run_complete`. The user mode emulator records the return value, the exit code of the thread and the memory layout. The kernel emulator records the return value. After DriverEntry, it adds the runs of the other routines of the driver. See [Driver runs](#driver-runs). Then `_start_next_run` prepares the next run in the queue. If the queue is empty, it completes the emulation.
 
 `is_run_complete` is true from the call of `end_run` until the next run starts. `stop()` ends the current run, removes the runs in the queue, and ends the emulation.
+
+### Driver runs
+
+`WinKernelEmulator.run_module` adds a run for DriverEntry. If `all_entrypoints` is true, `_queue_driver_routines` adds the other runs when DriverEntry ends, in this order:
+
+1. The exports of the driver.
+2. The IRP handlers that DriverEntry registered: `IRP_MJ_CREATE`, `IRP_MJ_DEVICE_CONTROL`, `IRP_MJ_READ`, `IRP_MJ_WRITE`, `IRP_MJ_CLOSE` and `IRP_MJ_CLEANUP`. Each handler gets one IRP for the first device of the driver. The `IRP_MJ_DEVICE_CONTROL` IRP has the IOCTL code `0x5D5D5D5D`.
+3. The unload routine.
+
+If DriverEntry returns an error status, Windows does not call the other routines, and the emulator adds no runs. If DriverEntry ends with an emulator error, for example an unsupported API, the emulator adds the runs, because they show more of the driver. A driver with no entry point gets these runs at once. Each kernel run starts at `PASSIVE_LEVEL`.
 
 ## API calls
 
