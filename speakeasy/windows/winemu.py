@@ -598,16 +598,24 @@ class WindowsEmulator(BinaryEmulator):
         self._pending_fault_stop = StopReason(signal=GDB_SIGSEGV, kind="exception", address=pc)
         self.emu_eng.stop()
 
-    def enable_deferred_work_hook(self):
+    def enable_deferred_work_hook(self, address: int | None = None):
+        """
+        Add the deferred work hook, so that it runs at the next instruction.
+
+        Unicorn does not add a new hook to code that it translated before, so drop the translation at ``address``,
+        where the guest continues. The default is the current PC.
+        """
         if not self.deferred_work_hook:
             self.deferred_work_hook = self.add_code_hook(cb=self._hook_code_deferred_work)
-
-        if self.deferred_work_hook:
-            self.deferred_work_hook.enable()
+        if address is None:
+            address = self.get_pc()
+        self.emu_eng.invalidate_translations(address, address + 1)
 
     def disable_deferred_work_hook(self):
+        """Remove the deferred work hook, so that Unicorn does not call Python for each instruction."""
         if self.deferred_work_hook:
-            self.deferred_work_hook.disable()
+            self.remove_hook(self.deferred_work_hook)
+            self.deferred_work_hook = None
 
     def set_mem_tracing_hooks(self):
         if not self.config.analysis.memory_tracing:
@@ -3956,7 +3964,7 @@ class WindowsEmulator(BinaryEmulator):
             return
         if pc == fault[0]:
             self._seh_repeat.resume_pc = pc
-            self.enable_deferred_work_hook()
+            self.enable_deferred_work_hook(pc)
         else:
             self._seh_repeat.reset()
 

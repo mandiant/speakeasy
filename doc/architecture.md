@@ -110,7 +110,7 @@ If the emulator cancels the runs in the queue, for example when emulation reache
 - `_hook_block_call_site`, a block hook that keeps the start and size of the last block. When a block jumps to an API, the last instruction of that block is the call site, and the API event gives it as `pc`. If Unicorn started again between the two blocks, or the block does not decode to its end, the event has no `pc`.
 - `_hook_code_tracing`, `_hook_mem_read` and `_hook_mem_write` when `analysis.memory_tracing` is set. They count reads, writes and executes for each symbol, section and memory map.
 - `_hook_code_coverage` when `analysis.coverage` is set.
-- `_hook_code_deferred_work`, which runs at the next instruction after an API call, a fault or a request to end the run, and then disables itself.
+- `_hook_code_deferred_work`, which runs at the next instruction after an API call, a fault or a request to end the run. When it has no more work, it removes its Unicorn hook, so that Unicorn does not call Python for each instruction. Unicorn does not add a hook to code that it translated before the hook, so `enable_deferred_work_hook` drops the translation at the address where the guest continues.
 
 If a hook raises a Python exception, the hook catches it and calls `_end_run_on_hook_error`, which saves the error on the run and calls `stop()`.
 

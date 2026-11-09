@@ -94,6 +94,9 @@ class EmuEngine:
         # The ctypes callbacks of the hooks that hook_add added through the C API, by hook ID. The
         # references keep the callbacks alive while Unicorn can call them.
         self._callbacks: dict[int, ct._CFunctionType] = {}
+        # Unicorn can call a removed hook until the current block ends, so keep the callbacks of the hooks that
+        # hook_remove removed until emu_start returns.
+        self._removed_callbacks: list[ct._CFunctionType] = []
         self.timer: StartTimer = StartTimer(self.stop)
 
         self.regs: dict[int, int] = {
@@ -323,6 +326,7 @@ class EmuEngine:
         try:
             return self.emu.emu_start(addr, UNREACHABLE_ADDRESS, count=count)
         finally:
+            self._removed_callbacks.clear()
             if timeout:
                 self.timer.disarm()
 
@@ -383,7 +387,7 @@ class EmuEngine:
         status = _uc.uc_hook_del(self.emu._uch, uc_hook_h(hid))
         if status != uc.UC_ERR_OK:
             raise uc.UcError(status)
-        self._callbacks.pop(hid, None)
+        self._removed_callbacks.append(self._callbacks.pop(hid))
 
     def close(self):
         if self.emu is None:
