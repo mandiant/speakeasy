@@ -27,7 +27,7 @@ When a module has no handler for a name, Speakeasy tries related names. `get_han
 
 An API set uses the handlers of the module that implements it. `DLL_HOSTS` in `speakeasy/windows/common.py` lists the modules for each name prefix. For example, `api-ms-win-core-com-*` uses ole32, `api-ms-win-core-crt-*` uses msvcrt, `api-ms-win-core-version-*` uses version, `api-ms-win-security-*` uses advapi32, and the other `api-ms-win-core-*` sets use kernel32. Some sets have functions in more than one module. For these, an import uses the first module that has a handler for the name. For example, imports from `api-ms-win-core-processthreads-*` use kernel32, but `OpenProcessToken` uses advapi32. `api-ms-win-core-libraryloader-*` uses kernel32 and user32 in the same way. `LoadLibrary` and `GetModuleHandle` with an API set name return the main module only. A function that win32metadata declares only under an API set counts as a declaration of the main module of the set.
 
-`DLL_HOSTS` also lists some DLLs that only pass calls to another DLL. wsock32 uses ws2_32, sspicli uses secur32, shfolder uses shell32, and icmp uses iphlpapi. An import from one of these DLLs gets the address of the function in the other DLL, and `LoadLibrary` with the name of the DLL returns the other DLL.
+`DLL_HOSTS` also lists some DLLs that use the handlers of a related DLL. wsock32 uses ws2_32, sspicli uses secur32, shfolder uses shell32, and icmp uses iphlpapi. An import from one of these DLLs gets the address of the function in the related DLL, and `LoadLibrary` with the name of the DLL returns the related DLL. iphlpapi has no handlers for the `Icmp*` functions, so the emulator emulates these calls from their iphlpapi prototypes.
 
 ## Example: HeapAlloc in kernel32
 
