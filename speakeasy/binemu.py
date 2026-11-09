@@ -906,7 +906,7 @@ class BinaryEmulator(MemoryManager, ABC):
                 self.hooks[hook.htype].remove(hook)
         except (KeyError, ValueError):
             raise ValueError("The emulator does not have this hook") from None
-        hook.remove()
+        hook.detach()
 
     def _add_api_hook(self, hook: common.ApiHook) -> None:
         module = hook.module
