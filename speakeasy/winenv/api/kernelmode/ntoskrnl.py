@@ -19,11 +19,17 @@ from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import EventType
 from speakeasy.report import EntryPointType, ErrorType
 from speakeasy.windows import objman
+from speakeasy.windows.guest_callbacks import get_first_unmapped
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
 from speakeasy.winenv.api.token import query_token_information
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
-from speakeasy.winenv.defs.enums import FILE_ACCESS_FLAGS, NT_CREATE_FILE_DISPOSITION, REG_VALUE_TYPE
+from speakeasy.winenv.defs.enums import (
+    FILE_ACCESS_FLAGS,
+    NT_CREATE_FILE_DISPOSITION,
+    PAGE_PROTECTION_FLAGS,
+    REG_VALUE_TYPE,
+)
 from speakeasy.winenv.defs.lookup import decode, decode_flags
 from speakeasy.winenv.defs.nt import ddk
 
@@ -1349,16 +1355,40 @@ class Ntoskrnl(api.ApiHandler):
         """
         ProcessHandle, BaseAddress, RegionSize, NewProtection, OldProtection = argv
 
-        if BaseAddress:
-            addr = self.mem_read(BaseAddress, emu.get_ptr_size())
-            addr = int.from_bytes(addr, "little")
-            ctx.args["BaseAddress"].display = hex(addr)
-        if RegionSize:
-            size = self.mem_read(RegionSize, emu.get_ptr_size())
-            size = int.from_bytes(size, "little")
-            ctx.args["RegionSize"].display = hex(size)
-        rv = ddk.STATUS_SUCCESS
-        return rv
+        if not emu.get_handle_table().get(ProcessHandle, objman.Process):
+            return ddk.STATUS_INVALID_HANDLE
+
+        addr = self.read_ptr(BaseAddress)
+        size = self.read_ptr(RegionSize)
+        ctx.args["BaseAddress"].display = hex(addr)
+        ctx.args["RegionSize"].display = hex(size)
+        if not size:
+            return ddk.STATUS_INVALID_PARAMETER
+
+        page_mask = emu.page_size - 1
+        base = addr & ~page_mask
+        size = ((addr + size + page_mask) & ~page_mask) - base
+        perms = next((p for start, end, p in emu.get_mem_regions() if start <= base <= end), None)
+        if perms is None or get_first_unmapped(emu, base, size) != base:
+            return ddk.STATUS_CONFLICTING_ADDRESSES
+
+        if base in emu.guard_pages:
+            old = self.emu_perms_to_win_perms(emu.guard_pages[base]) | PAGE_PROTECTION_FLAGS.PAGE_GUARD
+        else:
+            uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
+            old = self.emu_perms_to_win_perms(uc_to_perms[perms])
+
+        new = self.win_perms_to_emu_perms(NewProtection)
+        emu.mem_protect(base, size, new)
+        emu.clear_guard_pages(base, size)
+        if NewProtection & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
+            emu.set_guard_pages(base, size, new)
+
+        self.write_ptr(BaseAddress, base)
+        self.write_ptr(RegionSize, size)
+        if OldProtection:
+            self.write_dword(OldProtection, old)
+        return ddk.STATUS_SUCCESS
 
     @apihook("ZwWriteVirtualMemory", argc=5)
     def ZwWriteVirtualMemory(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

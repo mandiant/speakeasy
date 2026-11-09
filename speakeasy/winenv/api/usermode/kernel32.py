@@ -325,23 +325,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             return emu.get_handle_table()
         return proc.handles
 
-    def emu_perms_to_win_perms(self, emu_perms):
-        if emu_perms & common.PERM_MEM_WRITE:
-            if emu_perms & common.PERM_MEM_EXEC:
-                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE
-            else:
-                new = PAGE_PROTECTION_FLAGS.PAGE_READWRITE
-        elif emu_perms & common.PERM_MEM_EXEC:
-            if emu_perms & common.PERM_MEM_READ:
-                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ
-            else:
-                new = PAGE_PROTECTION_FLAGS.PAGE_EXECUTE
-        elif emu_perms & common.PERM_MEM_READ:
-            new = PAGE_PROTECTION_FLAGS.PAGE_READONLY
-        else:
-            new = PAGE_PROTECTION_FLAGS.PAGE_NOACCESS
-        return new
-
     def get_max_application_address(self, emu):
         return 0x7FFEFFFF if emu.get_ptr_size() == 4 else 0x7FFFFFFEFFFF
 

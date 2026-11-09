@@ -1,7 +1,12 @@
+import struct
+
 import pytest
 
 from speakeasy import Speakeasy, common
 from speakeasy.windows.winemu import get_page_protection_runs
+from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
+from speakeasy.winenv.defs.nt import ddk
+from tests.handler_harness import alloc, call, start_process
 
 PAGE = 0x1000
 RX = common.PERM_MEM_RX
@@ -57,3 +62,65 @@ def test_loaded_sections_have_expected_page_protections(config, load_test_bin, b
         assert len(image_regions) <= len(get_page_protection_runs(expected, page_size)) + 1
     finally:
         se.shutdown()
+
+
+def get_rx_page(se: Speakeasy) -> int:
+    module = se.emu.modules[0]
+    sect = next(s for s in module.sections if s.perms == RX)
+    return module.base + sect.virtual_address
+
+
+def get_perms(se: Speakeasy, address: int) -> int:
+    return next(p for start, end, p in se.emu.get_mem_regions() if start <= address <= end)
+
+
+def protect(se: Speakeasy, address: int, size: int, new: int) -> tuple[int, int, int, int]:
+    """Call ntdll!NtProtectVirtualMemory on the current process, and return the status and the three outputs."""
+    ptr = "<I" if se.get_ptr_size() == 4 else "<Q"
+    p_base = alloc(se, struct.pack(ptr, address))
+    p_size = alloc(se, struct.pack(ptr, size))
+    p_old = alloc(se, b"\xff" * 4)
+    current_process = (1 << 8 * se.get_ptr_size()) - 1
+    rv, _ = call(se, "ntdll", "NtProtectVirtualMemory", [current_process, p_base, p_size, new, p_old])
+    base = struct.unpack(ptr, se.mem_read(p_base, se.get_ptr_size()))[0]
+    size = struct.unpack(ptr, se.mem_read(p_size, se.get_ptr_size()))[0]
+    old = struct.unpack("<I", se.mem_read(p_old, 4))[0]
+    return rv, base, size, old
+
+
+@pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
+def test_ntdll_protect_virtual_memory_changes_page_protection(request, fixture: str) -> None:
+    se = request.getfixturevalue(fixture)
+    start_process(se)
+    page = get_rx_page(se)
+    next_perms = get_perms(se, page + PAGE)
+
+    rv, base, size, old = protect(se, page + 0x10, 0x10, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+    assert (rv, base, size, old) == (ddk.STATUS_SUCCESS, page, PAGE, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ)
+    assert get_perms(se, page) == se.emu.emu_eng.perms[RW]
+    assert get_perms(se, page + PAGE) == next_perms
+
+    rv, _, _, old = protect(se, page, PAGE, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ)
+    assert (rv, old) == (ddk.STATUS_SUCCESS, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+    assert get_perms(se, page) == se.emu.emu_eng.perms[RX]
+
+
+def test_ntdll_protect_virtual_memory_spans_pages(dll64_emu: Speakeasy) -> None:
+    se = dll64_emu
+    start_process(se)
+    page = get_rx_page(se)
+
+    rv, base, size, _ = protect(se, page + 0xFF0, 0x20, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+    assert (rv, base, size) == (ddk.STATUS_SUCCESS, page, 2 * PAGE)
+    assert get_perms(se, page + PAGE) == se.emu.emu_eng.perms[RW]
+
+
+def test_ntdll_protect_virtual_memory_fails_for_an_empty_or_unmapped_range(dll64_emu: Speakeasy) -> None:
+    se = dll64_emu
+    start_process(se)
+    page = get_rx_page(se)
+    rw = PAGE_PROTECTION_FLAGS.PAGE_READWRITE
+
+    assert protect(se, page, 0, rw) == (ddk.STATUS_INVALID_PARAMETER, page, 0, 0xFFFFFFFF)
+    assert protect(se, 0, PAGE, rw)[0] == ddk.STATUS_CONFLICTING_ADDRESSES
+    assert get_perms(se, page) == se.emu.emu_eng.perms[RX]
