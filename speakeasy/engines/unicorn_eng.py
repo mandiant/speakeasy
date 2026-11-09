@@ -242,6 +242,7 @@ class EmuEngine:
             regs = (u.UC_X86_REG_EAX, u.UC_X86_REG_EBX, u.UC_X86_REG_ECX, u.UC_X86_REG_EDX)
         for reg, value in zip(regs, get_cpuid_leaf_1(self.mode), strict=True):
             self.emu.reg_write(reg, value)
+        # Unicorn skips the instruction when the last CPUID hook returns 1, so the values stay.
         return 1
 
     def mem_map(self, base, size, perms=common.PERM_MEM_RWX):
