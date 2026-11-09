@@ -855,7 +855,7 @@ class WindowsEmulator(BinaryEmulator):
         if run is not None:
             self._finish_run_initializers(run)
         if stop_emulation:
-            # on_run_complete can add runs, for example the next routine of a driver.
+            # on_run_complete can add runs, for example the routines of a driver after DriverEntry.
             self._cancel_execution_runs()
             self.on_emu_complete()
 

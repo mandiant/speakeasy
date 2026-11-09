@@ -32,9 +32,9 @@ DISPATCH_IRPS = (
 )
 
 
-def is_nt_error(status: int) -> bool:
-    """Get whether an NTSTATUS has the error severity, as the NT_ERROR macro does."""
-    return (status & 0xFFFFFFFF) >> 30 == 3
+def is_nt_success(status: int) -> bool:
+    """Get whether an NTSTATUS is a success or an informational status, as the NT_SUCCESS macro does."""
+    return not status & 0x80000000
 
 
 class WinKernelEmulator(WindowsEmulator):
@@ -249,12 +249,7 @@ class WinKernelEmulator(WindowsEmulator):
             ep = module.get_ep()
 
         if entry_point is not None or module.ep > 0:
-            run = Run()
-            run.type = EntryPointType.DRIVER_ENTRY
-            run.start_addr = ep
-            run.instr_cnt = 0
-            run.args = [drv.address, drv.reg_path_ptr]
-            self.add_run(run)
+            self._add_driver_run(EntryPointType.DRIVER_ENTRY, None, ep, (drv.address, drv.reg_path_ptr))
         else:
             self._queue_driver_routines(drv, None)
 
@@ -345,17 +340,22 @@ class WinKernelEmulator(WindowsEmulator):
         ``entry`` is the DriverEntry run, or None if the driver has no entry point. The IRP handlers are the ones that
         DriverEntry registered.
 
-        Windows unloads a driver whose DriverEntry returns an error status, and does not call its unload routine.
-        Then the emulator adds no runs. If DriverEntry ended with an emulator error, such as an unsupported API, the
-        return value is not the result of DriverEntry, so the emulator adds the runs: they show more of the driver.
+        The exports run after DriverEntry, because an export can depend on the state that DriverEntry sets up.
+
+        Windows unloads a driver whose DriverEntry returns a status that fails ``NT_SUCCESS``, and does not call its
+        unload routine. Then the emulator adds no runs. If DriverEntry ended with an emulator error, such as an
+        unsupported API, the return value is not the result of DriverEntry, so the emulator adds the runs: they show
+        more of the driver.
 
         The IRP handlers get one IRP each, for the first device of the driver.
         """
         if not self.all_entrypoints:
             return
-        if entry is not None and entry.error is None and is_nt_error(entry.return_value or 0):
+        if entry is not None and entry.error is None and not is_nt_success(entry.return_value or 0):
             return
 
+        # Limit the number of export runs, because some modules, such as the Windows kernel, have thousands of
+        # exports.
         exports = drv.pe.get_exports()[:MAX_EXPORTS_TO_EMULATE] if drv.pe else []
         if exports:
             # Each export gets the same placeholder arguments.
@@ -363,6 +363,7 @@ class WinKernelEmulator(WindowsEmulator):
             for exp in exports:
                 self._add_driver_run(EntryPointType.EXPORT, exp.name or None, exp.address, args)
 
+        # TODO: send the IRPs to each device, not only the first device.
         if drv.devices:
             dev = drv.devices[0]
             for major, irp_name in DISPATCH_IRPS:
@@ -374,7 +375,8 @@ class WinKernelEmulator(WindowsEmulator):
         if drv.on_unload:
             self._add_driver_run(EntryPointType.DRIVER_UNLOAD, None, drv.on_unload, (drv.address,))
 
-    def _add_driver_run(self, kind: EntryPointType, name: str | None, address: int, args) -> None:
+    def _add_driver_run(self, kind: EntryPointType, name: str | None, address: int, args: list | tuple) -> None:
+        """Add a run of a driver routine to the queue."""
         run = Run()
         run.type = kind
         run.name = name
@@ -392,9 +394,10 @@ class WinKernelEmulator(WindowsEmulator):
         for drv in self.drivers:
             drv.read_back()
         if run.type == EntryPointType.DRIVER_ENTRY:
-            entered = next((d for d in self.drivers if run.args and d.address == run.args[0]), None)
-            if entered is not None:
-                self._queue_driver_routines(entered, run)
+            # The first argument of DriverEntry is the driver object.
+            driver = next((d for d in self.drivers if run.args and d.address == run.args[0]), None)
+            if driver is not None:
+                self._queue_driver_routines(driver, run)
 
     def on_emu_complete(self):
         if not self.is_emu_complete:

@@ -123,10 +123,11 @@ def test_the_exports_run_when_the_driver_has_no_irp_handler_and_no_unload_routin
     assert planned(plan_emu) == [("export", "a")]
 
 
-def test_a_driver_entry_that_returns_an_error_status_ends_the_driver(plan_emu) -> None:
+@pytest.mark.parametrize("status", [0xC0000001, 0x80000005], ids=["error", "warning"])
+def test_a_driver_entry_that_returns_a_failure_status_ends_the_driver(plan_emu, status: int) -> None:
     drv = fake_driver(exports=["a"], majors=[ddk.IRP_MJ_CREATE], unload=0x6000)
 
-    plan_emu._queue_driver_routines(drv, driver_entry(0xC0000001))
+    plan_emu._queue_driver_routines(drv, driver_entry(status))
 
     assert planned(plan_emu) == []
 
