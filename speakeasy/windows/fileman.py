@@ -264,6 +264,8 @@ class FileManager:
         self.deleted_paths: set[str] = set()
         self.created_dirs: set[str] = set()
         self.removed_dirs: set[str] = set()
+        # Pipe names are not case sensitive, so the keys are lowercase.
+        self.named_pipes: dict[str, Pipe] = {}
 
         full_path_entries = [f for f in self.file_config.files if f.mode == "full_path"]
         if full_path_entries:
@@ -554,7 +556,25 @@ class FileManager:
         if not fconf:
             fconf = {}
         p = Pipe(path, mode, num_instances, out_size, in_size, config=fconf)
+        if path:
+            self.named_pipes[path.lower()] = p
         return self.new_handle(p)
+
+    def open_named_pipe(self, path, disposition=None, access=None) -> int | None:
+        """
+        Open a handle to the pipe that CreateNamedPipe made with the name.
+
+        Return None if no pipe has the name.
+        """
+        p = self.named_pipes.get(path.lower())
+        if p is None:
+            return None
+        # The configured data stands for a client outside the process, so a client in the process replaces it.
+        if p.data is None:
+            p.config = {}
+        hnd = self.new_handle(p)
+        self.record_open(path, handle=hnd, disposition=disposition, access=access)
+        return hnd
 
     def get_directories(self):
         """

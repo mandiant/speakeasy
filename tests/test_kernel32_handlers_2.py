@@ -1009,6 +1009,22 @@ def test_create_pipe_ends_close_independently(dll_emu: Speakeasy) -> None:
     assert call(dll_emu, "kernel32", "CloseHandle", [read_pipe])[0] == 1
 
 
+def test_create_file_opens_the_named_pipe_of_the_name_in_any_case(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    server_name = alloc(dll_emu, b"\\\\.\\pipe\\Handoff\0")
+    server = call(dll_emu, "kernel32", "CreateNamedPipeA", [server_name, 3, 0, 1, 0, 0, 0, 0])[0]
+    client_name = alloc(dll_emu, b"\\\\.\\PIPE\\handoff\0")
+    client = call(dll_emu, "kernel32", "CreateFileA", [client_name, 0xC0000000, 0, 0, 3, 0, 0])[0]
+    assert client != invalid_handle(dll_emu)
+
+    data = alloc(dll_emu, b"hello")
+    assert call(dll_emu, "kernel32", "WriteFile", [server, data, 5, 0, 0])[0] == 1
+    buf = alloc(dll_emu, b"\0" * 32)
+    read = alloc(dll_emu, b"\0" * 4)
+    assert call(dll_emu, "kernel32", "ReadFile", [client, buf, 32, read, 0])[0] == 1
+    assert dll_emu.mem_read(buf, struct.unpack("<I", dll_emu.mem_read(read, 4))[0]) == b"hello"
+
+
 def test_read_file_on_stdin_reads_end_of_input(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     stdin = call(dll_emu, "kernel32", "GetStdHandle", [0xFFFFFFF6])[0]
