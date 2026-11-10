@@ -4511,11 +4511,15 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cd = decode(FILE_CREATION_DISPOSITION, dwCreationDisposition)
         ctx.args["dwCreationDisposition"].display = cd
 
+        open_flags = {"disposition": [cd] if cd else None, "access": ad}
+        pipe = emu.get_file_manager().open_named_pipe(target, **open_flags)
         obj = self.get_object_from_name(target)
-        if obj:
+        if pipe:
+            emu.set_last_error(windefs.ERROR_SUCCESS)
+            hnd = pipe
+        elif obj:
             hnd = self.get_object_handle(obj)
         else:
-            open_flags = {"disposition": [cd] if cd else None, "access": ad}
             if dwCreationDisposition == FILE_CREATION_DISPOSITION.CREATE_NEW:
                 exists = emu.get_file_manager().does_file_exist_by_path(target)
             else:
