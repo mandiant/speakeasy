@@ -27,7 +27,7 @@ Each entry point has these fields:
 - `api_hash`: the SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.
 - `events`: the events of the run, in order. The `record_*_event` methods of `Profiler` add them.
 - `symbol_accesses`: the read, write and execute counts of each symbol, only if `analysis.memory_tracing=true`.
-- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `analysis.dynamic_code_snapshots=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later.
+- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `analysis.dynamic_code_snapshots=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry for the region, with the same `tag`, `base` and `size` and its own `pos` and `data_ref`. The list is in the order of `pos.tick`, and with snapshots `pos.tick` is always the instruction count of the run. Each entry of a region has different data from the entry of the region before it. A decoder loop in the region gives no snapshot for each pass, because its blocks do not come from outside the region. `analysis.dynamic_code_snapshot_limit` (default 8) is the maximum number of snapshots of a region in a run, with the first one. `snapshot_limit_reached` is true on the last entry of a region when the region changed and ran again after the last snapshot that the limit allows, and it is absent on the other entries. The report does not have a stage that the region decodes and runs before control leaves the region. Each write in the region counts, also a write to data. A region that holds an unpacked image with its global variables can get a snapshot after most API calls, and it gets to the limit fast.
 - `coverage`: the addresses of the instructions that ran, only if `analysis.coverage=true`.
 - `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
 - `memory`: in user mode, the memory regions and the modules at the end of the run. If `snapshot_memory_regions=true`, each region also has a `data_ref` to its contents.
@@ -85,7 +85,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 - `--analysis-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
 - `--analysis-memory-tracing` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
 - `--snapshot-memory-regions` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
-- `--analysis-dynamic-code-snapshots` fills `entry_points[*].dynamic_code_segments[*].data_ref`.
+- `--analysis-dynamic-code-snapshots` fills `entry_points[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--analysis-dynamic-code-snapshot-limit` sets the maximum number of snapshots of each region.
 - `entry_points[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 
 ## Annotated report schema example
@@ -93,7 +93,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 ```jsonc
 {
   // Report format version.
-  "report_version": "6.0.0",
+  "report_version": "6.1.0",
 
   // Wall-clock seconds from the first start of the run queue to the end.
   "emulation_total_runtime": 1.234,
@@ -406,7 +406,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
         }
       ],
 
-      // Dynamic code segments that executed.
+      // Dynamic code segments that executed, in tick order.
       "dynamic_code_segments": [
         {
           "tag": "emu.alloc.0x10000000",
@@ -416,6 +416,18 @@ Each event has `pos`, the position of the thread that did the operation, so the 
           "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
           // Only with analysis.dynamic_code_snapshots: the region contents at pos.
           "data_ref": "data-dyn-code"
+        },
+        {
+          // Only with analysis.dynamic_code_snapshots: the same region, when code
+          // ran in it again after the region changed.
+          "tag": "emu.alloc.0x10000000",
+          "base": "0x10000000",
+          "size": 4096,
+          "pos": {"tick": 310, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
+          "data_ref": "data-dyn-code-stage2",
+          // Only on the last entry of a region, if the region changed and ran
+          // again after the snapshot limit.
+          "snapshot_limit_reached": true
         }
       ],
 
@@ -476,7 +488,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 
 ```json
 {
-  "report_version": "6.0.0",
+  "report_version": "6.1.0",
   "emulation_total_runtime": 0.012,
   "timestamp": 1760000000,
   "arch": "x86",
@@ -501,7 +513,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 ```jsonc
 {
   // Report schema version.
-  "report_version": "6.0.0",
+  "report_version": "6.1.0",
 
   // Total runtime in seconds for this emulation session.
   "emulation_total_runtime": 0.012,

@@ -94,6 +94,14 @@ class ApiHammer:
             logger.info("API HAMMERING DETECTED - unable to patch the call to %s that returns to 0x%x", imp_api, ret)
             self.unpatchable.add(hammer_key)
 
+    def _write_patch(self, address: int, data: bytes) -> None:
+        """
+        Write a patch to the engine, and not with ``mem_write``.
+
+        A patch is not a change by the guest, so it must not mark a dynamic code region changed.
+        """
+        self.emu.emu_eng.mem_write(address, data)
+
     def _is_api_or_thunk(self, address: int) -> bool:
         """Return ``True`` if ``address`` is an API, or a ``jmp [mem]`` thunk that goes to an API."""
         if self.emu.get_symbol_from_address(address) is not None:
@@ -122,13 +130,13 @@ class ApiHammer:
         if patch and call[0] == 0xE8:
             target = (ret + int.from_bytes(call[1:], "little", signed=True)) & 0xFFFFFFFF
             if self._is_api_or_thunk(target):
-                self.emu.mem_write(ret - 5, patch.ljust(5, b"\x90"))
+                self._write_patch(ret - 5, patch.ljust(5, b"\x90"))
                 return True
 
         eip = ret - 6
         mnem, op, instr = self.emu.get_disasm(eip, e_arch.DISASM_SIZE)
         if patch and (mnem == "call") and "dword ptr" in instr:
-            self.emu.mem_write(eip, patch.ljust(6, b"\x90"))
+            self._write_patch(eip, patch.ljust(6, b"\x90"))
             return True
 
         eip = ret - 2
@@ -148,7 +156,7 @@ class ApiHammer:
             loc = self.hammer_memregion + self.hammer_offset
             if (self.hammer_offset + len(stub)) >= 0x1024 * 4:
                 return False
-            self.emu.mem_write(loc, stub)
+            self._write_patch(loc, stub)
             self.hammer_offset += len(stub)
             self.emu.reg_write(e_arch.REG_LOOKUP[op], loc)
             return True

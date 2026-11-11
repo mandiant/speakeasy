@@ -14,7 +14,7 @@ Set `keep_memory_on_free` (or `--keep-memory-on-free`) to keep a region mapped a
 
 With `--snapshot-memory-regions`, the report includes the content of each memory region at the end of a run. Each region in the report, except the stack, has a `data_ref`, which is a SHA-256 key in the top-level `data` section. The `data` section keeps the bytes as `base64(zlib(raw_bytes))`. The report keeps one copy of bytes that repeat across regions or runs, and it does not need other files.
 
-An unpacker can run code in a buffer and then overwrite the buffer with the next stage, so the snapshot at the end of the run does not have the first stage. Set `analysis.dynamic_code_snapshots` (or `--analysis-dynamic-code-snapshots`) to add the contents of each dynamic code region, at the first time that code runs in it, to the report. Each entry of `dynamic_code_segments` then has a `data_ref`, and its `pos` gives the position of the snapshot in the timeline of events.
+An unpacker can run code in a buffer and then overwrite the buffer with the next stage, so the snapshot at the end of the run does not have the first stage. Set `analysis.dynamic_code_snapshots` (or `--analysis-dynamic-code-snapshots`) to add the contents of each dynamic code region, at the first time that code runs in it, to the report. Each entry of `dynamic_code_segments` then has a `data_ref`, and its `pos` gives the position of the snapshot in the timeline of events. If the guest then writes a new stage into the region and runs it, `dynamic_code_segments` has one more entry of the region for each stage, up to `analysis.dynamic_code_snapshot_limit` entries for each region. [Reporting](reporting.md) gives the rules.
 
 ## Memory tracing
 

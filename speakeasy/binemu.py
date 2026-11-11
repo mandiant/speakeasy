@@ -8,6 +8,7 @@ import re
 import struct
 import threading
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
 import capstone as cs
@@ -88,6 +89,30 @@ MODULE_LEVEL = tuple[dict[str, API_LEVEL], WILDCARD_FLAG]
 HookT = TypeVar("HookT", bound=common.Hook)
 
 
+@dataclass
+class _DynCodeWatch:
+    """A dynamic code region of the current run, which the emulator watches for writes after a snapshot."""
+
+    base: int
+    size: int
+    snapshots: int = 1
+    hook: common.WriteMemHook | None = None
+
+
+@dataclass
+class _DynCodeWatches:
+    """The dynamic code regions of the current run that the emulator watches, by base address."""
+
+    # The regions with a write hook.
+    hooked: dict[int, _DynCodeWatch] = field(default_factory=dict)
+    # The regions that changed after their last snapshot.
+    changed: dict[int, _DynCodeWatch] = field(default_factory=dict)
+    # The block before the current block, while a region is changed. Unlike the call site block of the Windows
+    # emulator, it stays when Unicorn starts again, so that a debugger step in a loop does not look like a jump
+    # from outside the loop. The block before an API return is the API stub.
+    prev_block: int = 0
+
+
 class BinaryEmulator(MemoryManager, ABC):
     """
     Base class for emulating binaries.
@@ -142,6 +167,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.hooks: dict[int, Any] = {}
 
         self.profiler: Profiler = Profiler(config.analysis)
+        self._dyn_code_watches = _DynCodeWatches()
 
         self.runtime: float = 0
 
@@ -720,6 +746,16 @@ class BinaryEmulator(MemoryManager, ABC):
         pat = b"(?:[\x20-\x7f]\x00){%d,}" % (min_len)
         return [(m.start(), m.group().decode("utf-16le")) for m in re.finditer(pat, data)]
 
+    def mem_write(self, addr, data) -> None:
+        """Write bytes into the emulated address space. A write to a watched dynamic code region marks it changed."""
+        super().mem_write(addr, data)
+        # API handlers write with this method, and Unicorn does not call the write hooks for it.
+        if self._dyn_code_watches.hooked:
+            end = addr + len(data)
+            for watch in list(self._dyn_code_watches.hooked.values()):
+                if addr < watch.base + watch.size and watch.base < end:
+                    self._mark_dyn_code_changed(watch)
+
     def mem_copy(self, dst, src, n):
         """Copy bytes from one emulated address to another."""
         sbytes = self.mem_read(src, n)
@@ -944,11 +980,59 @@ class BinaryEmulator(MemoryManager, ABC):
             pos = self.get_trace_position().model_copy(update={"pc": addr})
             data = self.mem_read(mm.base, mm.size) if self.config.analysis.dynamic_code_snapshots else None
             profiler.record_dyn_code_event(run, pos, mm.tag, mm.base, mm.size, data)
+            if data is not None:
+                self._watch_dyn_code(_DynCodeWatch(mm.base, mm.size))
 
         # Copy the list, because a callback can remove its hook.
         for h in list(self.hooks.get(common.HOOK_DYN_CODE, [])):
             if h.enabled:
                 h.cb(h.emu, mm)
+
+    def _watch_dyn_code(self, watch: _DynCodeWatch) -> None:
+        """Add a write hook on the region, which marks the region changed at the first write."""
+
+        def _dyn_code_write_cb(emu, access, address, size, value):
+            self._mark_dyn_code_changed(watch)
+            return True
+
+        watch.hook = self.add_mem_write_hook(cb=_dyn_code_write_cb, begin=watch.base, end=watch.base + watch.size - 1)
+        self._dyn_code_watches.hooked[watch.base] = watch
+
+    def _mark_dyn_code_changed(self, watch: _DynCodeWatch) -> None:
+        """Mark a watched region changed, so that the block hook takes a snapshot when code runs in it again."""
+        # Remove the hook at the first write, so that the next writes do not call into Python.
+        if watch.hook is not None:
+            self.remove_hook(watch.hook)
+            watch.hook = None
+        del self._dyn_code_watches.hooked[watch.base]
+        if not self._dyn_code_watches.changed:
+            # The block hook records the block before only while a region is changed, so start at the code that
+            # writes. For a write by an API handler, the pc is at the API.
+            self._dyn_code_watches.prev_block = self.get_pc()
+        self._dyn_code_watches.changed[watch.base] = watch
+
+    def _snapshot_changed_dyn_code(self, watch: _DynCodeWatch, addr: int) -> None:
+        """Take a snapshot of a changed region where a block at ``addr`` runs, and watch the region again."""
+        del self._dyn_code_watches.changed[watch.base]
+        mm = self.get_address_map(addr)
+        # The guest freed the region and allocated a different region at the address.
+        if mm is None or (mm.base, mm.size) != (watch.base, watch.size):
+            return
+        run = self.get_current_run()
+        if watch.snapshots >= self.config.analysis.dynamic_code_snapshot_limit:
+            self.profiler.record_dyn_code_limit(run, watch.base)
+            return
+        pos = self.get_trace_position().model_copy(update={"pc": addr})
+        if self.profiler.record_dyn_code_snapshot(run, pos, watch.base, self.mem_read(watch.base, watch.size)):
+            watch.snapshots += 1
+        self._watch_dyn_code(watch)
+
+    def _end_dyn_code_watches(self) -> None:
+        """Stop the watch of the dynamic code regions of the run that ends."""
+        for watch in self._dyn_code_watches.hooked.values():
+            if watch.hook is not None:
+                self.remove_hook(watch.hook)
+        self._dyn_code_watches = _DynCodeWatches()
 
     def _set_dyn_code_hook(self, addr, size):
         """Add a code hook on the start of a new region, which fires the dynamic code hooks one time."""

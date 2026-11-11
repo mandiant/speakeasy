@@ -68,9 +68,16 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     "coverage": false,
 
     // If true, the report has the contents of each dynamic code region, for example
-    // from VirtualAlloc, at the first time that code runs in the region.
+    // from VirtualAlloc, at the first time that code runs in the region, and again
+    // each time that code runs in it after the region changes. The emulator then
+    // counts each instruction for the tick of each snapshot, which makes tight
+    // loops about two times slower.
     // Use it to keep the stages of an unpacker that overwrites its buffers.
-    "dynamic_code_snapshots": false
+    "dynamic_code_snapshots": false,
+
+    // The maximum number of snapshots of each dynamic code region in one run,
+    // with the first snapshot. It stops a sample that changes a region in a loop.
+    "dynamic_code_snapshot_limit": 8
   },
 
   // If true, the memory manager keeps a freed region mapped, so you can read

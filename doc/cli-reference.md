@@ -59,7 +59,7 @@ A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to t
 
 Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form.
 
-Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--api-hammering-threshold`, `--module-directory-x86` and `--module-directory-x64`.
+Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--api-hammering-threshold`, `--module-directory-x86` and `--module-directory-x64`.
 
 Mapping flags: `--env KEY=VALUE` and `--network-dns-names KEY=VALUE`. List flag: `--api-hammering-allow-list VALUE`.
 
