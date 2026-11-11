@@ -3,6 +3,9 @@ import zlib
 from base64 import b64decode
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
+
+import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.profiler_events import ApiEvent
@@ -181,3 +184,26 @@ def test_snapshot_limit_shows_on_the_last_entry_of_the_region(config):
     segments = report.entry_points[0].dynamic_code_segments
     assert len(_get_snapshots(report)) == 2
     assert [segment.snapshot_limit_reached for segment in segments] == [None, True]
+
+
+def test_delphi_object_instance_page_has_a_snapshot_of_each_new_thunk(config):
+    # A Delphi program that keeps window procedure thunks (MakeObjectInstance) in one
+    # VirtualAlloc page. Each thunk is "call base+4" and then the method that it calls.
+    path = Path(__file__).resolve().parent / "capa-testfiles" / "5dd0b130d5c3d40c69e3972f39fd7d62.exe_"
+    if not path.exists():
+        pytest.skip(f"missing sample: {path}")
+    config["analysis"] = {"dynamic_code_snapshots": True}
+    with Speakeasy(config=config) as se:
+        module = se.load_module(str(path))
+        se.run_module(module)
+        report = se.get_report()
+
+    segment, later, *_ = report.entry_points[0].dynamic_code_segments
+    first, bound, *_ = _get_snapshots(report)
+    thunk = later.pos.pc - segment.base
+    call = b"\xe8" + struct.pack("<i", 4 - (thunk + 5))
+    [old_link] = struct.unpack_from("<I", first, thunk + 5)
+    [method] = struct.unpack_from("<I", bound, thunk + 5)
+    assert first[thunk : thunk + 5] == bound[thunk : thunk + 5] == call
+    assert segment.base <= old_link < segment.base + segment.size
+    assert module.base <= method < module.base + module.image_size
