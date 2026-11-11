@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
 
-REPORT_VERSION = "6.0.0"
+REPORT_VERSION = "6.1.0"
 
 
 class StringCollection(BaseModel):
@@ -192,10 +192,12 @@ class SymAccessReport(BaseModel):
 
 class DynamicCodeSegment(BaseModel):
     """
-    A dynamic code region where code ran.
+    A dynamic code region where code ran, or a snapshot of the region.
 
     The emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and
-    adds a region when the guest runs code in the region.
+    adds a region when the guest runs code in the region. With ``analysis.dynamic_code_snapshots``, the
+    emulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the
+    region after the region changed, and control came from outside the region.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -204,13 +206,23 @@ class DynamicCodeSegment(BaseModel):
     base: HexInt = Field(description="Base address of the region.")
     size: int = Field(description="Size of the region in bytes.")
     pos: TracePosition = Field(
-        description="Position when the emulator first found code that ran in the region. ``pc`` is in the region."
+        description=(
+            "Position when the emulator found code that ran in the region: the first time, or for a later"
+            " snapshot, the first block in the region after the change. ``pc`` is in the region."
+        )
     )
     data_ref: str | None = Field(
         default=None,
         description=(
-            "Key in the top-level ``data`` of the region data at ``pos``."
-            " Only with ``analysis.dynamic_code_snapshots``."
+            "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different"
+            " data from the entry of the region before it. Only with ``analysis.dynamic_code_snapshots``."
+        ),
+    )
+    snapshot_limit_reached: bool | None = Field(
+        default=None,
+        description=(
+            "True on the last entry of a region if the region changed and code ran in it again after the last"
+            " snapshot that ``analysis.dynamic_code_snapshot_limit`` allows. Absent otherwise."
         ),
     )
 
@@ -421,7 +433,10 @@ class EntryPoint(BaseModel):
     )
     dynamic_code_segments: list[DynamicCodeSegment] = Field(
         default_factory=list,
-        description="Dynamic code regions where code ran in the run.",
+        description=(
+            "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With"
+            " ``analysis.dynamic_code_snapshots``, a region has one entry for each snapshot."
+        ),
     )
     coverage: list[HexInt] | None = Field(
         default=None,

@@ -284,7 +284,7 @@
     },
     "DynamicCodeSegment": {
       "additionalProperties": false,
-      "description": "A dynamic code region where code ran.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region.",
+      "description": "A dynamic code region where code ran, or a snapshot of the region.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region. With ``analysis.dynamic_code_snapshots``, the\nemulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the\nregion after the region changed, and control came from outside the region.",
       "properties": {
         "tag": {
           "description": "Tag of the memory region.",
@@ -304,7 +304,7 @@
         },
         "pos": {
           "$ref": "#/$defs/TracePosition",
-          "description": "Position when the emulator first found code that ran in the region. ``pc`` is in the region."
+          "description": "Position when the emulator found code that ran in the region: the first time, or for a later snapshot, the first block in the region after the change. ``pc`` is in the region."
         },
         "data_ref": {
           "anyOf": [
@@ -316,8 +316,21 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the region data at ``pos``. Only with ``analysis.dynamic_code_snapshots``.",
+          "description": "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different data from the entry of the region before it. Only with ``analysis.dynamic_code_snapshots``.",
           "title": "Data Ref"
+        },
+        "snapshot_limit_reached": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "True on the last entry of a region if the region changed and code ran in it again after the last snapshot that ``analysis.dynamic_code_snapshot_limit`` allows. Absent otherwise.",
+          "title": "Snapshot Limit Reached"
         }
       },
       "required": [
@@ -579,7 +592,7 @@
           "title": "Symbol Accesses"
         },
         "dynamic_code_segments": {
-          "description": "Dynamic code regions where code ran in the run.",
+          "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``analysis.dynamic_code_snapshots``, a region has one entry for each snapshot.",
           "items": {
             "$ref": "#/$defs/DynamicCodeSegment"
           },
@@ -3066,7 +3079,7 @@
   "description": "Report of one emulation: the input metadata, the runs and the payloads.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data. An empty list or\nobject means that Speakeasy collected the data and found nothing.",
   "properties": {
     "report_version": {
-      "default": "6.0.0",
+      "default": "6.1.0",
       "description": "Version of the report format.",
       "title": "Report Version",
       "type": "string"

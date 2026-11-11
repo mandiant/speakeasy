@@ -110,6 +110,7 @@ class DynCodeMapping(TypedDict):
     size: int
     pos: TracePosition
     data_ref: str | None
+    snapshot_limit_reached: bool
 
 
 class DynCode(TypedDict):
@@ -620,9 +621,38 @@ class Profiler:
         """Record a dynamic code region that the guest runs. The profiler adds each base address once per run."""
         if base not in run.dyn_code["base_addrs"]:
             data_ref = self.artifact_store.put_bytes(data) if data is not None else None
-            entry: DynCodeMapping = {"tag": tag, "base": base, "size": size, "pos": pos, "data_ref": data_ref}
+            entry: DynCodeMapping = {
+                "tag": tag,
+                "base": base,
+                "size": size,
+                "pos": pos,
+                "data_ref": data_ref,
+                "snapshot_limit_reached": False,
+            }
             run.dyn_code["mmap"].append(entry)
             run.dyn_code["base_addrs"].add(base)
+
+    def record_dyn_code_snapshot(self, run, pos: TracePosition, base, data: bytes) -> bool:
+        """
+        Record one more snapshot of the dynamic code region at ``base``, as a new entry of the region.
+
+        Return ``False``, and record nothing, if the data is the same as the last snapshot of the region.
+        """
+        last = self._get_last_dyn_code_entry(run, base)
+        data_ref = self.artifact_store.put_bytes(data)
+        if data_ref == last["data_ref"]:
+            return False
+        entry: DynCodeMapping = {**last, "pos": pos, "data_ref": data_ref}
+        run.dyn_code["mmap"].append(entry)
+        return True
+
+    def record_dyn_code_limit(self, run, base):
+        """Record that the dynamic code region at ``base`` changed again after its last allowed snapshot."""
+        self._get_last_dyn_code_entry(run, base)["snapshot_limit_reached"] = True
+
+    def _get_last_dyn_code_entry(self, run: Run, base: int) -> DynCodeMapping:
+        """Get the last entry of the dynamic code region at ``base`` in the run."""
+        return next(seg for seg in reversed(run.dyn_code["mmap"]) if seg["base"] == base)
 
     def record_network_event(
         self,
@@ -698,7 +728,12 @@ class Profiler:
 
             dyn_code_segments = [
                 DynamicCodeSegment(
-                    tag=seg["tag"], base=seg["base"], size=seg["size"], pos=seg["pos"], data_ref=seg["data_ref"]
+                    tag=seg["tag"],
+                    base=seg["base"],
+                    size=seg["size"],
+                    pos=seg["pos"],
+                    data_ref=seg["data_ref"],
+                    snapshot_limit_reached=seg["snapshot_limit_reached"] or None,
                 )
                 for seg in r.dyn_code["mmap"]
             ]

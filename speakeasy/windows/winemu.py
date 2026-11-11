@@ -879,6 +879,7 @@ class WindowsEmulator(BinaryEmulator):
         stop_emulation = isinstance(self._native_exit, RunEnd) and self._native_exit.stop_emulation
         self._native_exit = None
         self._run_completed = True
+        self._end_dyn_code_watches()
         self.on_run_complete()
         if run is not None:
             self._finish_run_initializers(run)
@@ -1135,7 +1136,13 @@ class WindowsEmulator(BinaryEmulator):
         assert origin_run is not None
         budget = self.config.max_instructions if debugger is not None else count
         limits = RunLimits.from_run(origin_run, timeout, budget, self._execution_budget)
-        hook = self._add_accounting_hook(limits, origin_run, debugger) if limits.budget > 0 else None
+        if limits.budget > 0:
+            hook = self._add_accounting_hook(limits, origin_run, debugger)
+        elif self.config.analysis.dynamic_code_snapshots and not self.config.analysis.memory_tracing:
+            # The positions of the snapshots need the instruction count, and no other hook counts.
+            hook = self._add_counting_hook(debugger)
+        else:
+            hook = None
         stepping = debugger is not None and count == 1
 
         try:
@@ -1265,6 +1272,23 @@ class WindowsEmulator(BinaryEmulator):
                     run.instr_cnt += 1
 
         return self.add_code_hook(account_instruction)
+
+    def _add_counting_hook(self, debugger: GdbServer | None):
+        """
+        Add a code hook that counts each instruction of the current run.
+
+        A count of the instructions of each block in the block hook costs less, but it is wrong when a fault stops a
+        block before its end.
+        """
+
+        def count_instruction(_emu, _address, _size):
+            if debugger is not None and debugger.has_pending_stop():
+                return
+            run = self.curr_run
+            if run is not None:
+                run.instr_cnt += 1
+
+        return self.add_code_hook(count_instruction)
 
     def _finish_current_run_execution(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> None:
         """
@@ -3726,10 +3750,28 @@ class WindowsEmulator(BinaryEmulator):
             return self._end_run_on_hook_error("Exception during code hook (coverage)", e)
 
     def _hook_block_call_site(self, emu, addr, size):
-        """Record the block that jumps to an API entry. The last instruction of the block is the call site."""
+        """
+        Record the block that jumps to an API entry, and take a snapshot of a changed dynamic code region.
+
+        The last instruction of the block before the API entry is the call site.
+        """
         entry = self.api_registry.entries.get(addr)
         if entry is not None and entry.trap is not None and self._last_block is not None:
             self._api_call_site = (addr, self._last_block)
+        dyn_code = self._dyn_code_watches
+        if dyn_code.changed:
+            # Take a snapshot of a changed region when control comes into it from outside. A decoder loop in the
+            # region writes the region on each pass, but each of its blocks comes after a block in the region.
+            prev = dyn_code.prev_block
+            for watch in dyn_code.changed.values():
+                end = watch.base + watch.size
+                if watch.base <= addr < end and not watch.base <= prev < end:
+                    try:
+                        self._snapshot_changed_dyn_code(watch, addr)
+                    except Exception as e:
+                        return self._end_run_on_hook_error("Exception during block hook (dynamic code)", e)
+                    break
+            dyn_code.prev_block = addr
         self._last_block = (addr, size)
         return True
 

@@ -301,8 +301,15 @@ class AnalysisConfig(BaseModel):
     coverage: bool = Field(default=False, description="Record the address of each instruction that a run executes.")
     dynamic_code_snapshots: bool = Field(
         default=False,
-        description="Add the contents of each dynamic code region, at the first time that code runs in it,"
-        " to the report.",
+        description="Add the contents of each dynamic code region to the report, at the first time that code runs"
+        " in it, and again each time that code runs in it after the region changes. The emulator then counts each"
+        " instruction, so that the position of each snapshot has the instruction count.",
+    )
+    dynamic_code_snapshot_limit: int = Field(
+        default=8,
+        ge=1,
+        description="Maximum number of snapshots of each dynamic code region in one run, with the first snapshot."
+        " Only with dynamic_code_snapshots.",
     )
 
 
