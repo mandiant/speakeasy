@@ -2278,7 +2278,7 @@ def test_endthreadex_ends_only_the_current_thread(
                 emu.set_pc(module.base + 0x133FC)
 
         se.add_code_hook(end_accept_loop, begin=module.base + 0x133F7, end=module.base + 0x133F7)
-        se.run_module(module)
+        se.run_module(module, emulate_children=False)
         runs = [run for run in se.get_report().entry_points if run.start_address == module.base + 0x144FC]
 
     assert [(run.type, run.error) for run in runs] == [("thread", None), ("thread", None)]

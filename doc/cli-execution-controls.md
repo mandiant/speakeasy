@@ -30,10 +30,11 @@ These flags select what the emulator runs and where:
 - `--raw`: emulate the input as raw bytes, for example shellcode.
 - `--arch`: the architecture of the shellcode (`x86`, `x64` or `amd64`). `--raw` needs it.
 - `--raw-offset`: the offset in the raw input where execution starts (decimal, or hex with `0x`).
-- `--emulate-children`: emulate the child processes that the sample starts.
+- `--emulate-children`, `--no-emulate-children`: emulate the child processes that the sample starts (default on).
+- `--all-entrypoints`, `--no-all-entrypoints`: also run the exports of a PE, and for a driver its IRP dispatch functions and unload routine (default on).
 - `--no-mp`: emulate in the CLI process instead of a child process.
 
-With `--emulate-children`, a child process runs after the process that started it stops. The child processes are the processes that the sample starts with `CreateProcess`, `CreateProcessAsUser`, `WinExec` or `ShellExecute` on a file with the extension `.exe`, `.com` or `.scr`. `ShellExecute` on a document or a URL does not start a child process. All processes share one address space and the loaded DLLs. Before a child runs, the emulator unmaps the image, the PEB and the heap blocks of the process that ran before it. It also closes the handles of that process. A named object that no other process has a handle to, such as a mutex, goes away, so `OpenMutex` in the child fails with `ERROR_FILE_NOT_FOUND`, as on Windows after that process exits. The child gets its own PEB, with its image first in the loader list, and a new TEB. If the child image cannot load, for example because the file is not a PE, or because other memory uses its base and it has no relocation data, the emulator skips the child and logs a warning. The loads and the runs of the child processes count against `--max-total-time`. When it runs out, the child processes that are left do not run, and the report has a top-level `max_total_time` error. The child gets a copy of the current directory and the environment variables of its parent. If the guest gives `lpCurrentDirectory` to `CreateProcess`, the child starts in that directory. The child does not get the vectored exception handlers, the unhandled exception filter or the function tables of its parent. The API handlers keep one state for all processes, for example the process heap handle and the C runtime data.
+By default, a child process runs after the process that started it stops, and `--no-emulate-children` turns this off. The child processes are the processes that the sample starts with `CreateProcess`, `CreateProcessAsUser`, `WinExec` or `ShellExecute` on a file with the extension `.exe`, `.com` or `.scr`. `ShellExecute` on a document or a URL does not start a child process. All processes share one address space and the loaded DLLs. Before a child runs, the emulator unmaps the image, the PEB and the heap blocks of the process that ran before it. It also closes the handles of that process. A named object that no other process has a handle to, such as a mutex, goes away, so `OpenMutex` in the child fails with `ERROR_FILE_NOT_FOUND`, as on Windows after that process exits. The child gets its own PEB, with its image first in the loader list, and a new TEB. If the child image cannot load, for example because the file is not a PE, or because other memory uses its base and it has no relocation data, the emulator skips the child and logs a warning. The loads and the runs of the child processes count against `--max-total-time`. When it runs out, the child processes that are left do not run, and the report has a top-level `max_total_time` error. The child gets a copy of the current directory and the environment variables of its parent. If the guest gives `lpCurrentDirectory` to `CreateProcess`, the child starts in that directory. The child does not get the vectored exception handlers, the unhandled exception filter or the function tables of its parent. The API handlers keep one state for all processes, for example the process heap handle and the C runtime data.
 
 This command runs raw shellcode with limits:
 
@@ -69,6 +70,9 @@ speakeasy -t sample.exe \
   --max-api-calls 4000 \
   --max-instructions 800000 \
   --no-analysis-memory-tracing \
+  --no-analysis-coverage \
+  --no-analysis-dynamic-code-snapshots \
+  --no-snapshot-memory-regions \
   -o report.json
 ```
 
@@ -80,17 +84,15 @@ Use this profile first for samples that often loop.
 speakeasy -t sample.exe \
   --gdb --gdb-port 2345 \
   --no-mp \
-  --analysis-coverage \
-  --analysis-memory-tracing \
   --verbose \
   -o report.json
 ```
 
-Use this profile when you want to step through one run and get more data in the report.
+Use this profile when you want to step through one run. The report has the coverage and the memory tracing data by default.
 
 ## Performance and telemetry tuning
 
-Speakeasy is written in Python, so the data that it collects and the stop limits have a large effect on the run time. Memory tracing, coverage and memory region snapshots make a run slower and the report larger. They are off by default. If your config file enables them, `--no-analysis-memory-tracing`, `--no-analysis-coverage` and `--no-snapshot-memory-regions` disable them for one run. For samples that loop or crash, set `--max-run-time`, `--max-api-calls` and `--max-instructions`. Run fast triage and the full telemetry as two different runs.
+Speakeasy is written in Python, so the data that it collects and the stop limits have a large effect on the run time. Memory tracing, coverage, dynamic code snapshots and memory region snapshots make a run slower and the report larger. They are on by default. `--no-analysis-memory-tracing`, `--no-analysis-coverage`, `--no-analysis-dynamic-code-snapshots` and `--no-snapshot-memory-regions` turn them off for one run. The API hammering mitigation is also on by default. When it patches a call in a loop, the loop has no more API calls, so `--max-api-calls` does not stop it and the run continues to `--max-run-time`. `--no-api-hammering-enabled` turns the mitigation off. For samples that loop or crash, set `--max-run-time`, `--max-api-calls` and `--max-instructions`. Run fast triage and the full telemetry as two different runs.
 
 ## Related docs
 

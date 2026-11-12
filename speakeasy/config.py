@@ -292,15 +292,15 @@ class AnalysisConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     memory_tracing: bool = Field(
-        default=False,
+        default=True,
         description="Count the reads, writes and executes of each symbol, section and memory map for the report.",
     )
     strings: bool = Field(
         default=True, description="Add the strings of the input and of emulated memory to the report."
     )
-    coverage: bool = Field(default=False, description="Record the address of each instruction that a run executes.")
+    coverage: bool = Field(default=True, description="Record the address of each instruction that a run executes.")
     dynamic_code_snapshots: bool = Field(
-        default=False,
+        default=True,
         description="Add the contents of each dynamic code region to the report, at the first time that code runs"
         " in it, and again each time that code runs in it after the region changes. The emulator then counts each"
         " instruction, so that the position of each snapshot has the instruction count.",
@@ -342,7 +342,7 @@ class UserConfig(BaseModel):
 class ApiHammeringConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    enabled: bool = Field(default=False, description="Patch API hammering loops in x86 code.")
+    enabled: bool = Field(default=True, description="Patch API hammering loops in x86 code.")
     threshold: int = Field(
         default=2000, description="Number of calls to one API from one call site before the emulator patches the call."
     )
@@ -576,11 +576,11 @@ class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     modules_always_exist: bool = Field(
-        default=False,
+        default=True,
         description="If true, the emulator loads an unknown module as an empty API module.",
     )
     functions_always_exist: bool = Field(
-        default=False,
+        default=True,
         description="If true, an API without a handler or a declaration resolves to a stub that returns 1.",
     )
     module_directory_x86: str | None = Field(
@@ -653,11 +653,11 @@ class SpeakeasyConfig(BaseModel):
         description="Data that the report collects.",
     )
     keep_memory_on_free: bool = Field(
-        default=False,
+        default=True,
         description="If true, the memory manager keeps a freed region mapped, so that its data can be read.",
     )
     snapshot_memory_regions: bool = Field(
-        default=False,
+        default=True,
         description="If true, the report has the contents of the memory regions at the end of each run.",
     )
     exceptions: ExceptionsConfig = Field(

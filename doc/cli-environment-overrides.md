@@ -64,32 +64,31 @@ jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}'
 
 ## Module load policy and module directories
 
-By default, `LoadLibrary` fails for a DLL that Speakeasy does not know. With `--modules-always-exist`, the emulator makes a synthetic module for the DLL.
+By default, the emulator makes a synthetic module for a DLL that Speakeasy does not know, so `LoadLibrary` succeeds. With `--no-modules-always-exist`, `LoadLibrary` fails for such a DLL, as on Windows.
 
-By default, `GetProcAddress` fails for a function that Speakeasy does not know, and a call to such a function ends the run with an `unsupported_api` error. With `--modules-functions-always-exist`, `GetProcAddress` gives an address for the function, and a call to it returns 1.
+By default, `GetProcAddress` gives an address for a function that Speakeasy does not know, and a call to it returns 1. With `--no-modules-functions-always-exist`, `GetProcAddress` fails for such a function, and a call to it ends the run with an `unsupported_api` error. Use this flag to find the APIs that the emulator does not support.
 
 `--module-directory-x86` and `--module-directory-x64` give the directories of real x86 and x64 DLLs. The emulator loads a DLL from the directory of the input architecture in place of its synthetic API module.
 
-This example allows unknown modules and functions, and loads real DLLs from two directories:
+This example rejects unknown modules and functions, and loads real DLLs from two directories:
 
 ```bash
 speakeasy -t sample.exe \
-  --modules-always-exist \
-  --modules-functions-always-exist \
+  --no-modules-always-exist \
+  --no-modules-functions-always-exist \
   --module-directory-x86 /opt/dlls/x86 \
   --module-directory-x64 /opt/dlls/x64 \
   -o report.json
 ```
 
-Use these flags when a sample stops early because a module or a function is missing.
+Use the `--no-` flags when a sample checks for a fake module or function to detect the emulator.
 
 ## API hammering controls
 
-Some samples call an API many times in a loop to make emulation slow. With `--api-hammering-enabled`, the emulator counts the calls to each API from each call site. When the count reaches `--api-hammering-threshold`, the emulator patches an x86 call site so that the call gives 0 and does not run the API. It can patch `call [mem]`, `call reg`, and a direct `call` to the API or to a `jmp [mem]` import thunk. If it cannot patch a call site, it logs this one time and stops counting the calls from that site. The emulator does not patch x64 code. `--api-hammering-allow-list` gives an API in the form `dll.name` that the emulator does not patch. The flag is repeatable, and its values replace the default allow list.
+Some samples call an API many times in a loop to make emulation slow. By default, the emulator counts the calls to each API from each call site. When the count reaches `--api-hammering-threshold`, the emulator patches an x86 call site so that the call gives 0 and does not run the API. It can patch `call [mem]`, `call reg`, and a direct `call` to the API or to a `jmp [mem]` import thunk. If it cannot patch a call site, it logs this one time and stops counting the calls from that site. The emulator does not patch x64 code. `--api-hammering-allow-list` gives an API in the form `dll.name` that the emulator does not patch. The flag is repeatable, and its values replace the default allow list. `--no-api-hammering-enabled` turns the mitigation off.
 
 ```bash
 speakeasy -t sample.exe \
-  --api-hammering-enabled \
   --api-hammering-threshold 5000 \
   --api-hammering-allow-list kernel32.WriteFile \
   --api-hammering-allow-list kernel32.ReadFile \

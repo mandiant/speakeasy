@@ -17,7 +17,7 @@ import speakeasy
 
 se = speakeasy.Speakeasy()
 module = se.load_module("sample.dll")
-se.run_module(module, all_entrypoints=True)
+se.run_module(module)
 report = se.get_report()
 se.shutdown()
 ```
@@ -29,7 +29,7 @@ import speakeasy
 
 se = speakeasy.Speakeasy()
 module = se.load_module("sample.dll")
-se.run_module(module)
+se.run_module(module, all_entrypoints=False)
 
 for export in module.get_exports():
     if export.name == "myexport":
@@ -42,6 +42,8 @@ se.shutdown()
 ## Options
 
 The `Speakeasy` constructor takes these arguments. `config=` sets the emulated environment and the analysis options, as a dict or a `SpeakeasyConfig` (see [Configuration walkthrough](configuration.md)). `argv=` sets the arguments of the emulated program. `volumes=` mounts host paths into the emulated file system, and it requires a dict or no `config=`. With `gdb_port=`, the first run waits for a GDB client before it starts (see [GDB debugging reference](gdb.md)). `gdb_host=` sets the address on which the GDB server listens, and its default is `127.0.0.1`.
+
+The defaults turn on all the features. The analysis options of the config are on, so the report has coverage, memory tracing and memory snapshots. `run_module` runs the exports of a DLL (`all_entrypoints=True`) and the child processes that the sample starts (`emulate_children=True`). To get a faster run or a smaller report, set an option to `False`.
 
 ## Hooks
 

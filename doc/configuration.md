@@ -1,6 +1,8 @@
 # Configuration walkthrough
 
-`speakeasy/config.py` defines the config fields and their defaults. `speakeasy --dump-default-config` prints the default config. The example below shows the fields with comments. It is JSONC (JSON with comments), so remove the comments before you give it to Speakeasy.
+`speakeasy/config.py` defines the config fields and their defaults. `speakeasy --dump-default-config` prints the default config. The example below shows the fields with comments.
+
+By default, Speakeasy collects all the data that it can and emulates as much of the sample as it can, so the features of the `analysis` section, `keep_memory_on_free`, `snapshot_memory_regions`, `api_hammering`, `modules_always_exist` and `functions_always_exist` are on. Set a field to `false`, or use its `--no-` flag, to turn a feature off. A run with fewer features is faster and gives a smaller report. It is JSONC (JSON with comments), so remove the comments before you give it to Speakeasy.
 
 Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
 
@@ -57,7 +59,8 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   "analysis": {
     // Count the reads, writes and executes of each symbol, section and memory map
     // in the report. Use it to examine unpackers, PEB walks and import resolvers.
-    "memory_tracing": false,
+    // It makes the run slower, mostly for samples that access much memory.
+    "memory_tracing": true,
 
     // If true, the report has the strings of the input file and of emulated memory.
     // Set it to false to make the emulation faster when you do not need the strings.
@@ -65,7 +68,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
     // Record the address of each instruction that a run executes.
     // Use it to compare runs or to see which code ran.
-    "coverage": false,
+    "coverage": true,
 
     // If true, the report has the contents of each dynamic code region, for example
     // from VirtualAlloc, at the first time that code runs in the region, and again
@@ -73,7 +76,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
     // counts each instruction for the tick of each snapshot, which makes tight
     // loops about two times slower.
     // Use it to keep the stages of an unpacker that overwrites its buffers.
-    "dynamic_code_snapshots": false,
+    "dynamic_code_snapshots": true,
 
     // The maximum number of snapshots of each dynamic code region in one run,
     // with the first snapshot. It stops a sample that changes a region in a loop.
@@ -81,13 +84,14 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   },
 
   // If true, the memory manager keeps a freed region mapped, so you can read
-  // the data that the sample freed.
-  "keep_memory_on_free": false,
+  // the data that the sample freed. The guest can then also read and write the
+  // region after the free without a fault, which is different from Windows.
+  "keep_memory_on_free": true,
 
   // If true, the report has the contents of the memory regions at the end of each run.
   // The report keeps each content one time in its top-level data store.
   // The report is larger, but you do not need the emulator to examine the memory.
-  "snapshot_memory_regions": false,
+  "snapshot_memory_regions": true,
 
   "exceptions": {
     // If true, the emulator sends CPU exceptions to the VEH and SEH handlers of
@@ -158,7 +162,8 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   "api_hammering": {
     // If true, the emulator patches API hammering loops in x86 code.
-    "enabled": false,
+    // Set "api_hammering" to null to turn the mitigation off, as false does.
+    "enabled": true,
 
     // When the guest calls one API from one call site this number of times,
     // the emulator patches the call to return 0.
@@ -363,14 +368,15 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   "modules": {
     // If true, when the guest loads an unknown module, the emulator creates an
-    // empty synthetic API module. If false, the load fails.
-    "modules_always_exist": false,
+    // empty synthetic API module. If false, the load fails, as on Windows.
+    "modules_always_exist": true,
 
     // If true, an API that has no handler and no entry in the signature database
     // resolves to a stub. The stub takes 4 stdcall arguments and returns 1.
     // An API with an entry in the signature database always uses that entry
-    // (see api-handlers.md).
-    "functions_always_exist": false,
+    // (see api-handlers.md). If false, a call to an API that has no handler and no
+    // entry ends the run with an unsupported_api error, so the report names the API.
+    "functions_always_exist": true,
 
     // Directories of native DLLs, by architecture. If a directory has a file
     // with the name of a module, the emulator loads that file in place of the

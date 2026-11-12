@@ -273,6 +273,25 @@ se = speakeasy.Speakeasy(config, argv, debug=True)
 se.run_module(module, all_entrypoints=True, emulate_children=False)
 ```
 
+## Defaults
+
+In 2.0, the features that collect analysis data or emulate more of the sample are on by default. In 1.x they were off or did not exist. A run is slower and its report is larger than in 1.x. To get the 1.x behavior, turn the features off:
+
+| Feature | Config field or parameter | CLI flag to turn it off |
+|---|---|---|
+| Memory tracing | `analysis.memory_tracing` | `--no-analysis-memory-tracing` |
+| Coverage | `analysis.coverage` | `--no-analysis-coverage` |
+| Dynamic code snapshots | `analysis.dynamic_code_snapshots` | `--no-analysis-dynamic-code-snapshots` |
+| Memory region snapshots | `snapshot_memory_regions` | `--no-snapshot-memory-regions` |
+| Freed memory stays mapped | `keep_memory_on_free` | `--no-keep-memory-on-free` |
+| API hammering mitigation | `api_hammering.enabled` | `--no-api-hammering-enabled` |
+| Unknown modules load | `modules.modules_always_exist` | `--no-modules-always-exist` |
+| Unknown functions resolve | `modules.functions_always_exist` | `--no-modules-functions-always-exist` |
+| Child processes run | `run_module(emulate_children=...)` | `--no-emulate-children` |
+| Exports run | `run_module(all_entrypoints=...)` | `--no-all-entrypoints` |
+
+A config file that sets a field keeps its value. In the library, `Speakeasy.run_module`, `Win32Emulator.run_module` and `WinKernelEmulator.run_module` default to `all_entrypoints=True`, and the user mode `run_module` methods default to `emulate_children=True`. In 1.x both were `False`. The CLI always ran the exports, and `--no-all-entrypoints` is new.
+
 ## Debug output
 
 `Speakeasy(debug=True)` logs each instruction and the registers to the `speakeasy.windows.winemu` logger at the DEBUG level. In 1.x it wrote them to stdout. To see them, set the level of the `speakeasy` logger to `DEBUG` and add a handler.
@@ -297,7 +316,7 @@ Many flags have new names, and some short flags are removed. The CLI rejects the
 | `-l`, `--module-dir` | `--module-directory-x86` and `--module-directory-x64` |
 | `-d`, `--dump` | none, use `Speakeasy.get_memory_dumps()` |
 
-`-t`, `-o`, `-c`, `-k` and `--no-mp` do not change. The 2.0 pre-releases had other names for some flags:
+`-t`, `-o`, `-c` and `--no-mp` do not change. `-k` stays, but it is the default now, and `--no-emulate-children` turns it off. The 2.0 pre-releases had other names for some flags:
 
 | 2.0 pre-release | 2.0 |
 |---|---|

@@ -1,13 +1,9 @@
 # CLI analysis recipes
 
-Each recipe gives the flags for one kind of analysis output and a command that checks the output.
+Each recipe gives the flags for one kind of analysis output and a command that checks the output. Memory snapshots, coverage, memory tracing and string extraction are on by default, so `speakeasy -t sample.exe -o report.json` gives all of them. The `--no-` form of each flag turns its output off.
 
 <a id="recipe-memory-snapshots"></a>
 ## In-report memory snapshots (`--snapshot-memory-regions`)
-
-```bash
-speakeasy -t sample.exe --snapshot-memory-regions -o report.json
-```
 
 The memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
@@ -15,14 +11,10 @@ The memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-
 jq '.entry_points[].memory.layout[] | select(.data_ref != null) | .tag' report.json
 ```
 
-The report gets larger. Regions with the same bytes share one entry in `data`, also across runs.
+The report gets larger. Regions with the same bytes share one entry in `data`, also across runs. `--no-snapshot-memory-regions` removes the data from the report.
 
 <a id="recipe-analysis-coverage"></a>
 ## Coverage collection (`--analysis-coverage`)
-
-```bash
-speakeasy -t sample.exe --analysis-coverage -o report.json
-```
 
 `entry_points[*].coverage` has the addresses of the instructions that each run executed. To count them:
 
@@ -30,14 +22,10 @@ speakeasy -t sample.exe --analysis-coverage -o report.json
 jq '.entry_points[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
 ```
 
-The emulator runs a hook for each instruction, so emulation is slower.
+The emulator runs a hook for each instruction, so emulation is slower. `--no-analysis-coverage` removes this cost.
 
 <a id="recipe-memory-tracing"></a>
 ## Memory tracing (`--analysis-memory-tracing`)
-
-```bash
-speakeasy -t sample.exe --analysis-memory-tracing -o report.json
-```
 
 The regions in `entry_points[*].memory.layout` that the run accessed get `accesses`, with the counts of reads, writes and executes. `entry_points[*].symbol_accesses` has the counts for each symbol. To count the symbols that each run accessed:
 
@@ -45,7 +33,7 @@ The regions in `entry_points[*].memory.layout` that the run accessed get `access
 jq '.entry_points[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
 ```
 
-The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower.
+The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower. `--no-analysis-memory-tracing` removes this cost.
 
 <a id="recipe-analysis-strings"></a>
 ## String extraction controls (`--analysis-strings` / `--no-analysis-strings`)
@@ -86,14 +74,11 @@ unzip -l dropped.zip
 <a id="recipe-combined-triage"></a>
 ## Combined triage profile
 
-This command collects all the outputs of this page in one run. `--max-run-time 30` limits each run to 30 seconds:
+This command collects all the outputs of this page in one run, because they are on by default. `--max-run-time 30` limits each run to 30 seconds:
 
 ```bash
 speakeasy -t sample.exe \
   --max-run-time 30 \
-  --analysis-coverage \
-  --analysis-memory-tracing \
-  --snapshot-memory-regions \
   --dropped-files-path dropped.zip \
   -o report.json
 ```

@@ -387,7 +387,7 @@ def test_entry_point_sees_tls_slots_that_the_tls_callback_set(config, tmp_path, 
         se.mem_write(exports["TlsCallback"], jump_to(ptr, callback))
         se.mem_write(exports["Initializer"], jump_to(ptr, entry))
 
-        se.run_module(module)
+        se.run_module(module, all_entrypoints=False)
 
         assert [ep.error for ep in se.get_report().entry_points] == [None, None]
         assert read_pointer(se, result) == 0x1234
@@ -419,7 +419,7 @@ def test_entry_point_sees_static_tls_data_that_the_tls_callback_wrote(config, tm
         se.mem_write(exports["TlsCallback"], jump_to(se.get_ptr_size(), result + 0x40))
         se.mem_write(exports["Initializer"], jump_to(se.get_ptr_size(), result + 0x80))
 
-        se.run_module(module)
+        se.run_module(module, all_entrypoints=False)
 
         assert [ep.error for ep in se.get_report().entry_points] == [None, None]
         assert int.from_bytes(se.mem_read(result, 4), "little") == 0x1234

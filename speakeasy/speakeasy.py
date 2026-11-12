@@ -419,8 +419,8 @@ class Speakeasy:
         self,
         module: RuntimeModule,
         *,
-        all_entrypoints: bool = False,
-        emulate_children: bool = False,
+        all_entrypoints: bool = True,
+        emulate_children: bool = True,
         entry_point: int | None = None,
     ) -> None:
         """
@@ -431,10 +431,10 @@ class Speakeasy:
 
         Args:
             module: The module that ``load_module`` returned.
-            all_entrypoints: If true, also run the exports. For a driver, also send IRPs to its
-                dispatch functions and run its unload routine.
-            emulate_children: If true, run the child processes that the module creates, after
-                the module. The kernel mode emulator ignores this argument.
+            all_entrypoints: If true (the default), also run the exports. For a driver, also send
+                IRPs to its dispatch functions and run its unload routine.
+            emulate_children: If true (the default), run the child processes that the module
+                creates, after the module. The kernel mode emulator ignores this argument.
             entry_point: RVA at which to start, in place of the entry point of the PE.
 
         Raises:
