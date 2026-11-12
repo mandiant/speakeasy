@@ -8,7 +8,7 @@ The public interface is the names in `speakeasy.__all__`, and the methods of `Wi
 
 All other modules, such as `speakeasy.windows.winemu` or `speakeasy.winenv.api`, are internal, and a minor release can change them. You can use `speakeasy.defs` and `speakeasy.arch` for the structures and constants of the Windows API, but they are internal too.
 
-The boolean parameters of the public methods are keyword-only, for example `se.run_module(module, all_entrypoints=True)` and `se.disasm(addr, size, fast=False)`.
+The boolean parameters of the public methods are keyword-only, for example `se.run_module(module, all_entrypoints=False)` and `se.disasm(addr, size, fast=False)`.
 
 ## Minimal DLL emulation flow
 
@@ -43,7 +43,7 @@ se.shutdown()
 
 The `Speakeasy` constructor takes these arguments. `config=` sets the emulated environment and the analysis options, as a dict or a `SpeakeasyConfig` (see [Configuration walkthrough](configuration.md)). `argv=` sets the arguments of the emulated program. `volumes=` mounts host paths into the emulated file system, and it requires a dict or no `config=`. With `gdb_port=`, the first run waits for a GDB client before it starts (see [GDB debugging reference](gdb.md)). `gdb_host=` sets the address on which the GDB server listens, and its default is `127.0.0.1`.
 
-The defaults turn on all the features. The analysis options of the config are on, so the report has coverage, memory tracing and memory snapshots. `run_module` runs the exports of a DLL (`all_entrypoints=True`) and the child processes that the sample starts (`emulate_children=True`). To get a faster run or a smaller report, set an option to `False`.
+The defaults turn on all the features. The feature options of the config are on, so the report has coverage, memory tracing and memory snapshots. `run_module` runs the exports of a DLL (`all_entrypoints=True`) and the child processes that the sample starts (`emulate_children=True`). To get a faster run or a smaller report, set an option to `False`.
 
 ## Hooks
 
