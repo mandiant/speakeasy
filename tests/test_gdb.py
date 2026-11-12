@@ -1190,9 +1190,9 @@ def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
 
 
 # mov ecx, 0x100000; loop: nop x16; dec ecx; jnz loop; ret
-# The emulator runs a Python hook on each block, so the loop body has many
-# instructions: a code hook on each instruction then costs much more than the
-# block hook, and the test finds it.
+# The emulator calls a Python hook on each block. The loop body has 18
+# instructions, so that a breakpoint hook on each instruction makes the run
+# much slower than the block hook alone does.
 _LONG_LOOP = "b900001000" + "90" * 16 + "4975edc3"
 _LONG_LOOP_RET = 24
 
