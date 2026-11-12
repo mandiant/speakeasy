@@ -1189,8 +1189,12 @@ def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
         client.close()
 
 
-# mov ecx, 0x20000000; loop: dec ecx; jnz loop; ret
-_LONG_LOOP = "b9000000204975fdc3"
+# mov ecx, 0x100000; loop: nop x16; dec ecx; jnz loop; ret
+# The emulator runs a Python hook on each block, so the loop body has many
+# instructions: a code hook on each instruction then costs much more than the
+# block hook, and the test finds it.
+_LONG_LOOP = "b900001000" + "90" * 16 + "4975edc3"
+_LONG_LOOP_RET = 24
 
 
 def _time_continue(code: str, breakpoint_offset: int | None) -> tuple[float, str, int]:
@@ -1212,9 +1216,9 @@ def _time_continue(code: str, breakpoint_offset: int | None) -> tuple[float, str
 def test_gdb_breakpoint_keeps_code_outside_it_fast():
     baseline, stop, _ = _time_continue(_LONG_LOOP, None)
     assert stop.startswith("T05") and "swbreak" not in stop
-    elapsed, stop, offset = _time_continue(_LONG_LOOP, 8)
+    elapsed, stop, offset = _time_continue(_LONG_LOOP, _LONG_LOOP_RET)
     assert stop.startswith("T05") and "swbreak:;" in stop
-    assert offset == 8
+    assert offset == _LONG_LOOP_RET
     assert elapsed < 3 * baseline, (elapsed, baseline)
 
 
