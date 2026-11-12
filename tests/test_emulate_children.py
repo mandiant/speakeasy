@@ -1,4 +1,4 @@
-"""Child processes run after the parent when emulate_children is set."""
+"""Child processes run after the parent unless emulate_children is false."""
 
 import hashlib
 import logging
@@ -45,6 +45,16 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     assert entries[1].return_value == module.base
     assert len(set(pids)) == 2
     assert [ep.pid for ep in entries] == pids
+
+
+@pytest.mark.parametrize(("kwargs", "count"), [({}, 2), ({"emulate_children": False}, 1)])
+def test_child_runs_by_default_unless_emulate_children_is_false(config, load_test_bin, kwargs, count):
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
+        se.run_module(module, **kwargs)
+
+        assert len(se.get_report().entry_points) == count
 
 
 def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):

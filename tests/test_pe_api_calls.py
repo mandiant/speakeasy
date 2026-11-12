@@ -207,7 +207,7 @@ def test_icmp_iat_call_runs_from_the_iphlpapi_prototype():
 
 def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bin):
     unknown = "SpeakeasyNoSuchExport"
-    with Speakeasy(config=configured()) as se:
+    with Speakeasy(config=configured(**{"modules.functions_always_exist": False})) as se:
         module = se.load_module(data=load_test_bin("unknown_import_x86.exe.xz"))
         se.run_module(module)
         error = se.get_report().entry_points[0].error
@@ -348,7 +348,7 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
             callbacks.append((module_base, se.read_mem_string(kind, width=2), se.read_mem_string(name, width=2), param))
 
         se.add_code_hook(callback, begin=module.base + 0xCB30, end=module.base + 0xCB30)
-        se.run_module(module, entry_point=0xC200)
+        se.run_module(module, entry_point=0xC200, all_entrypoints=False)
         entry = se.get_report().entry_points[0]
 
     enum, find = [event for event in entry.events if event.event == "api"][:2]

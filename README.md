@@ -30,6 +30,8 @@ The values depend on the sample:
 }
 ```
 
+By default, Speakeasy turns on all its features: it runs the exports and the child processes, and the report has coverage, memory tracing and memory snapshots. Each feature has a `--no-` flag that turns it off, for example `--no-analysis-coverage`. A run with fewer features is faster and gives a smaller report. The [CLI reference](https://github.com/mandiant/speakeasy/blob/master/doc/cli-reference.md#config-flags) lists the flags.
+
 ## Documentation
 
 Start with [installation](https://github.com/mandiant/speakeasy/blob/master/doc/install.md), [Python library usage](https://github.com/mandiant/speakeasy/blob/master/doc/library.md) and the [CLI reference](https://github.com/mandiant/speakeasy/blob/master/doc/cli-reference.md). The [documentation index](https://github.com/mandiant/speakeasy/blob/master/doc/index.md) lists all pages.

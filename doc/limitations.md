@@ -18,13 +18,13 @@ The call has no real side effects. Speakeasy writes zeros to each `Out`-only poi
 
 ### Unknown APIs
 
-If the API has no handler and no signature, the current run stops with an error. Examples are a C runtime function without a handler, a function of a third-party DLL or a native function that neither win32metadata nor phnt declares. The run also stops when the signature has a form that the emulator cannot call, for example a variadic function. The log shows:
+An API can have no handler and no signature. Examples are a C runtime function without a handler, a function of a third-party DLL or a native function that neither win32metadata nor phnt declares. By default, `modules.functions_always_exist` is on, and Speakeasy emulates a call to such an API as a stdcall function with 4 arguments that returns 1. The emulator does not know the argument count or the calling convention of an unknown API, so on x86 the stack is wrong when the real argument count is different, and the report can have incorrect data.
+
+With `--no-modules-functions-always-exist`, a call to such an API stops the current run with an error. A call to an API with a signature that the emulator cannot call, for example a variadic function, always stops the run. The log shows:
 
 - `Unsupported API: <module_name>.<api_name>`
 
-The emulator does not know the argument count or the calling convention of an unknown API. If the run continued, the stack could be wrong and the report could have incorrect data.
-
-The runs in the queue, for example other entry points, still run. With `modules.functions_always_exist`, Speakeasy emulates a call to an API without a declaration as a stdcall function with 4 arguments that returns 1.
+The runs in the queue, for example other entry points, still run.
 
 ## Threads
 

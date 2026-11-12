@@ -224,7 +224,7 @@ class WinKernelEmulator(WindowsEmulator):
         """
         return self
 
-    def run_module(self, module, *, all_entrypoints=False, entry_point=None) -> None:
+    def run_module(self, module, *, all_entrypoints=True, entry_point=None) -> None:
         """
         Add a DriverEntry run for a loaded driver, and run the queue.
 

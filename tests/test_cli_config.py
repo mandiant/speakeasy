@@ -40,6 +40,36 @@ def test_cli_and_library_give_the_same_config_for_a_partial_dict():
     assert library.os_ver.build == 7601
 
 
+FEATURE_PATHS = [
+    "analysis.memory_tracing",
+    "analysis.coverage",
+    "analysis.dynamic_code_snapshots",
+    "api_hammering.enabled",
+    "keep_memory_on_free",
+    "snapshot_memory_regions",
+    "modules.modules_always_exist",
+    "modules.functions_always_exist",
+]
+
+
+def get_config_path_value(config: SpeakeasyConfig, path: str):
+    value = config
+    for name in path.split("."):
+        value = getattr(value, name)
+    return value
+
+
+def test_features_are_on_by_default_and_each_no_flag_turns_one_off():
+    assert all(get_config_path_value(get_cli_config({}, []), path) is True for path in FEATURE_PATHS)
+
+    bool_specs = [spec for spec in get_config_cli_field_specs() if spec.kind == "bool"]
+    argv = ["--no-" + spec.option.removeprefix("--") for spec in bool_specs]
+    config = get_cli_config({}, argv)
+
+    assert {spec.path for spec in bool_specs} >= set(FEATURE_PATHS)
+    assert all(get_config_path_value(config, spec.path) is False for spec in bool_specs)
+
+
 def test_no_config_flag_repeats_a_word():
     for spec in get_config_cli_field_specs():
         words = [get_singular_word(word) for word in spec.option.removeprefix("--").split("-")]

@@ -258,7 +258,7 @@ class Win32Emulator(WindowsEmulator):
         return startup
 
     @execution_scope
-    def run_module(self, module, *, all_entrypoints=False, emulate_children=False, entry_point=None) -> None:
+    def run_module(self, module, *, all_entrypoints=True, emulate_children=True, entry_point=None) -> None:
         """
         Add the runs of a loaded module to the run queue, and run the queue.
 

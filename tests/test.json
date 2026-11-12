@@ -5,7 +5,16 @@
 
     "analysis": {
         "memory_tracing": false,
-        "strings": false
+        "strings": false,
+        "coverage": false,
+        "dynamic_code_snapshots": false
+    },
+
+    "keep_memory_on_free": false,
+    "snapshot_memory_regions": false,
+
+    "api_hammering": {
+        "enabled": false
     },
 
     "exceptions": {
@@ -209,6 +218,7 @@
 
     "modules": {
         "modules_always_exist": false,
+        "functions_always_exist": false,
 
         "system_modules": [
             {

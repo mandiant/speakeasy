@@ -28,7 +28,8 @@ These flags do not come from the config schema.
 - `--entry-point`: RVA where a PE starts, in place of its entry point
 - `--arch`: shellcode architecture (`x86`, `x64` or `amd64`, in any case). `--raw` needs it, and other modes ignore it
 - `--dropped-files-path`: path of the dropped-files archive
-- `-k, --emulate-children`: after the input finishes, emulate the processes that it starts with `CreateProcess`, `CreateProcessAsUser`, `WinExec` or `ShellExecute`
+- `-k, --emulate-children`, `--no-emulate-children`: after the input finishes, emulate the processes that it starts with `CreateProcess`, `CreateProcessAsUser`, `WinExec` or `ShellExecute` (default on)
+- `--all-entrypoints`, `--no-all-entrypoints`: also run the exports of a PE. For a driver, also send IRPs to its dispatch functions and run its unload routine (default on)
 - `--no-mp`: run the emulation in the CLI process instead of a child process
 - `-v, --verbose`: DEBUG logging
 - `--gdb`: start a GDB server and stop before the first instruction. See [GDB debugging](gdb.md)
@@ -57,7 +58,16 @@ The CLI makes the flag name from the config path. `analysis.memory_tracing` give
 
 A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to the mapping or replaces its value, and the other keys of the mapping do not change. A list flag takes one `VALUE` and is repeatable. The values replace the whole list.
 
-Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form.
+Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form. All of them are on by default, so use the `--no-` form to turn a feature off. For example, a fast triage run without the analysis data:
+
+```bash
+speakeasy --target sample.exe \
+  --no-analysis-memory-tracing \
+  --no-analysis-coverage \
+  --no-analysis-dynamic-code-snapshots \
+  --no-snapshot-memory-regions \
+  --output report.json
+```
 
 Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--api-hammering-threshold`, `--module-directory-x86` and `--module-directory-x64`.
 
@@ -112,10 +122,10 @@ Run raw shellcode:
 speakeasy --target shellcode.bin --raw --arch x86 --raw-offset 0x20 --output report.json
 ```
 
-Save memory snapshots in the report and write the dropped-files archive:
+Write the dropped-files archive. The report has the memory snapshots by default:
 
 ```bash
-speakeasy --target sample.exe --snapshot-memory-regions --dropped-files-path dropped.zip --output report.json
+speakeasy --target sample.exe --dropped-files-path dropped.zip --output report.json
 ```
 
 ## Related docs

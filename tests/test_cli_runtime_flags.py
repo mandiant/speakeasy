@@ -133,3 +133,15 @@ def test_the_result_of_a_child_is_returned():
     p.start()
 
     assert wait_for_child(q, p, mp.Event(), wall_limit=0) == ("{}", None)
+
+
+@pytest.mark.parametrize(("args", "count"), [([], 3), (["--no-all-entrypoints"], 1)])
+def test_cli_runs_the_exports_unless_no_all_entrypoints(tmp_path, load_test_bin, args, count):
+    target = tmp_path / "dll_test_x86.dll"
+    target.write_bytes(load_test_bin("dll_test_x86.dll.xz"))
+    config = os.path.join(os.path.dirname(__file__), "test.json")
+
+    result = run_cli("-t", str(target), "-c", config, "--no-mp", *args)
+
+    assert result.returncode == 0, result.stderr
+    assert len(json.loads(result.stdout)["entry_points"]) == count

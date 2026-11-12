@@ -10,11 +10,11 @@ The examples on this page are JSONC: JSON with comments that explain the fields.
 
 ## Report fields
 
-If Speakeasy did not collect the data of a key, the report leaves out the key, for example `coverage` when `analysis.coverage=false`. An empty list or object means that Speakeasy collected the data and found nothing.
+If Speakeasy did not collect the data of a key, the report leaves out the key, for example `coverage` when `analysis.coverage=false`. By default, Speakeasy collects all the data that this page describes. An empty list or object means that Speakeasy collected the data and found nothing.
 
 The report writes each machine word as a hex string with a `0x` prefix and lowercase digits. Machine words are addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage addresses. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value when it is a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number.
 
-`report_version` is the value of `speakeasy.report.REPORT_VERSION`. `timestamp` is the Unix time in seconds of the first start of the run queue, and `emulation_total_runtime` is the wall-clock time in seconds from that start to the end of the emulation. A `call()` after `run_module()` and each child process with `--emulate-children` start the run queue again, and the time to the last end counts. The other top-level fields are:
+`report_version` is the value of `speakeasy.report.REPORT_VERSION`. `timestamp` is the Unix time in seconds of the first start of the run queue, and `emulation_total_runtime` is the wall-clock time in seconds from that start to the end of the emulation. A `call()` after `run_module()` and each child process start the run queue again, and the time to the last end counts. The other top-level fields are:
 
 - `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`) and `image_base`: the input metadata that the loader records. `path` is the host path of the input file. If the input came from bytes in memory, the report has no `path`.
 - `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image or an import descriptor that the Windows loader cannot resolve, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks. If `max_total_time` runs out before all child processes run, the emulator adds a `max_total_time` error with the number of child processes that did not run in `context_summary`.
@@ -81,7 +81,9 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 
 ## Report fields and CLI flags
 
-- `--analysis-strings` and `--no-analysis-strings` control the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
+These flags are on by default. The `--no-` form of each flag removes its data from the report.
+
+- `--analysis-strings` controls the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
 - `--analysis-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
 - `--analysis-memory-tracing` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
 - `--snapshot-memory-regions` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).

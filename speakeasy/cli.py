@@ -44,7 +44,8 @@ def emulate_binary(
     dropped_files_path="",
     raw_offset=0x0,
     entry_point=None,
-    emulate_children=False,
+    emulate_children=True,
+    all_entrypoints=True,
     verbose=False,
     gdb_port=None,
     gdb_host="127.0.0.1",
@@ -69,7 +70,7 @@ def emulate_binary(
             module = se.load_module(fpath)
             se.run_module(
                 module,
-                all_entrypoints=True,
+                all_entrypoints=all_entrypoints,
                 emulate_children=emulate_children,
                 entry_point=entry_point,
             )
@@ -151,6 +152,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     dropped_files_path = args.dropped_files_path
     config_path = args.config
     emulate_children = args.emulate_children
+    all_entrypoints = args.all_entrypoints
     do_raw = args.do_raw
     raw_offset = args.raw_offset
     entry_point = args.entry_point
@@ -208,6 +210,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             raw_offset=raw_offset,
             entry_point=entry_point,
             emulate_children=emulate_children,
+            all_entrypoints=all_entrypoints,
             verbose=verbose,
             gdb_port=gdb_port,
             gdb_host=gdb_host,
@@ -230,6 +233,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
                 "raw_offset": raw_offset,
                 "entry_point": entry_point,
                 "emulate_children": emulate_children,
+                "all_entrypoints": all_entrypoints,
                 "verbose": verbose,
                 "gdb_port": gdb_port,
                 "gdb_host": gdb_host,
@@ -326,10 +330,18 @@ def main():
     parser.add_argument(
         "-k",
         "--emulate-children",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         dest="emulate_children",
-        required=False,
-        help="After the PE input finishes, emulate the processes that the input creates",
+        default=True,
+        help="After the PE input finishes, emulate the processes that the input creates (default: True)",
+    )
+    parser.add_argument(
+        "--all-entrypoints",
+        action=argparse.BooleanOptionalAction,
+        dest="all_entrypoints",
+        default=True,
+        help="Also run the exports of the PE input. For a driver, also send IRPs to its dispatch functions"
+        " and run its unload routine. (default: True)",
     )
     parser.add_argument(
         "--no-mp",
