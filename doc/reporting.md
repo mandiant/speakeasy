@@ -81,7 +81,7 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 
 ## Report fields and CLI flags
 
-These flags are on by default. The `--no-` form of each flag removes its data from the report.
+The boolean flags in this list are on by default. The `--no-` form of each flag removes its data from the report.
 
 - `--analysis-strings` controls the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
 - `--analysis-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).

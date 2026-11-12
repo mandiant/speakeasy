@@ -341,7 +341,7 @@ def main():
         dest="all_entrypoints",
         default=True,
         help="Also run the exports of the PE input. For a driver, also send IRPs to its dispatch functions"
-        " and run its unload routine. (default: True)",
+        " and run its unload routine (default: True)",
     )
     parser.add_argument(
         "--no-mp",

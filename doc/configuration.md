@@ -1,8 +1,8 @@
 # Configuration walkthrough
 
-`speakeasy/config.py` defines the config fields and their defaults. `speakeasy --dump-default-config` prints the default config. The example below shows the fields with comments.
+`speakeasy/config.py` defines the config fields and their defaults. `speakeasy --dump-default-config` prints the default config. The example below shows the fields with comments. It is JSONC (JSON with comments), so remove the comments before you give it to Speakeasy.
 
-By default, Speakeasy collects all the data that it can and emulates as much of the sample as it can, so the features of the `analysis` section, `keep_memory_on_free`, `snapshot_memory_regions`, `api_hammering`, `modules_always_exist` and `functions_always_exist` are on. Set a field to `false`, or use its `--no-` flag, to turn a feature off. A run with fewer features is faster and gives a smaller report. It is JSONC (JSON with comments), so remove the comments before you give it to Speakeasy.
+By default, Speakeasy collects all the data that it can and emulates as much of the sample as it can, so the features of the `analysis` section, `keep_memory_on_free`, `snapshot_memory_regions`, `api_hammering`, `modules_always_exist` and `functions_always_exist` are on. Set a field to `false`, or use its `--no-` flag, to turn a feature off. A run with fewer features is faster and gives a smaller report.
 
 Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
 
@@ -162,7 +162,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
   "api_hammering": {
     // If true, the emulator patches API hammering loops in x86 code.
-    // Set "api_hammering" to null to turn the mitigation off, as false does.
+    // Set it to false, or set "api_hammering" to null, to turn the mitigation off.
     "enabled": true,
 
     // When the guest calls one API from one call site this number of times,

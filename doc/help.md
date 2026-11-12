@@ -15,7 +15,7 @@ This page tells you which page to read for a problem.
 
 ## Common issues
 
-If the log shows `Unsupported API: <module>.<name>` and the report has an `unsupported_api` error, the sample called an API that has no handler and no signature. [limitations.md](limitations.md) tells you why the run stops, and [api-handlers.md](api-handlers.md) tells you how to add a handler.
+If the log shows `Unsupported API: <module>.<name>` and the report has an `unsupported_api` error, the sample called an API that has no handler and no signature. [limitations.md](limitations.md) tells you why the run stops, and [api-handlers.md](api-handlers.md) tells you how to add a handler. By default, `modules.functions_always_exist` is on, so a call to such an API returns 1, and the run continues without an `unsupported_api` error. To find these APIs, use `--no-modules-functions-always-exist`.
 
 If the sample exits too early or takes a path that you do not expect, it can need a file, a registry key or another part of the environment. Read [configuration.md](configuration.md) and [cli-environment-overrides.md](cli-environment-overrides.md).
 
