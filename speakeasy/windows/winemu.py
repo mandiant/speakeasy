@@ -4014,7 +4014,8 @@ class WindowsEmulator(BinaryEmulator):
         if profiler and self.curr_run is not None:
             pos = self.get_trace_position()
             for mod in new_modules:
-                profiler.record_module_load_event(self.curr_run, pos, mod.name, mod.emu_path, mod.base, mod.image_size)
+                name = mod.get_base_name() or mod.name
+                profiler.record_module_load_event(self.curr_run, pos, name, mod.emu_path, mod.base, mod.image_size)
         frame = self._active_api_frame
         if frame is not None and not self.is_kernel_mode:
             # Keep the earliest snapshot for each process across reentrant loads.

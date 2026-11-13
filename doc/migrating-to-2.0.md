@@ -182,6 +182,7 @@ These values have a new format:
 | `tag` of a `dynamic_code` entry | the tag of the memory manager and the base address | the tag of the memory manager, absent when the region has no tag |
 | `perms` of a region | `???` for some protections, absent in `address_region` and `nearby_regions` when not known | always present, three characters such as `r-x` |
 | `pc_module` of an error or an `exception` event | the name of the module, such as `kernel32` | the file name of the module, such as `kernel32.dll`, the same as `memory.modules[].name` |
+| `name` of a `module_load` event | the name of the module, such as `urlmon` | the file name of the module, such as `urlmon.dll`, the same as `memory.modules[].name` |
 | `error.type` | `timeout`, `max_total_time`, `max_api_count`, `max_instructions`, `api_loop` | `per_run_time_limit`, `total_time_limit`, `api_call_limit`, `instruction_limit`, `api_loop_limit` |
 | `pos.pc` of an event that the code of an API adds, such as `file_create` | the address of the API | the address of the call, the same as the `pc` of the `api` event of the call |
 
