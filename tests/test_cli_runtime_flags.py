@@ -63,6 +63,20 @@ def test_cli_prints_its_version():
     assert result.stdout.strip() == f"speakeasy {__version__}"
 
 
+def test_cli_writes_one_line_per_log_record_when_stderr_is_a_pipe(tmp_path):
+    # The long directory name makes the auto-mount record longer than 80 columns.
+    target_dir = tmp_path / ("x" * 100)
+    target_dir.mkdir()
+    target = target_dir / "sample.exe"
+    target.write_bytes(build_pe(text=b"\xc3")[0])
+
+    result = run_cli("-t", str(target), "-o", str(tmp_path / "report.json"))
+
+    assert result.returncode == 0, result.stderr
+    expected = f"Auto-mounted 1 file(s) from target directory {target_dir.resolve()} into C:\\Windows\\system32"
+    assert expected in result.stderr.splitlines()
+
+
 # ud2 at offset 10, so that only a decimal start offset of 10 runs it.
 UD2_AT_10 = b"\xc3" * 10 + b"\x0f\x0b" + b"\xc3" * 10
 
