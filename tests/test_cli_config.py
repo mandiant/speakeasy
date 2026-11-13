@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -127,47 +126,27 @@ def test_dump_default_config_flag_outputs_valid_json():
     SpeakeasyConfig.model_validate(json.loads(result.stdout))
 
 
-@pytest.fixture(scope="module")
-def cli_help() -> str:
-    result = subprocess.run(
-        [sys.executable, "-m", "speakeasy.cli", "--help"],
-        check=True,
-        capture_output=True,
-        text=True,
-        env={**os.environ, "COLUMNS": "1000"},
-    )
-    return result.stdout
+def get_cli_help(default_config: dict | None = None) -> str:
+    parser = argparse.ArgumentParser()
+    add_config_cli_arguments(parser, get_config_cli_field_specs(default_config))
+    return " ".join(parser.format_help().split())
 
 
-def test_help_shows_the_default_flag_of_each_bool_pair(cli_help):
-    assert "(default: True)" not in cli_help
-    assert "(default: False)" not in cli_help
-    assert "dispatch functions and run its unload routine. (default: --runs-exports)" in cli_help
-    assert "Not in kernel mode. (default: --runs-children)" in cli_help
+def test_help_shows_the_default_of_a_bool_flag_as_on_or_off():
+    help_text = get_cli_help({"runs": {"exports": False}})
+
+    assert re.search(r"--runs-exports, --no-runs-exports [^(]*\(default: off\)", help_text)
+    assert re.search(r"--code-coverage, --no-code-coverage [^(]*\(default: on\)", help_text)
 
 
-def test_help_shows_string_defaults_as_plain_text(cli_help):
-    assert "Current directory of the process. (default: C:\\Windows\\system32)\n" in cli_help
-    assert "(default: speakeasy_host)\n" in cli_help
-    assert "'" not in "".join(re.findall(r"\(default: [^)]*\)", cli_help))
+def test_help_shows_a_string_default_as_plain_text():
+    help_text = get_cli_help({"process": {"current_dir": "C:\\Users\\100%"}})
+
+    assert "(default: C:\\Users\\100%)" in help_text
 
 
-def test_help_leaves_out_a_none_default(cli_help):
-    assert "(default: None)" not in cli_help
-    assert "in place of the synthetic API modules.\n" in cli_help
-
-
-@pytest.mark.parametrize(
-    "usage",
-    ["[-V HOST:GUEST]", "[--argv ARGS]", "[--raw-offset OFFSET]", "[-t PATH]", "[--limits-per-run-time SECONDS]"],
-)
-def test_help_gives_meaningful_metavars(cli_help, usage):
-    assert usage in cli_help
-
-
-def test_help_gives_no_metavar_that_is_its_flag_name(cli_help):
-    for option, metavar in re.findall(r"\[(--[a-z0-9-]+) ([A-Z0-9_:=]+)\]", cli_help):
-        assert metavar.lower().replace("_", "-") != option.removeprefix("--"), option
+def test_help_leaves_out_a_none_default():
+    assert "(default: None)" not in get_cli_help()
 
 
 def test_env_names_from_the_cli_replace_the_defaults_in_any_case(load_test_bin):

@@ -562,7 +562,8 @@ class LimitsConfig(BaseModel):
         default=0,
         ge=0,
         allow_inf_nan=False,
-        description="Limit of the execution time of all runs together, in seconds. 0 disables the limit.",
+        description="Limit of the execution time of all runs of one call to the emulator, in seconds."
+        " 0 disables the limit.",
     )
     api_calls: int = Field(default=10000, ge=0, description="Limit of the API calls of each run. 0 disables the limit.")
     api_loop_calls: int = Field(
@@ -591,7 +592,7 @@ class RunsConfig(BaseModel):
     stack_size: _Size = Field(
         default=0,
         description="Size of the stack of the input in bytes. 0 uses max(SizeOfStackReserve, 0x12000) for a PE,"
-        " and 0x4000 or the stack_commit argument of run_shellcode for shellcode.",
+        " and the stack_commit argument of run_shellcode (0x4000 if not given) for shellcode.",
     )
 
 
@@ -636,8 +637,8 @@ class MemoryConfig(BaseModel):
     )
     freed_regions: bool = Field(
         default=True,
-        description="Keep a region that the guest frees mapped, so that its data can be read, and give each region"
-        " in the report the freed field. If false, the report leaves out the freed regions.",
+        description="Keep a region that the guest frees mapped, so that its data can be read, and add freed to each"
+        " region in the report. If false, the report leaves out the freed regions.",
     )
 
 

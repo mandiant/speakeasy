@@ -314,15 +314,14 @@ def parse_cli_mapping_entry(raw: str) -> tuple[str, str]:
 def render_cli_help(spec: ConfigCliFieldSpec) -> str:
     if spec.default is None:
         return spec.description
-    if spec.kind == "bool":
-        default = spec.option if spec.default else "--no-" + spec.option.removeprefix("--")
-    else:
-        default = render_cli_default(spec.default)
     # argparse formats the help text with %.
-    return f"{spec.description} (default: {default.replace('%', '%%')})"
+    default = render_cli_default(spec.default).replace("%", "%%")
+    return f"{spec.description} (default: {default})"
 
 
 def render_cli_default(value: Any) -> str:
+    if isinstance(value, bool):
+        return "on" if value else "off"
     if isinstance(value, dict):
         return f"{len(value)} entries"
     if isinstance(value, list):
