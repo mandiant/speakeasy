@@ -273,6 +273,7 @@ Speakeasy checks the values of the config before the emulation starts. A value t
     "command_line": null,
 
     // Current directory of the process. The emulator resolves relative paths from it.
+    // It is also CurrentDirectory in the PEB ProcessParameters.
     "current_dir": "C:\\Windows\\system32",
 
     // Environment variables of the process. Change them when a sample selects
@@ -297,6 +298,8 @@ Speakeasy checks the values of the config before the emulation starts. A value t
 
   // Processes that the process enumeration APIs give, in this order, then the
   // main process.
+  // path and command_line give ImagePathName and CommandLine in the PEB
+  // ProcessParameters of the process.
   // The is_main_exe entry defines the container image, which is the main image
   // of the process when the input is a DLL or shellcode (see architecture.md).
   // The emulator ignores the base_addr of this entry and loads the container image

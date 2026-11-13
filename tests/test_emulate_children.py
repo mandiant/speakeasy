@@ -8,6 +8,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.winenv.defs.windows import windows as windefs
+from tests.guest_harness import read_process_parameters
 from tests.handler_harness import call
 from tests.pe_builder import build_pe
 
@@ -171,6 +172,25 @@ def test_child_gets_a_copy_of_the_directory_and_environment_of_the_parent(config
 
     assert parent == ("C:\\parent\\", True)
     assert child == ("C:\\parent\\", False)
+
+
+def test_child_peb_has_its_image_path_command_line_and_directory(config, load_test_bin):
+    def create_process(e, api, original, args):
+        command_line, directory = se.mem_alloc(0x100), se.mem_alloc(0x100)
+        se.mem_write(command_line, f"{CHILD_PATH} -run\0".encode())
+        se.mem_write(directory, b"C:\\work\0")
+        args[1], args[7] = command_line, directory
+        return original(args)
+
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
+        se.add_api_hook(create_process, "kernel32", "CreateProcessA")
+        se.run_module(module)
+        child = se.emu.get_current_process()
+
+        assert len(se.get_report().runs) == 2
+        assert read_process_parameters(se, child) == (CHILD_PATH, f"{CHILD_PATH} -run", "C:\\work\\")
 
 
 def push(value):

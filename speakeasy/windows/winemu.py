@@ -2341,7 +2341,8 @@ class WindowsEmulator(BinaryEmulator):
         if file_path.endswith(("\\", "/")):
             raise FileSystemEmuError(f"process creation needs a file name: {file_path}")
 
-        p = om.new_object(objman.Process)
+        # Give the values to the constructor, because it writes them into the PEB ProcessParameters.
+        p = om.add_object(objman.Process(self, path=file_path, cmdline=cmdline or "", cd=cd))
 
         mod_data = self.get_module_data_from_emu_file(file_path)
 
@@ -2350,12 +2351,6 @@ class WindowsEmulator(BinaryEmulator):
         else:
             new_mod = self.load_module_by_name(file_path, emu_path=file_path)
             p.pe = new_mod
-
-        p.path = file_path
-        p.image = ntpath.basename(file_path)
-        p.cmdline = cmdline
-        if cd:
-            p.cd = cd
 
         t = om.new_object(objman.Thread)
         t.process = p

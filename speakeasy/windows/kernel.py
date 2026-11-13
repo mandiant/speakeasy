@@ -157,7 +157,8 @@ class WinKernelEmulator(WindowsEmulator):
 
     def init_processes(self, processes):
         for proc in processes:
-            p = objman.Process(self)
+            path = "System" if proc.name.lower() == "system" else proc.path
+            p = objman.Process(self, path=path, cmdline=proc.command_line or "")
             self.add_object(p)
             p.name = proc.name
             if proc.pid is not None:
@@ -165,13 +166,8 @@ class WinKernelEmulator(WindowsEmulator):
 
             if p.name.lower() == "system":
                 p.pid = 4
-                p.path = "System"
 
             p.base = proc.base_addr
-            if not p.path:
-                p.path = proc.path
-            p.image = ntpath.basename(p.path)
-            p.cmdline = proc.command_line or ""
 
             t = objman.Thread(self)
             self.add_object(t)

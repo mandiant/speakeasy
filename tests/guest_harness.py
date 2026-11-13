@@ -103,6 +103,19 @@ def read_pointer(se, address):
     return int.from_bytes(se.mem_read(address, se.get_ptr_size()), "little")
 
 
+def read_process_parameters(se, process):
+    """Read ImagePathName, CommandLine and CurrentDirectory from the PEB ProcessParameters of process."""
+    ptr = se.get_ptr_size()
+    params = read_pointer(se, process.peb.address + (0x10 if ptr == 4 else 0x20))
+    offsets = (0x38, 0x40, 0x24) if ptr == 4 else (0x60, 0x70, 0x38)
+
+    def read_unicode_string(address):
+        length = int.from_bytes(se.mem_read(address, 2), "little")
+        return se.mem_read(read_pointer(se, address + ptr), length).decode("utf-16le")
+
+    return tuple(read_unicode_string(params + offset) for offset in offsets)
+
+
 def make_list_walker(ptr_size):
     """
     Assemble a thread procedure that walks the module lists of its own PEB.
