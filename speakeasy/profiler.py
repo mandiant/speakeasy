@@ -327,8 +327,8 @@ class Profiler:
 
         If ``deduplicate`` is true, the profiler does not add a call that has the same API, pc,
         return address, shown arguments and return value as one of the last 3 events of the run.
-        Calls through one thunk have the same pc, and the return address keeps the calls of
-        different callers apart. The shown
+        It adds 1 to ``calls`` of that event and returns it. Calls through one thunk have the same
+        pc, and the return address keeps the calls of different callers apart. The shown
         argument values are compared, not the raw values, so a loop that passes the same string
         from a different buffer gives one event.
         """
@@ -341,17 +341,20 @@ class Profiler:
 
         event = ApiEvent(pos=pos, api_name=name, args=args, return_value=ret, return_address=return_address)
 
-        shown = [(a.name, a.type, a.display) for a in args]
-        recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
-        if not deduplicate or not any(
-            e.pos.pc == event.pos.pc
-            and e.return_address == event.return_address
-            and e.api_name == event.api_name
-            and [(a.name, a.type, a.display) for a in e.args] == shown
-            and e.return_value == event.return_value
-            for e in recent_events
-        ):
-            run.events.append(event)
+        if deduplicate:
+            shown = [(a.name, a.type, a.display) for a in args]
+            recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
+            for e in reversed(recent_events):
+                if (
+                    e.pos.pc == event.pos.pc
+                    and e.return_address == event.return_address
+                    and e.api_name == event.api_name
+                    and [(a.name, a.type, a.display) for a in e.args] == shown
+                    and e.return_value == event.return_value
+                ):
+                    e.calls += 1
+                    return e
+        run.events.append(event)
         return event
 
     def record_file_access_event(

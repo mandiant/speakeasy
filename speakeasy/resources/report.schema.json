@@ -79,7 +79,7 @@
     },
     "ApiEvent": {
       "additionalProperties": false,
-      "description": "One call to an API.\n\nThe profiler leaves out a call that repeats the API, pc, return address, shown arguments and\nreturn value of one of the last 3 events of the run.",
+      "description": "One call to an API.\n\nThe profiler leaves out a call that repeats the API, pc, return address, shown arguments and\nreturn value of one of the last 3 events of the run, and adds 1 to ``calls`` of that event.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
@@ -132,6 +132,12 @@
           "default": null,
           "description": "Address where the call returns to the caller. Absent when the emulator does not know it.",
           "title": "Return Address"
+        },
+        "calls": {
+          "default": 1,
+          "description": "Number of calls that the event stands for: this call and the repeats that the profiler left out. The event has the ``pos`` and the raw argument values of the first call.",
+          "title": "Calls",
+          "type": "integer"
         }
       },
       "required": [

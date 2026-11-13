@@ -257,6 +257,28 @@ def test_repeated_api_call_from_another_caller_is_recorded():
     assert len(run.events) == 2
 
 
+def test_repeated_api_calls_are_counted_on_the_kept_event():
+    profiler = Profiler()
+    run = Run()
+    read_pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401000)
+    sleep_pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401010)
+    exit_pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401020)
+
+    for _ in range(2500):
+        profiler.record_api_event(run, read_pos, "msvcrt.fread", 1, [], return_address=0x401005)
+        profiler.record_api_event(run, sleep_pos, "kernel32.Sleep", None, [], return_address=0x401015)
+    profiler.record_api_event(run, exit_pos, "kernel32.ExitProcess", None, [], return_address=0x401025)
+    report = json.loads(build_report(profiler, run).model_dump_json(exclude_none=True))
+
+    run_report = report["runs"][0]
+    assert [(e["api_name"], e["calls"]) for e in run_report["events"]] == [
+        ("msvcrt.fread", 2500),
+        ("kernel32.Sleep", 2500),
+        ("kernel32.ExitProcess", 1),
+    ]
+    assert sum(e["calls"] for e in run_report["events"]) == run_report["api_call_count"]
+
+
 @pytest.mark.parametrize("event_type", [EventType.MEM_WRITE, EventType.MEM_READ])
 def test_memory_event_does_not_merge_into_another_run_or_process(event_type: EventType) -> None:
     profiler = Profiler()
