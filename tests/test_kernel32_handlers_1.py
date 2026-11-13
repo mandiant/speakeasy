@@ -530,7 +530,7 @@ def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Spea
     assert ok
     assert call(dll_emu, "kernel32", "ResumeThread", [hthread])[0] == 1
     run = dll_emu.emu.run_queue[-1]
-    assert (run.start_addr, run.process_context) == (entry, child)
+    assert (run.start_addr, run.process_context, run.name) == (entry, child, "cmd.exe")
     assert dll_emu.emu.child_processes == []
 
 

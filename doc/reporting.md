@@ -90,7 +90,7 @@ If the kind of run has no detail (`None` in Python), the JSON report leaves out 
 | `tls_callback` | index of the callback in the TLS callback array, for example `0` |
 | `export` | export name, or none for an export without a name |
 | `shellcode` | none |
-| `thread` | none for a thread in the same process, the process name for a thread in another process, `apc` for a `QueueUserAPC` routine |
+| `thread` | none for a thread in the same process; the file name of the process image, for example `svchost.exe`, for a thread in another process; `apc` for a `QueueUserAPC` routine |
 | `service_main` | service name from `StartServiceCtrlDispatcher` |
 | `dependency_dll_entry`, `dependency_tls_callback` | name of the DLL that the process loaded |
 | `call` | none (`Speakeasy.call` started the run) |

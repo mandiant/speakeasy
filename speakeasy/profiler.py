@@ -837,7 +837,7 @@ class Profiler:
                 raise SpeakeasyError("run has no type")
             run_report = RunReport(
                 type=r.type,
-                name=r.name,
+                name=r.name or None,
                 start_address=r.start_addr,
                 args=list(r.args or []),
                 pid=ep_pid,

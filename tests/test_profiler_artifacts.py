@@ -368,3 +368,11 @@ def test_report_lists_the_processes_of_the_runs_and_of_the_event_targets():
         {"pid": 3, "path": "C:\\sample.exe", "command_line": "sample.exe -x", "runs": [0]},
         {"pid": 9, "parent_pid": 3, "path": "C:\\child.exe", "runs": []},
     ]
+
+
+def test_run_with_an_empty_name_has_no_name():
+    run = Run()
+    run.name = ""
+    report = build_report(Profiler(), run)
+
+    assert report.runs[0].name is None
