@@ -20,7 +20,7 @@ These flags do not come from the config schema.
 
 - `-t, --target`: input file to emulate
 - `-o, --output`: path of the report JSON. Without it, the CLI writes the report to stdout
-- `--argv`: arguments of the emulated process, as one quoted string that the CLI splits with shell rules. When `process.command_line` is not set, the process command line is the quoted path of the process image followed by these arguments, also for an empty `--argv`. `--argv` with arguments together with `process.command_line` (or `--process-command-line`) is an error
+- `--argv`: arguments of the emulated process, as one quoted string that the CLI splits with shell rules. When `process.command_line` is not set, the process command line is the quoted path of the process image followed by these arguments. A non-empty `--argv` together with `process.command_line` or `--process-command-line` is a usage error
 - `-c, --config`: JSON config file that changes the defaults
 - `--dump-default-config`: print the default config as JSON and exit
 - `--raw`: emulate the input as raw bytes, such as shellcode
