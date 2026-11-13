@@ -260,6 +260,12 @@ def test_type_resolution(gen: ModuleType, mini_phnt: Path) -> None:
     assert types.resolve("PWSTR") == "S"
     assert types.resolve("WCHAR *") == "S"
     assert types.resolve("CHAR *") == "s"
+    # only CHAR and WCHAR pointers are strings
+    assert types.resolve("PUCHAR") == "a:u8"
+    assert types.resolve("UCHAR *") == "a:u8"
+    assert types.resolve("PBYTE") == "a:u8"
+    assert types.resolve("PUSHORT") == "p:u16"
+    assert types.resolve("PCWCHAR") == "S"
     assert types.resolve("PVOID *") == "p:p"
     assert types.resolve("unsigned long") == "u32"
     assert types.resolve("PSOME_SDK_STRUCT") == "ps:SOME_SDK_STRUCT"

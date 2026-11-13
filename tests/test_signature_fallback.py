@@ -348,6 +348,20 @@ def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     assert [a.display for a in events[1].args] == [f"{EXIT_CODE:#x}"]
 
 
+def test_in_byte_buffer_is_a_pointer(config: dict[str, Any]) -> None:
+    """A BYTE* buffer shows as its address, not as text decoded from its bytes."""
+    buffer = b"\x2a\xbb\x00\x01"
+    report, _, _ = _run_x86_call(config, "BackupWrite", [0, buffer, len(buffer), 0, 0, 0, 0])
+
+    ep = report.runs[0]
+    assert ep.error is None, ep.error
+    events = _api_events(report)
+    assert [e.api_name for e in events] == ["kernel32.BackupWrite", "kernel32.ExitProcess"]
+    arg = events[0].args[1]
+    assert (arg.name, arg.type, arg.display) == ("lpBuffer", "ptr", hex(arg.value or 0))
+    assert arg.value
+
+
 GENERIC_READ = 0x80000000
 FILE_SHARE_READ = 0x1
 OPEN_EXISTING = 0x3

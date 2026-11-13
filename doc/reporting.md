@@ -93,12 +93,12 @@ The events about a process, its memory or its threads (`mem_alloc`, `mem_write`,
 
 The `data_ref` of a file, registry, memory or network event refers to the first bytes of the operation. It is absent when there are no bytes. The profiler merges the reads of one path in a run into one `file_read` event, and the writes into one `file_write` event.
 
-An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value` and `display`. If the signature database declares the function, and its prototype uses the same argument slots as the call, `args` has an entry per parameter. Then `name` is the parameter name, and Speakeasy renders `display` from the declared type. It decodes strings, shows enum and flag values as names and expands struct pointers. Without a usable signature, `args` has one entry for each argument slot, with no `name`, and `display` is the hex value. `type` tells you how to read `display`.
+An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value` and `display`. If the signature database declares the function, and its prototype uses the same argument slots as the call, `args` has an entry per parameter. Then `name` is the parameter name, and Speakeasy renders `display` from the declared type. It decodes the parameters of a string type, such as `LPCSTR`, `LPWSTR` or `PUNICODE_STRING`, shows enum and flag values as names and expands struct pointers. Without a usable signature, `args` has one entry for each argument slot, with no `name`, and `display` is the hex value. `type` tells you how to read `display`.
 
 | Type | `display` |
 |---|---|
 | `int` | hex integer |
-| `ptr` | address in hex (also null, out-only and unreadable pointers) |
+| `ptr` | address in hex (also null, out-only and unreadable pointers, and buffers such as a `BYTE*`) |
 | `handle` | handle value in hex |
 | `str` | decoded string, without quotes |
 | `bool` | `TRUE` or `FALSE` |
