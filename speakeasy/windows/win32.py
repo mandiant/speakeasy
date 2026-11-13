@@ -723,17 +723,6 @@ class Win32Emulator(WindowsEmulator):
         """Record the memory layout and the loaded modules in the report of the run."""
         EXCLUDED_TAG_PREFIXES = ("emu.stack",)
 
-        prot_map = {
-            common.PERM_MEM_NONE: "---",
-            common.PERM_MEM_READ: "r--",
-            common.PERM_MEM_WRITE: "-w-",
-            common.PERM_MEM_EXEC: "--x",
-            common.PERM_MEM_READ | common.PERM_MEM_WRITE: "rw-",
-            common.PERM_MEM_READ | common.PERM_MEM_EXEC: "r-x",
-            common.PERM_MEM_WRITE | common.PERM_MEM_EXEC: "-wx",
-            common.PERM_MEM_RWX: "rwx",
-        }
-
         capture_dumps = self.config.memory.final_contents
 
         modules_by_base: dict[int, Any] = {}
@@ -742,7 +731,7 @@ class Win32Emulator(WindowsEmulator):
                 modules_by_base[m.base] = m
 
         for mm in self.get_mem_maps():
-            prot = prot_map.get(mm.prot, "???")
+            prot = get_prot_string(mm.prot)
             access_stats = None
             if mm in run.mem_access:
                 ma = run.mem_access[mm]

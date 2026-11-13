@@ -216,6 +216,17 @@ class Run:
         return f"{kind} {self.name}" if self.name else kind
 
 
+def get_data_refs(entry_points: list[EntryPoint]) -> set[str]:
+    """Get the payload keys that the runs refer to."""
+    refs: set[str] = set()
+    for ep in entry_points:
+        holders: list[Any] = [*ep.events, *ep.dynamic_code_segments, *ep.dropped_files]
+        if ep.memory:
+            holders.extend(ep.memory.layout)
+        refs.update(ref for holder in holders if (ref := getattr(holder, "data_ref", None)))
+    return refs
+
+
 class Profiler:
     """Collect the events of all runs and build the report."""
 
@@ -292,7 +303,7 @@ class Profiler:
             _hash = f.get_hash()
             data_ref = None
             if len(data) <= MAX_EMBEDDED_FILE_SIZE:
-                data_ref = self.artifact_store.put_bytes(data)
+                data_ref = self.put_binary_data(data)
             entry = {"path": f.path, "size": len(data), "sha256": _hash, "data_ref": data_ref}
             run.dropped_files.append(entry)
 
@@ -362,8 +373,6 @@ class Profiler:
         Raises:
             ValueError: if ``event_type`` is not a file event type.
         """
-        data_ref = self.put_binary_data(data or b"", limit=1024)
-
         for et in (EventType.FILE_WRITE, EventType.FILE_READ):
             if event_type == et:
                 for evt in reversed(run.events):
@@ -373,6 +382,8 @@ class Profiler:
                         if data:
                             evt.data_ref = self.merge_binary_data(evt.data_ref, data, limit=1024)
                         return
+
+        data_ref = self.put_binary_data(data or b"", limit=1024)
 
         open_flags = None
         if disposition:
@@ -642,25 +653,26 @@ class Profiler:
 
     def record_http_event(self, run, pos: TracePosition, server, port, headers="", body=b"", secure=False):
         """Record an HTTP request. The profiler adds one event for each server, port, protocol and headers in a run."""
+        proto = NetHttpProtocol.HTTPS if secure else NetHttpProtocol.HTTP
+        headers = headers if headers else None
+        for evt in run.events:
+            if (
+                isinstance(evt, NetHttpEvent)
+                and evt.server == server
+                and evt.port == port
+                and evt.proto == proto
+                and evt.headers == headers
+            ):
+                return
+
         event = NetHttpEvent(
             pos=pos,
             server=server,
             port=port,
-            proto=NetHttpProtocol.HTTPS if secure else NetHttpProtocol.HTTP,
-            headers=headers if headers else None,
+            proto=proto,
+            headers=headers,
             data_ref=self.put_binary_data(body or b"", limit=0x3000),
         )
-
-        for evt in run.events:
-            if (
-                isinstance(evt, NetHttpEvent)
-                and evt.server == event.server
-                and evt.port == event.port
-                and evt.proto == event.proto
-                and evt.headers == event.headers
-            ):
-                return
-
         run.events.append(event)
 
     def record_module_load_event(self, run, pos: TracePosition, name, path, base, size):
@@ -894,6 +906,6 @@ class Profiler:
             image_base=self.meta.get("image_base"),
             errors=errors,
             strings=strings_report,
-            data=self.artifact_store.to_report_data(),
+            data=self.artifact_store.to_report_data(get_data_refs(entry_points)),
             entry_points=entry_points,
         )

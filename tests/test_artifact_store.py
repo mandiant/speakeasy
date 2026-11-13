@@ -16,6 +16,6 @@ def test_artifact_store_deduplicates_payloads():
     second_ref = store.put_bytes(b"artifact-bytes")
 
     assert first_ref == second_ref
-    report_data = store.to_report_data()
+    report_data = store.to_report_data({first_ref})
     assert list(report_data) == [first_ref]
     assert decode_artifact(report_data[first_ref]) == b"artifact-bytes"

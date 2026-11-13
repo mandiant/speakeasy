@@ -1,6 +1,7 @@
 import hashlib
 import io
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 
@@ -79,6 +80,54 @@ def test_dropped_file_skips_large_embedded_payload():
     assert dropped.size == len(payload)
     assert dropped.data_ref is None
     assert dropped.sha256 not in (report.data or {})
+
+
+def test_empty_dropped_file_has_no_payload():
+    profiler = Profiler()
+    run = Run()
+
+    profiler.record_dropped_files_event(run, [File("C:\\temp\\empty.bin", data=b"")])
+    report = build_report(profiler, run)
+
+    dropped = report.entry_points[0].dropped_files[0]
+    assert dropped.size == 0
+    assert dropped.sha256 == hashlib.sha256(b"").hexdigest()
+    assert dropped.data_ref is None
+    assert not report.data
+
+
+def get_dumped_data_refs(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        refs = {value["data_ref"]} if value.get("data_ref") else set()
+        for item in value.values():
+            refs |= get_dumped_data_refs(item)
+        return refs
+    if isinstance(value, list):
+        return set().union(*(get_dumped_data_refs(item) for item in value))
+    return set()
+
+
+def test_report_data_holds_only_referenced_payloads():
+    profiler = Profiler()
+    run = Run()
+    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
+    process = TargetProcess(id=3, path="C:\\sample.exe")
+
+    for chunk in (b"one", b"two", b"three"):
+        profiler.record_file_access_event(
+            run, pos, "C:\\temp\\x.bin", EventType.FILE_WRITE, data=chunk, size=len(chunk)
+        )
+    for offset, chunk in enumerate((b"aaaa", b"bbbb", b"cccc")):
+        profiler.record_process_event(
+            run, pos, process, EventType.MEM_WRITE, {"base": 0x1000 + 4 * offset, "size": 4, "data": chunk}
+        )
+    profiler.record_http_event(run, pos, "example.com", 80, headers="GET / HTTP/1.1", body=b"first")
+    profiler.record_http_event(run, pos, "example.com", 80, headers="GET / HTTP/1.1", body=b"second")
+    report = build_report(profiler, run)
+
+    refs = get_dumped_data_refs(report.model_dump(mode="json"))
+    assert len(refs) == 3
+    assert set(report.data) == refs
 
 
 def test_file_write_merge_preserves_raw_bytes():

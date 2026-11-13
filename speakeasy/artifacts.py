@@ -1,6 +1,7 @@
 import hashlib
 import zlib
 from base64 import b64decode, b64encode
+from collections.abc import Collection
 
 from speakeasy.report import ArtifactCompression, ArtifactEncoding, DataArtifact
 
@@ -26,5 +27,6 @@ class ArtifactStore:
     def get_bytes(self, artifact_ref: str) -> bytes:
         return zlib.decompress(b64decode(self._artifacts[artifact_ref].data))
 
-    def to_report_data(self) -> dict[str, DataArtifact]:
-        return dict(self._artifacts)
+    def to_report_data(self, refs: Collection[str]) -> dict[str, DataArtifact]:
+        """Get the payloads of ``refs``, in the order of storage. The store leaves out the payloads of other keys."""
+        return {ref: artifact for ref, artifact in self._artifacts.items() if ref in refs}
