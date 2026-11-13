@@ -288,7 +288,9 @@ class ModuleLoadEvent(Event):
     event: Literal[EventType.MODULE_LOAD] = Field(
         default=EventType.MODULE_LOAD, description="Event type of a module load."
     )
-    name: str = Field(description="Name of the module.")
+    name: str = Field(
+        description="File name of the module, such as ``urlmon.dll``, the same as ``memory.modules[].name``."
+    )
     path: str = Field(description="Emulated path of the module.")
     base: HexInt = Field(description="Base address of the module.")
     size: int = Field(description="Size of the module image in bytes.")

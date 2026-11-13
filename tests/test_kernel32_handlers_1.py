@@ -1405,8 +1405,10 @@ def test_load_library_records_a_module_load_event(dll_emu: Speakeasy) -> None:
     assert base
     run = dll_emu.emu.curr_run
     assert run is not None
-    loads = [(e.name, e.base) for e in run.events if isinstance(e, ModuleLoadEvent)]
-    assert ("urlmon", base) in loads
+    events = [e for e in run.events if isinstance(e, ModuleLoadEvent)]
+    loads = [(e.name, e.base) for e in events]
+    assert ("urlmon.dll", base) in loads
+    assert all(e.name == ntpath.basename(e.path) for e in events)
 
     # A second load of a loaded module maps nothing, so it adds no event.
     call(dll_emu, "kernel32", "LoadLibraryA", [name])

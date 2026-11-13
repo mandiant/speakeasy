@@ -87,7 +87,7 @@ An `api` event has the `pc` of the instruction that went to the API: a `call`, o
 
 The code of an API can add other events, such as `file_create`, `reg_open_key`, `mem_alloc`, `process_create`, `module_load` or `net_dns`. Such an event has the `pos` of the API call: the same `tick` and `pc` as the `api` event of the call. It comes in `events` just before that `api` event. If the profiler leaves out the `api` event as a repeat, no `api` event follows.
 
-`VirtualFree` adds a `mem_free` event. `LoadLibrary`, `LoadLibraryEx` and `LdrLoadDll` add a `module_load` event for each module that the load maps, the dependencies of the module included. The `name` of a `module_load` event is the name of the module, which can be different from its file name in `memory.modules`, for example `urlmon` for `urlmon.dll`. A module that the config preloads, or that is already loaded, gets no event.
+`VirtualFree` adds a `mem_free` event. `LoadLibrary`, `LoadLibraryEx` and `LdrLoadDll` add a `module_load` event for each module that the load maps, the dependencies of the module included. The `name` of a `module_load` event is the file name of the module, for example `urlmon.dll`, the same as `name` in `memory.modules` and `module` in `memory.layout`. A module that the config preloads, or that is already loaded, gets no event.
 
 The events about a process, its memory or its threads (`mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `mem_free`, `thread_create`, `thread_inject` and `process_create`) also have the `pid` of the target process. If the target is the process of that thread, the event has no `pid`. So a `pid` in these events means that the operation crossed a process boundary. `thread_create` and `thread_inject` have the `tid` of the new thread, also when the thread is in the same process.
 
@@ -261,7 +261,7 @@ This example shows each field. It is not the output of one run, and the values d
           // It comes just before the api event of the call.
           "pos": {"tick": 10, "tid": 2000, "pid": 1337, "pc": "0x401000"},
           "event": "module_load",
-          "name": "ws2_32",
+          "name": "ws2_32.dll",
           "path": "C:\\Windows\\system32\\ws2_32.dll",
           "base": "0x78c00000",
           "size": 94208
