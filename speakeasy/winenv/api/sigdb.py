@@ -354,8 +354,8 @@ def out_buffer_size(
     Get the size in bytes of the buffer of an out pointer parameter, as the declaration gives it.
 
     Return None if the signature does not give the size, for example for a ``void*``
-    without a size or an array without a count. A string without a declared size
-    counts only its terminator.
+    without a size. A buffer or string without a declared size counts one element,
+    so a string gets only its terminator.
     """
     param = sig.params[index]
     if param.buffer_len is not None:
@@ -368,12 +368,10 @@ def out_buffer_size(
         elem = param.elem_size(ptr_size)
         return None if elem is None else count * elem
     kind = param.kind
-    if kind in STRING_KINDS:
-        return 1 if kind == "s" else 2
     if kind == "ps":
         struct = lookup_struct(param.qualifier) if param.qualifier else None
         return struct.size(ptr_size) if struct is not None else None
-    if kind == "p":
+    if kind in ("p", "a", *STRING_KINDS):
         return param.elem_size(ptr_size)
     return None
 
