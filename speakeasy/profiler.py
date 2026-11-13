@@ -181,7 +181,8 @@ class Run:
         self.return_value: int | None = None
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}
-        self.dropped_files: list[dict[str, Any]] = []
+        # The files that the guest dropped, up to the end of the run. None in kernel mode.
+        self.dropped_files: list[dict[str, Any]] | None = None
         # The access counts of each region, by the base of the region in the report.
         self.region_access: dict[int, MemAccess] = {}
         self.dyn_code: DynCode = {"mmap": [], "base_addrs": set()}
@@ -222,7 +223,7 @@ def get_data_refs(runs: list[RunReport]) -> set[str]:
     """Get the payload keys that the runs refer to."""
     refs: set[str] = set()
     for run in runs:
-        holders: list[Any] = [*run.events, *run.dynamic_code_segments, *run.dropped_files]
+        holders: list[Any] = [*run.events, *run.dynamic_code_segments, *(run.dropped_files or [])]
         if run.memory:
             holders.extend(run.memory.layout)
         refs.update(ref for holder in holders if (ref := getattr(holder, "data_ref", None)))
@@ -300,6 +301,7 @@ class Profiler:
         self.meta["errors"].append(error)
 
     def record_dropped_files_event(self, run, files):
+        run.dropped_files = []
         for f in files:
             data = f.get_contents()
             _hash = f.get_hash()
@@ -474,7 +476,6 @@ class Profiler:
                 pos=pos,
                 path=path,
                 handle=handle or None,
-                open_flags=open_flags,
                 access_flags=access_flags_list,
             )
         elif event_type == EventType.REG_CREATE_KEY:
@@ -807,10 +808,12 @@ class Profiler:
                 for seg in r.dyn_code["mmap"]
             ]
 
-            dropped_files = [
-                DroppedFile(path=f["path"], size=f["size"], sha256=f["sha256"], data_ref=f.get("data_ref"))
-                for f in r.dropped_files
-            ]
+            dropped_files = None
+            if r.dropped_files is not None:
+                dropped_files = [
+                    DroppedFile(path=f["path"], size=f["size"], sha256=f["sha256"], data_ref=f.get("data_ref"))
+                    for f in r.dropped_files
+                ]
 
             memory_layout = None
             if r.memory_regions or r.loaded_modules:
@@ -824,7 +827,7 @@ class Profiler:
                             tag=reg.get("tag"),
                             module=reg.get("module"),
                             section=reg.get("section"),
-                            is_free=reg.get("is_free", False),
+                            freed=reg.get("freed"),
                             data_ref=reg.get("data_ref"),
                         )
                     )
@@ -852,7 +855,7 @@ class Profiler:
                 args=list(r.args or []),
                 pid=ep_pid,
                 tid=ep_tid,
-                instruction_count=r.instr_cnt if r.instr_cnt else None,
+                instruction_count=r.instr_cnt,
                 api_call_count=r.num_apis,
                 api_hash=r.api_hash.hexdigest(),
                 return_value=r.return_value,

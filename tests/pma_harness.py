@@ -115,7 +115,7 @@ def collect_behavior(report) -> ObservedBehavior:
     files.update(
         normalize_value(dropped.path)
         for ep in report.runs
-        for dropped in ep.dropped_files
+        for dropped in ep.dropped_files or []
         if getattr(dropped, "path", None)
     )
 

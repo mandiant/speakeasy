@@ -737,8 +737,11 @@ class Win32Emulator(WindowsEmulator):
     def _capture_memory_layout(self, run: Run) -> None:
         """Record the memory layout and the loaded modules in the report of the run."""
         capture_dumps = self.config.memory.final_contents and self.profiler is not None
+        keep_freed = self.config.memory.freed_regions
 
         for mm in self.get_mem_maps():
+            if mm.free and not keep_freed:
+                continue
             data = None
             if capture_dumps and self._is_guest_memory(mm):
                 try:
@@ -753,8 +756,9 @@ class Win32Emulator(WindowsEmulator):
                     "tag": part.tag,
                     "module": part.module,
                     "section": part.section,
-                    "is_free": mm.free,
                 }
+                if keep_freed:
+                    region["freed"] = mm.free
                 if data is not None and self.profiler is not None:
                     offset = part.base - mm.base
                     region["data_ref"] = self.profiler.artifact_store.put_bytes(data[offset : offset + part.size])

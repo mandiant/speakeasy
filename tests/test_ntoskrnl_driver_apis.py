@@ -430,4 +430,4 @@ def test_zw_create_key_and_zw_open_key_record_the_disposition_and_access(driver_
         (["REG_OPENED_EXISTING_KEY"], ["KEY_ALL_ACCESS"]),
     ]
     opens = [e for e in run.events if isinstance(e, RegOpenKeyEvent)]
-    assert [(e.open_flags, e.access_flags) for e in opens] == [(None, ["KEY_READ"])]
+    assert [e.access_flags for e in opens] == [["KEY_READ"]]
