@@ -129,7 +129,7 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 
 2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each run has `pid`, `tid`, `api_call_count` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `code.coverage`. Each region of `memory.layout` has `module` and `section` when it is a part of a module image. An `api` event has `return_address`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`. An `api_loop_limit` error has `loop`, the call sites of the API loop that ended the run.
 
-The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 7.0.0, and the [report walkthrough](reporting.md) describes each key.
+The models reject a report of a different major version, so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 7.0.0, and the [report walkthrough](reporting.md) describes each key.
 
 ## Report schema 7.0.0
 
@@ -203,6 +203,8 @@ Some keys follow a new rule for absent, empty and zero values. A key is absent w
 - `instruction` of an error or an `exception` event is absent when Speakeasy cannot disassemble the instruction, for example when the pc is not mapped. In 6.2.0 it was `disasm_failed`.
 
 With `memory.final_contents`, only the regions of guest memory have a `data_ref`: the images of the modules that load from a file, the allocations and heaps of the guest, the regions with no tag and the static TLS data. In 6.2.0, each region except the stacks had one, also the stub images of the system modules and the structures of the emulator. An empty dropped file has no `data_ref`, and the top-level `data` has only the payloads that a `data_ref` refers to. The [report walkthrough](reporting.md#memory-regions) lists the regions.
+
+The 7.0.0 models read each 7.x report. They ignore unknown keys, an event of a new type becomes an `UnknownEvent`, and the `type` of an error of a new type is a plain `str`. The 6.2.0 models rejected each of these. See [Report versions](reporting.md#report-versions).
 
 7.0.0 adds `api_call_count` to each run, and `return_address` and `calls` to each `api` event. `calls` is the number of calls that the event stands for, also the repeats that the profiler leaves out. In user mode, a limit error of a run has the `pid` and `tid` of the thread that ran when the limit stopped the run. A handler event, such as `file_create`, comes just before the `api` event of its call, with the same `tick` and `pc`.
 

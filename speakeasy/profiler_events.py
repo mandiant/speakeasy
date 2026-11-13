@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 from speakeasy.report_types import HexInt, HexIntOptional
 
@@ -46,8 +46,6 @@ class EventType(str, Enum):
 class StackEntry(BaseModel):
     """One pointer-size slot of the stack at the time of an error or an exception."""
 
-    model_config = ConfigDict(extra="forbid")
-
     offset: int = Field(description="Offset of the slot from the stack pointer, in bytes.")
     value: HexIntOptional = Field(default=None, description="Value in the slot. Absent when the slot is not mapped.")
     region: HexIntOptional = Field(
@@ -61,8 +59,6 @@ class StackEntry(BaseModel):
 
 class TracePosition(BaseModel):
     """Position of an event: the instruction count, the thread, the process and the pc."""
-
-    model_config = ConfigDict(extra="forbid")
 
     tick: int | None = Field(
         default=None,
@@ -88,8 +84,6 @@ class TracePosition(BaseModel):
 class Event(BaseModel):
     """Base class of the report events. The ``event`` field gives the event type."""
 
-    model_config = ConfigDict(extra="forbid")
-
     pos: TracePosition = Field(description="Position of the thread that did the operation.")
     event: EventType = Field(description="Type of the event. The type sets which other fields the event has.")
 
@@ -113,8 +107,6 @@ class ApiArgType(str, Enum):
 
 class ApiArg(BaseModel):
     """One argument of an API call, as passed by the caller and as shown in the trace."""
-
-    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(
         default=None,
@@ -665,7 +657,7 @@ class ExceptionEvent(Event):
     stack: list[StackEntry] | None = Field(default=None, description="Stack slots at the time of the exception.")
 
 
-AnyEvent = Annotated[
+KnownEvent = Annotated[
     ApiEvent
     | ProcessCreateEvent
     | MemAllocEvent
@@ -695,4 +687,35 @@ AnyEvent = Annotated[
     | NetHttpEvent
     | ExceptionEvent,
     Discriminator("event"),
+]
+
+
+class UnknownEvent(BaseModel):
+    """
+    An event of a type that these models do not know, from a report of a newer minor version.
+
+    ``model_extra`` has the other keys of the event.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    pos: TracePosition = Field(description="Position of the thread that did the operation.")
+    event: str = Field(
+        description="Type of the event. Not one of the known types.",
+        # A JSON schema validator must match exactly one branch of the ``oneOf`` of ``AnyEvent``.
+        json_schema_extra={"not": {"enum": [t.value for t in EventType]}},
+    )
+
+
+_KNOWN_EVENT_TYPES = frozenset(t.value for t in EventType)
+
+
+def _get_event_kind(v: Any) -> str:
+    event = v.get("event") if isinstance(v, dict) else getattr(v, "event", None)
+    return "known" if getattr(event, "value", event) in _KNOWN_EVENT_TYPES else "unknown"
+
+
+AnyEvent = Annotated[
+    Annotated[KnownEvent, Tag("known")] | Annotated[UnknownEvent, Tag("unknown")],
+    Discriminator(_get_event_kind),
 ]

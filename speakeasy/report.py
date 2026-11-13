@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
@@ -10,8 +10,6 @@ REPORT_VERSION = "7.0.0"
 
 class StringCollection(BaseModel):
     """ANSI and UTF-16 strings from one source."""
-
-    model_config = ConfigDict(extra="forbid")
 
     ansi: list[str] = Field(
         default_factory=list,
@@ -25,8 +23,6 @@ class StringCollection(BaseModel):
 
 class StringsReport(BaseModel):
     """Strings of the input file, and strings that the guest made in memory."""
-
-    model_config = ConfigDict(extra="forbid")
 
     static: StringCollection = Field(
         default_factory=StringCollection,
@@ -50,8 +46,6 @@ class RegionInfo(BaseModel):
     for each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give
     the image and the part.
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     base: HexInt = Field(description="Base address of the region.")
     size: int = Field(description="Size of the region in bytes.")
@@ -126,8 +120,6 @@ class AccessType(str, Enum):
 class ApiLoopSite(BaseModel):
     """One call site of an API loop."""
 
-    model_config = ConfigDict(extra="forbid")
-
     api_name: str = Field(description="Name of the API in ``module.function`` form.")
     return_address: HexIntOptional = Field(default=None, description="Return address of the calls from this site.")
     calls: int = Field(description="Number of calls from this site in the loop.")
@@ -139,8 +131,6 @@ class ApiLoop(BaseModel):
 
     A call site is an API and a return address.
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     start: TracePosition = Field(description="Position of the first API call of the loop.")
     calls: int = Field(description="Number of API calls in the loop.")
@@ -156,13 +146,13 @@ class ErrorInfo(BaseModel):
     The emulator fills only the fields that apply to the error ``type``.
     """
 
-    model_config = ConfigDict(extra="forbid")
-
-    type: ErrorType = Field(
+    type: ErrorType | str = Field(
+        union_mode="left_to_right",
         description=(
             "Kind of error, such as ``unsupported_api``, ``api_call_limit``, ``api_loop_limit`` or ``invalid_read``. "
-            "A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
-        )
+            "A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``. "
+            "A string that is not an ``ErrorType`` comes from a report of a newer minor version."
+        ),
     )
     pc: HexIntOptional = Field(
         default=None,
@@ -254,8 +244,6 @@ class ErrorInfo(BaseModel):
 class RegionAccesses(BaseModel):
     """Read, write and execute counts of one memory region in one run."""
 
-    model_config = ConfigDict(extra="forbid")
-
     region: HexInt = Field(
         description=(
             "Base of the region, as in ``memory.layout``: for a module image, the base of its headers or section. "
@@ -270,8 +258,6 @@ class RegionAccesses(BaseModel):
 class SymbolAccesses(BaseModel):
     """Read, write and execute counts of one symbol address in one run."""
 
-    model_config = ConfigDict(extra="forbid")
-
     symbol: str = Field(description="Symbol name in ``module.symbol`` form.")
     reads: int = Field(description="Number of reads that start at the symbol address.")
     writes: int = Field(description="Number of writes that start at the symbol address.")
@@ -280,8 +266,6 @@ class SymbolAccesses(BaseModel):
 
 class MemoryAccesses(BaseModel):
     """Read, write and execute counts of the memory regions and the symbols that a run used."""
-
-    model_config = ConfigDict(extra="forbid")
 
     regions: list[RegionAccesses] = Field(
         default_factory=list,
@@ -298,8 +282,6 @@ class MemoryAccesses(BaseModel):
 
 class DynamicCodeContents(BaseModel):
     """The position and the data of a dynamic code region when code ran in it."""
-
-    model_config = ConfigDict(extra="forbid")
 
     pos: TracePosition = Field(
         description=(
@@ -325,8 +307,6 @@ class DynamicCodeRegion(BaseModel):
     emulator adds one more snapshot to ``contents`` each time that code runs in the region after the
     region changed, and control came from outside the region.
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     region: HexInt = Field(description="Base address of the region, as in ``memory.layout``.")
     size: int = Field(description="Size of the region in bytes.")
@@ -370,8 +350,6 @@ class DataArtifact(BaseModel):
     field elsewhere in the report holds such a key.
     """
 
-    model_config = ConfigDict(extra="forbid")
-
     compression: ArtifactCompression = Field(description="Compression of the payload.")
     encoding: ArtifactEncoding = Field(description="Text encoding of the compressed payload.")
     size: int = Field(description="Size of the payload before compression, in bytes.")
@@ -380,8 +358,6 @@ class DataArtifact(BaseModel):
 
 class DroppedFile(BaseModel):
     """A file that the guest wrote completely, up to the end of the run."""
-
-    model_config = ConfigDict(extra="forbid")
 
     path: str = Field(description="Emulated path of the file.")
     size: int = Field(description="Size of the file in bytes.")
@@ -428,8 +404,6 @@ class MemoryRegion(RegionInfo):
 class LoadedModule(BaseModel):
     """A module that is loaded at the end of a run."""
 
-    model_config = ConfigDict(extra="forbid")
-
     name: str = Field(
         description="File name of the module, such as ``sample.exe``. The ``module`` of the regions of its image."
     )
@@ -440,8 +414,6 @@ class LoadedModule(BaseModel):
 
 class MemoryLayout(BaseModel):
     """Memory regions and loaded modules at the end of a run."""
-
-    model_config = ConfigDict(extra="forbid")
 
     layout: list[MemoryRegion] = Field(
         default_factory=list,
@@ -479,8 +451,6 @@ class RunReport(BaseModel):
     A run starts at one address, such as the module entry point, an export, a TLS callback or a
     thread.
     """
-
-    model_config = ConfigDict(extra="forbid")
 
     type: RunType = Field(
         description="Kind of code that the run executes, such as ``module_entry``, ``export`` or ``thread``."
@@ -572,8 +542,6 @@ class ProcessInfo(BaseModel):
     emulation.
     """
 
-    model_config = ConfigDict(extra="forbid")
-
     pid: int = Field(description="Process ID, the same as the ``pid`` of runs and events.")
     parent_pid: int | None = Field(
         default=None,
@@ -636,11 +604,13 @@ class Report(BaseModel):
     it, also when it is 0 or false.
     """
 
-    model_config = ConfigDict(extra="forbid")
-
     report_version: str = Field(
         default=REPORT_VERSION,
-        description="Version of the report format.",
+        pattern=rf"^{REPORT_VERSION.split('.')[0]}\.",
+        description=(
+            "Version of the report format. The models read each report of the same major version, also of a newer"
+            " minor version."
+        ),
     )
     emulation_total_runtime: float = Field(
         description=(
@@ -703,8 +673,6 @@ class Report(BaseModel):
 
 class FileManifestEntry(BaseModel):
     """One file in ``speakeasy_manifest.json`` of the dropped-files archive."""
-
-    model_config = ConfigDict(extra="forbid")
 
     path: str = Field(description="Emulated path of the file.")
     file_name: str = Field(description="Name of the zip member that has the file data.")
