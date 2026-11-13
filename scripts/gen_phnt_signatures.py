@@ -493,8 +493,8 @@ class TypeTable:
                 raise UnsupportedType(f"multi-word type {ctype!r}")
         else:
             base = self._resolve_name(words[0], depth)
-        for i in range(stars):
-            base = _pointer_to(base, words[0] if i == 0 and len(words) == 1 else None)
+        for _ in range(stars):
+            base = _pointer_to(base, words[0])
         return base
 
     def _resolve_name(self, name: str, depth: int) -> str:
@@ -553,7 +553,7 @@ def _pointer_to(code: str, name: str | None = None) -> str:
     if code == "u8":
         # UCHAR and BYTE pointers are binary buffers
         return "a:u8"
-    if name == "WCHAR":
+    if code == "u16" and name == "WCHAR":
         # USHORT is also u16, but only a WCHAR pointer is a string
         return "S"
     return f"p:{code}"
