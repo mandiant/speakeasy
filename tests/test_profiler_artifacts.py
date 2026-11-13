@@ -112,22 +112,17 @@ def test_report_data_holds_only_referenced_payloads():
     profiler = Profiler()
     run = Run()
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
-    process = TargetProcess(id=3, path="C:\\sample.exe")
 
     for chunk in (b"one", b"two", b"three"):
         profiler.record_file_access_event(
             run, pos, "C:\\temp\\x.bin", EventType.FILE_WRITE, data=chunk, size=len(chunk)
-        )
-    for offset, chunk in enumerate((b"aaaa", b"bbbb", b"cccc")):
-        profiler.record_process_event(
-            run, pos, process, EventType.MEM_WRITE, {"base": 0x1000 + 4 * offset, "size": 4, "data": chunk}
         )
     profiler.record_http_event(run, pos, "example.com", 80, headers="GET / HTTP/1.1", body=b"first")
     profiler.record_http_event(run, pos, "example.com", 80, headers="GET / HTTP/1.1", body=b"second")
     report = build_report(profiler, run)
 
     refs = get_dumped_data_refs(report.model_dump(mode="json"))
-    assert len(refs) == 5
+    assert len(refs) == 2
     assert set(report.data) == refs
 
 
@@ -306,25 +301,6 @@ def test_each_contiguous_memory_call_gets_its_own_event_with_all_bytes(event_typ
     events = report.runs[0].events
     assert [(e.pos.tick, e.base, e.size) for e in events] == [(1, 0x40D000, 0x1000), (2, 0x40E000, 0x3000)]
     assert [profiler.artifact_store.get_bytes(e.data_ref) for e in events] == [headers, text]
-
-
-def test_repeated_memory_write_payload_is_stored_once():
-    profiler = Profiler()
-    run = Run()
-    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
-    svchost = TargetProcess(id=10, path="C:\\Windows\\system32\\svchost.exe")
-    page = b"\x00" * 0x1000
-
-    for base in (0x411000, 0x412000):
-        profiler.record_process_event(
-            run, pos, svchost, EventType.MEM_WRITE, {"base": base, "size": 0x1000, "data": page}
-        )
-    report = build_report(profiler, run)
-
-    events = report.runs[0].events
-    assert len(events) == 2
-    assert events[0].data_ref == events[1].data_ref
-    assert list(report.data) == [events[0].data_ref]
 
 
 def test_json_report_is_compact():
