@@ -420,3 +420,40 @@ def test_api_events_of_one_thunk_keep_each_caller():
         se.run_module(module)
         events = [event for event in se.get_report().runs[0].events if event.event == "api"]
     assert [event.pos.pc for event in events] == [module.base + 0x100B] * 2
+
+
+def test_handler_events_have_the_pc_of_their_api_call():
+    path, subkey = b"C:\\out.bin\0", b"Software\\Microsoft\0"
+    imports = {"kernel32.dll": ["VirtualAlloc", "CreateFileA"], "advapi32.dll": ["RegOpenKeyExA"]}
+    sites = []
+
+    def text(base, iat):
+        def push(value):
+            return b"\x68" + struct.pack("<I", value)
+
+        def call(dll, name):
+            sites.append(base + 0x1000 + len(code))
+            return b"\xff\x15" + struct.pack("<I", base + iat[dll, name])
+
+        code = push(4) + push(0x3000) + push(0x1000) + push(0)
+        code += call("kernel32.dll", "VirtualAlloc")
+        code += push(0) + push(0) + push(2) + push(0) + push(0) + push(0x40000000) + push(base + 0x2000)
+        code += call("kernel32.dll", "CreateFileA")
+        code += push(base + 0x2100) + push(0x20019) + push(0) + push(base + 0x2000 + len(path)) + push(0x80000002)
+        code += call("advapi32.dll", "RegOpenKeyExA")
+        return code + b"\xc3"
+
+    data, _ = build_pe(32, text=text, data=path + subkey, imports=imports)
+    with Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        events = se.get_report().runs[0].events
+
+    pairs = [(event, after) for event, after in zip(events, events[1:]) if event.event != "api"]
+    assert [event.event for event, _ in pairs] == ["mem_alloc", "file_create", "reg_open_key"]
+    assert [after.api_name for _, after in pairs] == [
+        "kernel32.VirtualAlloc",
+        "kernel32.CreateFileA",
+        "advapi32.RegOpenKeyExA",
+    ]
+    assert [event.pos.pc for event, _ in pairs] == sites
+    assert all(event.pos == after.pos for event, after in pairs)
