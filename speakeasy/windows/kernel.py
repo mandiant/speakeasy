@@ -160,14 +160,13 @@ class WinKernelEmulator(WindowsEmulator):
             p = objman.Process(self)
             self.add_object(p)
             p.name = proc.name
-            p.pid = proc.pid
+            if proc.pid is not None:
+                p.pid = proc.pid
 
             if p.name.lower() == "system":
                 p.pid = 4
                 p.path = "System"
 
-            if not p.pid:
-                p.pid = self.get_object_manager("process id allocation").new_id()
             p.base = proc.base_addr
             if not p.path:
                 p.path = proc.path

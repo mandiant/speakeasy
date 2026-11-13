@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from speakeasy import Speakeasy, common
-from speakeasy.profiler_events import MemFreeEvent, ModuleLoadEvent
+from speakeasy.profiler_events import MemAllocEvent, MemFreeEvent, ModuleLoadEvent
 from speakeasy.windows import objman, thread_context
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.codepage import CP_ACP, CP_UTF8
@@ -1413,3 +1413,24 @@ def test_load_library_records_a_module_load_event(dll_emu: Speakeasy) -> None:
     # A second load of a loaded module maps nothing, so it adds no event.
     call(dll_emu, "kernel32", "LoadLibraryA", [name])
     assert [(e.name, e.base) for e in run.events if isinstance(e, ModuleLoadEvent)] == loads
+
+
+def test_a_configured_pid_is_the_pid_of_the_process_everywhere(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes]
+) -> None:
+    explorer = next(p for p in config["processes"] if p["name"] == "explorer")
+    explorer["pid"] = 0x1F4
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        assert list_processes(se)[0x1F4] == "explorer.exe"
+        hproc, _ = call(se, "kernel32", "OpenProcess", [0x1F0FFF, 0, 0x1F4])
+        assert call(se, "kernel32", "GetProcessId", [hproc])[0] == 0x1F4
+        out = alloc(se, b"\xcc" * 4)
+        assert call(se, "kernel32", "ProcessIdToSessionId", [0x1F4, out])[0] is True
+        buf, _ = call(se, "kernel32", "VirtualAllocEx", [hproc, 0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])
+        mm = se.emu.get_address_map(buf)
+        assert mm is not None
+        assert mm.tag.startswith("api.VirtualAllocEx.explorer_exe.500.")
+        run = se.emu.curr_run
+        assert run is not None
+        assert [e.pid for e in run.events if isinstance(e, MemAllocEvent)] == [0x1F4]

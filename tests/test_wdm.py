@@ -103,3 +103,7 @@ def test_wdm_irp_handlers(wdm_report):
             dprint = dprint[0]
             assert dprint.args[0].display == "Inside default handler"
             assert handler.return_value == 0xC00000BB
+
+
+def test_wdm_events_have_the_pid_of_the_system_process(wdm_report):
+    assert {evt.pos.pid for ep in wdm_report.runs for evt in ep.events} == {4}
