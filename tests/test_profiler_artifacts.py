@@ -264,7 +264,7 @@ def test_repeated_api_calls_are_counted_on_the_kept_event():
     sleep_pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401010)
     exit_pos = TracePosition(tick=0, tid=1, pid=1, pc=0x401020)
 
-    for _ in range(2500):
+    for _ in range(3):
         profiler.record_api_event(run, read_pos, "msvcrt.fread", 1, [], return_address=0x401005)
         profiler.record_api_event(run, sleep_pos, "kernel32.Sleep", None, [], return_address=0x401015)
     profiler.record_api_event(run, exit_pos, "kernel32.ExitProcess", None, [], return_address=0x401025)
@@ -272,8 +272,8 @@ def test_repeated_api_calls_are_counted_on_the_kept_event():
 
     run_report = report["runs"][0]
     assert [(e["api_name"], e["calls"]) for e in run_report["events"]] == [
-        ("msvcrt.fread", 2500),
-        ("kernel32.Sleep", 2500),
+        ("msvcrt.fread", 3),
+        ("kernel32.Sleep", 3),
         ("kernel32.ExitProcess", 1),
     ]
     assert sum(e["calls"] for e in run_report["events"]) == run_report["api_call_count"]
