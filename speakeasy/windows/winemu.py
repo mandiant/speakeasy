@@ -33,7 +33,7 @@ from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.memmgr import MemMap
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
-from speakeasy.report import AccessType, Arch, ErrorInfo, ErrorType, FileType, RegionInfo, RunType
+from speakeasy.report import AccessType, ApiLoop, Arch, ErrorInfo, ErrorType, FileType, RegionInfo, RunType
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
@@ -1343,13 +1343,13 @@ class WindowsEmulator(BinaryEmulator):
         stopped = self.exit_event is not None and self.exit_event.is_set()
         if stopped and debugger is None and not self.is_run_complete:
             if origin_run.error is None:
-                origin_run.error = ErrorInfo(type=ErrorType.PER_RUN_TIME_LIMIT, pc=self.get_pc())
+                origin_run.error = self.get_limit_error(ErrorType.PER_RUN_TIME_LIMIT)
             self._cancel_execution_runs()
         total_budget = limits.total_budget
         if total_budget is not None and total_budget.add(elapsed):
             self._cancel_execution_runs()
             if not self.is_run_complete and origin_run.error is None:
-                origin_run.error = ErrorInfo(type=ErrorType.TOTAL_TIME_LIMIT, pc=self.get_pc())
+                origin_run.error = self.get_limit_error(ErrorType.TOTAL_TIME_LIMIT)
             if debugger is not None:
                 debugger._request_stop(StopReason(kind=LimitKind.TOTAL_TIME_LIMIT.value, address=self.get_pc()))
 
@@ -1453,16 +1453,15 @@ class WindowsEmulator(BinaryEmulator):
             self._cancel_execution_runs()
             # If the run already has an error, such as a fault, keep that error.
             if not self._run_completed and origin_run.error is None:
-                origin_run.error = ErrorInfo(type=ErrorType(kind.value), pc=self.get_pc())
+                origin_run.error = self.get_limit_error(ErrorType(kind.value))
         else:
             logger.error("* Instruction limit of %d reached.", limits.budget)
         if debugger is not None:
             debugger._request_stop(StopReason(kind=kind.value, address=self.get_pc()))
         elif not self._run_completed:
             if origin_run.error is None:
-                origin_run.error = ErrorInfo(
-                    type=ErrorType(kind.value),
-                    pc=self.get_pc(),
+                origin_run.error = self.get_limit_error(
+                    ErrorType(kind.value),
                     limit=limits.budget if kind == LimitKind.INSTRUCTION_LIMIT else None,
                 )
             self._complete_run()
@@ -2942,6 +2941,20 @@ class WindowsEmulator(BinaryEmulator):
             )
         return "; ".join(parts)
 
+    def get_limit_error(
+        self, error_type: ErrorType, limit: int | None = None, last_api: str | None = None, loop: ApiLoop | None = None
+    ) -> ErrorInfo:
+        """Get the error of a limit that stopped the run of the current thread."""
+        return ErrorInfo(
+            type=error_type,
+            pc=self.get_pc(),
+            tid=self.curr_thread.tid if self.curr_thread else None,
+            pid=self.curr_process.id if self.curr_process else None,
+            limit=limit,
+            last_api=last_api,
+            loop=loop,
+        )
+
     def get_error_info(
         self,
         desc: ErrorType,
@@ -3548,9 +3561,8 @@ class WindowsEmulator(BinaryEmulator):
         if limit > 0 and run.get_api_count() > limit:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             self.end_run(
-                ErrorInfo(
-                    type=ErrorType.API_CALL_LIMIT,
-                    pc=self.get_pc(),
+                self.get_limit_error(
+                    ErrorType.API_CALL_LIMIT,
                     limit=limit,
                     last_api=imp_api,
                 )
@@ -3560,9 +3572,8 @@ class WindowsEmulator(BinaryEmulator):
         if limit and run.api_loop.calls >= limit:
             logger.info("* %d API calls with no new call site. Stopping current run.", limit)
             self.end_run(
-                ErrorInfo(
-                    type=ErrorType.API_LOOP_LIMIT,
-                    pc=self.get_pc(),
+                self.get_limit_error(
+                    ErrorType.API_LOOP_LIMIT,
                     limit=limit,
                     last_api=imp_api,
                     loop=run.api_loop.get_loop(),
