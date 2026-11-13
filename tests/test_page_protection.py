@@ -3,7 +3,7 @@ import struct
 import pytest
 
 from speakeasy import Speakeasy, common
-from speakeasy.profiler_events import EventType
+from speakeasy.profiler_events import ApiEvent, EventType
 from speakeasy.windows.winemu import get_page_protection_runs
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
@@ -144,3 +144,39 @@ def test_ntdll_protect_virtual_memory_fails_for_an_empty_or_unmapped_range(dll64
     assert protect(se, page, 0, rw) == (ddk.STATUS_INVALID_PARAMETER, page, 0, 0xFFFFFFFF)
     assert protect(se, 0, PAGE, rw)[0] == ddk.STATUS_CONFLICTING_ADDRESSES
     assert get_perms(se, page) == se.emu.emu_eng.perms[RX]
+
+
+def get_virtual_alloc_and_protect_code(se: Speakeasy, api: str) -> bytes:
+    """Get x86 code that allocates one PAGE_READWRITE page and changes it to PAGE_EXECUTE_READ with ``api``."""
+
+    def call_api(dll: str, name: str) -> bytes:
+        return b"\xb8" + struct.pack("<I", se.emu.get_proc(dll, name)) + b"\xff\xd0"
+
+    # VirtualAlloc(0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)
+    code = b"\x6a\x04\x68\x00\x30\x00\x00\x68\x00\x10\x00\x00\x6a\x00" + call_api("kernel32", "VirtualAlloc")
+    if api == "VirtualProtect":
+        # push 0 ; mov ebx, esp ; VirtualProtect(eax, 0x1000, PAGE_EXECUTE_READ, ebx) ; add esp, 4
+        code += b"\x6a\x00\x89\xe3\x53\x6a\x20\x68\x00\x10\x00\x00\x50" + call_api("kernel32", "VirtualProtect")
+        code += b"\x83\xc4\x04"
+    else:
+        # push eax ; mov ecx, esp ; push 0x1000 ; mov edx, esp ; push 0 ; mov ebx, esp
+        # NtProtectVirtualMemory(-1, ecx, edx, PAGE_EXECUTE_READ, ebx) ; add esp, 12
+        code += b"\x50\x89\xe1\x68\x00\x10\x00\x00\x89\xe2\x6a\x00\x89\xe3\x53\x6a\x20\x52\x51\x6a\xff"
+        code += call_api("ntdll", "NtProtectVirtualMemory") + b"\x83\xc4\x0c"
+    return code + b"\xc3"
+
+
+@pytest.mark.parametrize("api, success", [("VirtualProtect", 1), ("NtProtectVirtualMemory", ddk.STATUS_SUCCESS)])
+def test_protect_changes_the_perms_of_the_region_in_the_memory_layout(config, api: str, success: int) -> None:
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=bytes(0x1000), arch="x86")
+        se.mem_write(base, get_virtual_alloc_and_protect_code(se, api))
+        se.run_shellcode(base)
+        report = se.get_report()
+
+    run = report.runs[0]
+    [protect_call] = [e for e in run.events if isinstance(e, ApiEvent) and e.api_name.endswith(f".{api}")]
+    assert protect_call.return_value == success
+    assert run.memory is not None
+    [region] = [r for r in run.memory.layout if r.tag == "api.VirtualAlloc"]
+    assert (region.size, region.perms) == (PAGE, "r-x")
