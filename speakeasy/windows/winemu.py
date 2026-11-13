@@ -771,7 +771,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Get the position of the current run, thread, process and program counter, for a report event.
 
-        While the code of an API call runs, the program counter is the address of the call.
+        While the code of an API call runs, the program counter is the address of the call, or None if the
+        emulator does not know it, for example in a thread that starts at the API.
         """
         run = self.get_current_run()
         thread = self.get_current_thread()
@@ -780,7 +781,7 @@ class WindowsEmulator(BinaryEmulator):
         tid = thread.tid if thread else 0
         pid = proc.id if proc else 0
         frame = self._active_api_frame
-        if frame is not None and frame.call_pc is not None:
+        if frame is not None:
             pc = frame.call_pc
         else:
             try:

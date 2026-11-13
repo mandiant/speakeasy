@@ -478,3 +478,27 @@ def test_handler_events_have_the_pc_of_their_api_call():
     ]
     assert [event.pos.pc for event, _ in pairs] == sites
     assert all(event.pos == after.pos for event, after in pairs)
+
+
+def test_handler_events_have_the_pos_of_their_api_call_in_a_thread_that_starts_at_the_api():
+    imports = {"kernel32.dll": ["CreateThread", "LoadLibraryA"]}
+
+    def text(base, iat):
+        def push(value):
+            return b"\x68" + struct.pack("<I", value)
+
+        code = push(0) + push(0) + push(base + 0x2000)
+        code += b"\xff\x35" + struct.pack("<I", base + iat["kernel32.dll", "LoadLibraryA"])
+        code += push(0) + push(0)
+        code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "CreateThread"])
+        return code + b"\xc3"
+
+    data, _ = build_pe(32, text=text, data=b"C:\\foo.dll\0", imports=imports)
+    with Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        run = se.get_report().runs[1]
+
+    assert run.type == "thread"
+    event, after = run.events[:2]
+    assert (event.event, event.name, after.api_name) == ("module_load", "foo.dll", "kernel32.LoadLibraryA")
+    assert event.pos == after.pos
