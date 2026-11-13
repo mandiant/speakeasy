@@ -217,6 +217,7 @@ These Python names change in `speakeasy` and `speakeasy.report`:
 | `ModuleSegment`, `LoadedModule.segments` | removed |
 | `MemoryRegion.is_free` | `MemoryRegion.freed` |
 | `StackEntry.tag` | `StackEntry.region` |
+| `ErrorInfo.count` | `ErrorInfo.limit` |
 | `ErrorType.TIMEOUT`, `MAX_TOTAL_TIME`, `MAX_API_COUNT`, `MAX_INSTRUCTIONS`, `API_LOOP` | `ErrorType.PER_RUN_TIME_LIMIT`, `TOTAL_TIME_LIMIT`, `API_CALL_LIMIT`, `INSTRUCTION_LIMIT`, `API_LOOP_LIMIT` |
 
 `MemoryRegion` is a subclass of `RegionInfo`, and both have `module` and `section`.
