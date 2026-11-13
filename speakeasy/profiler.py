@@ -242,9 +242,6 @@ class Profiler:
         self.start_time: float = time.time()
         self.strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
         self.decoded_strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
-        self.last_data: list[int] = [0, 0]
-        self.last_event: AnyEvent | dict[str, Any] = {}
-        self.last_event_run: Run | None = None
         self.clock_started: bool = False
         self.runtime: float = 0
         self.meta: dict[str, Any] = {}
@@ -546,9 +543,7 @@ class Profiler:
         process. The ``pid`` of the event is the target process ID, or ``None`` when the target is
         the process of the actor.
 
-        A memory read or write merges with the last process event when that event is of the same
-        type, is in the same run, has the same target process, and its range ends at the start of the
-        new range.
+        Each memory read or write gets its own event, with all the bytes of the call.
 
         Raises:
             ValueError: if ``event_type`` is not a process, memory or thread event type.
@@ -599,28 +594,12 @@ class Profiler:
 
         elif event_type in (EventType.MEM_WRITE, EventType.MEM_READ):
             event_cls = MemWriteEvent if event_type == EventType.MEM_WRITE else MemReadEvent
-            base = kwargs["base"]
-            size = kwargs["size"]
-            data = kwargs["data"]
-            last_base, last_size = self.last_data
-            last_evt = self.last_event
-            self.last_data = [base, size]
-            if (
-                isinstance(last_evt, event_cls)
-                and self.last_event_run is run
-                and last_evt.path == path
-                and last_evt.pid == pid
-                and (last_base + last_size) == base
-            ):
-                last_evt.data_ref = self.merge_binary_data(last_evt.data_ref, data, limit=1024)
-                last_evt.size += len(data)
-                return
             event = event_cls(
                 pos=pos,
                 path=path,
-                base=base,
-                size=size,
-                data_ref=self.put_binary_data(data, limit=1024),
+                base=kwargs["base"],
+                size=kwargs["size"],
+                data_ref=self.put_binary_data(kwargs["data"]),
                 pid=pid,
             )
 
@@ -648,8 +627,6 @@ class Profiler:
             raise ValueError(f"not a process event type: {event_type}")
 
         run.events.append(event)
-        self.last_event = event
-        self.last_event_run = run
 
     def record_dns_event(self, run, pos: TracePosition, domain, ip=""):
         """Record a DNS lookup. The profiler adds one event for each query and response in a run."""

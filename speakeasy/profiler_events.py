@@ -211,12 +211,7 @@ class MemAllocEvent(Event):
 
 
 class MemWriteEvent(Event):
-    """
-    Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``.
-
-    The profiler merges a write into the last process event when that event is a write that ends
-    at the start of the new write.
-    """
+    """Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``."""
 
     event: Literal[EventType.MEM_WRITE] = Field(
         default=EventType.MEM_WRITE, description="Event type of a memory write."
@@ -226,7 +221,7 @@ class MemWriteEvent(Event):
     size: int = Field(description="Number of bytes written.")
     data_ref: str | None = Field(
         default=None,
-        description=("Key in the top-level ``data`` of the first bytes of the write. Absent when there are no bytes."),
+        description=("Key in the top-level ``data`` of the bytes of the write. Absent when there are no bytes."),
     )
     pid: int | None = Field(
         default=None,
@@ -235,12 +230,7 @@ class MemWriteEvent(Event):
 
 
 class MemReadEvent(Event):
-    """
-    Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``.
-
-    The profiler merges a read into the last process event when that event is a read that ends at
-    the start of the new read.
-    """
+    """Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``."""
 
     event: Literal[EventType.MEM_READ] = Field(default=EventType.MEM_READ, description="Event type of a memory read.")
     path: str = Field(description="Image path of the target process.")
@@ -248,7 +238,7 @@ class MemReadEvent(Event):
     size: int = Field(description="Number of bytes read.")
     data_ref: str | None = Field(
         default=None,
-        description=("Key in the top-level ``data`` of the first bytes of the read. Absent when there are no bytes."),
+        description=("Key in the top-level ``data`` of the bytes of the read. Absent when there are no bytes."),
     )
     pid: int | None = Field(
         default=None,

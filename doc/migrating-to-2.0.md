@@ -201,6 +201,8 @@ With `memory.final_contents`, only the regions of guest memory have a `data_ref`
 
 7.0.0 also adds the top-level `processes` list (`Report.processes`, a list of `ProcessInfo`), with the `pid`, `parent_pid`, `path`, `command_line` and run indexes of each process of the runs and of the events. In 6.2.0, a consumer built the process tree from the `process_create` events, the `pid` and `path` of the memory and thread events, and the entry point `name`, and only `memory.modules` gave the emulated path of the first process. See [Processes](reporting.md#processes).
 
+Each API call that writes or reads process memory, such as `WriteProcessMemory`, gets its own `mem_write` or `mem_read` event, and its `data_ref` has all the bytes of the call. In 6.2.0 and 1.x, the profiler merged a write or a read into the last one when its range started at the end of the last range, and the data kept only the first 1024 bytes.
+
 `get_json_report()` and the CLI write compact JSON. 6.2.0 was indented. To indent a report, use `jq . report.json`.
 
 These Python names change in `speakeasy` and `speakeasy.report`:
