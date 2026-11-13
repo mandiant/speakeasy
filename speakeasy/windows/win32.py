@@ -724,11 +724,12 @@ class Win32Emulator(WindowsEmulator):
         """
         Get whether the guest owns the data of a memory map, so that the report keeps its contents.
 
-        The guest owns its allocations and heaps (``api.*`` tags) and the images of the modules that load
-        from a file, such as the input. The emulator owns the stub images of the system modules, its own
-        structures and the stacks.
+        The guest owns its allocations and heaps (``api.*`` tags), the regions with no tag that API
+        handlers allocate for it, its static TLS data (``emu.tls.*`` tags) and the images of the modules
+        that load from a file, such as the input. The emulator owns the stub images of the system modules,
+        its other structures and the stacks.
         """
-        if (mm.tag or "").startswith("api."):
+        if not mm.tag or mm.tag.startswith(("api.", "emu.tls.")):
             return True
         module = self._get_image_module(mm)
         return module is not None and module._image.source != "synthetic"
