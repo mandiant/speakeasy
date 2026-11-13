@@ -619,6 +619,12 @@ class SpeakeasyConfig(BaseModel):
         " in seconds. 0 disables the limit.",
     )
     max_api_calls: int = Field(default=10000, description="Limit of the API calls of each run.")
+    max_api_loop_calls: int = Field(
+        default=5000,
+        ge=0,
+        description="Limit of the API calls of a run with no call from a new call site (API and return address)."
+        " The run then ends with an api_loop error. 0 disables the limit.",
+    )
     max_instructions: int = Field(
         default=-1, description="Limit of the instructions of each run. 0 or less disables the limit."
     )

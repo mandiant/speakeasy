@@ -32,7 +32,7 @@ Each entry point has these fields:
 - `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
 - `memory`: in user mode, the memory regions and the modules at the end of the run. If `snapshot_memory_regions=true`, each region also has a `data_ref` to its contents.
 
-If the run ended abnormally, the entry point has an `error`. Its `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
+If the run ended abnormally, the entry point has an `error`. Its `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A run that `max_api_calls` ends has `max_api_count`. A run that makes `max_api_loop_calls` API calls with no call from a new call site has `api_loop`, and `error.loop` tells about the calls after the last new call site. In `error.loop`, `start` is the position of the first of these calls, `calls` is their number, and `sites` has up to 16 call sites (`api_name`, `return_address` and `calls`), the site with the most calls first. For both types, `count` is the limit and `last_api` is the API of the last call. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
 
 The `type` of an entry point is the kind of code that the run executes, and `name` is a detail for that kind. If the kind has no detail (`None` in Python), the JSON report leaves out `name`.
 
@@ -95,7 +95,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
 ```jsonc
 {
   // Report format version.
-  "report_version": "6.1.0",
+  "report_version": "6.2.0",
 
   // Wall-clock seconds from the first start of the run queue to the end.
   "emulation_total_runtime": 1.234,
@@ -490,7 +490,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
 
 ```json
 {
-  "report_version": "6.1.0",
+  "report_version": "6.2.0",
   "emulation_total_runtime": 0.012,
   "timestamp": 1760000000,
   "arch": "x86",
@@ -515,7 +515,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
 ```jsonc
 {
   // Report schema version.
-  "report_version": "6.1.0",
+  "report_version": "6.2.0",
 
   // Total runtime in seconds for this emulation session.
   "emulation_total_runtime": 0.012,

@@ -9,9 +9,12 @@ These flags stop a run:
 - `--max-run-time`: the active execution time of one run, in seconds. 0 disables the limit.
 - `--max-total-time`: the active execution time of all runs, in seconds. 0 disables the limit.
 - `--max-api-calls`: the number of API calls in one run.
+- `--max-api-loop-calls`: the number of API calls in one run with no call from a new call site. A call site is an API and a return address. 0 turns this limit off.
 - `--max-instructions`: the number of instructions in one run.
 
 Use them together for samples that run for a long time or loop.
+
+A sample can call APIs in a loop to make emulation slow, for example `GetTickCount` and `Sleep` in a delay loop, or a loop that waits for a condition that the emulator never sets. When a run makes `--max-api-loop-calls` API calls (default 5000) and none of them is from a call site that the run did not call before, the run ends with an `api_loop` error. The `error.loop` key of the report has the call sites of the loop and the number of calls from each site. A loop that calls APIs from a new address in each iteration, for example from new code that it writes, continues until `--max-api-calls` stops it. A loop with no API calls continues until `--max-run-time` or `--max-instructions` stops it.
 
 The CLI emulates in a child process. It stops the child process after `--max-total-time`, in case the process hangs in Python code. Then it saves the report that the child process sends in the next 5 seconds. `--max-run-time` applies to each run and gives no bound for all runs, so when `--max-total-time` is 0, the CLI does not stop the child process.
 
@@ -92,7 +95,7 @@ Use this profile when you want to step through one run. The report has the cover
 
 ## Performance and telemetry tuning
 
-Speakeasy is written in Python, so the data that it collects and the stop limits have a large effect on the run time. Memory tracing, coverage, dynamic code snapshots and memory region snapshots make a run slower and the report larger. They are on by default. `--no-analysis-memory-tracing`, `--no-analysis-coverage`, `--no-analysis-dynamic-code-snapshots` and `--no-snapshot-memory-regions` turn them off for one run. For samples that loop or crash, set `--max-run-time`, `--max-api-calls` and `--max-instructions`. Run fast triage and the full telemetry as two different runs.
+Speakeasy is written in Python, so the data that it collects and the stop limits have a large effect on the run time. Memory tracing, coverage, dynamic code snapshots and memory region snapshots make a run slower and the report larger. They are on by default. `--no-analysis-memory-tracing`, `--no-analysis-coverage`, `--no-analysis-dynamic-code-snapshots` and `--no-snapshot-memory-regions` turn them off for one run. `--max-api-loop-calls` stops most API loops early, and `--max-api-calls` stops the API loops that it does not see. `--max-run-time` and `--max-instructions` stop loops with no API calls. For samples that loop or crash, set these limits lower. Run fast triage and the full telemetry as two different runs.
 
 ## Related docs
 

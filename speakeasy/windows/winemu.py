@@ -3421,7 +3421,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def _check_api_limit(self, origin_run, imp_api):
         run = self.get_current_run()
-        if run is origin_run and run and not self.end_requested and run.get_api_count() > self.config.max_api_calls:
+        if run is not origin_run or not run or self.end_requested:
+            return
+        if run.get_api_count() > self.config.max_api_calls:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             self.end_run(
                 ErrorInfo(
@@ -3429,6 +3431,19 @@ class WindowsEmulator(BinaryEmulator):
                     pc=self.get_pc(),
                     count=self.config.max_api_calls,
                     last_api=imp_api,
+                )
+            )
+            return
+        limit = self.config.max_api_loop_calls
+        if limit and run.api_loop.calls >= limit:
+            logger.info("* %d API calls with no new call site. Stopping current run.", limit)
+            self.end_run(
+                ErrorInfo(
+                    type=ErrorType.API_LOOP,
+                    pc=self.get_pc(),
+                    count=limit,
+                    last_api=imp_api,
+                    loop=run.api_loop.get_loop(),
                 )
             )
 

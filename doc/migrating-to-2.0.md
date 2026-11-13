@@ -2,9 +2,9 @@
 
 This page tells you how to move code and scripts from Speakeasy 1.x to 2.0. It covers the Python library and the command line. Each section names a change to the interface and tells you what to change in your code or command.
 
-## Report schema 6.1.0
+## Report schema 6.2.0
 
-The report of 2.0 has `report_version` `6.1.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
+The report of 2.0 has `report_version` `6.2.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
 
 In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. Each entry of `dynamic_code_segments` has the new `pos`, and with `--analysis-dynamic-code-snapshots` a `data_ref`, one more entry for each later snapshot of the region, and `snapshot_limit_reached` on the last entry of a region that got to the limit. `dropped_files` does not change.
 
@@ -94,7 +94,7 @@ These keys take one value from a fixed set. The schema lists them:
 | `arch` | `arch` | `x86`, `x64` |
 | `filetype` | `file_type` | `exe`, `dll`, `driver`, `shellcode` |
 | `entry_points[].ep_type` | `type` | `module_entry`, `dll_entry`, `tls_callback`, `export`, `shellcode`, `thread`, `service_main`, `dependency_dll_entry`, `dependency_tls_callback`, `call`, `callback`, `driver_entry`, `driver_unload`, `driver_reinit`, `irp` |
-| `error.type` | `error.type` | `timeout`, `max_total_time`, `max_instructions`, `max_api_count`, `unsupported_api`, `internal_error`, `engine_stopped`, `invalid_image`, `dll_initialization_failed`, `api_handler_did_not_return`, `invalid_read`, `invalid_write`, `invalid_fetch`, `invalid_protect_read`, `invalid_protect_write`, `invalid_protect_fetch`, `guard_page_violation`, `privileged_instruction`, `invalid_instruction`, `unsupported_cpu_feature`, `unhandled_interrupt`, `unhandled_exception`, `hardware_breakpoint`, `bug_check` |
+| `error.type` | `error.type` | `timeout`, `max_total_time`, `max_instructions`, `max_api_count`, `api_loop`, `unsupported_api`, `internal_error`, `engine_stopped`, `invalid_image`, `dll_initialization_failed`, `api_handler_did_not_return`, `invalid_read`, `invalid_write`, `invalid_fetch`, `invalid_protect_read`, `invalid_protect_write`, `invalid_protect_fetch`, `guard_page_violation`, `privileged_instruction`, `invalid_instruction`, `unsupported_cpu_feature`, `unhandled_interrupt`, `unhandled_exception`, `hardware_breakpoint`, `bug_check` |
 | `network_events.traffic[].type` | `type` of `net_traffic` | `connect`, `bind`, `accept`, `data_in`, `data_out` |
 | `network_events.traffic[].proto` | `proto` of `net_traffic` | `tcp`, `udp`, `raw`, `unknown` |
 | `network_events.traffic[].proto` of an HTTP request | `proto` of `net_http` | `http`, `https` |
@@ -123,9 +123,9 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 | `driver_reinit` | `driver_reinit` | none |
 | `irp_mj_<function>`, for example `irp_mj_create` | `irp` | `IRP_MJ_<FUNCTION>`, for example `IRP_MJ_CREATE` |
 
-2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each entry point has `pid`, `tid` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `--analysis-coverage`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`.
+2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each entry point has `pid`, `tid` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `--analysis-coverage`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`. An `api_loop` error has `loop`, the call sites of the API loop that ended the run.
 
-The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 6.1.0, and the [report walkthrough](reporting.md) describes each key.
+The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 6.2.0, and the [report walkthrough](reporting.md) describes each key.
 
 ## Exceptions
 
@@ -291,7 +291,7 @@ In 2.0, the features that collect analysis data or emulate more of the sample ar
 
 A config file that sets a field keeps its value. In the library, `Speakeasy.run_module`, `Win32Emulator.run_module` and `WinKernelEmulator.run_module` default to `all_entrypoints=True`, and the user mode `run_module` methods default to `emulate_children=True`. In 1.x both were `False`. The CLI always ran the exports, and `--no-all-entrypoints` is new.
 
-The `api_hammering` key is removed, and 2.0 does not patch call sites that call an API many times. A config that has `api_hammering` fails validation, because the config models reject unknown keys.
+The `api_hammering` key is removed, and 2.0 does not patch call sites that call an API many times. A config that has `api_hammering` fails validation, because the config models reject unknown keys. The new `max_api_loop_calls` key (default 5000) ends a run that makes this number of API calls with no call from a new call site, with an `api_loop` error. 0 disables it.
 
 ## Debug output
 

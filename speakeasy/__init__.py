@@ -79,6 +79,8 @@ from speakeasy.profiler_events import (
 )
 from speakeasy.report import (
     AccessType,
+    ApiLoop,
+    ApiLoopSite,
     Arch,
     ArtifactCompression,
     ArtifactEncoding,
@@ -125,6 +127,8 @@ __all__ = [
     "SyscallHookCallback",
     "Report",
     "AccessType",
+    "ApiLoop",
+    "ApiLoopSite",
     "Arch",
     "ArtifactCompression",
     "ArtifactEncoding",
