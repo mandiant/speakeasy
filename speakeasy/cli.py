@@ -10,6 +10,7 @@ import os
 import shlex
 import sys
 import time
+from typing import TextIO
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -26,10 +27,19 @@ CHILD_EXIT_GRACE = 5
 ChildResult = tuple[str | None, str | None]
 
 
-def setup_logging(verbose: bool) -> None:
+def setup_logging(verbose: bool, stream: TextIO | None = None) -> None:
+    if stream is None:
+        stream = sys.stderr
     root = logging.getLogger("speakeasy")
     root.handlers.clear()
-    root.addHandler(RichHandler(console=Console(stderr=True), show_path=False, show_time=False, show_level=False))
+    handler: logging.Handler
+    if stream.isatty():
+        handler = RichHandler(console=Console(file=stream), show_path=False, show_time=False, show_level=False)
+    else:
+        # Rich wraps and pads at 80 columns when it cannot get the terminal width, so a pipe or a file gets
+        # one record split over many lines.
+        handler = logging.StreamHandler(stream)
+    root.addHandler(handler)
     root.setLevel(logging.DEBUG if verbose else logging.INFO)
 
 
