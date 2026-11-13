@@ -56,6 +56,23 @@ def test_cli_rejects_bad_arguments(tmp_path, args, message):
     assert "Traceback" not in result.stderr
 
 
+@pytest.mark.parametrize("mode", [[], ["--no-mp"]])
+def test_cli_logs_its_progress_when_run_as_a_module(tmp_path, mode):
+    target = tmp_path / "sc.bin"
+    target.write_bytes(b"\xc3")
+    output = tmp_path / "report.json"
+    dropped = tmp_path / "dropped.zip"
+
+    result = run_cli(
+        "-t", str(target), "--raw", "--arch", "x86", "-o", str(output), "--dropped-files-path", str(dropped), *mode
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "* No dropped files found" in result.stderr
+    assert "* Finished emulating" in result.stderr
+    assert "* Saving emulation report to" in result.stderr
+
+
 def test_cli_prints_its_version():
     result = run_cli("--version")
 
