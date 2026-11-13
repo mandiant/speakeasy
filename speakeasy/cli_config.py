@@ -38,6 +38,21 @@ CLI_SHORT_OPTIONS = {
     "runs.children": "-k",
 }
 
+CLI_METAVARS = {
+    "limits.per_run_time": "SECONDS",
+    "limits.total_time": "SECONDS",
+    "limits.api_calls": "COUNT",
+    "limits.api_loop_calls": "COUNT",
+    "limits.instructions": "COUNT",
+    "runs.stack_size": "SIZE",
+    "memory.dynamic_code_contents.limit": "COUNT",
+    "modules.directory_x86": "DIR",
+    "modules.directory_x64": "DIR",
+    "system.start_time": "TIME",
+    "system.random_seed": "SEED",
+    "process.current_dir": "DIR",
+}
+
 
 @dataclass(frozen=True)
 class ConfigCliFieldSpec:
@@ -83,7 +98,7 @@ def get_active_config(
 
 def add_config_cli_arguments(parser: argparse.ArgumentParser, specs: list[ConfigCliFieldSpec]) -> None:
     for spec in specs:
-        help_text = f"{spec.description} (default: {render_cli_default(spec.default)})"
+        help_text = render_cli_help(spec)
         if spec.kind == "bool":
             option_strings = [spec.short_option, spec.option] if spec.short_option else [spec.option]
             parser.add_argument(
@@ -235,7 +250,7 @@ def get_cli_metavar(spec: ConfigCliFieldSpec) -> str:
         return "KEY=VALUE"
     if spec.kind == "list_str":
         return "VALUE"
-    return spec.path.split(".")[-1].upper()
+    return CLI_METAVARS.get(spec.path, spec.path.split(".")[-1].upper())
 
 
 def get_path_value(data: dict[str, Any], path: tuple[str, ...]) -> tuple[Any, bool]:
@@ -296,12 +311,23 @@ def parse_cli_mapping_entry(raw: str) -> tuple[str, str]:
     return key, value
 
 
+def render_cli_help(spec: ConfigCliFieldSpec) -> str:
+    if spec.default is None:
+        return spec.description
+    if spec.kind == "bool":
+        default = spec.option if spec.default else "--no-" + spec.option.removeprefix("--")
+    else:
+        default = render_cli_default(spec.default)
+    # argparse formats the help text with %.
+    return f"{spec.description} (default: {default.replace('%', '%%')})"
+
+
 def render_cli_default(value: Any) -> str:
     if isinstance(value, dict):
         return f"{len(value)} entries"
     if isinstance(value, list):
         return f"{len(value)} items"
-    return repr(value)
+    return str(value)
 
 
 def render_config_value(value: Any) -> str:
