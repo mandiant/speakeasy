@@ -1,5 +1,6 @@
 """Export runs of a DLL start with the arguments that its exports expect."""
 
+import pefile
 import pytest
 
 from speakeasy import Speakeasy
@@ -21,6 +22,19 @@ def test_exports_run_only_if_runs_exports_is_true(config, load_test_bin, exports
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin("dll_test_x86.dll.xz")))
         assert [ep.type for ep in se.get_report().runs] == types
+
+
+def test_export_without_a_name_runs_with_its_ordinal_as_name(config, load_test_bin):
+    """dll_test_x86.dll exports emu_test_one and emu_test_two. With NumberOfNames 0, they have only ordinals 1 and 2."""
+    data = bytearray(load_test_bin("dll_test_x86.dll.xz"))
+    pe = pefile.PE(data=bytes(data))
+    offset = pe.DIRECTORY_ENTRY_EXPORT.struct.get_field_absolute_offset("NumberOfNames")
+    data[offset : offset + 4] = bytes(4)
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=bytes(data)))
+        runs = [ep for ep in se.get_report().runs if ep.type == "export"]
+
+    assert [run.name for run in runs] == ["#1", "#2"]
 
 
 def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):

@@ -2641,7 +2641,7 @@
             }
           ],
           "default": null,
-          "description": "Detail for ``type``, such as the export name, the TLS callback index, the dependency module or the IRP major function. Absent when the type has no detail.",
+          "description": "Detail for ``type``, such as the export name (``#<ordinal>`` for an export without a name), the TLS callback index, the dependency module or the IRP major function. Absent when the type has no detail.",
           "title": "Name"
         },
         "start_address": {

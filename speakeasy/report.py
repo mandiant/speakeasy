@@ -458,8 +458,8 @@ class RunReport(BaseModel):
     name: str | None = Field(
         default=None,
         description=(
-            "Detail for ``type``, such as the export name, the TLS callback index, the dependency module or "
-            "the IRP major function. Absent when the type has no detail."
+            "Detail for ``type``, such as the export name (``#<ordinal>`` for an export without a name), the TLS "
+            "callback index, the dependency module or the IRP major function. Absent when the type has no detail."
         ),
     )
     start_address: HexInt = Field(description="Address where the run started.")
