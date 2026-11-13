@@ -301,7 +301,7 @@ class UserConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(default="speakeasy_user", description="User name, for example for GetUserName.")
-    admin: bool = Field(default=True, description="If true, the token of the user is elevated.")
+    admin: bool = Field(default=True, description="Give the user an elevated token.")
     sid: str = Field(default="S-1-5-21-1111111111-2222222222-3333333333-1001", description="SID of the emulated user.")
 
 
@@ -531,7 +531,7 @@ class ModulesConfig(BaseModel):
 
     stubs: bool = Field(
         default=True,
-        description="If true, the emulator loads an unknown module as an empty API module.",
+        description="Load an unknown module as an empty API module.",
     )
     directory_x86: str | None = Field(
         default=None, description="Directory of x86 DLLs that the emulator loads in place of the synthetic API modules."
@@ -562,8 +562,7 @@ class LimitsConfig(BaseModel):
         default=0,
         ge=0,
         allow_inf_nan=False,
-        description="Limit of the execution time of all runs in one call of run_module, run_shellcode, call or resume,"
-        " in seconds. 0 disables the limit.",
+        description="Limit of the execution time of all runs together, in seconds. 0 disables the limit.",
     )
     api_calls: int = Field(default=10000, ge=0, description="Limit of the API calls of each run. 0 disables the limit.")
     api_loop_calls: int = Field(
@@ -592,7 +591,7 @@ class RunsConfig(BaseModel):
     stack_size: _Size = Field(
         default=0,
         description="Size of the stack of the input in bytes. 0 uses max(SizeOfStackReserve, 0x12000) for a PE,"
-        " and the stack_commit argument of run_shellcode (default 0x4000) for shellcode.",
+        " and 0x4000 or the stack_commit argument of run_shellcode for shellcode.",
     )
 
 
@@ -637,8 +636,8 @@ class MemoryConfig(BaseModel):
     )
     freed_regions: bool = Field(
         default=True,
-        description="If true, a region that the guest frees stays mapped, so that its data can be read, and each"
-        " region in the report has freed. If false, the report leaves out the freed regions.",
+        description="Keep a region that the guest frees mapped, so that its data can be read, and give each region"
+        " in the report the freed field. If false, the report leaves out the freed regions.",
     )
 
 
@@ -655,7 +654,7 @@ class ApisConfig(BaseModel):
 
     stubs: bool = Field(
         default=True,
-        description="If true, an API without a handler or a declaration resolves to a stub that returns 1.",
+        description="Resolve an API without a handler or a declaration to a stub that returns 1.",
     )
 
 

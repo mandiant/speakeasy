@@ -245,13 +245,19 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Emulate a Windows binary with speakeasy", allow_abbrev=False)
-    parser.add_argument("-t", "--target", action="store", dest="target", required=False, help="Path of the input file")
+    parser = argparse.ArgumentParser(
+        description="Emulate a Windows binary with speakeasy", allow_abbrev=False, add_help=False
+    )
+    parser.add_argument("-h", "--help", action="help", help="Show this help message and exit")
+    parser.add_argument(
+        "-t", "--target", action="store", dest="target", metavar="PATH", required=False, help="Path of the input file"
+    )
     parser.add_argument(
         "-o",
         "--output",
         action="store",
         dest="output",
+        metavar="PATH",
         required=False,
         help="Path of the report file (default: write the report to stdout)",
     )
@@ -260,12 +266,19 @@ def main():
         action="store",
         default="",
         dest="argv",
+        metavar="ARGS",
         required=False,
         help="Command line arguments of the emulated process, as one quoted string "
         "(e.g. --argv=\"-log -path 'C:\\\\path with spaces\\\\'\")",
     )
     parser.add_argument(
-        "-c", "--config", action="store", dest="config", required=False, help="Path of a JSON config file"
+        "-c",
+        "--config",
+        action="store",
+        dest="config",
+        metavar="PATH",
+        required=False,
+        help="Path of a JSON config file",
     )
     parser.add_argument(
         "--dump-default-config",
@@ -287,6 +300,7 @@ def main():
         default=0,
         required=False,
         dest="raw_offset",
+        metavar="OFFSET",
         help="Offset in the shellcode at which emulation starts: decimal, or hex with 0x",
     )
     parser.add_argument(
@@ -295,6 +309,7 @@ def main():
         default=None,
         required=False,
         dest="entry_point",
+        metavar="RVA",
         help="RVA at which emulation starts, in place of the entry point of the PE: decimal, or hex with 0x. "
         "Applies only to PE input.",
     )
@@ -311,6 +326,7 @@ def main():
         "--dropped-files-path",
         action="store",
         dest="dropped_files_path",
+        metavar="PATH",
         required=False,
         help="Path of a zip archive for the files that the sample writes, with a speakeasy_manifest.json",
     )
@@ -340,6 +356,7 @@ def main():
         "--gdb-host",
         action="store",
         dest="gdb_host",
+        metavar="HOST",
         default="127.0.0.1",
         required=False,
         help="Address on which the GDB server listens (default: 127.0.0.1)",
@@ -348,6 +365,7 @@ def main():
         "--gdb-port",
         action="store",
         dest="gdb_port",
+        metavar="PORT",
         type=int,
         default=1234,
         required=False,
@@ -358,10 +376,13 @@ def main():
         "--volume",
         action="append",
         dest="volumes",
+        metavar="HOST:GUEST",
         default=[],
         help="Map a host path into the emulated file system (host_path:guest_path). Can be given more than once.",
     )
-    parser.add_argument("--version", action="version", version=f"speakeasy {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"speakeasy {__version__}", help="Show the version and exit"
+    )
 
     config_specs = get_config_cli_field_specs()
     add_config_cli_arguments(parser, config_specs)
