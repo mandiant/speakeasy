@@ -474,17 +474,19 @@ def test_win_exec_without_program_name_fails(dll_emu: Speakeasy) -> None:
 
 
 def create_suspended_child(
-    se: Speakeasy, path: bytes = b"c:\\Windows\\system32\\cmd.exe", api: str = "CreateProcessA"
+    se: Speakeasy,
+    path: bytes = b"c:\\Windows\\system32\\cmd.exe",
+    dll: str = "kernel32",
+    api: str = "CreateProcessA",
 ) -> tuple[int, int]:
     start_process(se)
     app = alloc(se, path + b"\x00")
     si = alloc(se, b"\x00" * 0x44)
     pi = alloc(se, b"\x00" * 0x10)
-    args = [app, 0, 0, 0, 0, PROCESS_CREATION_FLAGS.CREATE_SUSPENDED, 0, 0, si, pi]
-    if api == "CreateProcessAsUserA":
-        ok, _ = call(se, "advapi32", api, [0, *args])
-    else:
-        ok, _ = call(se, "kernel32", api, args)
+    argv = [app, 0, 0, 0, 0, PROCESS_CREATION_FLAGS.CREATE_SUSPENDED, 0, 0, si, pi]
+    if dll == "advapi32":
+        argv.insert(0, 0)
+    ok, _ = call(se, dll, api, argv)
     assert ok
     hproc, hthread = struct.unpack("<II", se.mem_read(pi, 8))
     return hproc, hthread
@@ -518,9 +520,9 @@ def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: S
     assert len(dll_emu.emu.child_processes) == 1
 
 
-@pytest.mark.parametrize("api", ["CreateProcessA", "CreateProcessAsUserA"])
-def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Speakeasy, api: str) -> None:
-    hproc, hthread = create_suspended_child(dll_emu, api=api)
+@pytest.mark.parametrize("dll, api", [("kernel32", "CreateProcessA"), ("advapi32", "CreateProcessAsUserA")])
+def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Speakeasy, dll: str, api: str) -> None:
+    hproc, hthread = create_suspended_child(dll_emu, dll=dll, api=api)
     child = dll_emu.emu.child_processes[0]
     entry = get_entry(dll_emu, hthread)
     data = alloc(dll_emu, b"\x90" * 4)
