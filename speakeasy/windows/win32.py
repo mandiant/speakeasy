@@ -159,15 +159,18 @@ class Win32Emulator(WindowsEmulator):
             if proc.is_main_exe:
                 continue
             # The fixed PEB address is for the main process, which the emulator creates later
-            p = objman.Process(self, path=proc.path, cmdline=proc.command_line or "", fixed_peb=False)
+            p = objman.Process(
+                self,
+                name=proc.name,
+                path=proc.path,
+                base=proc.base_addr,
+                cmdline=proc.command_line or "",
+                session=proc.session or 0,
+                fixed_peb=False,
+            )
             self.add_object(p)
-
-            p.name = proc.name
             if proc.pid is not None:
                 p.pid = proc.pid
-
-            p.base = proc.base_addr
-            p.session = proc.session or 0
 
             self.processes.append(p)
 

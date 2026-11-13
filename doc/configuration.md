@@ -273,7 +273,7 @@ Speakeasy checks the values of the config before the emulation starts. A value t
     "command_line": null,
 
     // Current directory of the process. The emulator resolves relative paths from it.
-    // It is also CurrentDirectory in the PEB ProcessParameters.
+    // It also gives CurrentDirectory in the PEB ProcessParameters.
     "current_dir": "C:\\Windows\\system32",
 
     // Environment variables of the process. Change them when a sample selects
