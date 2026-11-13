@@ -115,6 +115,14 @@ def test_cpu_exception_reaches_vectored_handler(config, arch, name):
     assert record[:2] == (exception_code, start + offset)
 
 
+def test_exception_event_at_code_that_does_not_disassemble_has_no_instruction(config):
+    # push es is not valid in 64-bit code, so capstone does not decode it
+    run, start, _ = run_under_handler(config, "amd64", b"\x06", 1)
+    assert run.return_value == 42
+    (event,) = [e for e in run.events if e.event == "exception"]
+    assert (event.exception_code, event.pos.pc, event.instruction) == (STATUS_ILLEGAL_INSTRUCTION, start, None)
+
+
 def test_general_protection_fault_reports_the_faulting_instruction(config, load_test_bin):
     """
     0260bad6 (x86) decrypts its code in place, then runs a far call under an SEH handler.
