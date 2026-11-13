@@ -1698,13 +1698,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         # convert the mem flags
         if mm and lpflOldProtect:
-            # See if we saved off the flags if this chunk is from a previous
-            # VirtualAlloc()
-            old_prot = mm.flags
-            if not old_prot:
-                # Otherwise, get the perms from the emulator and convert it to
-                # Win32 protection flags
-                old_prot = self.emu_perms_to_win_perms(mm.prot)
             # Check for page alignment
             addr = lpAddress & 0xFFFFFFFFFFFFF000
             size = dwSize & 0xFFFFFFFFFFFFF000
@@ -1717,7 +1710,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
                 return 0
 
-            old_prot &= ~PAGE_PROTECTION_FLAGS.PAGE_GUARD
+            # Windows returns the protection of the first page. Unicorn gives a guard page no access.
+            uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
+            uc_perms = next(p for start, end, p in emu.get_mem_regions() if start <= addr <= end)
+            old_prot = self.emu_perms_to_win_perms(emu.guard_pages.get(addr, uc_to_perms[uc_perms]))
             if addr in emu.guard_pages:
                 old_prot |= PAGE_PROTECTION_FLAGS.PAGE_GUARD
             emu.mem_protect(addr, size, new)
