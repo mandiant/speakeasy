@@ -1116,7 +1116,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         return rv
 
     def commit_pages(self, emu, mm, address, size, protect):
-        """Apply the protection of a commit to the pages of an existing allocation, and return the first page."""
+        """
+        Apply the protection of a commit to the pages of an existing allocation, and return the first page.
+
+        A ``MemMap`` has one protection, so the allocation gets the protection of the commit in the memory layout, also
+        when the commit covers only part of it, as with ``VirtualProtect``.
+        """
         base = address & ~0xFFF
         end = min((address + size + 0xFFF) & ~0xFFF, mm.base + mm.size)
         perms = self.win_perms_to_emu_perms(protect)
@@ -1124,6 +1129,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         emu.mem_protect(base, end - base, perms)
         if protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
             emu.set_guard_pages(base, end - base, perms)
+        mm.prot = perms
         return base
 
     @apihook("VirtualAlloc", argc=4)
