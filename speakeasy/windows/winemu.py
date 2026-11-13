@@ -2666,10 +2666,10 @@ class WindowsEmulator(BinaryEmulator):
 
     def protect_pages(self, address, size, perms, guard=False):
         """
-        Change the protection of the page-aligned range for a protect API, such as ``VirtualProtect``.
+        Change the protection of a page-aligned range, as ``VirtualProtect`` does. ``guard`` sets guard pages.
 
-        Each allocation in the range also gets ``perms`` as the protection that the memory layout reports.
-        An allocation keeps one protection, so it gets ``perms`` also when the range covers only part of it.
+        A ``MemMap`` has one protection, so each allocation that the range touches gets ``perms`` in the memory
+        layout, also when the range covers only part of it.
         """
         self.mem_protect(address, size, perms)
         self.clear_guard_pages(address, size)
