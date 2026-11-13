@@ -189,7 +189,10 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     raw_offset = args.raw_offset
     entry_point = args.entry_point
     arch = args.arch
-    argv = shlex.split(args.argv) if args.argv else []
+    try:
+        argv = shlex.split(args.argv) if args.argv else []
+    except ValueError as err:
+        parser.error(f"Invalid --argv: {err}")
     verbose = args.verbose
     gdb_port = args.gdb_port if args.gdb else None
     gdb_host = args.gdb_host
@@ -202,10 +205,19 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         logger.info("--gdb requires --no-mp mode; enabling automatically")
     user_cfg = {}
     if config_path:
+        if os.path.isdir(config_path):
+            parser.error(f"Config file is a directory: {config_path}")
         if not os.path.isfile(config_path):
             parser.error(f"Config file not found: {config_path}")
-        with open(config_path) as f:
-            user_cfg = json.load(f)
+        try:
+            with open(config_path) as f:
+                user_cfg = json.load(f)
+        except json.JSONDecodeError as err:
+            parser.error(
+                f"Config file is not valid JSON: {config_path}: line {err.lineno} column {err.colno}: {err.msg}"
+            )
+        except (OSError, UnicodeDecodeError) as err:
+            parser.error(f"Cannot read config file: {config_path}: {err}")
 
     if do_raw and not arch:
         parser.error("--raw needs --arch")

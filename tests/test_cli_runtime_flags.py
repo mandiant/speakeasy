@@ -73,6 +73,41 @@ def test_cli_logs_its_progress_when_run_as_a_module(tmp_path):
     assert "Finished emulating" in result.stderr
 
 
+def test_cli_rejects_a_config_file_that_is_not_valid_json(tmp_path):
+    target = tmp_path / "sc.bin"
+    target.write_bytes(b"\xc3")
+    config = tmp_path / "bad.json"
+    config.write_text('{"limits": {\n')
+
+    result = run_cli("-t", str(target), "--no-mp", "-c", str(config))
+
+    assert result.returncode == 2
+    assert f"Config file is not valid JSON: {config}: line 2 column 1:" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_rejects_a_directory_as_the_config_file(tmp_path):
+    target = tmp_path / "sc.bin"
+    target.write_bytes(b"\xc3")
+
+    result = run_cli("-t", str(target), "--no-mp", "-c", str(tmp_path))
+
+    assert result.returncode == 2
+    assert f"Config file is a directory: {tmp_path}" in result.stderr
+    assert "not found" not in result.stderr
+
+
+def test_cli_rejects_an_argv_with_an_unclosed_quote(tmp_path):
+    target = tmp_path / "sc.bin"
+    target.write_bytes(b"\xc3")
+
+    result = run_cli("-t", str(target), "--no-mp", "--argv", "unterminated 'quote")
+
+    assert result.returncode == 2
+    assert "Invalid --argv: No closing quotation" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_cli_prints_its_version():
     result = run_cli("--version")
 
