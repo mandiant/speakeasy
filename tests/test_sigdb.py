@@ -229,10 +229,11 @@ def test_out_buffer_size_scalars_and_structs() -> None:
         sigdb.ParamSig("sz", "s", "o"),
         sigdb.ParamSig("wsz", "S", "o"),
         sigdb.ParamSig("arr", "a:u16", "o"),
+        sigdb.ParamSig("pb", "a:u8", "o"),
     )
     values = [0x1000] * len(sig.params)
-    assert [_size(sig, i, values, 4) for i in range(len(sig.params))] == [4, 4, None, 36, None, 1, 2, None]
-    assert [_size(sig, i, values, 8) for i in range(len(sig.params))] == [4, 8, None, 48, None, 1, 2, None]
+    assert [_size(sig, i, values, 4) for i in range(len(sig.params))] == [4, 4, None, 36, None, 1, 2, 2, 1]
+    assert [_size(sig, i, values, 8) for i in range(len(sig.params))] == [4, 8, None, 48, None, 1, 2, 2, 1]
 
 
 def test_out_buffer_size_from_count_params() -> None:
