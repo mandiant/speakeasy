@@ -193,6 +193,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     verbose = args.verbose
     gdb_port = args.gdb_port if args.gdb else None
     gdb_host = args.gdb_host
+    auto_mount = not args.no_auto_mount
 
     setup_logging(verbose)
 
@@ -248,7 +249,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             entry_point=entry_point,
             gdb_port=gdb_port,
             gdb_host=gdb_host,
-            auto_mount=not args.no_auto_mount,
+            auto_mount=auto_mount,
         )
     else:
         q: mp.Queue[ChildResult] = mp.Queue()
@@ -270,7 +271,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
                 "entry_point": entry_point,
                 "gdb_port": gdb_port,
                 "gdb_host": gdb_host,
-                "auto_mount": not args.no_auto_mount,
+                "auto_mount": auto_mount,
             },
         )
         p.start()
