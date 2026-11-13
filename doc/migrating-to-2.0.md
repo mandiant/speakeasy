@@ -186,6 +186,7 @@ These values have a new format:
 | `name` of a `module_load` event | the name of the module, such as `urlmon` | the file name of the module, such as `urlmon.dll`, the same as `memory.modules[].name` |
 | `error.type` | `timeout`, `max_total_time`, `max_api_count`, `max_instructions`, `api_loop` | `per_run_time_limit`, `total_time_limit`, `api_call_limit`, `instruction_limit`, `api_loop_limit` |
 | `pos.pc` of an event that the code of an API adds, such as `file_create` | the address of the API | the address of the call, the same as the `pc` of the `api` event of the call |
+| `type` of an argument of an `api` event, for a pointer-sized integer such as `SIZE_T`, `ULONG_PTR`, `LPARAM` or `WPARAM` | `ptr` | `int` |
 
 The report no longer has the run type `callback` and the `open_flags` of a `reg_open_key` event. Speakeasy did not set them.
 

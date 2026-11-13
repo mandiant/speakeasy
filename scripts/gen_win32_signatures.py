@@ -62,9 +62,11 @@ Type codes (``kind`` or ``kind:qualifier``):
 
     v                 void (return only)
     i8 u8 i16 u16 i32 u32 i64 u64   sized integers
+    ip up             pointer-sized integers: IntPtr (LONG_PTR, SSIZE_T, LPARAM,
+                      LRESULT) and UIntPtr (SIZE_T, ULONG_PTR, WPARAM)
     u32:NAME          (any integer kind) value drawn from enum NAME in ``enums``
     f32 f64           floating point
-    p                 pointer-sized opaque value (IntPtr, void*, COM, callbacks)
+    p                 pointer-sized opaque pointer (void*, COM, callbacks)
     p:CODE            pointer to a value of type CODE (p:u32, p:h, p:p, p:S)
     ps:NAME           pointer to struct/union NAME (see ``structs``)
     a:CODE            array/buffer of CODE elements; its length, if declared, is in
@@ -120,10 +122,14 @@ NATIVE_TYPES = {
     "Int64": ("i64", 8),
     "Single": ("f32", 4),
     "Double": ("f64", 8),
-    "IntPtr": ("p", None),
-    "UIntPtr": ("p", None),
+    "IntPtr": ("ip", None),
+    "UIntPtr": ("up", None),
     "Guid": ("g", 16),
 }
+
+# NativeTypedefs of IntPtr and UIntPtr that are integers. The other typedefs of
+# IntPtr are handles or opaque pointers, such as alljoyn_busattachment.
+INTEGER_TYPEDEFS = {"LPARAM", "WPARAM", "LRESULT"}
 
 # NativeTypedefs that carry meaning beyond their underlying integer.
 SPECIAL_TYPEDEFS = {
@@ -310,8 +316,10 @@ class TypeResolver:
                 raise UnsupportedType(f"unknown type {t['Api']}.{t['Name']}")
             if td["Kind"] == "NativeTypedef":
                 base = self.resolve(td["Def"])
-                if base == "p" and _is_handle_typedef(td):
+                if base in ("p", "ip", "up") and _is_handle_typedef(td):
                     return "h"
+                if base in ("ip", "up") and td["Name"] not in INTEGER_TYPEDEFS:
+                    return "p"
                 return base
             if td["Kind"] == "Enum":
                 return self._enum_code(td)
@@ -634,7 +642,10 @@ def generate(win32json_root: str, overrides_path: str) -> tuple[dict, collection
         for param in entry["params"]:
             code = param[1]
             stats[f"param:{code.split(':', 1)[0]}"] += 1
-            if code.split(":", 1)[0] in ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64") and ":" in code:
+            if (
+                code.split(":", 1)[0] in ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "ip", "up")
+                and ":" in code
+            ):
                 stats["param:enum"] += 1
             if len(param) > 3:
                 stats["param:sized-buffer"] += 1

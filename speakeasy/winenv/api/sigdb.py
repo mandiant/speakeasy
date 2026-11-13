@@ -47,7 +47,8 @@ ARCH_X86 = "x86"
 ARCH_X64 = "x64"
 
 # Byte size of each type code kind. None means pointer-sized. ParamSig.size gives the
-# size of the ``st`` and ``arr`` kinds. A pointer kind can name its target type:
+# size of the ``st`` and ``arr`` kinds. ``ip`` and ``up`` are pointer-sized integers
+# (LONG_PTR, SIZE_T), ``p`` is a pointer. A pointer kind can name its target type:
 # ``p:u32`` (DWORD*), ``a:u16`` (WCHAR buffer), ``ps:NAME`` (struct pointer).
 TYPE_SIZES: dict[str, int | None] = {
     "v": 0,
@@ -64,6 +65,8 @@ TYPE_SIZES: dict[str, int | None] = {
     "u64": 8,
     "f64": 8,
     "g": 16,
+    "ip": None,
+    "up": None,
     "p": None,
     "ps": None,
     "a": None,
@@ -76,7 +79,7 @@ STRING_KINDS = ("s", "S")
 BOOL_KINDS = ("b", "B")
 FLOAT_KINDS = ("f32", "f64")
 AGGREGATE_KINDS = ("st", "g")
-INT_KINDS = ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64")
+INT_KINDS = ("i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "ip", "up")
 EMULATION_SCALAR_KINDS = INT_KINDS + BOOL_KINDS + ("p", "ps", "a", "s", "S", "h")
 
 
