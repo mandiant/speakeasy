@@ -1489,7 +1489,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             if mm:
                 emu.ensure_pe_import_hooks(mm.base)
 
-            handle, obj = self.create_thread(start_addr, 0, proc, name=ntpath.basename(proc.path) or None)
+            handle, obj = self.create_thread(start_addr, 0, proc, name=ntpath.basename(proc.path))
             emu.child_processes.remove(proc)
         return rv
 
