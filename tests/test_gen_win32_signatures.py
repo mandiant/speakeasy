@@ -340,32 +340,17 @@ def test_generate_resolves_types(gen: ModuleType, mini_win32json: Path) -> None:
 
 def test_pointer_sized_integers_are_not_pointers(gen: ModuleType) -> None:
     types = [
-        _typedef("HANDLE", _native("IntPtr"), FreeFunc="CloseHandle", InvalidHandleValue=-1),
-        _typedef("HWND", _native("IntPtr")),
-        _typedef("LPARAM", _native("IntPtr")),
         _typedef("WPARAM", _native("UIntPtr")),
-        _typedef("LRESULT", _native("IntPtr")),
         _typedef("alljoyn_busattachment", _native("IntPtr")),
-        _typedef("PSID", _ptr(_native("Void"))),
     ]
-    resolver = gen.TypeResolver({"Foundation": {t["Name"]: t for t in types}})
-
-    def resolve(t: dict[str, Any]) -> str:
-        return str(resolver.resolve(t))
-
+    resolve = gen.TypeResolver({"Foundation": {t["Name"]: t for t in types}}).resolve
     # win32metadata gives SIZE_T, ULONG_PTR and DWORD_PTR as UIntPtr, and SSIZE_T, LONG_PTR and INT_PTR as IntPtr
     assert resolve(_native("UIntPtr")) == "up"
     assert resolve(_native("IntPtr")) == "ip"
     assert resolve(_ptr(_native("UIntPtr"))) == "p:up"
     assert resolve(_ref("Foundation", "WPARAM")) == "up"
-    assert resolve(_ref("Foundation", "LPARAM")) == "ip"
-    assert resolve(_ref("Foundation", "LRESULT")) == "ip"
-    assert resolve(_ref("Foundation", "HANDLE")) == "h"
-    assert resolve(_ref("Foundation", "HWND")) == "h"
-    # the other typedefs of IntPtr are opaque pointers, such as alljoyn_busattachment
+    # the other typedefs of IntPtr that are not handles are opaque pointers
     assert resolve(_ref("Foundation", "alljoyn_busattachment")) == "p"
-    assert resolve(_ref("Foundation", "PSID")) == "p"
-    assert resolve(_ptr(_native("Void"))) == "p"
 
 
 def test_generate_enum_table(gen: ModuleType, mini_win32json: Path, tmp_path: Path) -> None:

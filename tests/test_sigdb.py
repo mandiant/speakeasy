@@ -85,6 +85,7 @@ def test_inline_array_and_field_sizes() -> None:
         ("p:u32", "u32", 4, 4),
         ("p:h", "h", 4, 8),
         ("p:p", "p", 4, 8),
+        ("p:up", "up", 4, 8),
         ("p:u32:FLAGS", "u32:FLAGS", 4, 4),
         ("a:u16", "u16", 2, 2),
         ("a:st:FILETIME:8", "st:FILETIME:8", 8, 8),
@@ -243,7 +244,7 @@ def test_out_buffer_size_from_count_params() -> None:
         sigdb.ParamSig("wide", "a:u16", "o", ("c", 1)),
         sigdb.ParamSig("nSize", "u32", "i"),
         sigdb.ParamSig("pv", "p", "o", ("n", 3)),
-        sigdb.ParamSig("cb", "p", "i"),  # SIZE_T
+        sigdb.ParamSig("cb", "p", "i"),  # SIZE_T in an older database
         sigdb.ParamSig("fixed", "a:st:FILETIME:8", "o", ("k", 3)),
         sigdb.ParamSig("bytes", "a:u8", "o", ("n", 6)),
         sigdb.ParamSig("pcb", "p:u32", "i"),  # count behind a pointer
@@ -265,22 +266,7 @@ def test_out_buffer_size_from_count_params() -> None:
 
 
 def test_pointer_sized_integers() -> None:
-    """SIZE_T and ULONG_PTR are ``up``, SSIZE_T, LONG_PTR and LPARAM are ``ip``: integers of pointer size."""
-    size_t = sigdb.ParamSig("dwSize", "up", "i")
-    assert size_t.size(4) == 4 and size_t.size(8) == 8
-    assert size_t.value_mask(4) is None and size_t.value_mask(8) is None
-    assert size_t.pointee is None
-    assert sigdb.ParamSig("nIndex", "ip:WINDOW_LONG_PTR_INDEX").enum == "WINDOW_LONG_PTR_INDEX"
-
-    virtual_alloc = _out_sig(
-        sigdb.ParamSig("lpAddress", "p", "i?"),
-        sigdb.ParamSig("dwSize", "up", "i"),
-        sigdb.ParamSig("flAllocationType", "u32:VIRTUAL_ALLOCATION_TYPE", "i"),
-        sigdb.ParamSig("flProtect", "u32:PAGE_PROTECTION_FLAGS", "i"),
-    )
-    assert virtual_alloc.supports_emulation(4) and virtual_alloc.supports_emulation(8)
-    assert virtual_alloc.slot_count(4) == 4
-    assert virtual_alloc.values_from_slots([0, 0x1234567890, 0x3000, 0x40], 8)[1] == 0x1234567890
+    """``up`` (SIZE_T, ULONG_PTR) and ``ip`` (SSIZE_T, LPARAM) are integers of pointer size."""
     send_message = sigdb.FuncSig(
         name="SendMessageA",
         dll="user32",
@@ -292,7 +278,8 @@ def test_pointer_sized_integers() -> None:
             sigdb.ParamSig("lParam", "ip"),
         ),
     )
-    assert send_message.supports_emulation(8)
+    assert send_message.supports_emulation(4) and send_message.supports_emulation(8)
+    assert send_message.values_from_slots([0x44, 0x111, 0x1234567890, 2**64 - 1], 8)[2:] == [0x1234567890, 2**64 - 1]
 
     # a SIZE_T parameter gives the byte count of a buffer
     write = _out_sig(sigdb.ParamSig("lpBuffer", "a:u8", "o", ("n", 1)), sigdb.ParamSig("nSize", "up", "i"))

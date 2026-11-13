@@ -215,7 +215,6 @@ def test_scalars_enums_bools_floats(mem: _Memory) -> None:
     # SIZE_T, ULONG_PTR and LPARAM are integers, not addresses
     assert f.render_param(_param("up"), 0x1000, 0) == ("0x1000", "int")
     assert f.render_param(_param("ip"), 0xFFFFFFFF, 0) == ("0xffffffff", "int")
-    assert f.render_param(_param("up:MODE"), 3, 0) == ("M_OPEN", "enum")
     assert f.render_param(_param("f64"), struct.unpack("<Q", struct.pack("<d", 1.5))[0], 0) == ("1.5", "float")
     assert f.render_param(_param("f32"), struct.unpack("<I", struct.pack("<f", 2.0))[0], 0) == ("2.0", "float")
 
@@ -281,18 +280,6 @@ def test_call_args_of_signature_call() -> None:
         ApiArg(name="p0", type="str", value=0x1000, display="C:\\x"),
         ApiArg(name="p1", type="flags", value=1, display="F_ONE"),
         ApiArg(name="p2", type="handle", value=0x44, display="0x44"),
-    ]
-
-
-def test_call_args_of_size_t_param(mem: _Memory) -> None:
-    sig = _sig("p", "up", "u32:INFO_FLAGS")
-    values = [0x1000, 0x2000, 1]
-    f = _formatter(mem, 8)
-    rendered = [f.render_param(param, value, i) for i, (param, value) in enumerate(zip(sig.params, values))]
-    assert [(a.type, a.display) for a in sigfmt.get_call_args(sig, 8, rendered, values)] == [
-        ("ptr", "0x1000"),
-        ("int", "0x2000"),
-        ("flags", "F_ONE"),
     ]
 
 

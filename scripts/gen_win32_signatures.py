@@ -128,7 +128,7 @@ NATIVE_TYPES = {
 }
 
 # NativeTypedefs of IntPtr and UIntPtr that are integers. The other typedefs of
-# IntPtr are handles or opaque pointers, such as alljoyn_busattachment.
+# IntPtr and UIntPtr are handles or opaque pointers, such as alljoyn_busattachment.
 INTEGER_TYPEDEFS = {"LPARAM", "WPARAM", "LRESULT"}
 
 # NativeTypedefs that carry meaning beyond their underlying integer.
