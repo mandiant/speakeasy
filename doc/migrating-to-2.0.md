@@ -80,7 +80,7 @@ These values have a new format:
 | `apis[].args[]` | `args[]` | `"0x1"` | `{"type": "int", "value": "0x1", "display": "0x1"}` |
 | `file_access[].handle` | `handle` | `128` | `"0x80"` |
 | `apis[].ret_val` of a handler that returns a negative number | `return_value` | `"-0x1"` | `"0xffffffff"` on x86, `"0xffffffffffffffff"` on x64 |
-| `process_events[].protect` | `protect` | `"PAGE_READWRITE\|PAGE_GUARD"` | `["PAGE_READWRITE", "PAGE_GUARD"]` |
+| `process_events[].protect` | `permissions` | `"PAGE_READWRITE\|PAGE_GUARD"` | `"rw-"`, the same format as `memory.layout[].permissions` |
 | `error.regs`, `handled_exceptions[].registers` values | `registers` values | `"0x012f8a34"` | `"0x12f8a34"` |
 | `errors[]` | `errors[]` | traceback text | an object like `runs[].error` |
 | `error.stack[]` | `error.stack[]` | `"sp+0x04: 0x0012ff80 -> emu.stack.0x1200000"` | `{"offset": 4, "value": "0x12ff80", "region": "0x1200000"}` |
@@ -172,6 +172,8 @@ These keys have new names or move:
 | `error.stack[].tag`, `stack[].tag` of an `exception` event | `stack[].region`, the base of the region in `memory.layout` |
 | `error.count` | `error.limit` |
 | `memory.modules[].segments[]` | the regions in `memory.layout` with the `module` and `section` of the module |
+| `prot` of a region in `memory.layout`, `address_region` and `nearby_regions` | `permissions` |
+| `protect` of a `mem_alloc` or `mem_protect` event | `permissions` |
 
 These values have a new format:
 
@@ -181,7 +183,8 @@ These values have a new format:
 | `tag` of a part of a module image | `emu.module.<file>.<section>.0x<base>`, such as `emu.module.sample.exe..text.0x401000`, or `emu.module.<file>.headers.0x<base>` | `emu.module`, with the file name in `module` and the section name or `headers` in `section` |
 | `tag` of a region with no tag | `""` | absent |
 | `tag` of a `dynamic_code` entry | the tag of the memory manager and the base address | the tag of the memory manager, absent when the region has no tag |
-| `perms` of a region | `???` for some protections, absent in `address_region` and `nearby_regions` when not known | always present, three characters such as `r-x` |
+| `permissions` of a region | `???` for some protections, absent in `address_region` and `nearby_regions` when not known | always present, three characters such as `r-x` |
+| `permissions` of a `mem_alloc` or `mem_protect` event | the names of the `PAGE_*` flags, joined with `\|`, such as `PAGE_EXECUTE_READ` | three characters such as `r-x`, the same format as a region |
 | `pc_module` of an error or an `exception` event | the name of the module, such as `kernel32` | the file name of the module, such as `kernel32.dll`, the same as `memory.modules[].name` |
 | `name` of a `module_load` event | the name of the module, such as `urlmon` | the file name of the module, such as `urlmon.dll`, the same as `memory.modules[].name` |
 | `error.type` | `timeout`, `max_total_time`, `max_api_count`, `max_instructions`, `api_loop` | `per_run_time_limit`, `total_time_limit`, `api_call_limit`, `instruction_limit`, `api_loop_limit` |

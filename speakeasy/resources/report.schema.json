@@ -1302,21 +1302,10 @@
           "title": "Size",
           "type": "integer"
         },
-        "protect": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Names of the requested page protection flags, such as ``PAGE_READWRITE``.",
-          "title": "Protect"
+        "permissions": {
+          "description": "Requested permissions, such as ``rw-``, in the format of ``memory.layout[].permissions``.",
+          "title": "Permissions",
+          "type": "string"
         },
         "pid": {
           "anyOf": [
@@ -1336,7 +1325,8 @@
         "pos",
         "path",
         "base",
-        "size"
+        "size",
+        "permissions"
       ],
       "title": "MemAllocEvent",
       "type": "object"
@@ -1397,7 +1387,7 @@
     },
     "MemProtectEvent": {
       "additionalProperties": false,
-      "description": "A change of page protection with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``.",
+      "description": "A change of page permissions with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
@@ -1406,7 +1396,7 @@
         "event": {
           "const": "mem_protect",
           "default": "mem_protect",
-          "description": "Event type of a page protection change.",
+          "description": "Event type of a change of page permissions.",
           "title": "Event",
           "type": "string"
         },
@@ -1426,21 +1416,10 @@
           "title": "Size",
           "type": "integer"
         },
-        "protect": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Names of the new page protection flags, such as ``PAGE_EXECUTE_READ``.",
-          "title": "Protect"
+        "permissions": {
+          "description": "New permissions, such as ``r-x``, in the format of ``memory.layout[].permissions``.",
+          "title": "Permissions",
+          "type": "string"
         },
         "pid": {
           "anyOf": [
@@ -1460,7 +1439,8 @@
         "pos",
         "path",
         "base",
-        "size"
+        "size",
+        "permissions"
       ],
       "title": "MemProtectEvent",
       "type": "object"
@@ -1662,9 +1642,9 @@
           "title": "Size",
           "type": "integer"
         },
-        "perms": {
+        "permissions": {
           "description": "Permissions, such as ``r-x`` or ``rw-``. For a part of a module image, the permissions from the section header, and ``r--`` for the headers.",
-          "title": "Perms",
+          "title": "Permissions",
           "type": "string"
         },
         "tag": {
@@ -1736,7 +1716,7 @@
       "required": [
         "base",
         "size",
-        "perms"
+        "permissions"
       ],
       "title": "MemoryRegion",
       "type": "object"
@@ -2624,9 +2604,9 @@
           "title": "Size",
           "type": "integer"
         },
-        "perms": {
+        "permissions": {
           "description": "Permissions, such as ``r-x`` or ``rw-``. For a part of a module image, the permissions from the section header, and ``r--`` for the headers.",
-          "title": "Perms",
+          "title": "Permissions",
           "type": "string"
         },
         "tag": {
@@ -2672,7 +2652,7 @@
       "required": [
         "base",
         "size",
-        "perms"
+        "permissions"
       ],
       "title": "RegionInfo",
       "type": "object"

@@ -104,5 +104,10 @@ def test_a_kernel_mode_error_names_the_section_of_a_driver_module(driver_emu: Sp
     assert run.error is not None
     assert run.error.stack[0].region == text_base
     assert run.error.address_region == RegionInfo(
-        base=text_base, size=text.virtual_size, perms="r-x", tag="emu.module", module="ntoskrnl.exe", section=".text"
+        base=text_base,
+        size=text.virtual_size,
+        permissions="r-x",
+        tag="emu.module",
+        module="ntoskrnl.exe",
+        section=".text",
     )

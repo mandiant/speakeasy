@@ -20,6 +20,7 @@ from speakeasy.profiler_events import EventType
 from speakeasy.report import ErrorType, RunType
 from speakeasy.windows import objman
 from speakeasy.windows.guest_callbacks import get_first_unmapped
+from speakeasy.windows.loaders import get_prot_string
 from speakeasy.winenv.api import api
 from speakeasy.winenv.api.compare import ANSI_UPPER_TABLE, Fold, get_string_order
 from speakeasy.winenv.api.token import query_token_information
@@ -1417,7 +1418,7 @@ class Ntoskrnl(api.ApiHandler):
         if OldProtection:
             self.write_dword(OldProtection, old)
 
-        self.record_process_event(proc, EventType.MEM_PROTECT, base=addr, size=size, protect=prot_def or None)
+        self.record_process_event(proc, EventType.MEM_PROTECT, base=addr, size=size, permissions=get_prot_string(new))
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwWriteVirtualMemory", argc=5)

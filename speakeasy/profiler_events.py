@@ -200,9 +200,8 @@ class MemAllocEvent(Event):
     path: str = Field(description="Image path of the target process.")
     base: HexInt = Field(description="Base address of the allocation.")
     size: int = Field(description="Size that the caller asked for, in bytes.")
-    protect: list[str] | None = Field(
-        default=None,
-        description="Names of the requested page protection flags, such as ``PAGE_READWRITE``.",
+    permissions: str = Field(
+        description="Requested permissions, such as ``rw-``, in the format of ``memory.layout[].permissions``.",
     )
     pid: int | None = Field(
         default=None,
@@ -253,18 +252,17 @@ class MemReadEvent(Event):
 
 
 class MemProtectEvent(Event):
-    """A change of page protection with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``."""
+    """A change of page permissions with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``."""
 
     event: Literal[EventType.MEM_PROTECT] = Field(
         default=EventType.MEM_PROTECT,
-        description="Event type of a page protection change.",
+        description="Event type of a change of page permissions.",
     )
     path: str = Field(description="Image path of the target process.")
     base: HexInt = Field(description="Base address of the range.")
     size: int = Field(description="Size of the range in bytes.")
-    protect: list[str] | None = Field(
-        default=None,
-        description="Names of the new page protection flags, such as ``PAGE_EXECUTE_READ``.",
+    permissions: str = Field(
+        description="New permissions, such as ``r-x``, in the format of ``memory.layout[].permissions``.",
     )
     pid: int | None = Field(
         default=None,

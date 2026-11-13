@@ -390,7 +390,7 @@ class RegionPart:
         return RegionInfo(
             base=self.base,
             size=self.size,
-            perms=get_prot_string(self.perms),
+            permissions=get_prot_string(self.perms),
             tag=self.tag,
             module=self.module,
             section=self.section,
