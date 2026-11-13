@@ -502,7 +502,9 @@ class WindowsEmulator(BinaryEmulator):
         self._parse_config(config)
 
         self.wintypes = windefs
-        self.handle_allocator: HandleAllocator = HandleAllocator()
+        self.handle_allocator: HandleAllocator = HandleAllocator(
+            p.pid for p in self.config.processes if p.pid is not None
+        )
         # The handles of the kernel, and of a user-mode emulator before a process exists
         self.handles: HandleTable = HandleTable(self.handle_allocator, self.dec_ref, self.get_pseudo_handle_object)
         self.regman: RegistryManager = RegistryManager(

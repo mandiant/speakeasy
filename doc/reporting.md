@@ -81,7 +81,7 @@ An error of a fault has `pc`, `instruction`, `registers` and `stack`. `pc_module
 
 ## Events
 
-Each event has `event`, its type, and `pos`, the position of the thread that did the operation, so the event is in the timeline of that thread. `pos` has the `tick` (the instruction count of the run), `tid`, `pid` and `pc`. Each `pid` in the report is the process ID that the guest gets, for example from `GetCurrentProcessId` or `Process32Next`. A process from `processes` in the config has the `pid` of its entry.
+Each event has `event`, its type, and `pos`, the position of the thread that did the operation, so the event is in the timeline of that thread. `pos` has the `tick` (the instruction count of the run), `tid`, `pid` and `pc`. Each `pid` in the report is the process ID that the guest gets, for example from `GetCurrentProcessId` or `Process32Next`.
 
 An `api` event has the `pc` of the instruction that went to the API: a `call`, or the `jmp` of an import thunk. `return_address` is the address where the API returns to the caller. The profiler leaves out an `api` event that has the same API, `pc`, `return_address`, shown arguments and return value as one of the last 3 events of the run. `api_call_count` still counts it.
 
