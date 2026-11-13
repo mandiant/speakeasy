@@ -337,14 +337,13 @@ class Profiler:
             run.api_hash.update(name.lower().encode("utf-8"))
             run.unique_apis.append(name)
 
-        event = ApiEvent(pos=pos, api_name=name, args=args, return_value=ret)
-        event._return_address = return_address
+        event = ApiEvent(pos=pos, api_name=name, args=args, return_value=ret, return_address=return_address)
 
         shown = [(a.name, a.type, a.display) for a in args]
         recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
         if not deduplicate or not any(
             e.pos.pc == event.pos.pc
-            and e._return_address == return_address
+            and e.return_address == event.return_address
             and e.api_name == event.api_name
             and [(a.name, a.type, a.display) for a in e.args] == shown
             and e.return_value == event.return_value
@@ -854,6 +853,7 @@ class Profiler:
                 pid=ep_pid,
                 tid=ep_tid,
                 instruction_count=r.instr_cnt if r.instr_cnt else None,
+                api_call_count=r.num_apis,
                 api_hash=r.api_hash.hexdigest(),
                 return_value=r.return_value,
                 error=error_info,

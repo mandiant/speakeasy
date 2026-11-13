@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Discriminator, Field
 
 from speakeasy.report_types import HexInt, HexIntOptional
 
@@ -146,9 +146,6 @@ class ApiEvent(Event):
     return value of one of the last 3 events of the run.
     """
 
-    # The return address of the call. The report does not show it.
-    _return_address: int | None = PrivateAttr(default=None)
-
     event: Literal[EventType.API] = Field(default=EventType.API, description="Event type of an API call.")
     api_name: str = Field(description="API name in ``module.function`` form, such as ``kernel32.CreateFileA``.")
     args: list[ApiArg] = Field(
@@ -160,6 +157,10 @@ class ApiEvent(Event):
     return_value: HexIntOptional = Field(
         default=None,
         description="Return value of the API, when the handler gives one.",
+    )
+    return_address: HexIntOptional = Field(
+        default=None,
+        description="Address where the call returns to the caller. Absent when the emulator does not know it.",
     )
 
 

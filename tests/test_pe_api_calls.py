@@ -420,6 +420,27 @@ def test_api_events_of_one_thunk_keep_each_caller():
         se.run_module(module)
         events = [event for event in se.get_report().runs[0].events if event.event == "api"]
     assert [event.pos.pc for event in events] == [module.base + 0x100B] * 2
+    assert [event.return_address for event in events] == [module.base + 0x1005, module.base + 0x100A]
+
+
+def test_api_call_count_includes_repeated_calls():
+    def text(base, iat):
+        code = b"\xbe\x03\0\0\0"  # mov esi, 3
+        code += b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "GetCurrentProcessId"])
+        code += b"\x4e"  # dec esi
+        code += b"\x75\xf7"  # jnz call
+        return code + b"\xc3"
+
+    data, _ = build_pe(32, text=text, imports={"kernel32.dll": ["GetCurrentProcessId"]})
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        run = se.get_report().runs[0]
+
+    (event,) = [event for event in run.events if event.event == "api"]
+    assert event.pos.pc == module.base + 0x1005
+    assert event.return_address == module.base + 0x100B
+    assert run.api_call_count == 3
 
 
 def test_handler_events_have_the_pc_of_their_api_call():

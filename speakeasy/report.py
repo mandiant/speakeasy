@@ -485,6 +485,13 @@ class RunReport(BaseModel):
         default=None,
         description="Number of instructions that the run executed. Absent when the run executed none.",
     )
+    api_call_count: int = Field(
+        default=0,
+        description=(
+            "Number of API calls that the run made, also the calls that ``events`` leaves out as repeats. "
+            "``limits.api_calls`` limits this count."
+        ),
+    )
     api_hash: str = Field(
         default="",
         description=(
