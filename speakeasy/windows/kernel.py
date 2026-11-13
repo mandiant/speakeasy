@@ -10,7 +10,7 @@ from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import KernelEmuError
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType
+from speakeasy.report import RunType
 from speakeasy.windows import objman
 from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.loaders import PeLoader, RuntimeModule
@@ -246,7 +246,7 @@ class WinKernelEmulator(WindowsEmulator):
             ep = module.get_ep()
 
         if entry_point is not None or module.ep > 0:
-            self._add_driver_run(EntryPointType.DRIVER_ENTRY, None, ep, (drv.address, drv.reg_path_ptr))
+            self._add_driver_run(RunType.DRIVER_ENTRY, None, ep, (drv.address, drv.reg_path_ptr))
         else:
             self._queue_driver_routines(drv, None)
 
@@ -358,7 +358,7 @@ class WinKernelEmulator(WindowsEmulator):
             # Each export gets the same placeholder arguments.
             args = [self.mem_map(8, tag=f"emu.export_arg_{i}") for i in range(4)]
             for exp in exports:
-                self._add_driver_run(EntryPointType.EXPORT, exp.name or None, exp.address, args)
+                self._add_driver_run(RunType.EXPORT, exp.name or None, exp.address, args)
 
         # TODO: send the IRPs to each device, not only the first device.
         if drv.devices:
@@ -367,12 +367,12 @@ class WinKernelEmulator(WindowsEmulator):
                 func = drv.mj_funcs[major]
                 if func:
                     irp = self.new_dispatch_irp(major, dev)
-                    self._add_driver_run(EntryPointType.IRP, irp_name, int(func), (dev.address, irp.address))
+                    self._add_driver_run(RunType.IRP, irp_name, int(func), (dev.address, irp.address))
 
         if drv.on_unload:
-            self._add_driver_run(EntryPointType.DRIVER_UNLOAD, None, drv.on_unload, (drv.address,))
+            self._add_driver_run(RunType.DRIVER_UNLOAD, None, drv.on_unload, (drv.address,))
 
-    def _add_driver_run(self, kind: EntryPointType, name: str | None, address: int, args: list | tuple) -> None:
+    def _add_driver_run(self, kind: RunType, name: str | None, address: int, args: list | tuple) -> None:
         """Add a run of a driver routine to the queue."""
         run = Run()
         run.type = kind
@@ -390,7 +390,7 @@ class WinKernelEmulator(WindowsEmulator):
 
         for drv in self.drivers:
             drv.read_back()
-        if run.type == EntryPointType.DRIVER_ENTRY:
+        if run.type == RunType.DRIVER_ENTRY:
             # The first argument of DriverEntry is the driver object.
             driver = next((d for d in self.drivers if run.args and d.address == run.args[0]), None)
             if driver is not None:

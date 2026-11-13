@@ -15,7 +15,7 @@ from speakeasy import common
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType
-from speakeasy.report import EntryPointType
+from speakeasy.report import RunType
 from speakeasy.struct import EmuStruct
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
@@ -436,7 +436,7 @@ class ApiHandler:
         if run_args is None:
             run_args = []
         run = Run()
-        if not isinstance(run_type, EntryPointType):
+        if not isinstance(run_type, RunType):
             raise ApiEmuError("Invalid run type")
         if not isinstance(ep, int):
             raise ApiEmuError("Invalid run entry point")

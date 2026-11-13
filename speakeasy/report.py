@@ -390,7 +390,7 @@ class MemoryLayout(BaseModel):
     )
 
 
-class EntryPointType(str, Enum):
+class RunType(str, Enum):
     """Kind of code that a run executes."""
 
     MODULE_ENTRY = "module_entry"
@@ -419,7 +419,7 @@ class RunReport(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    type: EntryPointType = Field(
+    type: RunType = Field(
         description="Kind of code that the run executes, such as ``module_entry``, ``export`` or ``thread``."
     )
     name: str | None = Field(

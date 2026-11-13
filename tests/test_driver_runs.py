@@ -8,7 +8,7 @@ import pytest
 import speakeasy.winenv.defs.nt.ntoskrnl as ntdefs
 from speakeasy import Speakeasy
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType, ErrorInfo, ErrorType
+from speakeasy.report import ErrorInfo, ErrorType, RunType
 from speakeasy.windows.kernel import DISPATCH_IOCTL
 from speakeasy.winenv.defs.nt import ddk
 from tests.test_run_lifecycle import update_config
@@ -57,7 +57,7 @@ def test_each_run_starts_at_passive_level(any_driver_emu: Speakeasy) -> None:
     address = emu.mem_map(0x1000, tag="driver_runs.code")
     emu.mem_write(address, b"\xc3")
     run = Run()
-    run.type = EntryPointType.CALL
+    run.type = RunType.CALL
     run.start_addr = address
     run.args = []
     emu.add_run(run)
@@ -85,7 +85,7 @@ def fake_driver(*, exports=(), majors=(), unload=0):
 
 def driver_entry(return_value: int, error: str | None = None) -> Run:
     run = Run()
-    run.type = EntryPointType.DRIVER_ENTRY
+    run.type = RunType.DRIVER_ENTRY
     run.return_value = return_value
     if error is not None:
         run.error = ErrorInfo(type=ErrorType(error))

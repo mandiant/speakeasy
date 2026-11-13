@@ -5,7 +5,7 @@ import unicorn as uc
 
 from speakeasy import Speakeasy, common
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType
+from speakeasy.report import RunType
 from tests.test_run_lifecycle import update_config
 
 
@@ -23,7 +23,7 @@ def api_emu(request):
 def queue_run(emu, address, name):
     run = Run()
     run.start_addr = address
-    run.type = EntryPointType.CALL
+    run.type = RunType.CALL
     run.name = name
     run.args = []
     emu.add_run(run)

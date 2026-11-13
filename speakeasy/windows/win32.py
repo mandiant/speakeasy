@@ -20,7 +20,7 @@ from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import Win32EmuError, WindowsEmuError
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType, ErrorInfo, ErrorType, FileType
+from speakeasy.report import ErrorInfo, ErrorType, FileType, RunType
 from speakeasy.windows import objman
 from speakeasy.windows.com import COM
 from speakeasy.windows.loaders import (
@@ -195,7 +195,7 @@ class Win32Emulator(WindowsEmulator):
             if base < cb_addr < base + module.image_size:
                 run = Run()
                 run.start_addr = cb_addr
-                run.type = EntryPointType.TLS_CALLBACK
+                run.type = RunType.TLS_CALLBACK
                 run.name = str(i)
                 run.args = [base, DLL_PROCESS_ATTACH, 0]
                 self.add_run(run)
@@ -211,10 +211,10 @@ class Win32Emulator(WindowsEmulator):
 
         if not module.is_exe():
             run.args = [module.base, DLL_PROCESS_ATTACH, 0]
-            run.type = EntryPointType.DLL_ENTRY
+            run.type = RunType.DLL_ENTRY
             run.name = "DLL_PROCESS_ATTACH"
         else:
-            run.type = EntryPointType.MODULE_ENTRY
+            run.type = RunType.MODULE_ENTRY
             run.args = [self.mem_map(8, tag=f"emu.module_arg_{i}") for i in range(4)]
 
         if entry_point is not None or module.is_exe() or ep != module.base:
@@ -237,7 +237,7 @@ class Win32Emulator(WindowsEmulator):
                     ):
                         continue
                     run = Run()
-                    run.type = EntryPointType.EXPORT
+                    run.type = RunType.EXPORT
                     run.name = exp.name or None
                     run.start_addr = exp.address
                     if exp.name and exp.name.startswith("ServiceMain"):
@@ -449,7 +449,7 @@ class Win32Emulator(WindowsEmulator):
         self.set_func_args(stack_addr, self.return_hook, 0x7000, conv=_arch.CALL_CONV_STDCALL)
 
         run = Run()
-        run.type = EntryPointType.SHELLCODE
+        run.type = RunType.SHELLCODE
         run.start_addr = sc_addr + offset
         run.instr_cnt = 0
         args = [self.mem_map(1024, tag=f"emu.shellcode_arg_{i}", base=0x41420000 + i) for i in range(4)]
@@ -555,7 +555,7 @@ class Win32Emulator(WindowsEmulator):
         thread. So these runs return to a jump in kernel32 that goes to the return hook. A search down from the
         return address finds the headers of kernel32. The other runs return to the return hook.
         """
-        if run.type not in (EntryPointType.MODULE_ENTRY, EntryPointType.THREAD):
+        if run.type not in (RunType.MODULE_ENTRY, RunType.THREAD):
             return self.return_hook
         if self.thread_return_addr is None:
             kernel32 = self.get_mod_by_name("kernel32")

@@ -4,7 +4,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.profiler import Run
-from speakeasy.report import EntryPointType
+from speakeasy.report import RunType
 
 # mov eax, 2; ret
 RETURN_2 = b"\xb8\x02\x00\x00\x00\xc3"
@@ -33,7 +33,7 @@ def queue(emu, code: bytes, name: str) -> Run:
     emu.mem_write(address, code)
     run = Run()
     run.start_addr = address
-    run.type = EntryPointType.CALL
+    run.type = RunType.CALL
     run.name = name
     run.args = []
     emu.add_run(run)
@@ -51,7 +51,7 @@ def ran(emu) -> list[tuple[str, str | None, int | None]]:
     return [
         (run.name, run.error.type.value if run.error else None, run.return_value)
         for run in emu.runs
-        if run.type == EntryPointType.CALL
+        if run.type == RunType.CALL
     ]
 
 

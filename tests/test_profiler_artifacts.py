@@ -18,7 +18,7 @@ from speakeasy.profiler_events import (
     ThreadInjectEvent,
     TracePosition,
 )
-from speakeasy.report import EntryPointType
+from speakeasy.report import RunType
 from speakeasy.windows.fileman import File
 
 
@@ -34,7 +34,7 @@ class TargetProcess:
 def build_report(profiler: Profiler, run: Run):
     run.args = []
     run.start_addr = 0x401000
-    run.type = EntryPointType.MODULE_ENTRY
+    run.type = RunType.MODULE_ENTRY
     profiler.add_run(run)
     profiler.stop_run_clock()
     return profiler.get_report()
