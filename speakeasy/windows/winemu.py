@@ -30,6 +30,7 @@ from speakeasy.binemu import BinaryEmulator
 from speakeasy.config import parse_start_time
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
+from speakeasy.memmgr import MemMap
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
 from speakeasy.report import AccessType, Arch, ErrorInfo, ErrorType, FileType, RegionInfo, RunType
@@ -366,6 +367,37 @@ class RunLimits:
         counts the instructions of all starts of Unicorn in one call.
         """
         return self.remaining if self.budget > 0 else 0
+
+
+@dataclass(frozen=True)
+class RegionPart:
+    """
+    One memory region of the report: a memory map, or the headers or one section of a module image in it.
+
+    ``module`` is the file name of the module for a part of an image. ``section`` is ``headers`` or the
+    section name, or ``None`` for the full image.
+    """
+
+    mm: MemMap
+    base: int
+    size: int
+    perms: int
+    tag: str | None
+    module: str | None = None
+    section: str | None = None
+
+    def to_region_info(self) -> RegionInfo:
+        return RegionInfo(
+            base=self.base,
+            size=self.size,
+            perms=get_prot_string(self.perms),
+            tag=self.tag,
+            module=self.module,
+            section=self.section,
+        )
+
+    def contains(self, address: int) -> bool:
+        return self.base <= address < self.base + self.size
 
 
 class WindowsEmulator(BinaryEmulator):
@@ -2743,11 +2775,10 @@ class WindowsEmulator(BinaryEmulator):
         return self._raise_memory_fault(address, "fetch")
 
     def _resolve_module_offset(self, addr: int) -> tuple[str, int] | None:
-        """Return the name of the loaded module that contains addr and the offset of addr in it, or None."""
+        """Return the file name of the loaded module that contains addr and the offset of addr in it, or None."""
         mod = self.get_module_from_addr(addr)
         if mod:
-            name = getattr(mod, "name", None) or getattr(mod, "path", None) or "unknown"
-            return name, addr - mod.base
+            return mod.get_base_name() or mod.name or "unknown", addr - mod.base
         return None
 
     def _format_module_offset(self, addr: int) -> str:
@@ -2758,32 +2789,92 @@ class WindowsEmulator(BinaryEmulator):
         name, offset = resolved
         return f"{name}+{offset:#x}"
 
+    def _get_image_module(self, mm: MemMap) -> RuntimeModule | None:
+        """Get the module whose image is the memory map ``mm``, or None."""
+        if not (mm.tag or "").startswith("emu.module."):
+            return None
+        mod: RuntimeModule
+        for mod in self.modules:
+            if mod.base == mm.base and mod.image_size > 0:
+                return mod
+        return None
+
+    def _get_full_region_part(self, mm: MemMap) -> RegionPart:
+        """Get the region of the full memory map: the full image for a module image."""
+        mod = self._get_image_module(mm)
+        if mod is None:
+            return RegionPart(mm, mm.base, mm.size, mm.prot, mm.get_tag_without_address())
+        return RegionPart(mm, mm.base, mm.size, mm.prot, "emu.module", mod.get_base_name() or mod.name)
+
+    def get_region_parts(self, mm: MemMap) -> list[RegionPart]:
+        """
+        Get the regions of the report in the memory map ``mm``.
+
+        A module image with sections gives one region for the headers and one region for each section.
+        Another memory map gives one region.
+        """
+        mod = self._get_image_module(mm)
+        if mod is None or not mod.sections:
+            return [self._get_full_region_part(mm)]
+        name = mod.get_base_name() or mod.name
+        parts = []
+        headers_size = min(sect.virtual_address for sect in mod.sections)
+        if headers_size:
+            parts.append(RegionPart(mm, mm.base, headers_size, common.PERM_MEM_READ, "emu.module", name, "headers"))
+        for sect in mod.sections:
+            parts.append(
+                RegionPart(
+                    mm, mm.base + sect.virtual_address, sect.virtual_size, sect.perms, "emu.module", name, sect.name
+                )
+            )
+        return parts
+
+    def get_region_part(self, address: int) -> RegionPart | None:
+        """
+        Get the region of the report that contains ``address``, or None if ``address`` is not mapped.
+
+        For an address in a module image outside the headers and the sections, get the full image.
+        """
+        mm = self.get_address_map(address)
+        if mm is None:
+            return None
+        for part in self.get_region_parts(mm):
+            if part.contains(address):
+                return part
+        return self._get_full_region_part(mm)
+
+    def get_region_base(self, address: int) -> int | None:
+        """Get the base of the region of the report that contains ``address``, or None if it is not mapped."""
+        part = self.get_region_part(address)
+        return part.base if part else None
+
     def _resolve_region_info(self, addr: int) -> RegionInfo | None:
         """Return a RegionInfo for the region containing addr, or None if unmapped."""
-        for m in self.get_mem_maps():
-            if m.base <= addr <= (m.base + m.size) - 1:
-                prot = get_prot_string(m.prot) if m.prot is not None else None
-                return RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, perms=prot)
-        return None
+        part = self.get_region_part(addr)
+        return part.to_region_info() if part else None
 
     def _find_nearby_regions(self, addr: int, count: int = 2) -> list[RegionInfo]:
         """Return up to ``count`` memory regions nearest to an unmapped address."""
-        maps = self.get_mem_maps()
-        if not maps:
-            return []
         distances = []
-        for m in maps:
-            end = m.base + m.size - 1
-            if addr < m.base:
-                dist = m.base - addr
-            elif addr > end:
-                dist = addr - end
-            else:
-                continue
-            prot = get_prot_string(m.prot) if m.prot is not None else None
-            distances.append((dist, RegionInfo(tag=m.tag or "unknown", base=m.base, size=m.size, perms=prot)))
+        for mm in self.get_mem_maps():
+            for part in self.get_region_parts(mm):
+                end = part.base + part.size - 1
+                if addr < part.base:
+                    dist = part.base - addr
+                elif addr > end:
+                    dist = addr - end
+                else:
+                    continue
+                distances.append((dist, part))
         distances.sort(key=lambda x: x[0])
-        return [r for _, r in distances[:count]]
+        return [part.to_region_info() for _, part in distances[:count]]
+
+    @staticmethod
+    def _describe_region(region: RegionInfo) -> str:
+        """Get a short name of a region for a summary, such as ``sample.exe .text`` or ``api.VirtualAlloc``."""
+        if region.module:
+            return f"{region.module} {region.section}" if region.section else region.module
+        return region.tag or "untagged"
 
     def _build_context_summary(
         self,
@@ -2815,10 +2906,12 @@ class WindowsEmulator(BinaryEmulator):
             parts.append(f"from pc=0x{pc:x}")
         if address_region:
             ri = address_region
-            parts.append(f"in {ri.tag} [0x{ri.base:x}-0x{ri.base + ri.size - 1:x}]")
+            parts.append(f"in {self._describe_region(ri)} [0x{ri.base:x}-0x{ri.base + ri.size - 1:x}]")
         elif nearby_regions:
             nearest = nearby_regions[0]
-            parts.append(f"nearest: {nearest.tag} [0x{nearest.base:x}-0x{nearest.base + nearest.size - 1:x}]")
+            parts.append(
+                f"nearest: {self._describe_region(nearest)} [0x{nearest.base:x}-0x{nearest.base + nearest.size - 1:x}]"
+            )
         return "; ".join(parts)
 
     def get_error_info(

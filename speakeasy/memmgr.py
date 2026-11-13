@@ -45,6 +45,13 @@ class MemMap:
         self.block_base: int = block_base
         self.block_size: int = block_size
 
+    def get_tag_without_address(self) -> str | None:
+        """Get the tag without the ``.0x<base>`` suffix, or ``None`` if the allocation has no tag."""
+        suffix = f".0x{self.base:x}"
+        if self.tag and self.tag.endswith(suffix):
+            return self.tag[: -len(suffix)] or None
+        return self.tag or None
+
     def __hash__(self):
         return hash(self.base)
 

@@ -43,14 +43,46 @@ class StringsReport(BaseModel):
 
 
 class RegionInfo(BaseModel):
-    """A memory region near a fault."""
+    """
+    One memory region: an allocation of the memory manager, or one part of a module image.
+
+    The emulator splits the image of a module into one region for the headers and one region
+    for each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give
+    the image and the part.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    tag: str = Field(description="Tag of the memory region.")
     base: HexInt = Field(description="Base address of the region.")
     size: int = Field(description="Size of the region in bytes.")
-    perms: str | None = Field(default=None, description="Permissions, such as ``r-x``.")
+    perms: str = Field(
+        description=(
+            "Permissions, such as ``r-x`` or ``rw-``. For a part of a module image, the permissions from the "
+            "section header, and ``r--`` for the headers."
+        )
+    )
+    tag: str | None = Field(
+        default=None,
+        description=(
+            "Tag of the memory manager, such as ``api.VirtualAlloc``, ``api.heap.HeapAlloc`` or ``emu.stack``. "
+            "``emu.module`` for a part of a module image. Absent when the region has no tag."
+        ),
+    )
+    module: str | None = Field(
+        default=None,
+        description=(
+            "File name of the module, such as ``sample.exe`` or ``kernel32.dll``, the same as "
+            "``memory.modules[].name``. Only for a part of a module image."
+        ),
+    )
+    section: str | None = Field(
+        default=None,
+        description=(
+            "Name of the section, such as ``.text``, or ``headers`` for the PE headers. Absent for a region that is "
+            "not part of a module image, for a module image with no sections, and for an address in a module image "
+            "that is outside the headers and the sections. In the last two cases, the region is the full image."
+        ),
+    )
 
 
 class ErrorType(str, Enum):
@@ -158,7 +190,10 @@ class ErrorInfo(BaseModel):
     )
     pc_module: str | None = Field(
         default=None,
-        description="Name of the module that contains the faulting PC, for example ``sample.exe``.",
+        description=(
+            "File name of the module that contains the faulting PC, for example ``sample.exe``. The same as "
+            "``memory.modules[].name``."
+        ),
     )
     pc_offset: int | None = Field(
         default=None,
@@ -316,20 +351,15 @@ class MemoryAccesses(BaseModel):
     execs: int = Field(description="Number of instructions that ran in the region.")
 
 
-class MemoryRegion(BaseModel):
+class MemoryRegion(RegionInfo):
     """
     One memory region at the end of a run.
 
     The emulator splits the image of a module into one region for the headers and one region
-    for each section.
+    for each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give
+    the image and the part.
     """
 
-    model_config = ConfigDict(extra="forbid")
-
-    tag: str = Field(description="Tag of the region. The tag of a module region starts with ``emu.module.``.")
-    base: HexInt = Field(description="Base address of the region.")
-    size: int = Field(description="Size of the region in bytes.")
-    perms: str = Field(description="Permissions at the end of the run, such as ``r-x`` or ``rw-``.")
     is_free: bool = Field(
         default=False,
         description="If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
@@ -349,30 +379,17 @@ class MemoryRegion(BaseModel):
     )
 
 
-class ModuleSegment(BaseModel):
-    """One section of a loaded module."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(description="Name of the section, such as ``.text``.")
-    base: HexInt = Field(description="Virtual address of the section.")
-    size: int = Field(description="Virtual size of the section in bytes.")
-    perms: str = Field(description="Permissions from the section header, such as ``r-x``.")
-
-
 class LoadedModule(BaseModel):
     """A module that is loaded at the end of a run."""
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(description="Name of the module.")
+    name: str = Field(
+        description="File name of the module, such as ``sample.exe``. The ``module`` of the regions of its image."
+    )
     path: str = Field(description="Emulated path of the module.")
     base: HexInt = Field(description="Base address of the module.")
     size: int = Field(description="Size of the module image in bytes.")
-    segments: list[ModuleSegment] = Field(
-        default_factory=list,
-        description="Sections of the module.",
-    )
 
 
 class MemoryLayout(BaseModel):
@@ -382,7 +399,7 @@ class MemoryLayout(BaseModel):
 
     layout: list[MemoryRegion] = Field(
         default_factory=list,
-        description="Memory regions, with one region for the headers and one for each section of a module.",
+        description="Memory regions, with one region for the headers and one for each section of a module image.",
     )
     modules: list[LoadedModule] = Field(
         default_factory=list,

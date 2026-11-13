@@ -721,126 +721,46 @@ class Win32Emulator(WindowsEmulator):
 
     def _capture_memory_layout(self, run: Run) -> None:
         """Record the memory layout and the loaded modules in the report of the run."""
-        EXCLUDED_TAG_PREFIXES = ("emu.stack",)
-
-        capture_dumps = self.config.memory.final_contents
-
-        modules_by_base: dict[int, Any] = {}
-        for m in self.modules:
-            if m.image_size > 0:
-                modules_by_base[m.base] = m
+        capture_dumps = self.config.memory.final_contents and self.profiler is not None
 
         for mm in self.get_mem_maps():
-            prot = get_prot_string(mm.prot)
-            access_stats = None
-            if mm in run.mem_access:
-                ma = run.mem_access[mm]
-                access_stats = {"reads": ma.reads, "writes": ma.writes, "execs": ma.execs}
-
-            tag = mm.tag or ""
-            mm_base = mm.base
-            mm_size = mm.size
-
-            mod = modules_by_base.get(mm_base) if tag.startswith("emu.module.") else None
-            sections = getattr(mod, "sections", None) if mod else None
-
-            if mod is not None and sections:
-                mod_name = ntpath.basename(mod.emu_path) or "unknown"
+            data = None
+            if capture_dumps and not (mm.tag or "").startswith("emu.stack"):
                 try:
-                    full_data = self.mem_read(mm_base, mm_size) if capture_dumps else None
+                    data = self.mem_read(mm.base, mm.size)
                 except Exception:
-                    full_data = None
-
-                first_section_rva = sections[0].virtual_address if sections else mm_size
-                hdr_size = first_section_rva
-                hdr_tag = f"emu.module.{mod_name}.headers.0x{mm_base:x}"
-                hdr_access = access_stats
-                hdr_key = (mm_base, 0)
-                hdr_ma = run.section_access.get(hdr_key)
-                if hdr_ma:
-                    hdr_access = {"reads": hdr_ma.reads, "writes": hdr_ma.writes, "execs": hdr_ma.execs}
-                hdr_dict: dict = {
-                    "tag": hdr_tag,
-                    "base": mm_base,
-                    "size": hdr_size,
-                    "perms": "r--",
+                    data = None
+            for part in self.get_region_parts(mm):
+                # The accesses outside every section of an image are the accesses of the headers.
+                if part.section is None or part.section == "headers":
+                    access = run.mem_access.get(mm)
+                else:
+                    access = run.section_access.get((mm.base, part.base - mm.base))
+                region: dict[str, Any] = {
+                    "base": part.base,
+                    "size": part.size,
+                    "perms": get_prot_string(part.perms),
+                    "tag": part.tag,
+                    "module": part.module,
+                    "section": part.section,
                     "is_free": mm.free,
-                    "accesses": hdr_access,
+                    "accesses": (
+                        {"reads": access.reads, "writes": access.writes, "execs": access.execs} if access else None
+                    ),
                 }
-                if full_data and not hdr_tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
-                    try:
-                        hdr_dict["data_ref"] = self.profiler.artifact_store.put_bytes(full_data[:hdr_size])
-                    except Exception:
-                        pass
-                run.memory_regions.append(hdr_dict)
-
-                for sect in sections:
-                    sec_addr = sect.virtual_address + mm_base
-                    sec_prot = get_prot_string(sect.perms)
-
-                    # access_stats counts only the accesses outside every section, which are the header accesses.
-                    sec_access = None
-                    sec_key = (mm_base, sect.virtual_address)
-                    sec_ma = run.section_access.get(sec_key)
-                    if sec_ma:
-                        sec_access = {"reads": sec_ma.reads, "writes": sec_ma.writes, "execs": sec_ma.execs}
-
-                    sec_tag = f"emu.module.{mod_name}.{sect.name}.0x{sec_addr:x}"
-                    sec_dict: dict = {
-                        "tag": sec_tag,
-                        "base": sec_addr,
-                        "size": sect.virtual_size,
-                        "perms": sec_prot,
-                        "is_free": mm.free,
-                        "accesses": sec_access,
-                    }
-                    if full_data and not sec_tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
-                        try:
-                            sec_dict["data_ref"] = self.profiler.artifact_store.put_bytes(
-                                full_data[sect.virtual_address : sect.virtual_address + sect.virtual_size]
-                            )
-                        except Exception:
-                            pass
-                    run.memory_regions.append(sec_dict)
-            else:
-                region_dict: dict = {
-                    "tag": tag,
-                    "base": mm_base,
-                    "size": mm_size,
-                    "perms": prot,
-                    "is_free": mm.free,
-                    "accesses": access_stats,
-                }
-
-                if capture_dumps and not tag.startswith(EXCLUDED_TAG_PREFIXES) and self.profiler:
-                    try:
-                        data = self.mem_read(mm_base, mm_size)
-                        region_dict["data_ref"] = self.profiler.artifact_store.put_bytes(data)
-                    except Exception:
-                        pass
-
-                run.memory_regions.append(region_dict)
+                if data is not None and self.profiler is not None:
+                    offset = part.base - mm.base
+                    region["data_ref"] = self.profiler.artifact_store.put_bytes(data[offset : offset + part.size])
+                run.memory_regions.append(region)
 
         for m in self.modules:
             if m.image_size == 0:
                 continue
-            mod_name = ntpath.basename(m.emu_path) or "unknown"
-            segments = []
-            for sect in m.sections:
-                segments.append(
-                    {
-                        "name": sect.name,
-                        "base": sect.virtual_address + m.base,
-                        "size": sect.virtual_size,
-                        "perms": get_prot_string(sect.perms),
-                    }
-                )
             run.loaded_modules.append(
                 {
-                    "name": mod_name,
+                    "name": m.get_base_name() or m.name,
                     "path": m.emu_path,
                     "base": m.base,
                     "size": m.image_size,
-                    "segments": segments,
                 }
             )

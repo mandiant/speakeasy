@@ -25,21 +25,11 @@ def get_primary_sections(report):
     for ep in report.runs:
         if ep.memory is None:
             continue
-
-        primary = max(
-            (m for m in ep.memory.modules if m.segments),
-            key=lambda m: len(m.segments),
-            default=None,
-        )
-        if not primary:
-            continue
-
-        region_by_addr = {r.base: r for r in ep.memory.layout}
-        sections = {}
-        for seg in primary.segments:
-            region = region_by_addr.get(seg.base)
-            if region:
-                sections[seg.name.lstrip(".")] = region
+        sections = {
+            region.section.lstrip("."): region
+            for region in ep.memory.layout
+            if region.module == ep.memory.modules[0].name and region.section is not None
+        }
         if sections:
             return sections
     return {}
@@ -76,7 +66,7 @@ def test_untouched_section_has_no_accesses(base_config):
         report = se.get_report()
 
     image = range(module.base, module.base + module.image_size)
-    layout = {r.tag.split(".")[-2]: r for r in report.runs[0].memory.layout if r.base in image}
+    layout = {r.section.lstrip("."): r for r in report.runs[0].memory.layout if r.base in image}
     assert layout["headers"].accesses is not None
     assert layout["headers"].accesses.reads > 0
     assert layout["data"].accesses is None

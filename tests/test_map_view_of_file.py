@@ -32,7 +32,7 @@ def test_map_view_of_file_uses_readable_protections(base_config, tmp_path):
     ep = report.runs[0]
     assert ep.memory is not None
 
-    map_views = [region for region in ep.memory.layout if region.tag.startswith("api.MapViewOfFile.")]
+    map_views = [region for region in ep.memory.layout if (region.tag or "").startswith("api.MapViewOfFile")]
     assert len(map_views) >= 2
 
     for region in map_views:

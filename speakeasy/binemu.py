@@ -558,8 +558,13 @@ class BinaryEmulator(MemoryManager, ABC):
                 trace.append(StackEntry(offset=offset))
                 break
             ptr = int.from_bytes(data, "little")
-            trace.append(StackEntry(offset=offset, value=ptr, tag=self.get_address_tag(ptr) or None))
+            trace.append(StackEntry(offset=offset, value=ptr, region=self.get_region_base(ptr)))
         return trace
+
+    def get_region_base(self, address: int) -> int | None:
+        """Get the base of the memory map that contains an address, or ``None`` if it is not mapped."""
+        mm = self.get_address_map(address)
+        return mm.base if mm else None
 
     def get_pc(self) -> int:
         """Get the value of the current program counter."""
