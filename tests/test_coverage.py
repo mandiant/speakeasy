@@ -13,7 +13,7 @@ def test_coverage_enabled(config, load_test_bin):
     finally:
         se.shutdown()
 
-    eps = report.entry_points
+    eps = report.runs
     assert len(eps) > 0
 
     eps_with_coverage = [ep for ep in eps if ep.coverage is not None]

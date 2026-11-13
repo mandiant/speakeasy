@@ -25,7 +25,7 @@ def wdm_report(request, base_config, load_test_bin):
 
 
 def test_wdm_driver_load_unload(wdm_report):
-    eps = wdm_report.entry_points
+    eps = wdm_report.runs
     driver_entry = eps[0]
 
     create_dev = get_api_calls(driver_entry, "ntoskrnl.IoCreateDeviceSecure")
@@ -60,7 +60,7 @@ def test_wdm_report_describes_the_input_driver(request, wdm_report):
 
 
 def test_wdm_entry_points_name_each_driver_routine(wdm_report):
-    assert [(ep.type, ep.name) for ep in wdm_report.entry_points] == [
+    assert [(ep.type, ep.name) for ep in wdm_report.runs] == [
         ("driver_entry", None),
         ("irp", "IRP_MJ_CREATE"),
         ("irp", "IRP_MJ_DEVICE_CONTROL"),
@@ -73,7 +73,7 @@ def test_wdm_entry_points_name_each_driver_routine(wdm_report):
 
 
 def test_wdm_irp_handlers(wdm_report):
-    eps = wdm_report.entry_points
+    eps = wdm_report.runs
 
     irp_handlers = [ep for ep in eps if ep.type == "irp"]
     assert len(irp_handlers) == 6

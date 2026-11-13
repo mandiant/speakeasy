@@ -423,7 +423,7 @@ def test_bcrypt_aes_gcm_round_trip_matches_pycryptodome(config: dict, load_test_
     r"""bcrypt_cases.c encrypts with AES-GCM and writes the cipher text and the tag to c:\gcm.bin."""
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(f"bcrypt_cases_{arch}.exe.xz")))
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         dropped = [f.get_contents() for f in se.get_dropped_files()]
 
     assert run.error is None

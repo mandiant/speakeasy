@@ -411,7 +411,7 @@ def test_api_call_from_zw_allocate_virtual_memory_records_dynamic_code(any_drive
     se.mem_write(base + 0x20, code)
     se.call(base + 0x20)
 
-    entry = se.get_report().entry_points[-1]
+    entry = se.get_report().runs[-1]
     assert entry.error is None
     assert [seg.base for seg in entry.dynamic_code_segments] == [base]
 

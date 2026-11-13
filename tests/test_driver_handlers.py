@@ -357,7 +357,7 @@ def test_wdf_version_bind_copies_the_table_for_kmdf_1_13_and_older(driver64_emu:
     driver_create = entries[WDF_DRIVER_CREATE_INDEX]
     driver_object = alloc(se, b"\x00" * 0x200)
     se.call(driver_create, [driver_globals, driver_object, _unicode_string(se, USBSAMP), 0, 0, 0])
-    run = se.get_report().entry_points[-1]
+    run = se.get_report().runs[-1]
     assert [e.api_name for e in run.events if e.event == "api"] == ["wdfldr.WdfDriverCreate"]
 
 

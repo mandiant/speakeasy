@@ -48,7 +48,7 @@ def test_x86_probe_of_jump_target_reaches_guest_seh(config, access, handled):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert api_events(run) == []
         assert se.get_address_map(target) is None
         if handled:
@@ -73,7 +73,7 @@ def test_x64_probe_of_embedded_jump_target_is_typed_fault(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error.type == "invalid_read"
         assert run.error.pc == code + len(setup)
         assert api_events(run) == []
@@ -93,7 +93,7 @@ def test_handler_access_of_an_unmapped_guest_pointer_is_typed_fault(config, api,
 
         se.run_shellcode(code)
 
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         assert error.type == f"invalid_{access}"
         assert error.access_type == access
         assert error.address == bad
@@ -109,5 +109,5 @@ def test_api_arguments_past_the_top_of_the_stack_are_a_typed_fault(config):
 
         se.run_shellcode(code)
 
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         assert (error.type, error.address) == ("invalid_read", top)

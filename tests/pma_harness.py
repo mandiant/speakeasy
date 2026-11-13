@@ -103,7 +103,7 @@ def run_case(base_config: dict[str, Any], case: PmaCase, tmp_path: Path):
 
 
 def collect_behavior(report) -> ObservedBehavior:
-    events = [evt for ep in report.entry_points for evt in ep.events]
+    events = [evt for ep in report.runs for evt in ep.events]
     api_events = [evt for evt in events if evt.event == "api"]
 
     api_names = {normalize_value(evt.api_name) for evt in api_events if evt.api_name}
@@ -114,7 +114,7 @@ def collect_behavior(report) -> ObservedBehavior:
     }
     files.update(
         normalize_value(dropped.path)
-        for ep in report.entry_points
+        for ep in report.runs
         for dropped in ep.dropped_files
         if getattr(dropped, "path", None)
     )
@@ -139,7 +139,7 @@ def collect_behavior(report) -> ObservedBehavior:
     unsupported_api_count = sum(1 for evt in events if evt.event == "unsupported_api")
     unsupported_api_count += sum(1 for evt in api_events if (evt.api_name or "").lower().startswith("unsupported"))
 
-    entrypoint_errors = {ep.error.type for ep in report.entry_points if ep.error and getattr(ep.error, "type", None)}
+    entrypoint_errors = {ep.error.type for ep in report.runs if ep.error and getattr(ep.error, "type", None)}
 
     return ObservedBehavior(
         api_names=api_names,
@@ -154,7 +154,7 @@ def collect_behavior(report) -> ObservedBehavior:
 
 def assert_case(case: PmaCase, report, observed: ObservedBehavior) -> None:
     assert report.errors == []
-    assert report.entry_points
+    assert report.runs
     assert observed.unsupported_api_count == 0
 
     for api_name in case.expected_apis:

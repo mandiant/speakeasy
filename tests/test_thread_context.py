@@ -26,7 +26,7 @@ def run(config, build):
 
     se.mem_write(code, build(se, data, call) + RETURN_42)
     se.run_shellcode(code)
-    return se, data, se.get_report().entry_points[0]
+    return se, data, se.get_report().runs[0]
 
 
 def test_get_thread_context_fills_only_requested_sections(config):

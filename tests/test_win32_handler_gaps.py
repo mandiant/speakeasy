@@ -45,9 +45,7 @@ def last_error(se: Speakeasy) -> int:
 
 
 def api_names(se: Speakeasy) -> list[list[str]]:
-    return [
-        [event.api_name for event in entry.events if event.event == "api"] for entry in se.get_report().entry_points
-    ]
+    return [[event.api_name for event in entry.events if event.event == "api"] for entry in se.get_report().runs]
 
 
 def test_wait_on_address_returns_at_once_when_the_value_differs(any_emu: Speakeasy) -> None:
@@ -113,7 +111,7 @@ def test_wait_on_address_with_infinite_timeout_ends_the_run() -> None:
             ["kernel32.CreateThread", "kernel32.WaitOnAddress"],
             ["kernel32.WakeByAddressSingle"],
         ]
-        assert [entry.error for entry in se.get_report().entry_points] == [None, None]
+        assert [entry.error for entry in se.get_report().runs] == [None, None]
 
 
 def delay_descriptor(se: Speakeasy, dll: str, thunks: list[int | str]) -> tuple[int, list[int]]:

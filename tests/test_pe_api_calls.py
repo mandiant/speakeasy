@@ -67,7 +67,7 @@ def test_timeout_budget_public_pe_iat_calls_are_independent():
         se.run_module(module)
         se.call(module.base + 0x1000)
         assert se.reg_read("eax") == 0x1337
-        entries = se.get_report().entry_points
+        entries = se.get_report().runs
         assert len(entries) == 2
         assert all(entry.error is None and api_names(entry) == ["kernel32.GetTickCount"] for entry in entries)
 
@@ -97,7 +97,7 @@ def test_public_guest_data_execution_and_nx_policy():
         adjacent = permissions(module.base + 0x3000)
         assert previous == unicorn.UC_PROT_READ | unicorn.UC_PROT_WRITE
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error is None and entry.return_value == 77
         assert hits == ["kernel32.GetTickCount"]
         assert api_names(entry) == hits
@@ -122,7 +122,7 @@ def test_public_malformed_optional_pe_inventory_still_executes(malformation, cap
     with Speakeasy(config=configured()) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error is None and api_names(entry) == ["kernel32.GetTickCount"]
         assert caplog.records
 
@@ -145,7 +145,7 @@ def test_public_filtered_import_does_not_shift_valid_iat_call(oft_zero):
         bound = int.from_bytes(se.mem_read(module.base + slots["kernel32.dll", "GetTickCount"], 4), "little")
         assert bound == se.emu.get_proc("kernel32", "GetTickCount")
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error is None and api_names(entry) == ["kernel32.GetTickCount"]
 
 
@@ -164,7 +164,7 @@ def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_ex
     with Speakeasy(config=configured(**{"apis.stubs": always_exist})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         if always_exist:
             assert entry.error is None
             assert api_names(entry) == [f"kernel32.{unknown}", "kernel32.GetTickCount"]
@@ -187,7 +187,7 @@ def test_shfolder_iat_call_runs_the_shell32_handler():
     with Speakeasy(config=configured()) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         path = se.read_mem_string(module.base + 0x2000, 1)
     assert entry.error is None
     assert api_names(entry) == ["shell32.SHGetFolderPathA"]
@@ -200,7 +200,7 @@ def test_icmp_iat_call_runs_from_the_iphlpapi_prototype():
     with Speakeasy(config=configured()) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
     assert entry.error is None
     assert api_names(entry) == ["iphlpapi.IcmpCreateFile"]
 
@@ -210,7 +210,7 @@ def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bi
     with Speakeasy(config=configured(**{"apis.stubs": False})) as se:
         module = se.load_module(data=load_test_bin("unknown_import_x86.exe.xz"))
         se.run_module(module)
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         name = module.name
     assert error.type == "unsupported_api"
     assert error.instruction == f"api_trap kernel32.{unknown}"
@@ -229,7 +229,7 @@ def test_public_catalogued_unsafe_iat_call_cannot_use_unknown_fallback():
     with Speakeasy(config=configured(**{"apis.stubs": True})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error.type == "unsupported_api"
         assert entry.error.api_name == f"kernel32.{name}"
         assert api_names(entry) == [f"kernel32.{name}"]
@@ -263,7 +263,7 @@ def test_non_ascii_imported_modules_keep_distinct_callable_identity():
             targets.add(target)
         assert len(targets) == 2
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error is None
         assert hits == [dll + ".Foo" for dll in dlls]
         assert api_names(entry) == hits + ["kernel32.GetTickCount"]
@@ -282,7 +282,7 @@ def test_public_sp_changing_hook_stops_once_without_redispatch():
         se.add_api_hook(hook, "kernel32", "GetTickCount", argc=0)
         module = se.load_module(data=data)
         se.run_module(module)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert hits == ["kernel32.GetTickCount"]
         assert entry.error.type == "api_handler_did_not_return"
         assert entry.error.api_name == "kernel32.GetTickCount"
@@ -297,7 +297,7 @@ def test_api_event_pc_is_the_call_site(architecture, accesses):
     with Speakeasy(config=configured(**{"memory.accesses": accesses})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        (event,) = [event for event in se.get_report().entry_points[0].events if event.event == "api"]
+        (event,) = [event for event in se.get_report().runs[0].events if event.event == "api"]
     call = module.base + 0x1000 + (4 if architecture == 64 else 0)
     assert event.pos.pc == call
 
@@ -311,7 +311,7 @@ def test_nt_create_thread_ex_runs_the_thread(config, load_test_bin):
     """
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(STAGER)))
-        main, *threads = se.get_report().entry_points
+        main, *threads = se.get_report().runs
 
     assert main.error is None
     assert api_names(main)[-3:] == ["ntdll.NtCreateThreadEx", "ntdll.NtWaitForSingleObject", "ntdll.NtTerminateProcess"]
@@ -325,7 +325,7 @@ def test_nt_terminate_process_ends_the_run(config, load_test_bin):
     """0d0988a3 ends at RVA 0x1000 with NtTerminateProcess(NtCurrentProcess(), 0), followed by ud2."""
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(STAGER)), entry_point=0x1000)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
 
     assert entry.error is None
     assert api_names(entry) == ["ntdll.NtTerminateProcess"]
@@ -350,7 +350,7 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
 
         se.add_code_hook(callback, begin=module.base + 0xCB30, end=module.base + 0xCB30)
         se.run_module(module, entry_point=0xC200)
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
 
     enum, find = [event for event in entry.events if event.event == "api"][:2]
     assert enum.api_name == "kernel32.EnumResourceNamesW"
@@ -371,7 +371,7 @@ def test_api_log_and_event_show_a_negative_return_as_the_register_value(
     data, _ = build_pe(architecture, text=calls(architecture, [("lz32.dll", "LZSeek")], prefix=pushes), imports=imports)
     with caplog.at_level(logging.INFO, logger="speakeasy.windows.winemu"), Speakeasy(config=configured()) as se:
         se.run_module(se.load_module(data=data))
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
     events = [event for event in entry.events if event.event == "api"]
     assert [(event.api_name, event.return_value) for event in events] == [("lz32.LZSeek", return_value)]
     assert f"-> {hex(return_value)}" in caplog.text
@@ -384,7 +384,7 @@ def test_api_log_and_event_keep_the_64_bits_of_an_x86_double_return(caplog: pyte
     data, _ = build_pe(32, text=text, imports={"msvcrt.dll": ["floor"]})
     with caplog.at_level(logging.INFO, logger="speakeasy.windows.winemu"), Speakeasy(config=configured()) as se:
         se.run_module(se.load_module(data=data))
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
     events = [event for event in entry.events if event.event == "api"]
     assert [(event.api_name, event.return_value) for event in events] == [("msvcrt.floor", 0xC008000000000000)]
     assert "-> 0xc008000000000000" in caplog.text
@@ -418,5 +418,5 @@ def test_api_events_of_one_thunk_keep_each_caller():
     with Speakeasy(config=configured()) as se:
         module = se.load_module(data=data)
         se.run_module(module)
-        events = [event for event in se.get_report().entry_points[0].events if event.event == "api"]
+        events = [event for event in se.get_report().runs[0].events if event.event == "api"]
     assert [event.pos.pc for event in events] == [module.base + 0x100B] * 2

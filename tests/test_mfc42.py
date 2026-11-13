@@ -40,7 +40,7 @@ def build_program(dll: str, ordinals: list[int]) -> bytes:
 def test_unsupported_ordinal_import_shows_the_export_name(config: dict, dll: str, ordinal: int, name: str) -> None:
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=build_program(dll, [ordinal])))
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
     module = dll.removesuffix(".dll")
     assert error.type == "unsupported_api"
     assert error.api_name == f"{module}.{name}"
@@ -52,7 +52,7 @@ def test_afx_get_module_state_returns_one_state_with_the_instance_handle(config:
         module = se.load_module(data=build_program("mfc42.dll", [AFX_GET_MODULE_STATE, AFX_GET_MODULE_STATE]))
         base = module.base
         se.run_module(module)
-        assert se.get_report().entry_points[0].error is None
+        assert se.get_report().runs[0].error is None
         first, second = struct.unpack("<II", se.mem_read(base + 0x2000, 8))
         assert first and first == second
         instance, resource = struct.unpack("<II", se.mem_read(first + 8, 8))
@@ -67,6 +67,6 @@ def test_x64_ordinal_import_does_not_run_the_x86_handler(config: dict) -> None:
     data, _ = build_pe(64, text=text, imports={"mfc42.dll": [AFX_GET_MODULE_STATE]})
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=data))
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
     assert error.type == "unsupported_api"
     assert error.api_name == f"mfc42.ordinal_{AFX_GET_MODULE_STATE}"

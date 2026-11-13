@@ -32,7 +32,7 @@ def shellcode_emu(request: pytest.FixtureRequest, config: dict[str, Any]) -> Ite
 
 
 def get_api_names(se: Speakeasy) -> list[str]:
-    run = se.get_report().entry_points[-1]
+    run = se.get_report().runs[-1]
     assert run.error is None
     return [event.api_name for event in run.events if event.event == "api"]
 

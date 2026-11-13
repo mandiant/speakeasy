@@ -20,7 +20,7 @@ def test_exports_run_only_if_runs_exports_is_true(config, load_test_bin, exports
     config["runs"] = {"exports": exports}
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin("dll_test_x86.dll.xz")))
-        assert [ep.type for ep in se.get_report().entry_points] == types
+        assert [ep.type for ep in se.get_report().runs] == types
 
 
 def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
@@ -33,7 +33,7 @@ def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(TAEF_COMMON))
         se.run_module(module)
-        runs = [ep for ep in se.get_report().entry_points if ep.type == "export"]
+        runs = [ep for ep in se.get_report().runs if ep.type == "export"]
 
     assert len(runs) == 10
     assert all(run.name.startswith("??0?$TestDataArray@") for run in runs)

@@ -38,7 +38,7 @@ def test_x86_guest_five_byte_hook_calls_original_trampoline(config, accesses):
 
         se.run_shellcode(caller)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 78
         assert hits == ["kernel32.GetTickCount"]

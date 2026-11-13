@@ -1380,7 +1380,7 @@ def test_toolhelp_names_the_main_process_image(exe_emu: Speakeasy) -> None:
 def test_is_processor_feature_present_agrees_with_cpuid_for_avx(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any], arch: str
 ) -> None:
-    run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).entry_points[0]
+    run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).runs[0]
     assert run.error is None
     assert run.return_value & 0x2, "IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) agrees with CPUID"
     assert run.return_value & 0x4, "IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE) agrees with CPUID"

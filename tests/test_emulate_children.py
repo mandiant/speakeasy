@@ -35,7 +35,7 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
         child = se.emu.get_mod_from_addr(module.base)
         pids = [get_parent(se, module).pid, se.emu.get_current_process().pid]
         report = se.get_report()
-        entries = report.entry_points
+        entries = report.runs
 
     assert (child.name, child.emu_path) == ("child", CHILD_PATH)
     assert report.sha256 == hashlib.sha256(parent).hexdigest()
@@ -55,7 +55,7 @@ def test_child_runs_by_default_unless_runs_children_is_false(config, load_test_b
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.run_module(module)
 
-        assert len(se.get_report().entry_points) == count
+        assert len(se.get_report().runs) == count
 
 
 def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_test_bin, caplog):
@@ -67,7 +67,7 @@ def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_
             se.run_module(module)
         report = se.get_report()
 
-    assert [(ep.type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
+    assert [(ep.type, ep.error) for ep in report.runs] == [("module_entry", None)]
     assert f"skipping child process {CHILD_PATH}" in caplog.text
     assert "Cannot rebase a guest PE without valid relocation data" in caplog.text
 
@@ -78,7 +78,7 @@ def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bi
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.run_module(module)
         child = se.emu.get_current_process()
-        entries = se.get_report().entry_points
+        entries = se.get_report().runs
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[1].return_value == CHILD_BASE
@@ -197,7 +197,7 @@ def test_child_does_not_find_a_mutex_that_only_its_exited_parent_had_open(config
         module = se.load_module(data=build_mutex_parent())
         se.emu.fileman.add_existing_file(CHILD_PATH, build_mutex_child())
         se.run_module(module)
-        entries = se.get_report().entry_points
+        entries = se.get_report().runs
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("thread", None), ("module_entry", None)]
     # The parent's thread runs after ExitProcess, and its handle is still open
@@ -231,7 +231,7 @@ def test_child_started_without_create_process_runs(config, load_test_bin, dll, a
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.add_api_hook(create_process, "kernel32", "CreateProcessA")
         se.run_module(module)
-        entries = se.get_report().entry_points
+        entries = se.get_report().runs
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
     assert entries[1].return_value == module.base
@@ -244,4 +244,4 @@ def test_child_that_is_not_a_pe_is_skipped(config, load_test_bin):
         se.run_module(module)
         report = se.get_report()
 
-    assert [(ep.type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
+    assert [(ep.type, ep.error) for ep in report.runs] == [("module_entry", None)]

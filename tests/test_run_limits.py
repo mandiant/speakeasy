@@ -33,7 +33,7 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
 
         se.run_shellcode(base)
 
-        spinning, created = se.get_report().entry_points
+        spinning, created = se.get_report().runs
         assert spinning.error is not None
         assert spinning.error.type == "max_instructions"
         assert int(spinning.error.pc) == base + thread - 2
@@ -56,7 +56,7 @@ def test_an_api_call_limit_of_0_does_not_end_the_run(config, limit, error, calls
 
         se.run_shellcode(base)
 
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert (run.error.type if run.error else None) == error
         assert [event.api_name for event in run.events if event.event == "api"] == ["kernel32.GetTickCount"] * calls
 
@@ -80,7 +80,7 @@ def test_exit_event_stops_an_api_loop_as_a_timeout(config, load_test_bin):
         se.run_module(module)
 
         assert exit_event.is_set()
-        (entry,) = se.get_report().entry_points
+        (entry,) = se.get_report().runs
         assert entry.error is not None
         assert entry.error.type == "timeout"
         assert module.base <= int(entry.error.pc) < module.base + module.image_size

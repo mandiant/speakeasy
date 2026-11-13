@@ -59,7 +59,7 @@ def test_same_fault_stops_after_three_guest_handlers(session):
 
     session.run_shellcode(code)
 
-    run = session.get_report().entry_points[0]
+    run = session.get_report().runs[0]
     assert run.error.type == "invalid_read"
     assert run.error.pc == fault_pc
     assert handler_calls(session, data) == 3
@@ -70,7 +70,7 @@ def test_repaired_register_allows_the_same_fault_site_again(session):
 
     session.run_shellcode(code)
 
-    run = session.get_report().entry_points[0]
+    run = session.get_report().runs[0]
     assert run.error is None
     assert run.return_value == 42
     assert handler_calls(session, data) == 8
@@ -81,7 +81,7 @@ def test_changed_fault_address_resets_guard_without_guest_progress(session):
 
     session.run_shellcode(code)
 
-    run = session.get_report().entry_points[0]
+    run = session.get_report().runs[0]
     assert run.error.type == "invalid_read"
     assert run.error.pc == fault_pc
     assert handler_calls(session, data) == 6
@@ -93,6 +93,6 @@ def test_fresh_public_call_resets_guard(session):
     session.run_shellcode(code)
     session.call(code)
 
-    runs = session.get_report().entry_points
+    runs = session.get_report().runs
     assert [(run.error.type, run.error.pc) for run in runs] == [("invalid_read", fault_pc)] * 2
     assert handler_calls(session, data) == 6

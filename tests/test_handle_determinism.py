@@ -20,6 +20,6 @@ def test_sequential_runs_are_deterministic(config, load_test_bin, bin_file):
     r1 = run_once()
     r2 = run_once()
 
-    for ep1, ep2 in zip(r1.entry_points, r2.entry_points):
+    for ep1, ep2 in zip(r1.runs, r2.runs):
         assert ep1.pid == ep2.pid
         assert ep1.tid == ep2.tid

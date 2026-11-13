@@ -23,7 +23,7 @@ def _read_error(base_config):
         addr = se.load_shellcode(data=_SC_INVALID_READ, arch="x86")
         se.run_shellcode(addr)
         report = se.get_report()
-        ep = report.entry_points[0]
+        ep = report.runs[0]
         assert ep.error is not None, "shellcode should trigger invalid_read"
         return ep.error
     finally:
@@ -38,7 +38,7 @@ def _write_error(base_config):
         addr = se.load_shellcode(data=_SC_INVALID_WRITE, arch="x86")
         se.run_shellcode(addr)
         report = se.get_report()
-        ep = report.entry_points[0]
+        ep = report.runs[0]
         assert ep.error is not None, "shellcode should trigger invalid_write"
         return ep.error
     finally:
@@ -137,7 +137,7 @@ def test_python_exception_in_speakeasy_is_internal_error(base_config):
 
         se.run_shellcode(code)
 
-        e = se.get_report().entry_points[0].error
+        e = se.get_report().runs[0].error
         assert e is not None
         assert (e.type, e.message) == ("internal_error", "bad handler state")
         assert e.traceback is not None and e.traceback.endswith("ValueError: bad handler state\n")
@@ -152,6 +152,6 @@ def test_fault_after_the_end_of_a_module_is_not_in_the_module(base_config):
         se.mem_write(code, b"\xb8" + struct.pack("<I", end) + b"\xff\xe0")  # mov eax, end; jmp eax
         se.run_shellcode(code)
 
-        e = se.get_report().entry_points[0].error
+        e = se.get_report().runs[0].error
         assert e is not None
         assert (e.type, e.pc, e.pc_module) == ("invalid_fetch", end, None)

@@ -22,7 +22,7 @@ After:
 
 ```python
 report = se.get_report()
-for ep in report.entry_points:
+for ep in report.runs:
     for event in ep.events:
         if event.event == "file_write":
             print(event.path, event.size)
@@ -78,7 +78,7 @@ These values have a new format:
 | `apis[].ret_val` of a handler that returns a negative number | `return_value` | `"-0x1"` | `"0xffffffff"` on x86, `"0xffffffffffffffff"` on x64 |
 | `process_events[].protect` | `protect` | `"PAGE_READWRITE\|PAGE_GUARD"` | `["PAGE_READWRITE", "PAGE_GUARD"]` |
 | `error.regs`, `handled_exceptions[].registers` values | `registers` values | `"0x012f8a34"` | `"0x12f8a34"` |
-| `errors[]` | `errors[]` | traceback text | an object like `entry_points[].error` |
+| `errors[]` | `errors[]` | traceback text | an object like `runs[].error` |
 | `error.stack[]` | `error.stack[]` | `"sp+0x04: 0x0012ff80 -> emu.stack.0x1200000"` | `{"offset": 4, "value": "0x12ff80", "tag": "emu.stack.0x1200000"}` |
 | `network_events.traffic[].proto` of an HTTP request | `proto` of `net_http` | `tcp.http`, `tcp.https` | `http`, `https` |
 | `error.type` | `error.type` | the text of the exception, for example `Invalid instruction (UC_ERR_INSN_INVALID)` | an identifier, for example `invalid_instruction` |
@@ -93,7 +93,7 @@ These keys take one value from a fixed set. The schema lists them:
 |---|---|---|
 | `arch` | `arch` | `x86`, `x64` |
 | `filetype` | `file_type` | `exe`, `dll`, `driver`, `shellcode` |
-| `entry_points[].ep_type` | `type` | `module_entry`, `dll_entry`, `tls_callback`, `export`, `shellcode`, `thread`, `service_main`, `dependency_dll_entry`, `dependency_tls_callback`, `call`, `callback`, `driver_entry`, `driver_unload`, `driver_reinit`, `irp` |
+| `entry_points[].ep_type` | `type` | `module_entry`, `dll_entry`, `tls_callback`, `export`, `shellcode`, `thread`, `service_main`, `dependency_dll_entry`, `dependency_tls_callback`, `call`, `driver_entry`, `driver_unload`, `driver_reinit`, `irp` |
 | `error.type` | `error.type` | `timeout`, `max_total_time`, `max_instructions`, `max_api_count`, `api_loop`, `unsupported_api`, `internal_error`, `engine_stopped`, `invalid_image`, `dll_initialization_failed`, `api_handler_did_not_return`, `invalid_read`, `invalid_write`, `invalid_fetch`, `invalid_protect_read`, `invalid_protect_write`, `invalid_protect_fetch`, `guard_page_violation`, `privileged_instruction`, `invalid_instruction`, `unsupported_cpu_feature`, `unhandled_interrupt`, `unhandled_exception`, `hardware_breakpoint`, `bug_check` |
 | `network_events.traffic[].type` | `type` of `net_traffic` | `connect`, `bind`, `accept`, `data_in`, `data_out` |
 | `network_events.traffic[].proto` | `proto` of `net_traffic` | `tcp`, `udp`, `raw`, `unknown` |

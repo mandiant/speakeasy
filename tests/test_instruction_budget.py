@@ -37,7 +37,7 @@ def test_cap_stops_loop_at_exact_instruction(capped_session, budget, accesses):
     # Seven NOPs then a jump to the first NOP: eight instructions per cycle.
     base = se.load_shellcode(data=b"\x90" * 7 + b"\xeb\xf7", arch="x86")
     se.run_shellcode(base)
-    run = se.get_report().entry_points[0]
+    run = se.get_report().runs[0]
     assert_limit(run, budget)
     assert int(run.error.pc) == base + budget % 8
 
@@ -50,7 +50,7 @@ def test_cap_counts_each_rep_iteration(capped_session):
     destination = se.mem_alloc(0x1000)
     se.mem_write(base + 6, struct.pack("<I", destination))
     se.run_shellcode(base)
-    run = se.get_report().entry_points[0]
+    run = se.get_report().runs[0]
     assert_limit(run, 4)
     assert se.reg_read("ecx") == 3
     assert se.reg_read("edi") == destination + 2
@@ -71,7 +71,7 @@ def test_cap_is_shared_across_api_calls(capped_session):
     se.add_api_hook(hook, "budget_test", "Tick", argc=0)
     se.mem_write(base + 1, se.emu.get_proc("budget_test", "Tick").to_bytes(4, "little"))
     se.run_shellcode(base)
-    run = se.get_report().entry_points[0]
+    run = se.get_report().runs[0]
     assert_limit(run, 40)
     assert 1 < len(hits) < 40
 
@@ -81,7 +81,7 @@ def test_each_public_run_has_a_fresh_budget(capped_session):
     base = se.load_shellcode(data=b"\x90\xc3", arch="x86")
     se.run_shellcode(base)
     se.run_shellcode(base)
-    runs = se.get_report().entry_points
+    runs = se.get_report().runs
     assert len(runs) == 2
     for run in runs:
         assert_limit(run, 1)
@@ -97,7 +97,7 @@ def test_cap_reached_at_an_api_trap_reports_the_public_entry(capped_session):
     api = se.emu.get_proc("kernel32", "GetTickCount")
     se.mem_write(base + 1, api.to_bytes(4, "little"))
     se.run_shellcode(base)
-    run = se.get_report().entry_points[0]
+    run = se.get_report().runs[0]
     assert_limit(run, 7)
     assert int(run.error.pc) == api
     assert not [event for event in run.events if event.event == "api"]

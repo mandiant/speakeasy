@@ -81,7 +81,7 @@ def test_cli_writes_the_report_of_a_failed_run_to_stdout_and_exits_zero(tmp_path
     result = run_cli("-t", str(target), "--no-mp", *args)
 
     assert result.returncode == 0
-    entry_point = json.loads(result.stdout)["entry_points"][0]
+    entry_point = json.loads(result.stdout)["runs"][0]
     assert entry_point["error"]["type"] == "invalid_instruction"
     assert entry_point["error"]["pc"] == entry_point["start_address"]
 
@@ -108,7 +108,7 @@ def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
     )
 
     report = json.loads(output.read_text())
-    assert [(ep["type"], ep["error"]["type"]) for ep in report["entry_points"]] == [
+    assert [(ep["type"], ep["error"]["type"]) for ep in report["runs"]] == [
         ("module_entry", "timeout"),
         ("thread", "timeout"),
     ]
@@ -144,4 +144,4 @@ def test_cli_runs_the_exports_unless_no_runs_exports(tmp_path, load_test_bin, ar
     result = run_cli("-t", str(target), "-c", config, "--no-mp", *args)
 
     assert result.returncode == 0, result.stderr
-    assert len(json.loads(result.stdout)["entry_points"]) == count
+    assert len(json.loads(result.stdout)["runs"]) == count

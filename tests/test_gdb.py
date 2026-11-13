@@ -324,7 +324,7 @@ _SHELLCODE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
     se.mem_write(address, code)
     print(hex(address), hex(scratch), flush=True)
     se.run_shellcode(address)
-    run = se.get_report().entry_points[0]
+    run = se.get_report().runs[0]
     print(json.dumps({
         "error": run.error.type if run.error else None,
         "pc": run.error.pc if run.error else None,
@@ -362,7 +362,7 @@ _MODULE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
         se.mem_write(exports[1], b"\\xe9" + (exports[0] - exports[1] - 5).to_bytes(4, "little", signed=True))
     print(json.dumps(exports), flush=True)
     se.run_module(module)
-    print(json.dumps([run.error.type if run.error else None for run in se.get_report().entry_points]), flush=True)
+    print(json.dumps([run.error.type if run.error else None for run in se.get_report().runs]), flush=True)
     se.shutdown()
 """)
 
@@ -1153,7 +1153,7 @@ def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
     config["limits"]["instructions"] = 1000
     with Speakeasy(config=config) as se:
         se.run_shellcode(_load_patch_own_page(se))
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is None
         count = run.instruction_count
 
@@ -1168,7 +1168,7 @@ def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
             assert client.read_x86_registers().eip == address + 9
             assert client.continue_().startswith("T05")
             assert client.continue_() == "W00"
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert (run.error, run.instruction_count) == (None, count)
 
 
@@ -1277,7 +1277,7 @@ def test_gdb_resume_at_another_pc_runs_the_code_there_instead_of_ending_the_run(
             assert client.read_memory(scratch, 1) == "01"
             assert client.continue_().startswith("T05")
             assert client.continue_() == "W00"
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is None
 
 
@@ -1306,7 +1306,7 @@ def test_gdb_stops_at_fault_in_api_handler_that_runs_guest_code(config):
         with _serve(se, port, address) as client:
             assert client.continue_().startswith("T0b")
             assert client.continue_() == "X0b"
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is not None
         assert (run.error.type, run.error.address) == ("invalid_read", record)
 
@@ -1324,7 +1324,7 @@ def test_gdb_resume_after_total_time_ends_emulation(config, resume, reply):
                 client.kill()
             else:
                 assert client.query(resume) == reply
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is not None and run.error.type == "max_total_time"
 
 
@@ -1345,7 +1345,7 @@ def test_gdb_detach_at_api_handler_error_runs_the_next_runs(config, resume, runs
                 assert client.query(resume) == "OK"
             else:
                 client.kill()
-        reported = se.get_report().entry_points
+        reported = se.get_report().runs
         assert len(reported) == runs
         assert reported[0].error is not None
         if runs == 2:
@@ -1379,7 +1379,7 @@ def test_gdb_stops_at_read_of_the_api_trap_reservation(config):
             assert client.continue_().startswith("T0b")
             assert client.read_x86_registers().eip == address
             assert client.continue_() == "X0b"
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is not None
         assert (run.error.type, run.error.address) == ("invalid_read", trap_base)
 
@@ -1403,5 +1403,5 @@ def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
                 assert client.step().startswith("T05")
             assert client.read_x86_registers().eip == address + 7
             assert client.continue_() == "W00"
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is not None and run.error.type == "max_total_time"

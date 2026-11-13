@@ -55,7 +55,7 @@ def test_x86_eh_prolog_builds_frame_and_resumes_caller(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert [event.api_name for event in run.events if event.event == "api"] == ["msvcrt._EH_prolog"]
         frame_sp, frame_ebp, frame_seh = read_dwords(se, data, 3)

@@ -632,7 +632,7 @@ def test_abnormal_termination_is_true_only_in_a_finally_block_of_an_unwind(confi
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 2
         assert struct.unpack("<II", se.mem_read(results, 8)) == (0, 1)
@@ -2071,7 +2071,7 @@ def test_ifstream_of_a_missing_file_sets_failbit(config: dict[str, Any], load_te
 
         se.add_code_hook(not_open, begin=module.base + 0x3BA8, end=module.base + 0x3BA8)
         se.run_module(module)
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert reached == [module.base + 0x3BA8]
         apis = [e for e in run.events if e.event == "api"]
@@ -2134,7 +2134,7 @@ def run_code(se: Speakeasy, code: bytes) -> list[Any]:
     address = se.mem_alloc(0x1000)
     se.mem_write(address, code)
     se.call(address)
-    run = se.get_report().entry_points[-1]
+    run = se.get_report().runs[-1]
     assert run.error is None
     return [e for e in run.events if e.event == "api"]
 
@@ -2280,7 +2280,7 @@ def test_endthreadex_ends_only_the_current_thread(
 
         se.add_code_hook(end_accept_loop, begin=module.base + 0x133F7, end=module.base + 0x133F7)
         se.run_module(module)
-        runs = [run for run in se.get_report().entry_points if run.start_address == module.base + 0x144FC]
+        runs = [run for run in se.get_report().runs if run.start_address == module.base + 0x144FC]
 
     assert [(run.type, run.error) for run in runs] == [("thread", None), ("thread", None)]
     for run in runs:

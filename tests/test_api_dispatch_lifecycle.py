@@ -73,7 +73,7 @@ def test_nested_dialog_callbacks_return_to_their_api_callers(config, architectur
 
         se.run_shellcode(base)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         width = se.get_ptr_size()
 
         def slot(offset):
@@ -112,7 +112,7 @@ def test_x64_guest_callback_entry_stack_is_aligned(config, argc):
 
         se.run_shellcode(base)
 
-        assert se.get_report().entry_points[0].error is None
+        assert se.get_report().runs[0].error is None
         rsp = int.from_bytes(se.mem_read(data, 8), "little")
         assert rsp and (rsp + 8) % 16 == 0
 
@@ -126,7 +126,7 @@ def run_until(se, module, stop, entry_point=None):
     se.add_code_hook(stop_here, begin=module.base + stop, end=module.base + stop)
     se.run_module(module, entry_point=entry_point)
     start = module.base + (module.ep if entry_point is None else entry_point)
-    return next(e for e in se.get_report().entry_points if e.start_address == start)
+    return next(e for e in se.get_report().runs if e.start_address == start)
 
 
 def test_x64_run_entry_stack_is_aligned(config, load_test_bin):

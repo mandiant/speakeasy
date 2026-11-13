@@ -103,14 +103,14 @@ def test_runtime_load_runs_tls_callback_and_dllmain_once(config, tmp_path, arch)
         se.run_shellcode(code)
 
         report = se.get_report()
-        assert [ep.error for ep in report.entry_points] == [None]
+        assert [ep.error for ep in report.runs] == [None]
         base = se.emu.get_mod_by_name("guest_dependency").base
         assert read_pointer(se, results) == base
         assert read_pointer(se, results + 8) == base
         assert read_pointer(se, results + 16) == exports["GetTickCount"]
         # The export reads a counter that the TLS callback and DllMain each increment.
         assert read_pointer(se, results + 24) & 0xFFFFFFFF == 2
-        apis = [event.api_name for event in report.entry_points[0].events if event.event == "api"]
+        apis = [event.api_name for event in report.runs[0].events if event.event == "api"]
         assert not any(api.endswith("GetTickCount") for api in apis)
     finally:
         se.shutdown()
@@ -136,7 +136,7 @@ def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
         se.add_code_hook(after_load_library, begin=0x40211F, end=0x40211F)
         se.run_module(module)
         plugin = se.emu.get_mod_by_name("nsDialogs")
-        events = [e for ep in se.get_report().entry_points for e in ep.events if e.event == "api"]
+        events = [e for ep in se.get_report().runs for e in ep.events if e.event == "api"]
 
     path = [e for e in events if e.api_name == "kernel32.LoadLibraryExW"][-1].args[0].display
     assert path.lower().startswith("c:\\windows\\temp\\ns") and path.endswith("\\nsDialogs.dll")
@@ -179,7 +179,7 @@ def test_runtime_load_of_a_dll_that_shellcode_wrote(config, tmp_path, arch, dll_
 
         se.run_shellcode(code)
 
-        assert [ep.error for ep in se.get_report().entry_points] == [None]
+        assert [ep.error for ep in se.get_report().runs] == [None]
         module = se.emu.get_mod_by_name("plugin")
         assert module is not None
         assert read_pointer(se, results + 16) == module.base
@@ -213,7 +213,7 @@ def test_failed_dllmain_fails_runtime_load_and_unmaps_dll(config, tmp_path, arch
 
         se.run_shellcode(code)
 
-        assert [ep.error for ep in se.get_report().entry_points] == [None]
+        assert [ep.error for ep in se.get_report().runs] == [None]
         assert read_pointer(se, results) == 0
         assert read_pointer(se, results + 8) & 0xFFFFFFFF == 0xC0000142
         assert read_pointer(se, handle) == 0
@@ -240,7 +240,7 @@ def test_faulting_dllmain_ends_run_and_unmaps_dll(config, tmp_path, arch, fault_
 
         se.run_shellcode(code)
 
-        errors = [ep.error.type if ep.error else None for ep in se.get_report().entry_points]
+        errors = [ep.error.type if ep.error else None for ep in se.get_report().runs]
         assert errors == [error]
         assert se.emu.get_mod_by_name("guest_dependency") is None
         assert se.get_address_map(exports["Flag"]) is None
@@ -265,7 +265,7 @@ def test_faulting_dllmain_with_declining_handler_unmaps_dll(config, tmp_path):
 
         se.run_shellcode(code)
 
-        errors = [ep.error.type if ep.error else None for ep in se.get_report().entry_points]
+        errors = [ep.error.type if ep.error else None for ep in se.get_report().runs]
         assert errors == ["invalid_read"]
         assert se.emu.get_mod_by_name("guest_dependency") is None
         assert se.get_address_map(exports["Flag"]) is None
@@ -306,14 +306,14 @@ def test_startup_initializer_failure_continues_startup(config, tmp_path, result,
 
         se.run_shellcode(code)
 
-        runs = [(ep.type, ep.name, ep.error.type if ep.error else None) for ep in se.get_report().entry_points]
+        runs = [(ep.type, ep.name, ep.error.type if ep.error else None) for ep in se.get_report().runs]
         assert runs == [
             *((f"dependency_{kind}", "first", error) for kind, error in first_runs),
             ("dependency_tls_callback", "second", None),
             ("dependency_dll_entry", "second", None),
             ("shellcode", None, None),
         ]
-        assert se.get_report().entry_points[-1].return_value == 2
+        assert se.get_report().runs[-1].return_value == 2
         assert int.from_bytes(se.mem_read(first["Flag"], 4), "little") == flag
     finally:
         se.shutdown()
@@ -390,7 +390,7 @@ def test_entry_point_sees_tls_slots_that_the_tls_callback_set(config, tmp_path, 
 
         se.run_module(module)
 
-        assert [ep.error for ep in se.get_report().entry_points] == [None, None]
+        assert [ep.error for ep in se.get_report().runs] == [None, None]
         assert read_pointer(se, result) == 0x1234
 
 
@@ -423,7 +423,7 @@ def test_entry_point_sees_static_tls_data_that_the_tls_callback_wrote(config, tm
 
         se.run_module(module)
 
-        assert [ep.error for ep in se.get_report().entry_points] == [None, None]
+        assert [ep.error for ep in se.get_report().runs] == [None, None]
         assert int.from_bytes(se.mem_read(result, 4), "little") == 0x1234
 
 
@@ -438,7 +438,7 @@ def test_export_runs_skip_data_and_forwarded_exports(config, tmp_path):
     with Speakeasy(config=config) as se:
         module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
         se.run_module(module)
-        runs = [(ep.type, ep.name) for ep in se.get_report().entry_points]
+        runs = [(ep.type, ep.name) for ep in se.get_report().runs]
 
     assert ("export", "GetTickCount") in runs
     assert ("export", "Flag") not in runs
@@ -456,7 +456,7 @@ def test_dll_without_an_entry_point_runs_only_its_exports(config, tmp_path):
     with Speakeasy(config=config) as se:
         module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
         se.run_module(module)
-        entries = se.get_report().entry_points
+        entries = se.get_report().runs
 
     assert [(ep.type, ep.name) for ep in entries if ep.type != "export"] == [("tls_callback", "0")]
     assert ("export", "GetTickCount") in [(ep.type, ep.name) for ep in entries]

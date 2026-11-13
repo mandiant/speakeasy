@@ -32,7 +32,7 @@ CI_FMOD_CASES_X86 = {
 
 def get_failed_cases(config, load_test_bin, run_test, arch: str, cases: dict[int, str]) -> list[str]:
     report = run_test(config, load_test_bin(f"float_cases_{arch}.exe.xz"))
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None
     return [case for bit, case in cases.items() if not ep.return_value & bit]
 
@@ -60,7 +60,7 @@ def test_fmod_takes_and_returns_doubles_in_xmm_registers_on_amd64(config, load_t
         for lon, lat in [(13.4, 52.5), (190.0, 10.0), (13.4, 232.5)]:
             se.mem_write(point, struct.pack("<dd", lon, lat))
             se.call(compute_utm_zone, [point])
-            run = se.get_report().entry_points[-1]
+            run = se.get_report().runs[-1]
             assert run.error is None
             assert [event.api_name for event in run.events if event.event == "api"] == ["msvcrt.fmod"] * 2
             zones.append(run.return_value)

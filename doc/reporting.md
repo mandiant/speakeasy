@@ -22,7 +22,7 @@ The report writes each machine word as a hex string with a `0x` prefix and lower
 - `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image or an import descriptor that the Windows loader cannot resolve, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks. If `limits.total_time` runs out before all child processes run, the emulator adds a `max_total_time` error with the number of child processes that did not run in `context_summary`.
 - `strings`: the strings from the input file and from memory, only if `memory.strings=true`. `static` has the strings of the input file. `in_memory` has the strings at the end of the emulation that are not in `static`. Speakeasy reads them from the stack, from the memory that API handlers allocate, and from the images of the guest modules. In an image, it reads only the strings that the guest changed after the load, for example the strings that an unpacker decodes in place.
 - `data`: the payloads that the report stores once, keyed by SHA-256. Each `data_ref` field holds a key of `data`.
-- `entry_points`: a list of the runs (`Run` objects), in the order that the runs started.
+- `runs`: a list of the runs (`Run` objects), in the order that the runs started.
 
 Each entry point has these fields:
 
@@ -51,8 +51,6 @@ The `type` of an entry point is the kind of code that the run executes, and `nam
 | `call` | none (`Speakeasy.call` started the run) |
 | `driver_entry`, `driver_unload`, `driver_reinit` | none |
 | `irp` | IRP major function, for example `IRP_MJ_DEVICE_CONTROL` |
-
-The schema also has the run type `callback`. Speakeasy does not set it.
 
 `VirtualFree` adds a `mem_free` event. `LoadLibrary`, `LoadLibraryEx` and `LdrLoadDll` add a `module_load` event for each module that the load maps, the dependencies of the module included. A module that the config preloads, or that is already loaded, gets no event.
 
@@ -86,11 +84,11 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 The boolean flags in this list are on by default. The `--no-` form of each flag removes its data from the report.
 
 - `--memory-strings` controls the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-memory-strings)).
-- `--code-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-code-coverage)).
-- `--memory-accesses` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)).
-- `--memory-final-contents` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
-- `--memory-dynamic-code-contents` fills `entry_points[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--memory-dynamic-code-contents-limit` sets the maximum number of snapshots of each region.
-- `entry_points[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
+- `--code-coverage` fills `runs[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-code-coverage)).
+- `--memory-accesses` fills `runs[*].symbol_accesses` and `runs[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)).
+- `--memory-final-contents` fills `runs[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
+- `--memory-dynamic-code-contents` fills `runs[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--memory-dynamic-code-contents-limit` sets the maximum number of snapshots of each region.
+- `runs[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 
 ## Annotated report schema example
 
@@ -136,7 +134,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
     "data-region": {"compression": "zlib", "encoding": "base64", "size": 1, "data": "eJw="}
   },
 
-  "entry_points": [
+  "runs": [
     {
       // Kind of code that this run executes. A module_entry run has no name.
       "type": "module_entry",
@@ -501,7 +499,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
   "size": 1234,
   "file_type": "exe",
   "image_base": "0x400000",
-  "entry_points": [
+  "runs": [
     {
       "type": "module_entry",
       "start_address": "0x401000",
@@ -533,7 +531,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
   "file_type": "exe",
   "image_base": "0x400000",
 
-  "entry_points": [
+  "runs": [
     {
       // This run started at the module entrypoint. A module_entry run has no name.
       "type": "module_entry",

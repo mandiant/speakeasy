@@ -32,7 +32,7 @@ def test_fault_delivered_to_unhandled_exception_filter_is_run_error(config, arch
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert int.from_bytes(se.mem_read(counter, 4), "little") == 1
         assert run.error is not None
         assert run.error.type == "invalid_read"
@@ -55,7 +55,7 @@ def test_filter_continues_after_raise_exception(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 42
         assert int.from_bytes(se.mem_read(counter, 4), "little") == 1

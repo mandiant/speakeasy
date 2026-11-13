@@ -191,7 +191,7 @@ def test_x86_ordinal_call_does_not_reach_another_handler(config: dict[str, Any],
         se.mem_write(sc_addr + 1, se.mem_alloc(0x100).to_bytes(4, "little"))
         se.mem_write(sc_addr + 10, se.emu.get_proc("ws2_32", f"ordinal_{ordinal}").to_bytes(4, "little"))
         se.run_shellcode(sc_addr)
-        events = se.get_report().entry_points[0].events
+        events = se.get_report().runs[0].events
     finally:
         se.shutdown()
     assert f"ws2_32.{other}" not in [e.api_name for e in events if e.event == "api"]

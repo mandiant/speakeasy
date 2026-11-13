@@ -60,7 +60,7 @@ def query_both(se, module, name):
     text = se.mem_alloc(0x1000, base=0x20000000)
     se.mem_write(text, encoded + b"\0")
     se.call(se.emu.get_proc("kernel32", "GetProcAddress"), params=[module.base, text])
-    assert se.get_report().entry_points[-1].error is None
+    assert se.get_report().runs[-1].error is None
     win32 = se.reg_read("rax" if width == 8 else "eax")
     ansi = struct.pack("<HH", len(encoded), len(encoded) + 1)
     ansi += (b"\0" * 4 if width == 8 else b"") + text.to_bytes(width, "little")
@@ -69,7 +69,7 @@ def query_both(se, module, name):
     output = se.mem_alloc(width)
     se.mem_write(output, b"\0" * width)
     se.call(se.emu.get_proc("ntdll", "LdrGetProcedureAddress"), params=[module.base, descriptor, 0, output])
-    assert se.get_report().entry_points[-1].error is None
+    assert se.get_report().runs[-1].error is None
     status = se.reg_read("eax")
     native = int.from_bytes(se.mem_read(output, width), "little")
     return win32, status, native

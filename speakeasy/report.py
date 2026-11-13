@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
 
-REPORT_VERSION = "6.2.0"
+REPORT_VERSION = "7.0.0"
 
 
 class StringCollection(BaseModel):
@@ -401,14 +401,13 @@ class EntryPointType(str, Enum):
     DEPENDENCY_DLL_ENTRY = "dependency_dll_entry"
     DEPENDENCY_TLS_CALLBACK = "dependency_tls_callback"
     CALL = "call"
-    CALLBACK = "callback"
     DRIVER_ENTRY = "driver_entry"
     DRIVER_UNLOAD = "driver_unload"
     DRIVER_REINIT = "driver_reinit"
     IRP = "irp"
 
 
-class EntryPoint(BaseModel):
+class RunReport(BaseModel):
     """
     One run, and the events and data that the run collected.
 
@@ -572,7 +571,7 @@ class Report(BaseModel):
         default_factory=dict,
         description="Payloads of the report, keyed by SHA-256. Each ``data_ref`` field holds a key of this mapping.",
     )
-    entry_points: list[EntryPoint] = Field(
+    runs: list[RunReport] = Field(
         default_factory=list,
         description="Runs of the emulation, in the order that the runs started.",
     )

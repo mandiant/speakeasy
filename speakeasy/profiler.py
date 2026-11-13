@@ -51,7 +51,6 @@ from speakeasy.report import (
     ApiLoopSite,
     DroppedFile,
     DynamicCodeSegment,
-    EntryPoint,
     EntryPointType,
     ErrorInfo,
     LoadedModule,
@@ -60,6 +59,7 @@ from speakeasy.report import (
     MemoryRegion,
     ModuleSegment,
     Report,
+    RunReport,
     StringCollection,
     StringsReport,
     SymAccessReport,
@@ -216,13 +216,13 @@ class Run:
         return f"{kind} {self.name}" if self.name else kind
 
 
-def get_data_refs(entry_points: list[EntryPoint]) -> set[str]:
+def get_data_refs(runs: list[RunReport]) -> set[str]:
     """Get the payload keys that the runs refer to."""
     refs: set[str] = set()
-    for ep in entry_points:
-        holders: list[Any] = [*ep.events, *ep.dynamic_code_segments, *ep.dropped_files]
-        if ep.memory:
-            holders.extend(ep.memory.layout)
+    for run in runs:
+        holders: list[Any] = [*run.events, *run.dynamic_code_segments, *run.dropped_files]
+        if run.memory:
+            holders.extend(run.memory.layout)
         refs.update(ref for holder in holders if (ref := getattr(holder, "data_ref", None)))
     return refs
 
@@ -775,7 +775,7 @@ class Profiler:
 
     def get_report(self) -> Report:
         """Build the report from the runs, the strings and the artifacts."""
-        entry_points = []
+        run_reports = []
 
         for r in self.runs:
             error_info = r.error
@@ -860,7 +860,7 @@ class Profiler:
                 raise SpeakeasyError("run has no start address")
             if r.type is None:
                 raise SpeakeasyError("run has no type")
-            ep = EntryPoint(
+            run_report = RunReport(
                 type=r.type,
                 name=r.name,
                 start_address=r.start_addr,
@@ -878,7 +878,7 @@ class Profiler:
                 dropped_files=dropped_files,
                 memory=memory_layout,
             )
-            entry_points.append(ep)
+            run_reports.append(run_report)
 
         strings_report = None
         if self.memory_config.strings:
@@ -906,6 +906,6 @@ class Profiler:
             image_base=self.meta.get("image_base"),
             errors=errors,
             strings=strings_report,
-            data=self.artifact_store.to_report_data(get_data_refs(entry_points)),
-            entry_points=entry_points,
+            data=self.artifact_store.to_report_data(get_data_refs(run_reports)),
+            runs=run_reports,
         )

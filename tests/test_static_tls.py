@@ -62,7 +62,7 @@ def test_main_module_tls_slot_is_a_writable_copy_of_the_template(arch):
         module = se.load_module(data=image)
         se.run_module(module)
 
-        assert [entry.error for entry in se.get_report().entry_points] == [None]
+        assert [entry.error for entry in se.get_report().runs] == [None]
         block = int.from_bytes(se.mem_read(module.base + block_rva, width), "little")
         assert block not in (0, module.base + template_rva)
         assert se.mem_read(block, len(TEMPLATE) + ZERO_FILL) == (
