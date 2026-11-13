@@ -41,7 +41,7 @@ se.shutdown()
 
 ## Options
 
-The `Speakeasy` constructor takes these arguments. `config=` sets the emulated environment and the analysis options, as a dict or a `SpeakeasyConfig` (see [Configuration walkthrough](configuration.md)). `argv=` sets the arguments of the emulated program. `volumes=` mounts host paths into the emulated file system, and it requires a dict or no `config=`. With `gdb_port=`, the first run waits for a GDB client before it starts (see [GDB debugging reference](gdb.md)). `gdb_host=` sets the address on which the GDB server listens, and its default is `127.0.0.1`.
+The `Speakeasy` constructor takes these arguments. `config=` sets the emulated environment and the analysis options, as a dict or a `SpeakeasyConfig` (see [Configuration walkthrough](configuration.md)). `argv=` sets the arguments of the emulated program. `volumes=` mounts host paths into the emulated file system, and it requires a dict or no `config=`. With `gdb_port=`, the first run waits for a GDB client before it starts (see [GDB debugging reference](gdb.md)). `gdb_host=` sets the address on which the GDB server listens, and its default is `127.0.0.1`. `auto_mount=False` stops `load_module` from mounting the files of the directory of the input (see [Automatic mount of the target directory](volumes.md#automatic-mount-of-the-target-directory)).
 
 The defaults turn on all the features. The [feature options](configuration.md#feature-options) of the config are on, so the report has coverage, memory access counts and the final memory contents. `run_module` runs the exports of a DLL (`runs.exports`) and the child processes that the sample starts (`runs.children`). To get a faster run or a smaller report, set an option to `False`.
 

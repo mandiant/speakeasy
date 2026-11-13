@@ -54,7 +54,24 @@ se.run_module(module)
 
 Speakeasy adds a `full_path` file entry to the config for each mounted file. It puts these entries before the file entries of the config, so a volume file wins over a config entry for the same path.
 
-When `load_module` loads the input from a host path, Speakeasy also maps each file in the directory of the input into the emulated current directory. It does not map the subdirectories.
+## Automatic mount of the target directory
+
+When `load_module` loads the input from a host path, Speakeasy also maps each file in the directory of the input into the emulated current directory (`process.current_dir`, default `C:\Windows\system32`). It does not map the subdirectories. Speakeasy puts these entries before the volume entries, so a file next to the input wins over a volume for the same guest path. With `-v`, the log shows an `Auto-mounted N file(s) from target directory ...` line and one line for each file.
+
+Speakeasy does not mount a directory for shellcode (`--raw` or `load_shellcode`) or for a PE that `load_module` loads from bytes.
+
+Auto-mount is on by default. The guest can then read every file in the directory of the input, for example all of `~/Downloads`. To turn it off, give `--no-auto-mount` on the CLI, or `auto_mount=False` in Python:
+
+```console
+speakeasy -t malware.exe --no-auto-mount
+```
+
+```python
+se = speakeasy.Speakeasy(auto_mount=False)
+module = se.load_module("malware.exe")
+```
+
+Or put the sample in a directory of its own before you run it.
 
 ## Related docs
 

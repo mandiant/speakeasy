@@ -95,6 +95,7 @@ class Speakeasy:
         gdb_port: int | None = None,
         volumes: list[str] | None = None,
         gdb_host: str = "127.0.0.1",
+        auto_mount: bool = True,
     ) -> None:
         """
         Validate the configuration. The emulator does not exist until a load creates it.
@@ -109,6 +110,8 @@ class Speakeasy:
                 ``None`` disables the GDB server.
             volumes: Host paths to mount into the emulated file system, in the ``--volume`` format.
             gdb_host: Address on which the GDB server listens.
+            auto_mount: If true, ``load_module`` mounts the files of the directory of the input
+                into the emulated current directory.
 
         Raises:
             ConfigError: if ``volumes`` is set and ``config`` is a ``SpeakeasyConfig``, if a volume
@@ -135,6 +138,7 @@ class Speakeasy:
         self.debug: bool = debug
         self.gdb_port: int | None = gdb_port
         self.gdb_host: str = gdb_host
+        self.auto_mount: bool = auto_mount
         self.loaded_bins: list[str | None] = []
 
     @property
@@ -348,8 +352,8 @@ class Speakeasy:
         Create the emulator for a PE file and load the file as the input image.
 
         A driver gets the kernel mode emulator. Other PE files get the user mode emulator, and a
-        DLL loads into the container process. If ``path`` is given, the emulator also mounts the
-        files of its directory into the emulated current directory.
+        DLL loads into the container process. If ``path`` is given and ``auto_mount`` is true, the
+        emulator also mounts the files of its directory into the emulated current directory.
 
         Args:
             path: File path of the PE file.
@@ -386,7 +390,7 @@ class Speakeasy:
         if not self.is_pe(test):
             raise InputError("Target file is not a PE")
 
-        if path:
+        if path and self.auto_mount:
             self._auto_mount_target_directory(path)
 
         self._init_pe_emulator(path=path, data=data)
