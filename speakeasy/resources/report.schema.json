@@ -674,7 +674,7 @@
           "description": "Name of the API that has no handler, for ``unsupported_api``.",
           "title": "Api Name"
         },
-        "count": {
+        "limit": {
           "anyOf": [
             {
               "type": "integer"
@@ -685,7 +685,7 @@
           ],
           "default": null,
           "description": "Limit that ended the run: ``limits.api_calls`` of the config for ``api_call_limit``, ``limits.api_loop_calls`` for ``api_loop_limit``, or ``limits.instructions`` for ``instruction_limit``.",
-          "title": "Count"
+          "title": "Limit"
         },
         "last_api": {
           "anyOf": [

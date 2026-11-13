@@ -61,6 +61,7 @@ These keys have new names:
 | `dynamic_code_segments[].base` | `dynamic_code[].region` |
 | `entry_points[].error.regs` | `error.registers` |
 | `entry_points[].error.instr`, `handled_exceptions[].instr` | `error.instruction`, `instruction` of the event |
+| `entry_points[].error.count` | `error.limit` |
 | `entry_points[].ret_val`, `apis[].ret_val` | `return_value` |
 | `apis[].pc`, `handled_exceptions[].pc` | `pos.pc` of the event |
 | `process_events[].cmdline` | `command_line` |
@@ -170,6 +171,7 @@ These keys have new names or move:
 | `dynamic_code_segments[].snapshot_limit_reached` | `dynamic_code[].limit_reached` |
 | `memory.layout[].is_free` | `memory.layout[].freed` |
 | `error.stack[].tag`, `stack[].tag` of an `exception` event | `stack[].region`, the base of the region in `memory.layout` |
+| `error.count` | `error.limit` |
 | `memory.modules[].segments[]` | the regions in `memory.layout` with the `module` and `section` of the module |
 
 These values have a new format:
