@@ -47,7 +47,7 @@ def get_self_resolutions(config: dict[str, Any], data: bytes) -> tuple[list[tupl
         size_after = get_export_directory_size(se, module.base)
         resolutions = []
         forwarder = ""
-        for event in se.get_report().entry_points[0].events:
+        for event in se.get_report().runs[0].events:
             if event.event != "api":
                 continue
             if event.api_name == "kernel32.lstrcatA":
@@ -62,7 +62,7 @@ def get_self_resolutions(config: dict[str, Any], data: bytes) -> tuple[list[tupl
 def test_get_proc_address_on_missing_function_returns_zero(config, load_test_bin, run_test):
     data = load_test_bin("GetProcAddress.exe.xz")
     report = run_test(config, data)
-    eps = report.entry_points
+    eps = report.runs
 
     get_proc_addr = get_api_calls(eps[0], "kernel32.GetProcAddress")
 

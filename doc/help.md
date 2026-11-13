@@ -32,6 +32,6 @@ Include these items, so that others can reproduce the problem:
 - the config file, if you used one
 - the type of the input (`exe`, `dll`, `sys` or raw shellcode)
 - the `--verbose` log near the failure
-- the `errors` and `entry_points[*].error` fields of the report
+- the `errors` and `runs[*].error` fields of the report
 
 Report issues in the [issue tracker](https://github.com/mandiant/speakeasy/issues).

@@ -49,7 +49,7 @@ def test_function_table_lets_handlers_run(config, delete):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         if not delete:
             assert run.error is None
             assert run.return_value == 42
@@ -82,6 +82,6 @@ def test_rtl_unwind_continues_in_the_target_frame(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 42

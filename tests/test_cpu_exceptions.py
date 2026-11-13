@@ -83,7 +83,7 @@ def vectored_handler_x86(data, step):
 
 
 def module_entry(se):
-    return next(e for e in se.get_report().entry_points if e.type == "module_entry")
+    return next(e for e in se.get_report().runs if e.type == "module_entry")
 
 
 def run_under_handler(config, arch, insn, step):
@@ -100,7 +100,7 @@ def run_under_handler(config, arch, insn, step):
         se.run_shellcode(code)
 
         record = struct.unpack("<IxxxxQQQ", se.mem_read(data, 32))
-        return se.get_report().entry_points[0], code + len(setup), record
+        return se.get_report().runs[0], code + len(setup), record
 
 
 @pytest.mark.parametrize("arch", ["amd64", "x86"])
@@ -153,7 +153,7 @@ def test_debug_service_without_exception_skips_a_byte(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 42
         assert not [e for e in run.events if e.event == "exception"]
@@ -184,7 +184,7 @@ def test_unhandled_cpu_exception_ends_the_run(config, insn, error, interrupt_num
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert run.error.type == error
         assert run.error.pc == code + len(setup)
@@ -205,7 +205,7 @@ def test_fault_after_in_or_out_does_not_replace_its_exception(config, arch, insn
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert (run.error.type, run.error.pc) == ("privileged_instruction", code)
 
@@ -247,7 +247,7 @@ def run_with_page(config, protect, access, step=0, before=None):
 
         address = struct.unpack("<Q", se.mem_read(page, 8))[0]
         record = struct.unpack("<IxxxxQQQ", se.mem_read(data, 32))
-        return se.get_report().entry_points[0], address, record
+        return se.get_report().runs[0], address, record
 
 
 def test_guard_page_raises_once_on_execute(config):
@@ -303,7 +303,7 @@ def test_virtual_query_shows_guard(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         (protect,) = struct.unpack("<I", se.mem_read(mbi + 36, 4))
         assert run.error is None
         assert protect == PAGE_READONLY | PAGE_GUARD
@@ -318,7 +318,7 @@ def test_api_fault_without_handler_keeps_its_error(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert run.error.type == "invalid_read"
         assert [e.api_name for e in run.events if e.event == "api"] == ["kernel32.RtlMoveMemory"]
@@ -334,7 +334,7 @@ def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(MEMCPY_PAST_ARGS))
         se.run_module(module)
-        run = next(ep for ep in se.get_report().entry_points if ep.name == "??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z")
+        run = next(ep for ep in se.get_report().runs if ep.name == "??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z")
         first_unmapped = se.get_address_map(0x41424000)
 
     assert [e.api_name for e in run.events if e.event == "api"] == ["msvcrt.memcpy"]
@@ -365,7 +365,7 @@ def test_exception_continued_with_nt_continue_can_repeat(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 42
         assert len([e for e in run.events if e.event == "exception"]) == 6
@@ -396,7 +396,7 @@ def test_exception_continued_at_the_fault_can_repeat_after_the_code_moves_on(con
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 42
         assert len([e for e in run.events if e.event == "exception"]) == 6
@@ -421,7 +421,7 @@ def test_handler_that_reads_its_return_address_returns(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 42
 
@@ -451,7 +451,7 @@ def test_engine_stop_without_a_cause_ends_the_run_with_an_error(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert (run.error.type, run.error.pc) == ("engine_stopped", code + 1)
 
@@ -474,7 +474,7 @@ def test_invalid_instruction_ends_the_run(config, arch, insn, error, instruction
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert (run.error.type, run.error.pc, run.error.instruction.strip()) == (error, code + 1, instruction)
 
@@ -487,7 +487,7 @@ def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert run.error.type == "max_instructions"
 
@@ -508,7 +508,7 @@ def test_guard_on_commit_of_part_of_a_reservation(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert run.error.type == "guard_page_violation"
 
@@ -521,7 +521,7 @@ def test_generator_handler_fault_ends_the_run_where_it_reads(config):
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert (run.error.type, run.error.address) == ("invalid_read", record)
 
@@ -540,7 +540,7 @@ def test_guest_call_past_the_end_of_the_stack_ends_the_run_where_it_writes(confi
 
         se.run_shellcode(code)
 
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is not None
         assert (run.error.type, run.error.address) == ("invalid_write", stack - 4)
 
@@ -564,7 +564,7 @@ def test_vectored_handler_added_first_runs_first(config):
 
         se.run_shellcode(code)
 
-        assert se.get_report().entry_points[0].return_value == 42
+        assert se.get_report().runs[0].return_value == 42
         assert struct.unpack("<I", se.mem_read(data, 4))[0] == 2
 
 
@@ -579,7 +579,7 @@ def test_run_after_a_fastfail_runs_once(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(FASTFAIL_IN_DLL_MAIN))
         se.run_module(module)
-        dll_main, export = se.get_report().entry_points[:2]
+        dll_main, export = se.get_report().runs[:2]
 
     assert (dll_main.type, dll_main.name) == ("dll_entry", "DLL_PROCESS_ATTACH")
     assert (dll_main.error.type, dll_main.error.interrupt_num) == ("unhandled_interrupt", 0x29)

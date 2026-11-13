@@ -10,7 +10,7 @@ pytest does not collect it.
 from typing_extensions import assert_type
 
 from speakeasy import Speakeasy
-from speakeasy.report import Report
+from speakeasy.report import Report, RunReport
 
 
 def check_speakeasy_types(se: Speakeasy) -> None:
@@ -20,4 +20,5 @@ def check_speakeasy_types(se: Speakeasy) -> None:
     assert_type(se.call(0x401000, [1, 2]), None)
     assert_type(se.resume(0x401000), None)
     assert_type(se.get_report(), Report)
+    assert_type(se.get_report().runs, list[RunReport])
     assert_type(se.get_json_report(), str)

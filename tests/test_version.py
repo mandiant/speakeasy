@@ -46,7 +46,7 @@ def mpsigstub_run(base_config: dict[str, Any], load_test_bin: Callable[[str], by
 
         se.add_api_hook(query, "version", "VerQueryValueW", argc=4)
         se.run_module(module)
-        events = se.get_report().entry_points[0].events
+        events = se.get_report().runs[0].events
 
     for event in events:
         if event.event == "api" and event.api_name.startswith("version.GetFileVersionInfo"):
@@ -221,7 +221,7 @@ def test_handler_takes_precedence_over_signature_fallback(arch, build):
         emu.mem_write(base + offset, emu.get_proc("version", name).to_bytes(width, "little"))
     se.run_shellcode(base)
 
-    entry = se.get_report().entry_points[0]
+    entry = se.get_report().runs[0]
     assert entry.error is None
     results = {event.api_name: event.return_value for event in entry.events if event.api_name.startswith("version.")}
     assert results == {"version.GetFileVersionInfoSizeA": 0, "version.VerQueryValueA": 0}

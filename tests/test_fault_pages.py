@@ -28,7 +28,7 @@ def test_unhandled_fault_maps_no_page(base_config) -> None:
         addr = se.load_shellcode(data=_SC_FAULT_THEN_OK, arch="x86")
         se.run_shellcode(addr)
         assert not se.is_address_valid(0)
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         assert error.type == "invalid_read"
         assert error.address_region is None
         assert error.nearby_regions
@@ -47,7 +47,7 @@ def test_read_of_an_unmapped_module_image_is_an_invalid_read(base_config) -> Non
         target = mod.base + 0x10
         se.mem_write(addr + 1, target.to_bytes(4, "little"))
         se.run_shellcode(addr)
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         assert error is not None
         assert error.type == "invalid_read"
         assert error.address == target

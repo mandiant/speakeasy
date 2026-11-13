@@ -69,7 +69,7 @@ def test_longjmp_returns_from_setjmp_with_the_saved_registers(arch, setjmp):
         module = se.load_module(data=image)
         se.run_module(module)
 
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error is None
         assert struct.unpack(
             "<II", se.mem_read(module.base + RESULT_RVA, 4) + se.mem_read(module.base + RESULT_RVA + 8, 4)

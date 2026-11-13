@@ -5,10 +5,10 @@ Each recipe gives the flags for one kind of analysis output and a command that c
 <a id="recipe-memory-snapshots"></a>
 ## Final memory contents (`--memory-final-contents`)
 
-At the end of each run, the memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. Kernel mode has no memory layout, so it has no contents. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
+At the end of each run, the memory regions in `runs[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. Kernel mode has no memory layout, so it has no contents. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
 ```bash
-jq '.entry_points[].memory.layout[] | select(.data_ref != null) | .tag' report.json
+jq '.runs[].memory.layout[] | select(.data_ref != null) | .tag' report.json
 ```
 
 The report gets larger. Regions with the same bytes share one entry in `data`, also across runs. `--no-memory-final-contents` removes the data from the report.
@@ -16,10 +16,10 @@ The report gets larger. Regions with the same bytes share one entry in `data`, a
 <a id="recipe-code-coverage"></a>
 ## Coverage collection (`--code-coverage`)
 
-`entry_points[*].coverage` has the addresses of the instructions that each run executed. To count them:
+`runs[*].coverage` has the addresses of the instructions that each run executed. To count them:
 
 ```bash
-jq '.entry_points[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
+jq '.runs[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
 ```
 
 The emulator runs a hook for each instruction, so emulation is slower. `--no-code-coverage` removes this cost.
@@ -27,10 +27,10 @@ The emulator runs a hook for each instruction, so emulation is slower. `--no-cod
 <a id="recipe-memory-accesses"></a>
 ## Memory access counts (`--memory-accesses`)
 
-The regions in `entry_points[*].memory.layout` that the run accessed get `accesses`, with the counts of reads, writes and executes. `entry_points[*].symbol_accesses` has the counts for each symbol. To count the symbols that each run accessed:
+The regions in `runs[*].memory.layout` that the run accessed get `accesses`, with the counts of reads, writes and executes. `runs[*].symbol_accesses` has the counts for each symbol. To count the symbols that each run accessed:
 
 ```bash
-jq '.entry_points[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
+jq '.runs[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
 ```
 
 The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower. `--no-memory-accesses` removes this cost.

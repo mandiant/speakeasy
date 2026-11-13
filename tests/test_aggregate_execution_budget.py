@@ -15,7 +15,7 @@ from tests.test_guest_dependency_loading import make_native_dll
 
 
 def last_error(se):
-    error = se.get_report().entry_points[-1].error
+    error = se.get_report().runs[-1].error
     return error.type if error is not None else None
 
 
@@ -36,10 +36,10 @@ se = Speakeasy(config=json.loads(sys.argv[1]))
 base = se.load_shellcode(data=bytes.fromhex("c3ebfe"), arch="x86")
 se.run_shellcode(base)
 se.call(base + 1)
-error = se.get_report().entry_points[-1].error
+error = se.get_report().runs[-1].error
 assert error is not None and error.type == "max_total_time", error
 se.call(base)
-assert se.get_report().entry_points[-1].error is None
+assert se.get_report().runs[-1].error is None
 se.shutdown()
 """
     result = subprocess.run(
@@ -70,7 +70,7 @@ def test_self_respawning_threads_stop_at_cap(config, caplog):
         se.add_api_hook(slow_create_thread, "kernel32", "CreateThread")
         se.run_shellcode(base)
 
-        errors = [run.error.type if run.error else None for run in se.get_report().entry_points]
+        errors = [run.error.type if run.error else None for run in se.get_report().runs]
         assert errors[:-1] == [None] * (len(errors) - 1)
         # The last run is complete if the cap is reached while its thread is prepared.
         assert errors[-1] in (None, "max_total_time")
@@ -119,7 +119,7 @@ def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
         se.add_api_hook(slow_exit_process, "kernel32", "ExitProcess")
         se.run_shellcode(base)
 
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is not None and run.error.type == "max_total_time"
         assert [event.api_name for event in run.events if event.event == "api"] == ["kernel32.ExitProcess"]
 
@@ -146,7 +146,7 @@ def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog)
         se.add_api_hook(slow_tick_count, "kernel32", "GetTickCount", argc=0)
         se.run_shellcode(base)
 
-        (run,) = se.get_report().entry_points
+        (run,) = se.get_report().runs
         assert run.error is not None and run.error.type == "max_api_count"
         assert sum("Total execution time" in record.message for record in caplog.records) == 1
 
@@ -172,7 +172,7 @@ def test_children_do_not_load_after_the_cap(config, load_test_bin):
         report = se.get_report()
 
         assert se.emu.get_current_process().path == module.emu_path
-        assert [run.error.type if run.error else None for run in report.entry_points] == ["max_total_time"]
+        assert [run.error.type if run.error else None for run in report.runs] == ["max_total_time"]
         assert [(error.type, error.context_summary) for error in report.errors] == [
             ("max_total_time", "1 child process did not run")
         ]
@@ -190,7 +190,7 @@ def test_load_of_a_child_counts_against_the_cap(config, load_test_bin):
         run_parent_with_child(se, load_test_bin)
         report = se.get_report()
 
-        assert [run.error for run in report.entry_points] == [None]
+        assert [run.error for run in report.runs] == [None]
         assert [(error.type, error.context_summary) for error in report.errors] == [
             ("max_total_time", "1 child process did not run")
         ]

@@ -29,7 +29,7 @@ def test_map_view_of_file_uses_readable_protections(base_config, tmp_path):
     finally:
         se.shutdown()
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.memory is not None
 
     map_views = [region for region in ep.memory.layout if region.tag.startswith("api.MapViewOfFile.")]

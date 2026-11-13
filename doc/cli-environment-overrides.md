@@ -59,7 +59,7 @@ speakeasy -t sample.exe \
 Each lookup gives a `net_dns` event in the report:
 
 ```bash
-jq '.entry_points[].events[]? | select(.event == "net_dns") | {query, response}' report.json
+jq '.runs[].events[]? | select(.event == "net_dns") | {query, response}' report.json
 ```
 
 ## Module load policy and module directories

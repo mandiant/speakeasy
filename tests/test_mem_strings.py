@@ -37,7 +37,7 @@ def test_strings_that_the_guest_decodes_in_its_own_image_are_in_memory_strings(c
         se.run_module(module)
 
         report = se.get_report()
-        assert [entry.error for entry in report.entry_points] == [None]
+        assert [entry.error for entry in report.runs] == [None]
         assert report.strings is not None
         assert literal.decode() in report.strings.static.ansi
         assert marker.decode() in report.strings.in_memory.ansi

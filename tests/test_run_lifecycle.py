@@ -162,6 +162,6 @@ def test_stop_in_a_code_hook_in_kernel_mode_ends_the_emulation(config, load_test
         entry = module.base + module.ep
         se.add_code_hook(lambda e, address, size: se.stop(), begin=entry, end=entry)
         se.run_module(module)
-        eps = se.get_report().entry_points
+        eps = se.get_report().runs
 
     assert [(ep.type, ep.error.type if ep.error else None) for ep in eps] == [("driver_entry", None)]

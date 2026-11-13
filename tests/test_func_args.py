@@ -81,7 +81,7 @@ def test_x86_run_reads_stack_arguments_it_was_not_given(config):
         # mov eax, [esp + 0x24]; ret
         addr = se.load_shellcode(data=b"\x8b\x44\x24\x24\xc3", arch="x86")
         se.run_shellcode(addr)
-        assert se.get_report().entry_points[0].error is None
+        assert se.get_report().runs[0].error is None
     finally:
         se.shutdown()
 
@@ -92,4 +92,4 @@ def test_x64_call_reads_stack_arguments_it_was_not_given(config):
         addr = se.load_shellcode(data=b"\xc3\x48\x8b\x44\x24\x60\xc3", arch="x64")
         se.run_shellcode(addr)
         se.call(addr + 1)
-        assert se.get_report().entry_points[1].error is None
+        assert se.get_report().runs[1].error is None

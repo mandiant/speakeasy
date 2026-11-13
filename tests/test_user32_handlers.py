@@ -184,7 +184,7 @@ CREATE_WINDOW_CASES = {
 
 
 def get_failed_window_cases(config: dict, load_test_bin, run_test, cases: dict[int, str]) -> list[str]:
-    ep = run_test(config, load_test_bin("window_cases_x86.exe.xz")).entry_points[0]
+    ep = run_test(config, load_test_bin("window_cases_x86.exe.xz")).runs[0]
     assert ep.error is None
     return [case for bit, case in cases.items() if not ep.return_value & bit]
 
@@ -681,7 +681,7 @@ def test_enum_windows_calls_the_callback_for_each_top_level_window(config: dict,
 
 
 def api_events(se: Speakeasy) -> list[Any]:
-    return [e for ep in se.get_report().entry_points for e in ep.events if e.event == "api"]
+    return [e for ep in se.get_report().runs for e in ep.events if e.event == "api"]
 
 
 def test_call_window_proc_runs_the_previous_procedure(config: dict, load_test_bin) -> None:

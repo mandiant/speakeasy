@@ -33,7 +33,7 @@ def test_peb_number_of_processors_matches_get_system_info(
 
         se.add_code_hook(at_report, begin=module.base + stop, end=module.base + stop)
         se.run_module(module, entry_point=start)
-        run = next(e for e in se.get_report().entry_points if e.type == "module_entry")
+        run = next(e for e in se.get_report().runs if e.type == "module_entry")
 
     assert run.error is None
     assert seen == [(PROCESSOR_COUNT, 0)]

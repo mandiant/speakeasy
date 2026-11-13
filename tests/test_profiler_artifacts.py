@@ -48,7 +48,7 @@ def test_dropped_file_embeds_data_ref_when_within_limit():
     profiler.record_dropped_files_event(run, [file_obj])
     report = build_report(profiler, run)
 
-    dropped = report.entry_points[0].dropped_files[0]
+    dropped = report.runs[0].dropped_files[0]
     assert dropped.size == 7
     assert dropped.data_ref == dropped.sha256
     assert dropped.data_ref in report.data
@@ -63,7 +63,7 @@ def test_dropped_file_holds_the_whole_contents_whatever_the_file_pointer():
     profiler.record_dropped_files_event(run, [file_obj])
     report = build_report(profiler, run)
 
-    dropped = report.entry_points[0].dropped_files[0]
+    dropped = report.runs[0].dropped_files[0]
     assert dropped.size == 7
     assert dropped.sha256 == hashlib.sha256(b"payload").hexdigest()
 
@@ -77,7 +77,7 @@ def test_dropped_file_skips_large_embedded_payload():
     profiler.record_dropped_files_event(run, [file_obj])
     report = build_report(profiler, run)
 
-    dropped = report.entry_points[0].dropped_files[0]
+    dropped = report.runs[0].dropped_files[0]
     assert dropped.size == len(payload)
     assert dropped.data_ref is None
     assert dropped.sha256 not in (report.data or {})
@@ -90,7 +90,7 @@ def test_empty_dropped_file_has_no_payload():
     profiler.record_dropped_files_event(run, [File("C:\\temp\\empty.bin", data=b"")])
     report = build_report(profiler, run)
 
-    dropped = report.entry_points[0].dropped_files[0]
+    dropped = report.runs[0].dropped_files[0]
     assert dropped.size == 0
     assert dropped.sha256 == hashlib.sha256(b"").hexdigest()
     assert dropped.data_ref is None
@@ -140,7 +140,7 @@ def test_file_write_merge_preserves_raw_bytes():
     profiler.record_file_access_event(run, pos, "C:\\temp\\x.bin", EventType.FILE_WRITE, data=b"\x01\x02", size=2)
     report = build_report(profiler, run)
 
-    event = next(evt for evt in report.entry_points[0].events if isinstance(evt, FileWriteEvent))
+    event = next(evt for evt in report.runs[0].events if isinstance(evt, FileWriteEvent))
     assert event.size == 4
     assert event.data_ref is not None and event.data_ref in report.data
     artifact = profiler.artifact_store.get_bytes(event.data_ref)
@@ -163,7 +163,7 @@ def test_registry_write_event_is_reported_with_data_ref():
     )
     report = build_report(profiler, run)
 
-    event = next(evt for evt in report.entry_points[0].events if isinstance(evt, RegWriteValueEvent))
+    event = next(evt for evt in report.runs[0].events if isinstance(evt, RegWriteValueEvent))
     assert event.value_name == "ValueName"
     assert event.data_ref is not None and event.data_ref in report.data
     assert profiler.artifact_store.get_bytes(event.data_ref) == b"abc"
@@ -178,7 +178,7 @@ def test_local_memory_event_omits_target_pid():
     profiler.record_process_event(run, pos, actor, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
     report = build_report(profiler, run)
 
-    event = next(evt for evt in report.entry_points[0].events if isinstance(evt, MemAllocEvent))
+    event = next(evt for evt in report.runs[0].events if isinstance(evt, MemAllocEvent))
     assert event.pid is None
     assert event.pos.pid == 3
 
@@ -192,7 +192,7 @@ def test_remote_memory_event_carries_target_pid():
     profiler.record_process_event(run, pos, target, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
     report = build_report(profiler, run)
 
-    event = next(evt for evt in report.entry_points[0].events if isinstance(evt, MemAllocEvent))
+    event = next(evt for evt in report.runs[0].events if isinstance(evt, MemAllocEvent))
     assert event.pid == 9
 
 
@@ -207,7 +207,7 @@ def test_local_thread_create_keeps_target_tid():
     )
     report = build_report(profiler, run)
 
-    event = next(evt for evt in report.entry_points[0].events if isinstance(evt, ThreadCreateEvent))
+    event = next(evt for evt in report.runs[0].events if isinstance(evt, ThreadCreateEvent))
     assert event.pid is None
     assert event.tid == 44
 
@@ -223,7 +223,7 @@ def test_remote_thread_inject_carries_target_pid_and_tid():
     )
     report = build_report(profiler, run)
 
-    event = next(evt for evt in report.entry_points[0].events if isinstance(evt, ThreadInjectEvent))
+    event = next(evt for evt in report.runs[0].events if isinstance(evt, ThreadInjectEvent))
     assert event.pid == 9
     assert event.tid == 44
 

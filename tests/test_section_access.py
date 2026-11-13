@@ -22,7 +22,7 @@ def tracing_report(base_config, load_test_bin):
 
 
 def get_primary_sections(report):
-    for ep in report.entry_points:
+    for ep in report.runs:
         if ep.memory is None:
             continue
 
@@ -76,7 +76,7 @@ def test_untouched_section_has_no_accesses(base_config):
         report = se.get_report()
 
     image = range(module.base, module.base + module.image_size)
-    layout = {r.tag.split(".")[-2]: r for r in report.entry_points[0].memory.layout if r.base in image}
+    layout = {r.tag.split(".")[-2]: r for r in report.runs[0].memory.layout if r.base in image}
     assert layout["headers"].accesses is not None
     assert layout["headers"].accesses.reads > 0
     assert layout["data"].accesses is None

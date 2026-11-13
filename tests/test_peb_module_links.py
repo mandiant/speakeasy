@@ -59,7 +59,7 @@ def test_guest_walks_loader_lists_of_its_own_process(config, arch):
         se.run_shellcode(code)
 
         report = se.get_report()
-        assert [ep.error for ep in report.entry_points] == [None, None]
+        assert [ep.error for ep in report.runs] == [None, None]
         dll = read_pointer(se, results)
         assert dll and read_pointer(se, results + 8) == dll
         emu = se.emu

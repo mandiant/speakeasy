@@ -51,7 +51,7 @@ def test_teb_client_id_has_the_process_and_thread_ids(emulator, arch):
     # TEB.ClientId.UniqueProcess and UniqueThread, which an inlined GetCurrentThreadId reads
     offsets = (0x20, 0x24) if arch == "x86" else (0x40, 0x48)
     pid, tid = run_teb_reads(emulator, arch, offsets)
-    run = emulator.get_report().entry_points[0]
+    run = emulator.get_report().runs[0]
     assert tid != 0
     assert (pid, tid) == (run.pid, run.tid)
 
@@ -82,7 +82,7 @@ def run_cpuid(emulator, arch, leaf):
         cpuid += b"\x48\x89\x07\x48\x89\x5f\x08\x48\x89\x4f\x10\x48\x89\x57\x18\xc3"
     emulator.mem_write(code, cpuid)
     emulator.run_shellcode(code)
-    assert emulator.get_report().entry_points[0].error is None
+    assert emulator.get_report().runs[0].error is None
     fmt = "<4I" if arch == "x86" else "<4Q"
     return struct.unpack(fmt, emulator.mem_read(out, struct.calcsize(fmt)))
 
@@ -129,7 +129,7 @@ def test_large_native_container_fits_below_the_teb(config, tmp_path):
         assert container.image_size == 0x1000000
         assert container.base + container.image_size <= winemu.TEB_ADDRESS
         se.run_shellcode(code)
-        assert se.get_report().entry_points[0].error is None
+        assert se.get_report().runs[0].error is None
     finally:
         se.shutdown()
 

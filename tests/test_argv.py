@@ -11,7 +11,7 @@ def test_argv_exe(config, load_test_bin, run_test, bin_file):
     argv = [f"argument_{i + 1}" for i in range(argv_len)]
     data = load_test_bin(bin_file)
     report = run_test(config, data, argv=argv)
-    ep = report.entry_points
+    ep = report.runs
     printfs = []
     for evt in ep[0].events:
         if evt.event == "api" and "__stdio_common_vfprintf" in evt.api_name:
@@ -29,7 +29,7 @@ def test_argv_zero_is_the_program_path(config, load_test_bin):
     with Speakeasy(config=config, argv=["x"]) as se:
         module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
         se.run_module(module)
-        events = se.get_report().entry_points[0].events
+        events = se.get_report().runs[0].events
     printfs = [evt.args[2].display for evt in events if evt.event == "api" and "vfprintf" in evt.api_name]
     assert printfs[1] == f"argv[0] = {module.emu_path}\n"
 

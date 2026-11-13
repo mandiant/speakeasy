@@ -30,7 +30,7 @@ def test_allocations_do_not_cover_the_return_hook(config, arch, code):
         assert not block <= EMU_RESERVED < block + 0x200000
         assert not se.emu.is_address_valid(EMU_RESERVED)
         se.run_shellcode(base)
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         assert run.error is None
         assert run.return_value == 0
     finally:
@@ -46,5 +46,5 @@ def test_access_across_the_end_of_the_reserved_range_faults_past_its_end(config,
 
         se.run_shellcode(base)
 
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         assert (error.type, error.address) == (f"invalid_{access}", EMU_RESERVED_END)

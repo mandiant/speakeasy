@@ -366,7 +366,7 @@ def test_imalloc_alloc_get_size_and_did_alloc(emu_fixture: str, request: pytest.
 
 def test_com_method_without_a_handler_is_an_unsupported_api(config: dict, load_test_bin, run_test) -> None:
     """wmi_cases.c connects to WMI and calls IWbemServices::PutInstance, which has no handler."""
-    run = run_test(config, load_test_bin("wmi_cases_x86.exe.xz")).entry_points[0]
+    run = run_test(config, load_test_bin("wmi_cases_x86.exe.xz")).runs[0]
     assert run.error is not None
     assert (run.error.type, run.error.api_name) == ("unsupported_api", "com_api.IWbemServices.PutInstance")
 
@@ -731,7 +731,7 @@ def test_shell_execute_ex_writes_h_inst_app_and_h_process(config: dict, load_tes
         se.add_code_hook(after_shell_execute_ex, begin=0x14000136E, end=0x14000136E)
         se.add_code_hook(after_wait, begin=0x14000138D, end=0x14000138D)
         se.run_module(module)
-        events = [e for ep in se.get_report().entry_points for e in ep.events if e.event == "api"]
+        events = [e for ep in se.get_report().runs for e in ep.events if e.event == "api"]
 
     cb_size, mask = struct.unpack_from("<II", sei[0])
     h_inst_app, h_process = struct.unpack_from("<Q", sei[0], 0x38)[0], struct.unpack_from("<Q", sei[0], 0x68)[0]

@@ -65,7 +65,7 @@ def test_kuser_shared_data_wait_loop_ends(config: dict[str, Any]) -> None:
     data, _ = build_pe(32, text=sleep_until_kuser_time_passes, imports={"kernel32.dll": ["Sleep", "ExitProcess"]})
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=data))
-        entry = se.get_report().entry_points[0]
+        entry = se.get_report().runs[0]
         assert entry.error is None
         exits = [e for e in entry.events if e.event == "api" and e.api_name == "kernel32.ExitProcess"]
         assert len(exits) == 1

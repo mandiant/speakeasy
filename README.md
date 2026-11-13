@@ -16,7 +16,7 @@ Emulate a sample and print some fields of the report. Replace `sample.dll` with 
 
 ```console
 speakeasy -t sample.dll --no-mp -o report.json 2>/dev/null
-jq '{sha256, arch, file_type, entry_points: (.entry_points | length)}' report.json
+jq '{sha256, arch, file_type, runs: (.runs | length)}' report.json
 ```
 
 The values depend on the sample:
@@ -26,7 +26,7 @@ The values depend on the sample:
   "sha256": "…",
   "arch": "x86",
   "file_type": "dll",
-  "entry_points": 3
+  "runs": 3
 }
 ```
 

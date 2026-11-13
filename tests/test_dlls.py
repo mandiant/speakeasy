@@ -17,7 +17,7 @@ def get_api_calls(ep, api_name):
 def test_dll_emu(config, load_test_bin, run_test, bin_file):
     data = load_test_bin(bin_file)
     report = run_test(config, data)
-    eps = report.entry_points
+    eps = report.runs
     assert len(eps) == 3
 
     dll_entry = eps[0]

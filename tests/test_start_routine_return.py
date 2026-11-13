@@ -56,7 +56,7 @@ def start_thread(arch, start_routine):
 def run_exe(config, data):
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=data))
-        return se.get_report().entry_points
+        return se.get_report().runs
 
 
 def get_kernel32_base(entry):

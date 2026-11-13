@@ -14,7 +14,7 @@ def test_public_shellcode_reports_ansi_and_utf16_input_strings(config):
         se.run_shellcode(base)
 
         report = se.get_report()
-        assert report.entry_points[0].error is None
+        assert report.runs[0].error is None
         assert ansi in report.strings.static.ansi
         assert wide in report.strings.static.unicode
         # Synthetic API export names must not replace the input inventory.
@@ -39,7 +39,7 @@ def test_public_shellcode_reports_each_new_string_once_and_skips_input_strings(c
         se.run_shellcode(base)
 
         report = se.get_report()
-        assert report.entry_points[0].error is None
+        assert report.runs[0].error is None
         assert literal in report.strings.static.ansi
         assert literal not in report.strings.in_memory.ansi
         assert report.strings.in_memory.ansi.count(marker) == 1
@@ -61,6 +61,6 @@ def test_public_shellcode_reports_strings_that_it_decodes_in_place(config):
         se.run_shellcode(base)
 
         report = se.get_report()
-        assert report.entry_points[0].error is None
+        assert report.runs[0].error is None
         assert marker not in report.strings.static.ansi
         assert report.strings.in_memory.ansi.count(marker) == 1

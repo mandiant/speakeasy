@@ -1238,7 +1238,7 @@ def test_performance_counter_moves_with_the_system_time(emu: Speakeasy) -> None:
 def test_sleep_advances_the_time_stamp_counter(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any], arch: str
 ) -> None:
-    run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).entry_points[0]
+    run = run_test(config, load_test_bin(f"cpu_cases_{arch}.exe.xz")).runs[0]
     assert run.error is None
     assert run.return_value & 1, "rdtsc; Sleep(50); rdtsc gives a delta of at least 50 ms at 1 GHz"
 
@@ -1602,7 +1602,7 @@ THREAD_EXIT_CODE_CASES = {
 def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], run_test: Callable[..., Any]
 ) -> None:
-    entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).entry_points
+    entries = run_test(config, load_test_bin("thread_cases_x86.exe.xz")).runs
     assert [(entry.type, entry.error) for entry in entries] == [("module_entry", None)] + [("thread", None)] * 5
     assert entries[0].return_value == 1, "the queued thread gives 0, not STILL_ACTIVE"
     failed = [case for bit, case in THREAD_EXIT_CODE_CASES.items() if not entries[-1].return_value & bit]

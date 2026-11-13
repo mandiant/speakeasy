@@ -25,7 +25,7 @@ def test_write_to_resource_data_makes_the_resource_pages_writable():
         module = se.load_module(data=build_writer_pe(RESOURCE_RVA + 8))
         se.run_module(module)
 
-        assert [entry.error for entry in se.get_report().entry_points] == [None]
+        assert [entry.error for entry in se.get_report().runs] == [None]
         assert se.mem_read(module.base + RESOURCE_RVA + 8, 4) == struct.pack("<I", 0x11223344)
 
 
@@ -34,5 +34,5 @@ def test_write_to_other_read_only_data_still_faults():
         module = se.load_module(data=build_writer_pe(0x1F00))
         se.run_module(module)
 
-        [entry] = se.get_report().entry_points
+        [entry] = se.get_report().runs
         assert entry.error is not None and entry.error.type == "invalid_protect_write"

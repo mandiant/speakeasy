@@ -29,7 +29,7 @@ def report_with_dumps(base_config, load_test_bin):
 def test_captured_data_refs_resolve(report_with_dumps):
     assert report_with_dumps.data
 
-    for ep in report_with_dumps.entry_points:
+    for ep in report_with_dumps.runs:
         if ep.memory:
             for region in ep.memory.layout:
                 if region.data_ref is not None:
@@ -38,7 +38,7 @@ def test_captured_data_refs_resolve(report_with_dumps):
 
 
 def test_stack_regions_excluded(report_with_dumps):
-    for ep in report_with_dumps.entry_points:
+    for ep in report_with_dumps.runs:
         if ep.memory:
             for region in ep.memory.layout:
                 if region.tag.startswith("emu.stack"):
@@ -66,7 +66,7 @@ def test_heap_block_captured(config):
         se.run_module(se.load_module(data=data))
         report = se.get_report()
 
-    heap_blocks = [r for r in report.entry_points[0].memory.layout if r.tag.startswith("api.heap.HeapAlloc")]
+    heap_blocks = [r for r in report.runs[0].memory.layout if r.tag.startswith("api.heap.HeapAlloc")]
     assert heap_blocks
     assert all(r.data_ref for r in heap_blocks)
     contents = [zlib.decompress(base64.b64decode(report.data[r.data_ref].data)) for r in heap_blocks]
@@ -76,7 +76,7 @@ def test_heap_block_captured(config):
 def test_report_data_deduplicates_repeated_regions(report_with_dumps):
     region_refs = [
         region.data_ref
-        for ep in report_with_dumps.entry_points
+        for ep in report_with_dumps.runs
         for region in (ep.memory.layout if ep.memory else [])
         if region.data_ref is not None
     ]
@@ -84,7 +84,7 @@ def test_report_data_deduplicates_repeated_regions(report_with_dumps):
 
 
 def test_region_perms_are_permission_strings(report_with_dumps):
-    regions = [region for ep in report_with_dumps.entry_points for region in (ep.memory.layout if ep.memory else [])]
+    regions = [region for ep in report_with_dumps.runs for region in (ep.memory.layout if ep.memory else [])]
 
     assert {region.perms for region in regions} <= {"---", "r--", "-w-", "--x", "rw-", "r-x", "-wx", "rwx"}
     eprocess = [region for region in regions if region.tag.startswith("emu.struct.EPROCESS")]

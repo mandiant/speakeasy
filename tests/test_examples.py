@@ -70,9 +70,9 @@ def test_emu_dll_example_exercises_hooks(config, load_test_bin, caplog):
     assert any(message.startswith("Stack written to:") for message in caplog.messages)
     assert "user32.MessageBoxA text: Inside emu_test_one" in caplog.messages
     assert "user32.MessageBoxW text: Inside emu_test_two" in caplog.messages
-    assert len(report.entry_points) == 3
-    assert report.entry_points[1].return_value == 0x41414141
-    assert report.entry_points[2].return_value == 0x42424242
+    assert len(report.runs) == 3
+    assert report.runs[1].return_value == 0x41414141
+    assert report.runs[2].return_value == 0x42424242
 
 
 def test_emu_exe_example_modifies_ntreadfile_buffer(config, load_test_bin, caplog):
@@ -90,9 +90,7 @@ def test_emu_exe_example_modifies_ntreadfile_buffer(config, load_test_bin, caplo
 
     assert any(message.startswith("b'") and "\\x90" in message for message in caplog.messages)
     printfs = [
-        event
-        for event in report.entry_points[0].events
-        if event.event == "api" and "__stdio_common_vfprintf" in event.api_name
+        event for event in report.runs[0].events if event.event == "api" and "__stdio_common_vfprintf" in event.api_name
     ]
     assert printfs[-1].args[2].display.strip() == "File contained: 0x4141414141414141"
 
@@ -140,5 +138,5 @@ def test_usb_emu_example_runs_and_emits_report(load_test_bin):
     assert usb.ddesc.idVendor == 0x0547
     assert [endpoint.bEndpointAddress for endpoint in usb.endpoints] == [0x81, 0x06, 0x88]
     assert param_key.get_value("MaximumTransferSize").get_data() == 65536
-    assert report["entry_points"]
-    assert report["entry_points"][0]["type"] == "driver_entry"
+    assert report["runs"]
+    assert report["runs"][0]["type"] == "driver_entry"

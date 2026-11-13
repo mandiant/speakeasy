@@ -71,11 +71,11 @@ speakeasy -t sample.exe --no-memory-final-contents -o report.json
 
 The memory layout of a run has one region for the headers of a module and one region for each section, in place of one region for the whole module. With `memory.final_contents`, Speakeasy captures each region that is not excluded, also when no write was counted. This includes memory that an API handler wrote, because the memory hooks do not count these writes.
 
-This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `memory.final_contents` set. In `entry_points[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection, size and counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stack.
+This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `memory.final_contents` set. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection, size and counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stack.
 
 ```json
 {
-  "entry_points": [
+  "runs": [
     {
       "memory": {
         "layout": [
@@ -160,7 +160,7 @@ You do not need a config setting for this. The report always has the sections in
 
 ## Access counts for each section
 
-With `memory.accesses`, the memory hooks count reads, writes and executes for each section of a module. Outside modules, they count for each memory map. Speakeasy writes the counts to `entry_points[*].memory.layout[*].accesses`, so the report shows which sections of a module ran code or had writes.
+With `memory.accesses`, the memory hooks count reads, writes and executes for each section of a module. Outside modules, they count for each memory map. Speakeasy writes the counts to `runs[*].memory.layout[*].accesses`, so the report shows which sections of a module ran code or had writes.
 
 ```json
 {
@@ -195,7 +195,7 @@ In a run of `tests/bins/dll_test_x86.dll.xz`, each section of the module has dif
 
 ## Thread and process ID for each run
 
-Each entry in `entry_points` has a `pid` and a `tid`. The TLS callbacks and the module entry run on the main thread, as on Windows, so the module entry sees the TLS slots and static TLS data that the callbacks set. Speakeasy runs each export on a new thread. So you can tell the export calls apart in the timeline of a sample with many runs.
+Each entry in `runs` has a `pid` and a `tid`. The TLS callbacks and the module entry run on the main thread, as on Windows, so the module entry sees the TLS slots and static TLS data that the callbacks set. Speakeasy runs each export on a new thread. So you can tell the export calls apart in the timeline of a sample with many runs.
 
 This excerpt comes from a run of `dll_test_x86.dll` with `runs.exports` set:
 

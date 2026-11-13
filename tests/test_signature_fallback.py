@@ -174,7 +174,7 @@ def _run_x64(config: dict[str, Any]) -> Report:
 
 
 def _api_events(report: Report) -> list[ApiEvent]:
-    return [e for e in report.entry_points[0].events if e.event == "api"]
+    return [e for e in report.runs[0].events if e.event == "api"]
 
 
 def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load_test_bin) -> None:
@@ -200,7 +200,7 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load
         se.run_module(module)
         report = se.get_report()
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events[-5:]] == [
@@ -236,7 +236,7 @@ def test_unhooked_import_is_emulated_from_signature(config: dict[str, Any], load
 
 def test_unhooked_import_is_emulated_from_signature_on_x64(config: dict[str, Any]) -> None:
     report = _run_x64(config)
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
 
     events = _api_events(report)
@@ -270,7 +270,7 @@ def test_out_string_buffer_gets_only_a_terminator(config: dict[str, Any]) -> Non
     ]
     report, blobs, _ = _run_x86_call(config, "GetPrivateProfileStringW", args)
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.GetPrivateProfileStringW", "kernel32.ExitProcess"]
@@ -304,7 +304,7 @@ def test_out_buffer_zero_fill_is_capped(config: dict[str, Any]) -> None:
         config, "K32QueryWorkingSet", [CURRENT_PROCESS, PAGES_BASE + 0x800, 3 * PAGE_SIZE], [common.PERM_MEM_RW] * 3
     )
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     # the fill crosses from the first page into the second, which is a separate region
     assert pages == b"\xcc" * 0x800 + b"\x00" * 0x1000 + b"\xcc" * (3 * PAGE_SIZE - 0x1800)
@@ -323,7 +323,7 @@ def test_out_buffer_zero_fill_stops_at_page_the_guest_cannot_write(config: dict[
         [common.PERM_MEM_RW, common.PERM_MEM_READ],
     )
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     assert [e.api_name for e in _api_events(report)] == ["kernel32.K32QueryWorkingSet", "kernel32.ExitProcess"]
     assert pages == b"\xcc" * (PAGE_SIZE - 8) + b"\x00" * 8 + b"\xcc" * PAGE_SIZE
@@ -335,7 +335,7 @@ def test_in_struct_pointer_is_decoded(config: dict[str, Any]) -> None:
     args: list[int | bytes] = [_wstr("C:\\tmpl"), _wstr("C:\\new"), security_attributes]
     report, _, _ = _run_x86_call(config, "CreateDirectoryExW", args)
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.CreateDirectoryExW", "kernel32.ExitProcess"]
@@ -367,7 +367,7 @@ def test_handled_api_args_are_named(config: dict[str, Any]) -> None:
     ]
     report, _, _ = _run_x86_call(config, "CreateFileW", args)
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.CreateFileW", "kernel32.ExitProcess"]
@@ -420,7 +420,7 @@ def test_apis_stubs_still_applies_to_unknown_names(config: dict[str, Any]) -> No
         report = se.get_report()
     finally:
         se.shutdown()
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is not None and ep.error.type == "unsupported_api"
 
 
@@ -461,7 +461,7 @@ def test_struct_argument_passed_by_value_is_emulated(config: dict[str, Any]) -> 
     """A COORD passed by value takes one stack slot and renders as a struct."""
     report, _, _ = _run_x86_call(config, "SetConsoleScreenBufferSize", [0x7, 0x00190050])
 
-    ep = report.entry_points[0]
+    ep = report.runs[0]
     assert ep.error is None, ep.error
     events = _api_events(report)
     assert [e.api_name for e in events] == ["kernel32.SetConsoleScreenBufferSize", "kernel32.ExitProcess"]

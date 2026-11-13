@@ -120,7 +120,7 @@ _SERVER_SCRIPT = textwrap.dedent(r"""
             "stack_adjust": stack_adjust, "redirect": redirect, "callback": callback,
         }))
         se.run_shellcode(caller)
-        run = se.get_report().entry_points[0]
+        run = se.get_report().runs[0]
         Path(result_path).write_text(json.dumps({
             "calls": calls, "counter": int.from_bytes(se.mem_read(counter, 4), "little"),
             "return_value": emu.get_return_val(), "sp": emu.get_stack_ptr(),

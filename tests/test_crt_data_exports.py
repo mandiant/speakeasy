@@ -15,7 +15,7 @@ def crt_session(request, config):
     try:
         base = se.load_shellcode(data=b"\xc3", arch=request.param)
         se.run_shellcode(base)
-        assert se.get_report().entry_points[0].error is None
+        assert se.get_report().runs[0].error is None
         yield se
     finally:
         se.shutdown()
@@ -36,7 +36,7 @@ def test_crt_data_export_and_accessor_share_guest_writable_storage(crt_session, 
     result = "rax" if ptr_size == 8 else "eax"
     function = emu.get_proc("msvcrt", accessor)
     se.call(function)
-    assert se.get_report().entry_points[-1].error is None
+    assert se.get_report().runs[-1].error is None
     address = se.reg_read(result)
     assert emu.get_proc("msvcrt", name) == address
     module = emu.get_mod_by_name("msvcrt")
@@ -64,13 +64,13 @@ def test_crt_data_export_and_accessor_share_guest_writable_storage(crt_session, 
     writer = se.mem_alloc(0x1000)
     se.mem_write(writer, code + b"\xc3")
     se.call(writer)
-    assert se.get_report().entry_points[-1].error is None
+    assert se.get_report().runs[-1].error is None
     assert int.from_bytes(se.mem_read(address, width), "little") == value
 
     assert emu.get_proc("msvcr90", name) == address
     assert emu.get_proc("msvcr90", accessor) == function
     se.call(function)
-    assert se.get_report().entry_points[-1].error is None
+    assert se.get_report().runs[-1].error is None
     assert se.reg_read(result) == address
     assert int.from_bytes(se.mem_read(address, width), "little") == value
 
@@ -80,7 +80,7 @@ def test_environ_points_to_the_environment_block(crt_session):
     emu = se.emu
     ptr_size = emu.get_ptr_size()
     se.call(emu.get_proc("msvcrt", "__p__environ"))
-    assert se.get_report().entry_points[-1].error is None
+    assert se.get_report().runs[-1].error is None
     address = se.reg_read("rax" if ptr_size == 8 else "eax")
     assert address == emu.get_proc("msvcrt", "_environ")
     envp = int.from_bytes(se.mem_read(address, ptr_size), "little")

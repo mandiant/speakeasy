@@ -155,6 +155,6 @@ def test_call_to_the_last_32_bit_address_faults(config, arch, code):
     with Speakeasy(config=config) as se:
         address = se.load_shellcode(data=bytes.fromhex(code), arch=arch)
         se.run_shellcode(address)
-        error = se.get_report().entry_points[0].error
+        error = se.get_report().runs[0].error
         assert error is not None
         assert (error.type, error.address) == ("invalid_fetch", 0xFFFFFFFF)

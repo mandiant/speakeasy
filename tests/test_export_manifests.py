@@ -168,7 +168,7 @@ def call_get_proc_address(config, architecture, module, name):
             code += b"\xff\xd0\x49\xba" + q(data) + b"\x49\x89\x42\x08\x48\x83\xc4\x28\xc3"
         se.mem_write(code_base, code)
         se.run_shellcode(code_base)
-        assert se.get_report().entry_points[0].error is None
+        assert se.get_report().runs[0].error is None
         width = se.get_ptr_size()
         result, error = (int.from_bytes(se.mem_read(data + offset, width), "little") for offset in (0, 8))
         expected = se.emu.get_proc(module, name) if result else 0
