@@ -199,7 +199,7 @@ With `memory.final_contents`, only the regions of guest memory have a `data_ref`
 
 7.0.0 adds `api_call_count` to each run and `return_address` to each `api` event. A handler event, such as `file_create`, comes just before the `api` event of its call, with the same `tick` and `pc`.
 
-Each API call that writes or reads process memory, such as `WriteProcessMemory`, gets its own `mem_write` or `mem_read` event, and its `data_ref` has all the bytes of the call. In 6.2.0 and 1.x, the profiler merged a write or a read into the last one when its range started at the end of the last range, and the data kept only the first 1024 bytes.
+Each API call that writes or reads process memory, such as `WriteProcessMemory`, gets its own `mem_write` or `mem_read` event, and its `data_ref` has all the bytes of the call. In 6.2.0 and 1.x, the profiler merged a write or a read into the last one when its range started at the end of the last range, and it kept only the first 1024 bytes.
 
 `get_json_report()` and the CLI write compact JSON. 6.2.0 was indented. To indent a report, use `jq . report.json`.
 
