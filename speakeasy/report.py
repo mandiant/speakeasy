@@ -170,7 +170,10 @@ class ErrorInfo(BaseModel):
     )
     instruction: str | None = Field(
         default=None,
-        description="Disassembly of the instruction at ``pc``.",
+        description=(
+            "Disassembly of the instruction at ``pc``. Absent when Speakeasy cannot disassemble it, for example when"
+            " ``pc`` is not mapped."
+        ),
     )
     address: HexIntOptional = Field(
         default=None,

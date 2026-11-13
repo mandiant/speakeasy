@@ -486,7 +486,7 @@
             }
           ],
           "default": null,
-          "description": "Disassembly of the instruction at ``pc``.",
+          "description": "Disassembly of the instruction at ``pc``. Absent when Speakeasy cannot disassemble it, for example when ``pc`` is not mapped.",
           "title": "Instruction"
         },
         "address": {
@@ -786,9 +786,17 @@
           "type": "string"
         },
         "instruction": {
-          "description": "Disassembly of the instruction at the exception address.",
-          "title": "Instruction",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Disassembly of the instruction at the exception address. Absent when Speakeasy cannot disassemble it, for example when the address is not mapped.",
+          "title": "Instruction"
         },
         "exception_code": {
           "description": "Exception code, such as ``0xc0000005``.",
@@ -870,7 +878,6 @@
       },
       "required": [
         "pos",
-        "instruction",
         "exception_code",
         "handler_address",
         "registers"
