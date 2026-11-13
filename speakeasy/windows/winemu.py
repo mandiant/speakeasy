@@ -52,7 +52,6 @@ from speakeasy.windows.api_registry import ApiEntry, ApiRegistry, module_name, s
 from speakeasy.windows.cryptman import CryptoManager
 from speakeasy.windows.driveman import DriveManager
 from speakeasy.windows.fileman import File, FileManager
-from speakeasy.windows.hammer import ApiHammer
 from speakeasy.windows.handles import (
     CURRENT_PROCESS_HANDLE,
     CURRENT_THREAD_HANDLE,
@@ -484,7 +483,6 @@ class WindowsEmulator(BinaryEmulator):
         self.rng: random.Random = random.Random(self.config.random_seed)
         self.start_time: int = winemu.get_filetime(parse_start_time(self.config.start_time))
         self._user_shared_data_bases: list[int] = []
-        self.hammer: ApiHammer = ApiHammer(self)
         self._io_manager: Any | None = None
 
     def _parse_config(self, config):
@@ -3150,7 +3148,6 @@ class WindowsEmulator(BinaryEmulator):
             argc,
         )
 
-        self.hammer.handle_import_func(imp_api, conv, argc)
         self._zero_fill_out_params(sig, values, ptr_size)
         if sig.set_last_error:
             set_last_error = getattr(self, "set_last_error", None)
@@ -3286,7 +3283,6 @@ class WindowsEmulator(BinaryEmulator):
             args = HandlerArgs.from_slots(argv)
         ctx = ApiContext(func_name=imp_api, args=args)
 
-        self.hammer.handle_import_func(imp_api, impl.conv, impl.argc)
         hooks = self.get_api_hooks(dll, name)
         if hooks:
             hooked_func = MethodType(impl.func, impl.module)
@@ -3376,7 +3372,6 @@ class WindowsEmulator(BinaryEmulator):
         argv = self.get_func_argv(hook.call_conv, hook.argc)
         call.frame.argc = hook.argc
         call.frame.convention = hook.call_conv
-        self.hammer.handle_import_func(call.api_name, hook.call_conv, hook.argc)
         rv = hook.cb(hook.emu, call.api_name, None, argv)
         call.frame.result = rv
         ret = self.get_ret_address()

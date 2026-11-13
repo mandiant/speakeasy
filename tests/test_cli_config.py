@@ -44,7 +44,6 @@ FEATURE_PATHS = [
     "analysis.memory_tracing",
     "analysis.coverage",
     "analysis.dynamic_code_snapshots",
-    "api_hammering.enabled",
     "keep_memory_on_free",
     "snapshot_memory_regions",
     "modules.modules_always_exist",

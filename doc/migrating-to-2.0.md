@@ -284,13 +284,14 @@ In 2.0, the features that collect analysis data or emulate more of the sample ar
 | Dynamic code snapshots | `analysis.dynamic_code_snapshots` | `--no-analysis-dynamic-code-snapshots` |
 | Memory region snapshots | `snapshot_memory_regions` | `--no-snapshot-memory-regions` |
 | Freed memory stays mapped | `keep_memory_on_free` | `--no-keep-memory-on-free` |
-| API hammering mitigation | `api_hammering.enabled` | `--no-api-hammering-enabled` |
 | Unknown modules load | `modules.modules_always_exist` | `--no-modules-always-exist` |
 | Unknown functions resolve | `modules.functions_always_exist` | `--no-modules-functions-always-exist` |
 | Child processes run | `run_module(emulate_children=...)` | `--no-emulate-children` |
 | Exports run | `run_module(all_entrypoints=...)` | `--no-all-entrypoints` |
 
 A config file that sets a field keeps its value. In the library, `Speakeasy.run_module`, `Win32Emulator.run_module` and `WinKernelEmulator.run_module` default to `all_entrypoints=True`, and the user mode `run_module` methods default to `emulate_children=True`. In 1.x both were `False`. The CLI always ran the exports, and `--no-all-entrypoints` is new.
+
+The `api_hammering` key is removed, and 2.0 does not patch call sites that call an API many times. A config that has `api_hammering` fails validation, because the config models reject unknown keys.
 
 ## Debug output
 

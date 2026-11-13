@@ -339,18 +339,6 @@ class UserConfig(BaseModel):
     sid: str = Field(default="S-1-5-21-1111111111-2222222222-3333333333-1001", description="SID of the emulated user.")
 
 
-class ApiHammeringConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    enabled: bool = Field(default=True, description="Patch API hammering loops in x86 code.")
-    threshold: int = Field(
-        default=2000, description="Number of calls to one API from one call site before the emulator patches the call."
-    )
-    allow_list: list[str] = Field(
-        default_factory=list, description="APIs that the emulator does not patch. An empty list uses a built-in list."
-    )
-
-
 class SymlinkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -685,10 +673,6 @@ class SpeakeasyConfig(BaseModel):
     user: UserConfig = Field(
         default_factory=UserConfig,
         description="User account of the process.",
-    )
-    api_hammering: ApiHammeringConfig | None = Field(
-        default_factory=ApiHammeringConfig,
-        description="API hammering mitigation settings.",
     )
     symlinks: list[SymlinkConfig] = Field(
         default_factory=lambda: [SymlinkConfig.model_validate(item) for item in _DEFAULT_SYMLINKS],

@@ -13,10 +13,6 @@
     "keep_memory_on_free": false,
     "snapshot_memory_regions": false,
 
-    "api_hammering": {
-        "enabled": false
-    },
-
     "exceptions": {
         "dispatch_handlers": true
     },
