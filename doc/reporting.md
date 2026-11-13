@@ -29,7 +29,7 @@ Each entry point has these fields:
 - `api_hash`: the SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.
 - `events`: the events of the run, in order. The `record_*_event` methods of `Profiler` add them.
 - `accesses`: only if `memory.accesses=true`. `regions` has the read, write and execute counts of each region that the run used, by the base of the region in `memory.layout`. `symbols` has the counts of each symbol address. Only an access at the exact address of a symbol counts.
-- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `memory.dynamic_code_contents.enabled=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry for the region, with the same `tag`, `base` and `size` and its own `pos` and `data_ref`. The list is in the order of `pos.tick`, and with snapshots `pos.tick` is always the instruction count of the run. Each entry of a region has different data from the entry of the region before it. A decoder loop in the region gives no snapshot for each pass, because its blocks do not come from outside the region. `memory.dynamic_code_contents.limit` (default 8) is the maximum number of snapshots of a region in a run, with the first one. `snapshot_limit_reached` is true on the last entry of a region when the region changed and ran again after the last snapshot that the limit allows, and it is absent on the other entries. The report does not have a stage that the region decodes and runs before control leaves the region. Each write in the region counts, also a write to data. A region that holds an unpacked image with its global variables can get a snapshot after most API calls, and it gets to the limit fast.
+- `dynamic_code`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran, one entry for each region with `region` (its base), `size`, `tag` and `contents`. The first entry of `contents` has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `memory.dynamic_code_contents.enabled=true`, each entry of `contents` also has a `data_ref` to the region contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry to `contents`, with its own `pos` and `data_ref`. `contents` is in the order of `pos.tick`, and with snapshots `pos.tick` is always the instruction count of the run. Each entry of `contents` has different data from the entry before it. A decoder loop in the region gives no snapshot for each pass, because its blocks do not come from outside the region. `memory.dynamic_code_contents.limit` (default 8) is the maximum number of snapshots of a region in a run, with the first one. `limit_reached` is true when the region changed and ran again after the last snapshot that the limit allows. It is absent when `memory.dynamic_code_contents` is off. The report does not have a stage that the region decodes and runs before control leaves the region. Each write in the region counts, also a write to data. A region that holds an unpacked image with its global variables can get a snapshot after most API calls, and it gets to the limit fast.
 - `coverage`: the addresses of the instructions that ran, only if `code.coverage=true`.
 - `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
 - `memory`: in user mode, the memory regions and the modules at the end of the run. If `memory.final_contents=true`, each region also has a `data_ref` to its contents, except the stacks.
@@ -87,7 +87,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
 - `--code-coverage` fills `runs[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-code-coverage)).
 - `--memory-accesses` fills `runs[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)).
 - `--memory-final-contents` fills `runs[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
-- `--memory-dynamic-code-contents` fills `runs[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--memory-dynamic-code-contents-limit` sets the maximum number of snapshots of each region.
+- `--memory-dynamic-code-contents` fills `runs[*].dynamic_code[*].contents[*].data_ref` and `limit_reached`, and adds an entry to `contents` for each later snapshot of a region. `--memory-dynamic-code-contents-limit` sets the maximum number of snapshots of each region.
 - `runs[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 
 ## Annotated report schema example
@@ -419,28 +419,29 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
         ]
       },
 
-      // Dynamic code segments that executed, in tick order.
-      "dynamic_code_segments": [
+      // Dynamic code regions where code ran, one entry for each region.
+      "dynamic_code": [
         {
-          "tag": "emu.alloc.0x10000000",
-          "base": "0x10000000",
+          "region": "0x10000000",
           "size": 4096,
-          // Position when code first ran in the region.
-          "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
-          // Only with memory.dynamic_code_contents: the region contents at pos.
-          "data_ref": "data-dyn-code"
-        },
-        {
-          // Only with memory.dynamic_code_contents: the same region, when code
-          // ran in it again after the region changed.
-          "tag": "emu.alloc.0x10000000",
-          "base": "0x10000000",
-          "size": 4096,
-          "pos": {"tick": 310, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
-          "data_ref": "data-dyn-code-stage2",
-          // Only on the last entry of a region, if the region changed and ran
-          // again after the snapshot limit.
-          "snapshot_limit_reached": true
+          "tag": "api.VirtualAlloc",
+          "contents": [
+            {
+              // Position when code first ran in the region.
+              "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
+              // Only with memory.dynamic_code_contents: the region contents at pos.
+              "data_ref": "data-dyn-code"
+            },
+            {
+              // Only with memory.dynamic_code_contents: the region when code
+              // ran in it again after the region changed.
+              "pos": {"tick": 310, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
+              "data_ref": "data-dyn-code-stage2"
+            }
+          ],
+          // Only with memory.dynamic_code_contents: true if the region changed
+          // and ran again after the snapshot limit.
+          "limit_reached": false
         }
       ],
 

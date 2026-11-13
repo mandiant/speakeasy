@@ -293,21 +293,11 @@ class MemoryAccesses(BaseModel):
     )
 
 
-class DynamicCodeSegment(BaseModel):
-    """
-    A dynamic code region where code ran, or a snapshot of the region.
-
-    The emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and
-    adds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the
-    emulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the
-    region after the region changed, and control came from outside the region.
-    """
+class DynamicCodeContents(BaseModel):
+    """The position and the data of a dynamic code region when code ran in it."""
 
     model_config = ConfigDict(extra="forbid")
 
-    tag: str = Field(description="Tag of the memory region.")
-    base: HexInt = Field(description="Base address of the region.")
-    size: int = Field(description="Size of the region in bytes.")
     pos: TracePosition = Field(
         description=(
             "Position when the emulator found code that ran in the region: the first time, or for a later"
@@ -317,15 +307,42 @@ class DynamicCodeSegment(BaseModel):
     data_ref: str | None = Field(
         default=None,
         description=(
-            "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different"
-            " data from the entry of the region before it. Only with ``memory.dynamic_code_contents``."
+            "Key in the top-level ``data`` of the region data at ``pos``. Each snapshot of a region has different"
+            " data from the snapshot before it. Absent when ``memory.dynamic_code_contents`` is off."
         ),
     )
-    snapshot_limit_reached: bool | None = Field(
+
+
+class DynamicCodeRegion(BaseModel):
+    """
+    A dynamic code region where code ran.
+
+    The emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and
+    adds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the
+    emulator adds one more snapshot to ``contents`` each time that code runs in the region after the
+    region changed, and control came from outside the region.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    region: HexInt = Field(description="Base address of the region, as in ``memory.layout``.")
+    size: int = Field(description="Size of the region in bytes.")
+    tag: str | None = Field(
+        default=None,
+        description=("Tag of the memory manager, such as ``api.VirtualAlloc``. Absent when the region has no tag."),
+    )
+    contents: list[DynamicCodeContents] = Field(
+        description=(
+            "With ``memory.dynamic_code_contents``, one snapshot for each time that code ran in the region with"
+            " new data, in the order of ``pos.tick``. With the option off, one entry with the ``pos`` of the first"
+            " time that code ran in the region."
+        )
+    )
+    limit_reached: bool | None = Field(
         default=None,
         description=(
-            "True on the last entry of a region if the region changed and code ran in it again after the last"
-            " snapshot that ``memory.dynamic_code_contents.limit`` allows. Absent otherwise."
+            "True if the region changed and code ran in it again after the last snapshot that"
+            " ``memory.dynamic_code_contents.limit`` allows. Absent when ``memory.dynamic_code_contents`` is off."
         ),
     )
 
@@ -519,11 +536,11 @@ class RunReport(BaseModel):
         default=None,
         description="Read, write and execute counts of the regions and the symbols. Only with ``memory.accesses``.",
     )
-    dynamic_code_segments: list[DynamicCodeSegment] = Field(
+    dynamic_code: list[DynamicCodeRegion] = Field(
         default_factory=list,
         description=(
-            "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With"
-            " ``memory.dynamic_code_contents``, a region has one entry for each snapshot."
+            "Dynamic code regions where code ran in the run, one entry for each region, in the order of the"
+            " first time that code ran in the region."
         ),
     )
     coverage: list[HexInt] | None = Field(

@@ -4,7 +4,7 @@ import hashlib
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, Any
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
 from speakeasy.config import CodeConfig, MemoryConfig
@@ -50,7 +50,8 @@ from speakeasy.report import (
     ApiLoop,
     ApiLoopSite,
     DroppedFile,
-    DynamicCodeSegment,
+    DynamicCodeContents,
+    DynamicCodeRegion,
     ErrorInfo,
     LoadedModule,
     MemoryAccesses,
@@ -152,18 +153,15 @@ class ApiLoopTracker:
         return ApiLoop(start=self.start, calls=self.calls, sites=sites)
 
 
-class DynCodeMapping(TypedDict):
-    tag: str
+@dataclass
+class DynamicCode:
+    """A dynamic code region where code ran in a run, and its snapshots."""
+
     base: int
     size: int
-    pos: TracePosition
-    data_ref: str | None
-    snapshot_limit_reached: bool
-
-
-class DynCode(TypedDict):
-    mmap: list[DynCodeMapping]
-    base_addrs: set[int]
+    tag: str | None
+    contents: list[DynamicCodeContents]
+    limit_reached: bool = False
 
 
 class Run:
@@ -185,7 +183,8 @@ class Run:
         self.dropped_files: list[dict[str, Any]] | None = None
         # The access counts of each region, by the base of the region in the report.
         self.region_access: dict[int, MemAccess] = {}
-        self.dyn_code: DynCode = {"mmap": [], "base_addrs": set()}
+        # The dynamic code regions where code ran, by base, in the order of the first time.
+        self.dynamic_code: dict[int, DynamicCode] = {}
         self.process_context: Process | None = None
         self.thread: Thread | None = None
         self.unique_apis: list[str] = []
@@ -223,7 +222,8 @@ def get_data_refs(runs: list[RunReport]) -> set[str]:
     """Get the payload keys that the runs refer to."""
     refs: set[str] = set()
     for run in runs:
-        holders: list[Any] = [*run.events, *run.dynamic_code_segments, *(run.dropped_files or [])]
+        holders: list[Any] = [*run.events, *(run.dropped_files or [])]
+        holders.extend(contents for region in run.dynamic_code for contents in region.contents)
         if run.memory:
             holders.extend(run.memory.layout)
         refs.update(ref for holder in holders if (ref := getattr(holder, "data_ref", None)))
@@ -681,42 +681,29 @@ class Profiler:
         """Record a module that the guest loads at run time."""
         run.events.append(ModuleLoadEvent(pos=pos, name=name, path=path, base=base, size=size))
 
-    def record_dyn_code_event(self, run, pos: TracePosition, tag, base, size, data: bytes | None):
+    def record_dynamic_code(self, run, pos: TracePosition, tag, base, size, data: bytes | None):
         """Record a dynamic code region that the guest runs. The profiler adds each base address once per run."""
-        if base not in run.dyn_code["base_addrs"]:
+        if base not in run.dynamic_code:
             data_ref = self.artifact_store.put_bytes(data) if data is not None else None
-            entry: DynCodeMapping = {
-                "tag": tag,
-                "base": base,
-                "size": size,
-                "pos": pos,
-                "data_ref": data_ref,
-                "snapshot_limit_reached": False,
-            }
-            run.dyn_code["mmap"].append(entry)
-            run.dyn_code["base_addrs"].add(base)
+            contents = [DynamicCodeContents(pos=pos, data_ref=data_ref)]
+            run.dynamic_code[base] = DynamicCode(base=base, size=size, tag=tag, contents=contents)
 
-    def record_dyn_code_snapshot(self, run, pos: TracePosition, base, data: bytes) -> bool:
+    def record_dynamic_code_snapshot(self, run, pos: TracePosition, base, data: bytes) -> bool:
         """
-        Record one more snapshot of the dynamic code region at ``base``, as a new entry of the region.
+        Record one more snapshot of the dynamic code region at ``base``.
 
         Return ``False``, and record nothing, if the data is the same as the last snapshot of the region.
         """
-        last = self._get_last_dyn_code_entry(run, base)
+        region = run.dynamic_code[base]
         data_ref = self.artifact_store.put_bytes(data)
-        if data_ref == last["data_ref"]:
+        if data_ref == region.contents[-1].data_ref:
             return False
-        entry: DynCodeMapping = {**last, "pos": pos, "data_ref": data_ref}
-        run.dyn_code["mmap"].append(entry)
+        region.contents.append(DynamicCodeContents(pos=pos, data_ref=data_ref))
         return True
 
-    def record_dyn_code_limit(self, run, base):
+    def record_dynamic_code_limit(self, run, base):
         """Record that the dynamic code region at ``base`` changed again after its last allowed snapshot."""
-        self._get_last_dyn_code_entry(run, base)["snapshot_limit_reached"] = True
-
-    def _get_last_dyn_code_entry(self, run: Run, base: int) -> DynCodeMapping:
-        """Get the last entry of the dynamic code region at ``base`` in the run."""
-        return next(seg for seg in reversed(run.dyn_code["mmap"]) if seg["base"] == base)
+        run.dynamic_code[base].limit_reached = True
 
     def record_network_event(
         self,
@@ -796,16 +783,16 @@ class Profiler:
                     ],
                 )
 
-            dyn_code_segments = [
-                DynamicCodeSegment(
-                    tag=seg["tag"],
-                    base=seg["base"],
-                    size=seg["size"],
-                    pos=seg["pos"],
-                    data_ref=seg["data_ref"],
-                    snapshot_limit_reached=seg["snapshot_limit_reached"] or None,
+            snapshots = self.memory_config.dynamic_code_contents.enabled
+            dynamic_code = [
+                DynamicCodeRegion(
+                    region=region.base,
+                    size=region.size,
+                    tag=region.tag,
+                    contents=list(region.contents),
+                    limit_reached=region.limit_reached if snapshots else None,
                 )
-                for seg in r.dyn_code["mmap"]
+                for region in r.dynamic_code.values()
             ]
 
             dropped_files = None
@@ -862,7 +849,7 @@ class Profiler:
                 error=error_info,
                 events=list(r.events),
                 accesses=accesses,
-                dynamic_code_segments=dyn_code_segments,
+                dynamic_code=dynamic_code,
                 coverage=sorted(r.coverage) if self.code_config.coverage else None,
                 dropped_files=dropped_files,
                 memory=memory_layout,

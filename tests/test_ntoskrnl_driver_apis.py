@@ -413,7 +413,7 @@ def test_api_call_from_zw_allocate_virtual_memory_records_dynamic_code(any_drive
 
     entry = se.get_report().runs[-1]
     assert entry.error is None
-    assert [seg.base for seg in entry.dynamic_code_segments] == [base]
+    assert [region.region for region in entry.dynamic_code] == [base]
 
 
 def test_zw_create_key_and_zw_open_key_record_the_disposition_and_access(driver_emu: Speakeasy) -> None:
