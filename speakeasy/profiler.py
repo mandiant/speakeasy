@@ -88,6 +88,8 @@ class GuestCallbackFrame:
 
     stack_pointer: int
     return_address: int
+    # The address of the API call, or None if the frame has no API call or the emulator does not know it.
+    call_pc: int | None = None
     argc: int = 0
     convention: int | None = None
     function: int = 0

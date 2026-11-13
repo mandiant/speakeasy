@@ -71,7 +71,12 @@ class TracePosition(BaseModel):
     pid: int = Field(description="ID of the process that did the operation.")
     pc: HexIntOptional = Field(
         default=None,
-        description="Address of the instruction that did the operation. For an API event, the address of the call.",
+        description=(
+            "Address of the instruction that did the operation. For an API event, the address of the call. "
+            "For an event that the code of an API makes, such as a file, registry, memory, process, thread or "
+            "network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. "
+            "Such an event comes just before the ``api`` event of its call, with the same ``tick``."
+        ),
     )
 
 

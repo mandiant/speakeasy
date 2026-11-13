@@ -767,18 +767,25 @@ class WindowsEmulator(BinaryEmulator):
         return self.regman.get_key_from_handle(handle)
 
     def get_trace_position(self) -> TracePosition:
-        """Get the position of the current run, thread, process and program counter, for a report event."""
+        """
+        Get the position of the current run, thread, process and program counter, for a report event.
+
+        While the code of an API call runs, the program counter is the address of the call.
+        """
         run = self.get_current_run()
         thread = self.get_current_thread()
         proc = self.get_current_process()
         tick = run.instr_cnt if run else 0
         tid = thread.tid if thread else 0
         pid = proc.id if proc else 0
-        pc = None
-        try:
-            pc = self.get_pc()
-        except Exception:
-            pc = None
+        frame = self._active_api_frame
+        if frame is not None and frame.call_pc is not None:
+            pc = frame.call_pc
+        else:
+            try:
+                pc = self.get_pc()
+            except Exception:
+                pc = None
         return TracePosition(tick=tick, tid=tid, pid=pid, pc=pc)
 
     def record_file_event(
@@ -3302,7 +3309,7 @@ class WindowsEmulator(BinaryEmulator):
 
         End the run if the code changed the stack pointer but did not return.
         """
-        frame = GuestCallbackFrame(self.get_stack_ptr(), self.get_ret_address())
+        frame = GuestCallbackFrame(self.get_stack_ptr(), self.get_ret_address(), call_pc=self.prev_pc or None)
         previous = self._active_api_frame
         self._active_api_frame = frame
         origin_run = self.curr_run
@@ -3344,7 +3351,7 @@ class WindowsEmulator(BinaryEmulator):
             pc=self.get_pc(),
             sp=self.get_stack_ptr(),
             return_address=ret,
-            call_pc=self.prev_pc or None,
+            call_pc=frame.call_pc,
         )
         impl = self.resolve_api_implementation(dll, name)
         api_name = call.api_name
