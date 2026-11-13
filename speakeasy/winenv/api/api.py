@@ -365,6 +365,18 @@ class ApiHandler:
             new = PAGE_PROTECTION_FLAGS.PAGE_NOACCESS
         return new
 
+    def get_page_protection(self, address):
+        """Get the Windows page protection of the page at ``address``, with ``PAGE_GUARD`` for a guard page."""
+        emu = self.emu
+        page = address & ~(emu.page_size - 1)
+        # A guard page has no access in Unicorn until the first access restores its perms.
+        if page in emu.guard_pages:
+            return self.emu_perms_to_win_perms(emu.guard_pages[page]) | PAGE_PROTECTION_FLAGS.PAGE_GUARD
+        uc_to_perms = {native: perms for perms, native in emu.emu_eng.perms.items()}
+        regions = emu.get_mem_regions()
+        perms = next((uc_to_perms[p] for start, end, p in regions if start <= address <= end), common.PERM_MEM_NONE)
+        return self.emu_perms_to_win_perms(perms)
+
     def mem_reserve(self, size, base=None, tag=None):
         return self.emu.mem_reserve(size, base=base, tag=tag)
 
