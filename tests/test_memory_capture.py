@@ -14,14 +14,13 @@ def report_with_dumps(base_config, load_test_bin):
     data = load_test_bin("dll_test_x86.dll.xz")
 
     cfg = copy.deepcopy(base_config)
-    cfg["snapshot_memory_regions"] = True
-    cfg["analysis"] = dict(cfg.get("analysis", {}))
-    cfg["analysis"]["memory_tracing"] = True
+    cfg["memory"]["final_contents"] = True
+    cfg["memory"]["accesses"] = True
 
     se = Speakeasy(config=cfg)
     try:
         module = se.load_module(data=data)
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         return se.get_report()
     finally:
         se.shutdown()
@@ -62,7 +61,7 @@ def test_heap_block_captured(config):
         return code + b"\xc3"
 
     data, _ = build_pe(32, text=text, data=payload, imports={"kernel32.dll": ["GetProcessHeap", "HeapAlloc"]})
-    config["snapshot_memory_regions"] = True
+    config["memory"]["final_contents"] = True
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=data))
         report = se.get_report()

@@ -59,7 +59,7 @@ def test_registers_reset_between_runs(config, load_test_bin, bin_file, arch):
             run_register_snapshots.append(snapshot)
 
     se.emu.add_code_hook(cb=code_hook)
-    se.run_module(module, all_entrypoints=True)
+    se.run_module(module)
     se.shutdown()
 
     assert len(run_register_snapshots) > 1, "Need multiple runs to test isolation"
@@ -109,7 +109,7 @@ def test_stack_cleared_between_runs(config, load_test_bin, bin_file):
                 stack_snapshots.append(None)
 
     se.emu.add_code_hook(cb=code_hook)
-    se.run_module(module, all_entrypoints=True)
+    se.run_module(module)
     se.shutdown()
 
     assert len(stack_snapshots) > 1

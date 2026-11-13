@@ -254,7 +254,7 @@ class FileManager:
         self.file_config: FilesystemConfig = self.config.filesystem
         self.emu: Any = emu
 
-        cmdline = self.config.command_line or ""
+        cmdline = self.config.process.command_line or ""
 
         self.emulated_binname: str = shlex.split(cmdline)[0] if cmdline else ""
 
@@ -311,7 +311,7 @@ class FileManager:
     def get_module_paths(self) -> list[str]:
         """Get the paths of the configured user and system modules."""
         modules = self.config.modules
-        return [m.path for m in modules.user_modules if m.path] + [m.path for m in modules.system_modules if m.path]
+        return [m.path for m in modules.user if m.path] + [m.path for m in modules.system if m.path]
 
     def find_matching_entries(self, search):
         r"""
@@ -389,7 +389,7 @@ class FileManager:
         """Resolve a relative path against the current directory."""
         if ntpath.isabs(path):
             return path
-        return ntpath.normpath(ntpath.join(self.config.current_dir, path))
+        return ntpath.normpath(ntpath.join(self.config.process.current_dir, path))
 
     def get_file_from_path(self, path):
         path = self.get_full_path(path)
@@ -591,9 +591,9 @@ class FileManager:
         parents of the known files, the directories that the program created, and their
         ancestors. A directory that the program removed does not exist.
         """
-        dirs = [self.config.current_dir, *self.created_dirs]
+        dirs = [self.config.process.current_dir, *self.created_dirs]
         for name in DIRECTORY_ENV_VARS:
-            dirs.extend(self.config.env.get(name, "").split(";"))
+            dirs.extend(self.config.process.env.get(name, "").split(";"))
         files = [*self.walk_files(), *(f.path for f in self.files)]
         dirs.extend(ntpath.dirname(f) for f in files)
 

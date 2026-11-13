@@ -47,7 +47,6 @@ class WinKernelEmulator(WindowsEmulator):
 
         self.drivers: list[objman.Driver] = []
         self.pool_allocs: list[tuple[int, int, int, str]] = []
-        self.all_entrypoints: bool = False
         self.is_kernel_mode: bool = True
         self.irql: int = ddk.PASSIVE_LEVEL
         self.ktypes = ntos
@@ -86,7 +85,7 @@ class WinKernelEmulator(WindowsEmulator):
         self.om = objman.ObjectManager(emu=self)
         self.init_processes(self.config.processes)
         self._setup_gdt(self.get_arch())
-        self.init_sys_modules(self.config.modules.system_modules)
+        self.init_sys_modules(self.config.modules.system)
         self.setup_kernel_mode()
         self.setup_user_shared_data()
 
@@ -224,15 +223,13 @@ class WinKernelEmulator(WindowsEmulator):
         """
         return self
 
-    def run_module(self, module, *, all_entrypoints=True, entry_point=None) -> None:
+    def run_module(self, module, *, entry_point=None) -> None:
         """
         Add a DriverEntry run for a loaded driver, and run the queue.
 
-        If ``all_entrypoints`` is true, the emulator also runs the exports, the IRP handlers and the unload
+        If ``runs.exports`` is true, the emulator also runs the exports, the IRP handlers and the unload
         routine of the driver after DriverEntry. See ``_queue_driver_routines``.
         """
-        self.all_entrypoints = all_entrypoints
-
         # Create the service key for the driver
         drv = self.create_driver_object(pe=module)
         svc_key = self.regman.create_key(drv.reg_path)
@@ -349,7 +346,7 @@ class WinKernelEmulator(WindowsEmulator):
 
         The IRP handlers get one IRP each, for the first device of the driver.
         """
-        if not self.all_entrypoints:
+        if not self.config.runs.exports:
             return
         if entry is not None and entry.error is None and not is_nt_success(entry.return_value or 0):
             return
@@ -403,7 +400,7 @@ class WinKernelEmulator(WindowsEmulator):
         if not self.is_emu_complete:
             self.is_emu_complete = True
 
-            if self.config.analysis.strings and self.profiler:
+            if self.config.memory.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
                 static_ansi = set(self.profiler.strings["ansi"])
                 static_unicode = set(self.profiler.strings["unicode"])
@@ -467,7 +464,7 @@ class WinKernelEmulator(WindowsEmulator):
 
         self.setup_msrs()
 
-        for sl in self.config.symlinks:
+        for sl in self.config.system.symlinks:
             self.get_object_manager("symlink creation").add_symlink(sl.name, sl.target)
 
     def setup_msrs(self):

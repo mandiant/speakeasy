@@ -263,7 +263,7 @@ class Ws2_32(api.ApiHandler):
         ) = argv
         rv = -1
 
-        host = emu.config.hostname
+        host = emu.config.system.hostname
         if name and host:
             host += "\x00"
             if namelen >= len(host):

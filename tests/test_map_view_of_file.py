@@ -24,7 +24,7 @@ def test_map_view_of_file_uses_readable_protections(base_config, tmp_path):
     se = Speakeasy(config=cfg, argv=["WARNING_THIS_WILL_DESTROY_YOUR_MACHINE"])
     try:
         module = se.load_module(path=str(exe_path))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         report = se.get_report()
     finally:
         se.shutdown()

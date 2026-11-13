@@ -4,7 +4,7 @@ from speakeasy import Speakeasy
 
 
 def test_public_shellcode_reports_ansi_and_utf16_input_strings(config):
-    config["analysis"]["strings"] = True
+    config["memory"]["strings"] = True
     ansi = "INPUT_ANSI_LITERAL"
     wide = "INPUT_WIDE_LITERAL"
     data = b"\xc3\0" + ansi.encode() + b"\0\0" + wide.encode("utf-16le") + b"\0\0"
@@ -22,7 +22,7 @@ def test_public_shellcode_reports_ansi_and_utf16_input_strings(config):
 
 
 def test_public_shellcode_reports_each_new_string_once_and_skips_input_strings(config):
-    config["analysis"]["strings"] = True
+    config["memory"]["strings"] = True
     literal = "INPUT_ANSI_LITERAL"
     marker = "DECODED_STACK_MARKER"
     # The stack gets a copy of the input literal and two copies of the marker.
@@ -46,7 +46,7 @@ def test_public_shellcode_reports_each_new_string_once_and_skips_input_strings(c
 
 
 def test_public_shellcode_reports_strings_that_it_decodes_in_place(config):
-    config["analysis"]["strings"] = True
+    config["memory"]["strings"] = True
     marker = "SHELLCODE_DECODED_MARKER"
     # call $+5; pop eax; then one "mov byte [eax+disp32], imm8" for each character.
     code = b"\xe8\x00\x00\x00\x00\x58"

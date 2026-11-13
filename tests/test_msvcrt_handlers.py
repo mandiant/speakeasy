@@ -2123,8 +2123,8 @@ BASIC_FILEBUF = "?$basic_filebuf@DU?$char_traits@D@std@@@std@@"
 
 @pytest.fixture
 def shellcode64_emu(config: dict[str, Any]) -> Iterator[Speakeasy]:
-    config["max_run_time"] = 5
-    config["max_api_calls"] = 200
+    config["limits"]["per_run_time"] = 5
+    config["limits"]["api_calls"] = 200
     with Speakeasy(config=config) as se:
         se.run_shellcode(se.load_shellcode(data=b"\xc3", arch="amd64"))
         yield se
@@ -2268,6 +2268,7 @@ def test_endthreadex_ends_only_the_current_thread(
     connection thread then runs to _endthreadex, which ends only that thread, and the next queued
     thread runs.
     """
+    config["runs"] = {"children": False}
     with Speakeasy(config=config, argv=["-no-rotate"]) as se:
         module = se.load_module(data=load_test_bin(EUPDATE_HELPER), filename="Eupdate Helper.exe")
         connections = []
@@ -2278,7 +2279,7 @@ def test_endthreadex_ends_only_the_current_thread(
                 emu.set_pc(module.base + 0x133FC)
 
         se.add_code_hook(end_accept_loop, begin=module.base + 0x133F7, end=module.base + 0x133F7)
-        se.run_module(module, emulate_children=False)
+        se.run_module(module)
         runs = [run for run in se.get_report().entry_points if run.start_address == module.base + 0x144FC]
 
     assert [(run.type, run.error) for run in runs] == [("thread", None), ("thread", None)]

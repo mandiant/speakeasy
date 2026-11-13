@@ -63,7 +63,7 @@ class SignatureImplementation:
 
 @dataclass(frozen=True)
 class StubImplementation:
-    """The API is not known, and ``functions_always_exist`` is set."""
+    """The API is not known, and ``apis.stubs`` is set."""
 
 
 @dataclass(frozen=True)

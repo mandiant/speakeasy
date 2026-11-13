@@ -8,7 +8,7 @@ The public interface is the names in `speakeasy.__all__`, and the methods of `Wi
 
 All other modules, such as `speakeasy.windows.winemu` or `speakeasy.winenv.api`, are internal, and a minor release can change them. You can use `speakeasy.defs` and `speakeasy.arch` for the structures and constants of the Windows API, but they are internal too.
 
-The boolean parameters of the public methods are keyword-only, for example `se.run_module(module, all_entrypoints=False)` and `se.disasm(addr, size, fast=False)`.
+The boolean parameters of the public methods are keyword-only, for example `se.disasm(addr, size, fast=False)`. `run_module` takes only `entry_point` as a keyword. The config controls which runs it starts.
 
 ## Minimal DLL emulation flow
 
@@ -27,9 +27,9 @@ se.shutdown()
 ```python
 import speakeasy
 
-se = speakeasy.Speakeasy()
+se = speakeasy.Speakeasy(config={"runs": {"exports": False}})
 module = se.load_module("sample.dll")
-se.run_module(module, all_entrypoints=False)
+se.run_module(module)
 
 for export in module.get_exports():
     if export.name == "myexport":
@@ -43,7 +43,7 @@ se.shutdown()
 
 The `Speakeasy` constructor takes these arguments. `config=` sets the emulated environment and the analysis options, as a dict or a `SpeakeasyConfig` (see [Configuration walkthrough](configuration.md)). `argv=` sets the arguments of the emulated program. `volumes=` mounts host paths into the emulated file system, and it requires a dict or no `config=`. With `gdb_port=`, the first run waits for a GDB client before it starts (see [GDB debugging reference](gdb.md)). `gdb_host=` sets the address on which the GDB server listens, and its default is `127.0.0.1`.
 
-The defaults turn on all the features. The feature options of the config are on, so the report has coverage, memory tracing and memory snapshots. `run_module` runs the exports of a DLL (`all_entrypoints=True`) and the child processes that the sample starts (`emulate_children=True`). To get a faster run or a smaller report, set an option to `False`.
+The defaults turn on all the features. The [feature options](configuration.md#feature-options) of the config are on, so the report has coverage, memory access counts and the final memory contents. `run_module` runs the exports of a DLL (`runs.exports`) and the child processes that the sample starts (`runs.children`). To get a faster run or a smaller report, set an option to `False`.
 
 ## Hooks
 
@@ -63,7 +63,7 @@ The emulator calls each hook callback with the emulator as the first argument. Y
 | `add_in_instruction_hook(cb, begin, end)` | `cb(emu, port, size)` | the value that the IN instruction reads |
 | `add_syscall_instruction_hook(cb, begin, end)` | `cb(emu)` | not used |
 
-The emulator calls a SYSCALL hook for SYSCALL and SYSENTER. For an IN instruction, the emulator calls only the first IN hook that is enabled and covers the address. When `exceptions.dispatch_handlers` is set, the user mode emulator adds its own IN hook at the start of the first run. That hook raises a privileged instruction exception, as Windows does. If you add an IN hook before the run, your hook comes first, so the exception does not occur.
+The emulator calls a SYSCALL hook for SYSCALL and SYSENTER. For an IN instruction, the emulator calls only the first IN hook that is enabled and covers the address. When `exceptions.dispatch` is set, the user mode emulator adds its own IN hook at the start of the first run. That hook raises a privileged instruction exception, as Windows does. If you add an IN hook before the run, your hook comes first, so the exception does not occur.
 
 This code hook runs one time, then removes itself:
 

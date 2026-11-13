@@ -180,7 +180,7 @@ class MemoryManager:
         if mm:
             mm.free = True
 
-            if self.config.keep_memory_on_free:
+            if self.config.memory.freed_regions:
                 return
 
             ml = [m for m in self.get_mem_maps() if m.block_base == mm.block_base]

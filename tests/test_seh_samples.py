@@ -141,8 +141,8 @@ def test_amsi_bypass_with_hardware_breakpoint(config, load_test_bin):
     line, so the run enters it with a stack frame of its own, and calls AmsiScanBuffer
     once it is done.
     """
-    config["modules"]["functions_always_exist"] = True
-    config["modules"]["modules_always_exist"] = True
+    config["apis"]["stubs"] = True
+    config["modules"]["stubs"] = True
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(AMSI_BYPASS))
         code = se.mem_alloc(0x2000)

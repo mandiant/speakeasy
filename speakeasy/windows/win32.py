@@ -182,7 +182,7 @@ class Win32Emulator(WindowsEmulator):
             cd += "\\"
         return cd + os.path.basename(self.file_name)
 
-    def prepare_module_for_emulation(self, module, all_entrypoints, entry_point=None):
+    def prepare_module_for_emulation(self, module, entry_point=None):
         if not module:
             self.stop()
             raise Win32EmuError("Module not found")
@@ -221,7 +221,7 @@ class Win32Emulator(WindowsEmulator):
             self.add_run(run)
             startup.append(run)
 
-        if all_entrypoints:
+        if self.config.runs.exports:
             # Limit the number of export runs, because some modules, such as the Windows kernel, have
             # thousands of exports.
             exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
@@ -258,17 +258,18 @@ class Win32Emulator(WindowsEmulator):
         return startup
 
     @execution_scope
-    def run_module(self, module, *, all_entrypoints=True, emulate_children=True, entry_point=None) -> None:
+    def run_module(self, module, *, entry_point=None) -> None:
         """
         Add the runs of a loaded module to the run queue, and run the queue.
 
+        With ``runs.exports``, the runs include the exports of the module. With ``runs.children``, the child
+        processes that the module creates run after the module.
+
         Args:
             module: Module to emulate.
-            all_entrypoints: Whether to also emulate every exported function of a DLL.
-            emulate_children: Whether to emulate child processes that the module creates.
             entry_point: RVA to start emulation at instead of the module entry point.
         """
-        startup = self.prepare_module_for_emulation(module, all_entrypoints, entry_point=entry_point)
+        startup = self.prepare_module_for_emulation(module, entry_point=entry_point)
 
         # The main module gets a new process if there is no container process.
         if self.curr_process is None:
@@ -299,7 +300,7 @@ class Win32Emulator(WindowsEmulator):
 
         self.start()
 
-        if not emulate_children or len(self.child_processes) == 0:
+        if not self.config.runs.children or len(self.child_processes) == 0:
             return
 
         budget = self._execution_budget
@@ -308,7 +309,7 @@ class Win32Emulator(WindowsEmulator):
         finished = self.curr_process
         while self.child_processes and not budget.exhausted:
             child = self.child_processes.pop(0)
-            # The load of a child counts against max_total_time. Each load maps and
+            # The load of a child counts against limits.total_time. Each load maps and
             # protects memory, and this gets slow when many children ran before.
             started = time.monotonic()
             try:
@@ -343,7 +344,7 @@ class Win32Emulator(WindowsEmulator):
                 self.curr_thread.stack_commit = child.pe.stack_commit
                 self.alloc_peb(child)
                 self.init_peb([m for m in self.get_peb_modules() if m.is_dll()], proc=child)
-                for run in self.prepare_module_for_emulation(child.pe, all_entrypoints):
+                for run in self.prepare_module_for_emulation(child.pe):
                     run.thread = self.curr_thread
             finally:
                 exhausted = budget.add(time.monotonic() - started)
@@ -443,7 +444,7 @@ class Win32Emulator(WindowsEmulator):
         if not target:
             raise Win32EmuError("Invalid shellcode address")
 
-        effective_stack = self.config.stack_size or stack_commit
+        effective_stack = self.config.runs.stack_size or stack_commit
         self.stack_base, stack_addr = self.alloc_stack(effective_stack)
         self.set_func_args(stack_addr, self.return_hook, 0x7000, conv=_arch.CALL_CONV_STDCALL)
 
@@ -496,9 +497,9 @@ class Win32Emulator(WindowsEmulator):
         peb = proc.peb
         proc.is_peb_active = True
         peb.object.ImageBaseAddress = proc.base
-        peb.object.OSMajorVersion = self.config.os_ver.major or 0
-        peb.object.OSMinorVersion = self.config.os_ver.minor or 0
-        peb.object.OSBuildNumber = self.config.os_ver.build or 0
+        peb.object.OSMajorVersion = self.config.system.os_ver.major or 0
+        peb.object.OSMinorVersion = self.config.system.os_ver.minor or 0
+        peb.object.OSBuildNumber = self.config.system.os_ver.build or 0
         peb.object.OSPlatformId = windefs.VER_PLATFORM_WIN32_NT
         peb.object.NumberOfProcessors = PROCESSOR_COUNT
         peb.write_back()
@@ -590,11 +591,11 @@ class Win32Emulator(WindowsEmulator):
         elif arch == _arch.ARCH_AMD64:
             self.peb_addr = self.gs_addr + 0x60
 
-        for sl in self.config.symlinks:
+        for sl in self.config.system.symlinks:
             self.get_object_manager("symlink creation").add_symlink(sl.name, sl.target)
 
-        self.init_sys_modules(self.config.modules.system_modules)
-        self.init_user_modules(self.config.modules.user_modules)
+        self.init_sys_modules(self.config.modules.system)
+        self.init_user_modules(self.config.modules.user)
         self.init_processes(self.config.processes)
 
     def init_sys_modules(self, modules_config):
@@ -655,7 +656,7 @@ class Win32Emulator(WindowsEmulator):
         """
         End the current run, because the guest ended its process.
 
-        The other runs of the process still run, and they can use the handles of the process. So with emulate_children,
+        The other runs of the process still run, and they can use the handles of the process. So with runs.children,
         run_module closes the handles after the last run, before the next child process starts.
         """
         self.end_run()
@@ -680,7 +681,7 @@ class Win32Emulator(WindowsEmulator):
             self.add_mem_invalid_hook(cb=self._hook_mem_unmapped)
             self.add_interrupt_hook(cb=self._hook_interrupt)
             self.add_invalid_instruction_hook(cb=self._hook_invalid_instruction)
-            if self.config.exceptions.dispatch_handlers:
+            if self.config.exceptions.dispatch:
                 # IN and OUT are privileged in user mode, so Windows raises an exception.
                 self.add_instruction_hook(cb=self._hook_in_instruction, insn=UC_X86_INS_IN)
                 self.add_instruction_hook(cb=self._hook_out_instruction, insn=UC_X86_INS_OUT)
@@ -695,7 +696,7 @@ class Win32Emulator(WindowsEmulator):
         """Find the decoded strings if the config asks for them, then stop the emulation."""
         if not self.is_emu_complete:
             self.is_emu_complete = True
-            if self.config.analysis.strings and self.profiler:
+            if self.config.memory.strings and self.profiler:
                 dec_ansi, dec_unicode = self.get_mem_strings()
                 static_ansi = set(self.profiler.strings["ansi"])
                 static_unicode = set(self.profiler.strings["unicode"])
@@ -733,7 +734,7 @@ class Win32Emulator(WindowsEmulator):
             common.PERM_MEM_RWX: "rwx",
         }
 
-        capture_dumps = getattr(self.config, "snapshot_memory_regions", False)
+        capture_dumps = self.config.memory.final_contents
 
         modules_by_base: dict[int, Any] = {}
         for m in self.modules:

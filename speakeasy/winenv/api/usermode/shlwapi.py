@@ -607,7 +607,7 @@ class Shlwapi(api.ApiHandler):
         );
         """
         (pdvi,) = argv
-        ver = emu.config.os_ver
+        ver = emu.config.system.os_ver
         return write_dll_version(self, pdvi, ver.major or 0, ver.minor or 0, ver.build or 0)
 
     @apihook("IsOS", argc=1)
@@ -621,7 +621,7 @@ class Shlwapi(api.ApiHandler):
         not a server and not a WOW64 process.
         """
         (dwOS,) = argv
-        ver = emu.config.os_ver
+        ver = emu.config.system.os_ver
         version = (ver.major or 0, ver.minor or 0)
         minimum = {
             OS_NT: (0, 0),

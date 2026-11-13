@@ -39,7 +39,7 @@ class Wkscli(api.ApiHandler):
             ctx.args["lpServer"].display = server
 
         # Assumes the server being queried is the local computer
-        domain = emu.config.domain or ""
+        domain = emu.config.system.domain or ""
         ctx.args["lpNameBuffer"].display = domain
         namebuf = self.mem_alloc((len(domain) + 1) * 2)
         self.write_wide_string(domain, namebuf)

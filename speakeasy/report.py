@@ -193,8 +193,8 @@ class ErrorInfo(BaseModel):
     count: int | None = Field(
         default=None,
         description=(
-            "Limit that ended the run: ``max_api_calls`` of the config for ``max_api_count``, "
-            "``max_api_loop_calls`` for ``api_loop``, or the instruction limit for ``max_instructions``."
+            "Limit that ended the run: ``limits.api_calls`` of the config for ``max_api_count``, "
+            "``limits.api_loop_calls`` for ``api_loop``, or ``limits.instructions`` for ``max_instructions``."
         ),
     )
     last_api: str | None = Field(
@@ -227,7 +227,7 @@ class DynamicCodeSegment(BaseModel):
     A dynamic code region where code ran, or a snapshot of the region.
 
     The emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and
-    adds a region when the guest runs code in the region. With ``analysis.dynamic_code_snapshots``, the
+    adds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the
     emulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the
     region after the region changed, and control came from outside the region.
     """
@@ -247,14 +247,14 @@ class DynamicCodeSegment(BaseModel):
         default=None,
         description=(
             "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different"
-            " data from the entry of the region before it. Only with ``analysis.dynamic_code_snapshots``."
+            " data from the entry of the region before it. Only with ``memory.dynamic_code_contents``."
         ),
     )
     snapshot_limit_reached: bool | None = Field(
         default=None,
         description=(
             "True on the last entry of a region if the region changed and code ran in it again after the last"
-            " snapshot that ``analysis.dynamic_code_snapshot_limit`` allows. Absent otherwise."
+            " snapshot that ``memory.dynamic_code_contents.limit`` allows. Absent otherwise."
         ),
     )
 
@@ -327,16 +327,18 @@ class MemoryRegion(BaseModel):
     perms: str = Field(description="Permissions at the end of the run, such as ``r-x`` or ``rw-``.")
     is_free: bool = Field(
         default=False,
-        description="If true, the guest freed the region. Only ``keep_memory_on_free`` keeps a freed region.",
+        description="If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
     )
     accesses: MemoryAccesses | None = Field(
         default=None,
-        description="Access counts of the region. Absent when memory tracing is off or the run did not use the region.",
+        description=(
+            "Access counts of the region. Absent when ``memory.accesses`` is off or the run did not use the region."
+        ),
     )
     data_ref: str | None = Field(
         default=None,
         description=(
-            "Key in the top-level ``data`` of the region data. Only with ``snapshot_memory_regions``, "
+            "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, "
             "and never for the stack."
         ),
     )
@@ -461,18 +463,18 @@ class EntryPoint(BaseModel):
     )
     symbol_accesses: list[SymAccessReport] | None = Field(
         default=None,
-        description="Access counts of each API symbol. Only with ``analysis.memory_tracing``.",
+        description="Access counts of each API symbol. Only with ``memory.accesses``.",
     )
     dynamic_code_segments: list[DynamicCodeSegment] = Field(
         default_factory=list,
         description=(
             "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With"
-            " ``analysis.dynamic_code_snapshots``, a region has one entry for each snapshot."
+            " ``memory.dynamic_code_contents``, a region has one entry for each snapshot."
         ),
     )
     coverage: list[HexInt] | None = Field(
         default=None,
-        description="Sorted addresses of the instructions that ran. Only with ``analysis.coverage``.",
+        description="Sorted addresses of the instructions that ran. Only with ``code.coverage``.",
     )
     dropped_files: list[DroppedFile] = Field(
         default_factory=list,
@@ -561,7 +563,7 @@ class Report(BaseModel):
     )
     strings: StringsReport | None = Field(
         default=None,
-        description="Strings of the input and of memory. Only with ``analysis.strings``.",
+        description="Strings of the input and of memory. Only with ``memory.strings``.",
     )
     data: dict[str, DataArtifact] = Field(
         default_factory=dict,

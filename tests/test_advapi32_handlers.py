@@ -171,7 +171,7 @@ def _open_current_version(se: Speakeasy) -> int:
 
 @pytest.fixture
 def win10_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
-    config["os_ver"] = {"major": 10, "minor": 0, "build": 19045}
+    config["system"]["os_ver"] = {"major": 10, "minor": 0, "build": 19045}
     yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
 
 
@@ -854,7 +854,7 @@ def sid_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> It
 
 def test_lookup_account_name_reports_both_sizes(sid_emu: Speakeasy) -> None:
     start_process(sid_emu)
-    domain = sid_emu.emu.config.domain
+    domain = sid_emu.emu.config.system.domain
     assert domain
     account = alloc(sid_emu, sid_emu.emu.config.user.name.encode() + b"\x00")
     cb_sid = alloc(sid_emu, struct.pack("<I", 0))
@@ -875,7 +875,7 @@ def test_lookup_account_name_reports_both_sizes(sid_emu: Speakeasy) -> None:
 
 def test_lookup_account_name_small_domain_buffer(sid_emu: Speakeasy) -> None:
     start_process(sid_emu)
-    domain = sid_emu.emu.config.domain
+    domain = sid_emu.emu.config.system.domain
     assert domain
     account = alloc(sid_emu, sid_emu.emu.config.user.name.encode() + b"\x00")
     sid = alloc(sid_emu, b"\xcc" * 28)
@@ -896,7 +896,7 @@ def test_lookup_account_name_small_domain_buffer(sid_emu: Speakeasy) -> None:
 def admin_emu(
     request: pytest.FixtureRequest, config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> Iterator[Speakeasy]:
-    config["user"]["is_admin"] = request.param
+    config["user"]["admin"] = request.param
     yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
 
 
@@ -904,7 +904,7 @@ def test_get_token_information_writes_the_elevation(admin_emu: Speakeasy) -> Non
     info = alloc(admin_emu, b"\xcc" * 4)
     ret_len = alloc(admin_emu, b"\xcc" * 4)
     rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 20, info, 4, ret_len])
-    assert (rv, _dword(admin_emu, info), _dword(admin_emu, ret_len)) == (1, int(admin_emu.emu.config.user.is_admin), 4)
+    assert (rv, _dword(admin_emu, info), _dword(admin_emu, ret_len)) == (1, int(admin_emu.emu.config.user.admin), 4)
 
 
 def test_get_token_information_returns_the_integrity_level(admin_emu: Speakeasy) -> None:
@@ -916,7 +916,7 @@ def test_get_token_information_returns_the_integrity_level(admin_emu: Speakeasy)
     info = alloc(admin_emu, b"\xcc" * 20)
     rv, _ = call(admin_emu, "advapi32", "GetTokenInformation", [0x1234, 25, info, 20, ret_len])
     sid, attributes = struct.unpack("<2I", admin_emu.mem_read(info, 8))
-    level = 0x3000 if admin_emu.emu.config.user.is_admin else 0x2000
+    level = 0x3000 if admin_emu.emu.config.user.admin else 0x2000
     assert (rv, sid, attributes) == (1, info + 8, 0x20)
     assert admin_emu.mem_read(sid, 12) == bytes([1, 1]) + (16).to_bytes(6, "big") + struct.pack("<I", level)
 

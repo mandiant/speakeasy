@@ -101,7 +101,7 @@ def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
 
     subprocess.run(
         [sys.executable, "-m", "speakeasy.cli", "-t", str(target), "-o", str(output)]
-        + ["--max-run-time", "1", "--max-total-time", "20"],
+        + ["--limits-per-run-time", "1", "--limits-total-time", "20"],
         check=False,
         capture_output=True,
         timeout=60,
@@ -135,8 +135,8 @@ def test_the_result_of_a_child_is_returned():
     assert wait_for_child(q, p, mp.Event(), wall_limit=0) == ("{}", None)
 
 
-@pytest.mark.parametrize(("args", "count"), [([], 3), (["--no-all-entrypoints"], 1)])
-def test_cli_runs_the_exports_unless_no_all_entrypoints(tmp_path, load_test_bin, args, count):
+@pytest.mark.parametrize(("args", "count"), [([], 3), (["--no-runs-exports"], 1)])
+def test_cli_runs_the_exports_unless_no_runs_exports(tmp_path, load_test_bin, args, count):
     target = tmp_path / "dll_test_x86.dll"
     target.write_bytes(load_test_bin("dll_test_x86.dll.xz"))
     config = os.path.join(os.path.dirname(__file__), "test.json")

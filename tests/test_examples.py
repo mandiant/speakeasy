@@ -51,10 +51,11 @@ def test_emu_dll_example_exercises_hooks(config, load_test_bin, caplog):
     example = load_example_module("emu_dll")
     caplog.set_level(logging.INFO, logger=example.logger.name)
 
+    config["runs"] = {"exports": False}
     se = Speakeasy(config=config)
     try:
         module = se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
-        se.run_module(module, all_entrypoints=False)
+        se.run_module(module)
         se.add_api_hook(example.hook_messagebox, "user32", "MessageBox*")
         se.add_mem_write_hook(example.hook_mem_write)
 

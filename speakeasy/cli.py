@@ -44,8 +44,6 @@ def emulate_binary(
     dropped_files_path="",
     raw_offset=0x0,
     entry_point=None,
-    emulate_children=True,
-    all_entrypoints=True,
     verbose=False,
     gdb_port=None,
     gdb_host="127.0.0.1",
@@ -68,12 +66,7 @@ def emulate_binary(
             se.run_shellcode(sc_addr, offset=raw_offset or 0)
         else:
             module = se.load_module(fpath)
-            se.run_module(
-                module,
-                all_entrypoints=all_entrypoints,
-                emulate_children=emulate_children,
-                entry_point=entry_point,
-            )
+            se.run_module(module, entry_point=entry_point)
     except Exception as err:
         logger.debug("emulation failed", exc_info=True)
         error = str(err) or type(err).__name__
@@ -151,8 +144,6 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     output = args.output
     dropped_files_path = args.dropped_files_path
     config_path = args.config
-    emulate_children = args.emulate_children
-    all_entrypoints = args.all_entrypoints
     do_raw = args.do_raw
     raw_offset = args.raw_offset
     entry_point = args.entry_point
@@ -184,9 +175,9 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
 
     active_cfg = validated.model_dump(mode="python")
     # The CLI limit stops a child process that hangs in Python code, so it must not stop the child before the
-    # emulator limits do. max_run_time applies to each run and the queue can hold any number of runs, so only
-    # max_total_time bounds all runs. When it is 0, the CLI does not stop the child.
-    wall_limit = validated.max_total_time
+    # emulator limits do. limits.per_run_time applies to each run and the queue can hold any number of runs, so only
+    # limits.total_time bounds all runs. When it is 0, the CLI does not stop the child.
+    wall_limit = validated.limits.total_time
 
     if target and not os.path.isfile(target):
         parser.error(f"Target file not found: {target}")
@@ -209,8 +200,6 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             dropped_files_path,
             raw_offset=raw_offset,
             entry_point=entry_point,
-            emulate_children=emulate_children,
-            all_entrypoints=all_entrypoints,
             verbose=verbose,
             gdb_port=gdb_port,
             gdb_host=gdb_host,
@@ -232,8 +221,6 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             kwargs={
                 "raw_offset": raw_offset,
                 "entry_point": entry_point,
-                "emulate_children": emulate_children,
-                "all_entrypoints": all_entrypoints,
                 "verbose": verbose,
                 "gdb_port": gdb_port,
                 "gdb_host": gdb_host,
@@ -326,22 +313,6 @@ def main():
         dest="dropped_files_path",
         required=False,
         help="Path of a zip archive for the files that the sample writes, with a speakeasy_manifest.json",
-    )
-    parser.add_argument(
-        "-k",
-        "--emulate-children",
-        action=argparse.BooleanOptionalAction,
-        dest="emulate_children",
-        default=True,
-        help="After the PE input finishes, emulate the processes that the input creates (default: True)",
-    )
-    parser.add_argument(
-        "--all-entrypoints",
-        action=argparse.BooleanOptionalAction,
-        dest="all_entrypoints",
-        default=True,
-        help="Also run the exports of the PE input. For a driver, also send IRPs to its dispatch functions"
-        " and run its unload routine (default: True)",
     )
     parser.add_argument(
         "--no-mp",

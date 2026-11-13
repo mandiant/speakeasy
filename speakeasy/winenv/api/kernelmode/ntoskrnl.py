@@ -1521,7 +1521,7 @@ class Ntoskrnl(api.ApiHandler):
 
         rv = ddk.STATUS_SUCCESS
 
-        osver = emu.config.os_ver
+        osver = emu.config.system.os_ver
         size = self.read_dword(VersionInformation)
 
         # Windows writes the extended fields only when the caller gives the size of RTL_OSVERSIONINFOEXW.
@@ -2760,7 +2760,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         MajorVersion, MinorVersion, BuildNumber, CSDVersion = argv
 
-        ver = self.emu.config.os_ver
+        ver = self.emu.config.system.os_ver
 
         if MajorVersion:
             self.write_dword(MajorVersion, ver.major or 0)

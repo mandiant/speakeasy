@@ -114,7 +114,7 @@ def build_large_exe(image_size):
 
 def native_container_config(config, tmp_path, image_size):
     (tmp_path / "main.exe").write_bytes(build_large_exe(image_size))
-    config["modules"]["module_directory_x86"] = str(tmp_path)
+    config["modules"]["directory_x86"] = str(tmp_path)
     return config
 
 

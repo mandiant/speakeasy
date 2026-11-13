@@ -49,7 +49,7 @@ def kernel_session(request, base_config, load_test_bin):
     se = Speakeasy(config=copy.deepcopy(base_config))
     try:
         module = se.load_module(data=data)
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         yield se
     finally:
         se.shutdown()
@@ -140,7 +140,7 @@ def test_kernel_input_driver_is_under_system32_drivers(config, load_test_bin, en
         cfg: dict = {}
     else:
         cfg = config
-        cfg["env"] = env
+        cfg["process"]["env"] = env
     se = Speakeasy(config=cfg)
     try:
         module = se.load_module(data=load_test_bin("wdm_test_x64.sys.xz"))

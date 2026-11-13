@@ -42,7 +42,7 @@ class NetApi32(api.ApiHandler):
             ctx.args["lpServer"].display = server
 
         # Assumes the server being queried is the local computer
-        domain = emu.config.domain or ""
+        domain = emu.config.system.domain or ""
         ctx.args["lpNameBuffer"].display = domain
         namebuf = self.mem_alloc((len(domain) + 1) * 2)
         self.write_wide_string(domain, namebuf)
@@ -92,19 +92,19 @@ class NetApi32(api.ApiHandler):
         platform_id = 500  # PLATFORM_ID_NT
         wki.wki_platform_id = platform_id
 
-        hostname = emu.config.hostname
+        hostname = emu.config.system.hostname
         computername_ptr = self.mem_alloc(2 + (len(hostname) * 2))
         # Assuming Unicode; "This string is Unicode if _WIN32_WINNT or
         # FORCE_UNICODE are defined."
         self.write_mem_string(hostname, computername_ptr, width=2)
         wki.wki_computername = computername_ptr
 
-        domain = emu.config.domain or ""
+        domain = emu.config.system.domain or ""
         langroup_ptr = self.mem_alloc(2 + (len(domain) * 2))
         self.write_mem_string(domain, langroup_ptr, width=2)
         wki.wki_langroup = langroup_ptr
 
-        osver = emu.config.os_ver
+        osver = emu.config.system.os_ver
         wki.wki_ver_major = osver.major or 0
         wki.wki_ver_minor = osver.minor or 0
 

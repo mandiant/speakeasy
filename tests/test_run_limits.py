@@ -1,4 +1,4 @@
-"""The max_instructions limit applies to each queued run; the exit event stops all runs."""
+"""The limits.instructions limit applies to each queued run; the exit event stops all runs."""
 
 import threading
 import time
@@ -20,7 +20,7 @@ from speakeasy.winenv import arch
 
 
 def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
-    config.update({"max_run_time": 3, "max_instructions": 1000})
+    config["limits"].update({"per_run_time": 3, "instructions": 1000})
     se = Speakeasy(config=config)
     try:
         # CreateThread(NULL, 0, thread, NULL, 0, NULL); JMP $; thread: MOV EAX,0x2a; RET
@@ -43,8 +43,26 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
         se.shutdown()
 
 
+@pytest.mark.parametrize(("limit", "error", "calls"), [(0, None, 4), (2, "max_api_count", 3)])
+def test_an_api_call_limit_of_0_does_not_end_the_run(config, limit, error, calls):
+    config["limits"]["api_calls"] = limit
+    # MOV EAX,GetTickCount; CALL EAX, four times; RET
+    call_tick = b"\xb8" + b"\0" * 4 + b"\xff\xd0"
+    with Speakeasy(config=config) as se:
+        base = se.load_shellcode(data=call_tick * 4 + b"\xc3", arch="x86")
+        tick = se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little")
+        for i in range(4):
+            se.mem_write(base + 1 + i * len(call_tick), tick)
+
+        se.run_shellcode(base)
+
+        (run,) = se.get_report().entry_points
+        assert (run.error.type if run.error else None) == error
+        assert [event.api_name for event in run.events if event.event == "api"] == ["kernel32.GetTickCount"] * calls
+
+
 def test_exit_event_stops_an_api_loop_as_a_timeout(config, load_test_bin):
-    config.update({"max_run_time": 60, "max_api_calls": 10_000_000})
+    config["limits"].update({"per_run_time": 60, "api_calls": 10_000_000})
     exit_event = threading.Event()
     se = Speakeasy(config=config, exit_event=exit_event)
     try:

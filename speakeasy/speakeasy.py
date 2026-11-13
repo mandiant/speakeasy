@@ -317,7 +317,7 @@ class Speakeasy:
         if not target_dir.is_dir():
             return
 
-        guest_cd = PureWindowsPath(self.config.current_dir)
+        guest_cd = PureWindowsPath(self.config.process.current_dir)
         entries: list[dict] = []
         for child in sorted(target_dir.iterdir()):
             if not child.is_file():
@@ -419,22 +419,19 @@ class Speakeasy:
         self,
         module: RuntimeModule,
         *,
-        all_entrypoints: bool = True,
-        emulate_children: bool = True,
         entry_point: int | None = None,
     ) -> None:
         """
         Add the runs of a loaded module to the run queue, and run the queue.
 
         The runs are the TLS callbacks and the entry point of the module, and its exports if
-        ``all_entrypoints`` is true.
+        ``runs.exports`` is true. For a driver, ``runs.exports`` also sends IRPs to its dispatch
+        functions and runs its unload routine. If ``runs.children`` is true, the child processes
+        that the module creates run after the module. The kernel mode emulator ignores
+        ``runs.children``.
 
         Args:
             module: The module that ``load_module`` returned.
-            all_entrypoints: If true (the default), also run the exports. For a driver, also send
-                IRPs to its dispatch functions and run its unload routine.
-            emulate_children: If true (the default), run the child processes that the module
-                creates, after the module. The kernel mode emulator ignores this argument.
             entry_point: RVA at which to start, in place of the entry point of the PE.
 
         Raises:
@@ -442,14 +439,7 @@ class Speakeasy:
         """
         output_active_config(self.config, logger)
 
-        if isinstance(self.emu, Win32Emulator):
-            return self.emu.run_module(
-                module=module,
-                all_entrypoints=all_entrypoints,
-                emulate_children=emulate_children,
-                entry_point=entry_point,
-            )
-        return self.emu.run_module(module=module, all_entrypoints=all_entrypoints, entry_point=entry_point)
+        return self.emu.run_module(module=module, entry_point=entry_point)
 
     def load_shellcode(
         self,
@@ -499,7 +489,7 @@ class Speakeasy:
 
         Args:
             sc_addr: Address that ``load_shellcode`` returned.
-            stack_commit: Size of the stack in bytes, if the ``stack_size`` of the config is not set.
+            stack_commit: Size of the stack in bytes, if ``runs.stack_size`` of the config is 0.
             offset: Offset in the shellcode at which to start.
 
         Raises:
@@ -681,7 +671,7 @@ class Speakeasy:
         instruction reads from ``port``. Only one IN hook runs for an instruction: the first
         hook that is enabled and covers the address.
 
-        In user mode, when ``exceptions.dispatch_handlers`` is set, the emulator adds its own
+        In user mode, when ``exceptions.dispatch`` is set, the emulator adds its own
         IN hook when the first run starts. That hook raises a privileged instruction exception,
         as Windows does. A hook that you add before the run comes first, so it replaces the
         exception.

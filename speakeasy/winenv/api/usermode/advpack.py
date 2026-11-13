@@ -33,4 +33,4 @@ class Advpack(api.ApiHandler):
             DWORD *lpdwReserved
         );
         """
-        return emu.config.user.is_admin
+        return emu.config.user.admin

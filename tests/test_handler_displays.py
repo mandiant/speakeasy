@@ -518,7 +518,7 @@ def test_net_get_join_information_fits_a_long_domain(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], dll: str
 ) -> None:
     domain = "d" * 3000
-    config["domain"] = domain
+    config["system"]["domain"] = domain
     for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
         name_buf = alloc(se, b"\x00" * 4)
         status = alloc(se, b"\x00" * 4)
@@ -554,7 +554,7 @@ def test_reg_get_value_missing_subkey(dll_emu: Speakeasy) -> None:
     ],
 )
 def test_get_computer_name_copies_the_host(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
-    host = dll_emu.emu.config.hostname
+    host = dll_emu.emu.config.system.hostname
     buf = alloc(dll_emu, b"\xcc" * 64)
     size = alloc(dll_emu, (64).to_bytes(4, "little"))
     rv, displays = call(dll_emu, "kernel32", api, [*argv, buf, size])
@@ -573,7 +573,7 @@ def test_get_computer_name_copies_the_host(dll_emu: Speakeasy, api: str, argv: l
     ],
 )
 def test_get_computer_name_small_buffer(dll_emu: Speakeasy, api: str, argv: list[int]) -> None:
-    host = dll_emu.emu.config.hostname
+    host = dll_emu.emu.config.system.hostname
     buf = alloc(dll_emu, b"\xcc" * 4)
     size = alloc(dll_emu, len(host).to_bytes(4, "little"))
     rv, displays = call(dll_emu, "kernel32", api, [*argv, buf, size])

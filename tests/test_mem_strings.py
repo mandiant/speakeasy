@@ -22,7 +22,7 @@ def test_a_string_that_repeats_part_of_an_earlier_string_gets_its_own_offset(dll
 
 
 def test_strings_that_the_guest_decodes_in_its_own_image_are_in_memory_strings(config) -> None:
-    config["analysis"]["strings"] = True
+    config["memory"]["strings"] = True
     marker = b"IMAGE_DECODED_MARKER"
     literal = b"IMAGE_STATIC_LITERAL"
     key = 0x55

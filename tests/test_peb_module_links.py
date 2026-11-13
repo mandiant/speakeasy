@@ -19,7 +19,7 @@ from tests.guest_harness import (
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
 def test_guest_walks_loader_lists_of_its_own_process(config, arch):
-    config["modules"]["modules_always_exist"] = True
+    config["modules"]["stubs"] = True
     se = Speakeasy(config=config)
     try:
         code = se.load_shellcode(data=b"\xc3" * 0x1000, arch=arch)

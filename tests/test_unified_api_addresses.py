@@ -19,7 +19,7 @@ def api_emu(request):
 
 @pytest.fixture
 def placeholder_emu(config, load_test_bin):
-    config["modules"]["modules_always_exist"] = True
+    config["modules"]["stubs"] = True
     yield from load_emu(config, load_test_bin(TEST_BINS[4]))
 
 

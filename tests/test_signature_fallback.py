@@ -404,9 +404,9 @@ def test_handler_signature_requires_matching_argc(config: dict[str, Any]) -> Non
         se.shutdown()
 
 
-def test_functions_always_exist_still_applies_to_unknown_names(config: dict[str, Any]) -> None:
+def test_apis_stubs_still_applies_to_unknown_names(config: dict[str, Any]) -> None:
     # An import that is in neither the handlers nor the metadata stays fatal
-    # unless functions_always_exist is set, exactly as before.
+    # unless apis.stubs is set.
     if not sigdb.get_default_database().available:
         pytest.skip("bundled signature database not generated")
     se = Speakeasy(config=config)

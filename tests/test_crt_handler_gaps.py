@@ -21,8 +21,8 @@ def qword(value: int) -> bytes:
 
 @pytest.fixture(params=["x86", "amd64"])
 def shellcode_emu(request: pytest.FixtureRequest, config: dict[str, Any]) -> Iterator[Speakeasy]:
-    config["max_run_time"] = 5
-    config["max_api_calls"] = 200
+    config["limits"]["per_run_time"] = 5
+    config["limits"]["api_calls"] = 200
     se = Speakeasy(config=config)
     try:
         se.run_shellcode(se.load_shellcode(data=b"\xc3", arch=request.param))

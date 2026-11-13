@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypedDict
 
 from speakeasy.artifacts import MAX_EMBEDDED_FILE_SIZE, ArtifactStore
-from speakeasy.config import AnalysisConfig
+from speakeasy.config import CodeConfig, MemoryConfig
 from speakeasy.errors import SpeakeasyError
 from speakeasy.profiler_events import (
     AnyEvent,
@@ -219,10 +219,11 @@ class Run:
 class Profiler:
     """Collect the events of all runs and build the report."""
 
-    def __init__(self, analysis: AnalysisConfig | None = None):
+    def __init__(self, memory: MemoryConfig | None = None, code: CodeConfig | None = None):
         super().__init__()
 
-        self.analysis: AnalysisConfig = analysis or AnalysisConfig()
+        self.memory_config: MemoryConfig = memory or MemoryConfig()
+        self.code_config: CodeConfig = code or CodeConfig()
         self.start_time: float = time.time()
         self.strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
         self.decoded_strings: dict[str, list[str]] = {"ansi": [], "unicode": []}
@@ -768,7 +769,7 @@ class Profiler:
             error_info = r.error
 
             symbol_accesses: list[SymAccessReport] | None = None
-            if self.analysis.memory_tracing:
+            if self.memory_config.accesses:
                 symbol_accesses = [
                     SymAccessReport(symbol=maccess.sym, reads=maccess.reads, writes=maccess.writes, execs=maccess.execs)
                     for maccess in r.sym_access.values()
@@ -861,14 +862,14 @@ class Profiler:
                 events=list(r.events),
                 symbol_accesses=symbol_accesses,
                 dynamic_code_segments=dyn_code_segments,
-                coverage=sorted(r.coverage) if self.analysis.coverage else None,
+                coverage=sorted(r.coverage) if self.code_config.coverage else None,
                 dropped_files=dropped_files,
                 memory=memory_layout,
             )
             entry_points.append(ep)
 
         strings_report = None
-        if self.analysis.strings:
+        if self.memory_config.strings:
             strings_report = StringsReport(
                 static=StringCollection(
                     ansi=self.strings["ansi"],

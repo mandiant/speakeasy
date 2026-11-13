@@ -20,7 +20,7 @@ These flags do not come from the config schema.
 
 - `-t, --target`: input file to emulate
 - `-o, --output`: path of the report JSON. Without it, the CLI writes the report to stdout
-- `--argv`: arguments of the emulated process, as one quoted string that the CLI splits with shell rules. For an EXE, they replace `command_line`, and the process command line is the quoted program path followed by these arguments
+- `--argv`: arguments of the emulated process, as one quoted string that the CLI splits with shell rules. For an EXE, they replace `process.command_line`, and the process command line is the quoted program path followed by these arguments
 - `-c, --config`: JSON config file that changes the defaults
 - `--dump-default-config`: print the default config as JSON and exit
 - `--raw`: emulate the input as raw bytes, such as shellcode
@@ -28,8 +28,6 @@ These flags do not come from the config schema.
 - `--entry-point`: RVA where a PE starts, in place of its entry point
 - `--arch`: shellcode architecture (`x86`, `x64` or `amd64`, in any case). `--raw` needs it, and other modes ignore it
 - `--dropped-files-path`: path of the dropped-files archive
-- `-k, --emulate-children`, `--no-emulate-children`: after the input finishes, emulate the processes that it starts with `CreateProcess`, `CreateProcessAsUser`, `WinExec` or `ShellExecute` (default on)
-- `--all-entrypoints`, `--no-all-entrypoints`: also run the exports of a PE. For a driver, also send IRPs to its dispatch functions and run its unload routine (default on)
 - `--no-mp`: run the emulation in the CLI process instead of a child process
 - `-v, --verbose`: DEBUG logging
 - `--gdb`: start a GDB server and stop before the first instruction. See [GDB debugging](gdb.md)
@@ -54,24 +52,26 @@ The CLI exits 0 when it writes a report. This is also true when an entry point i
 
 The CLI makes a flag for each config field with a boolean, number, string or string-to-string mapping value. The [config-file-only fields](#config-file-only-fields) have no flag. `speakeasy --help` shows the description and the default of each flag.
 
-The CLI makes the flag name from the config path. `analysis.memory_tracing` gives `--analysis-memory-tracing`. If a path part starts with the same word as the part before it, the CLI uses that word one time: `modules.modules_always_exist` gives `--modules-always-exist`. A boolean field has two flags, such as `--analysis-coverage` and `--no-analysis-coverage`.
+The CLI makes the flag name from the config path. It joins the parts of the path with `-` and replaces `_` with `-`, so `memory.accesses` gives `--memory-accesses` and `system.os_ver.major` gives `--system-os-ver-major`. A final `enabled` is not part of the flag, so `memory.dynamic_code_contents.enabled` gives `--memory-dynamic-code-contents`. `runs.children` also has the short flag `-k`. A boolean field has two flags, such as `--code-coverage` and `--no-code-coverage`.
 
 A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to the mapping or replaces its value, and the other keys of the mapping do not change.
 
-Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form. All of them are on by default, so use the `--no-` form to turn a feature off. For example, a fast triage run without the analysis data:
+The boolean flags are `--runs-exports`, `--runs-children` (short form `-k`), `--memory-accesses`, `--memory-strings`, `--memory-final-contents`, `--memory-dynamic-code-contents`, `--memory-freed-regions`, `--code-coverage`, `--apis-stubs`, `--modules-stubs`, `--exceptions-dispatch` and `--user-admin`. Each one also has a `--no-` form. `--runs-exports` also runs the exports of a PE, and for a driver it sends IRPs to the dispatch functions and runs the unload routine. `--runs-children` emulates the processes that the input starts with `CreateProcess`, `CreateProcessAsUser`, `WinExec` or `ShellExecute`, after the input finishes.
+
+All boolean flags are on by default, so use the `--no-` form to turn a feature off. [Feature options](configuration.md#feature-options) tells which flags change the report data and which change the behavior of the guest. For example, a fast triage run without the analysis data:
 
 ```bash
 speakeasy --target sample.exe \
-  --no-analysis-memory-tracing \
-  --no-analysis-coverage \
-  --no-analysis-dynamic-code-snapshots \
-  --no-snapshot-memory-regions \
+  --no-memory-accesses \
+  --no-memory-final-contents \
+  --no-memory-dynamic-code-contents \
+  --no-code-coverage \
   --output report.json
 ```
 
-Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-api-loop-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--module-directory-x86` and `--module-directory-x64`.
+Value flags: `--limits-per-run-time`, `--limits-total-time`, `--limits-api-calls`, `--limits-api-loop-calls`, `--limits-instructions`, `--runs-stack-size`, `--memory-dynamic-code-contents-limit`, `--modules-directory-x86`, `--modules-directory-x64`, `--system-os-ver-major`, `--system-os-ver-minor`, `--system-os-ver-build`, `--system-hostname`, `--system-domain`, `--system-start-time`, `--system-random-seed`, `--user-name`, `--user-sid`, `--process-command-line` and `--process-current-dir`. For each `--limits-` flag, 0 means "no limit".
 
-Mapping flags: `--env KEY=VALUE` and `--network-dns-names KEY=VALUE`.
+Mapping flags: `--process-env KEY=VALUE` and `--network-dns-names KEY=VALUE`.
 
 ## Config precedence
 
@@ -82,31 +82,31 @@ The CLI builds the config of a run in this order:
 3. the `--volume` mappings
 4. the config flags
 
-The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict. A key in the file replaces the default value. This is also true for a mapping such as `env` or `network.dns.names`, and for a list. A key that the file leaves out keeps its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.is_admin` at `true`.
+The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict. A key in the file replaces the default value. This is also true for a mapping such as `process.env` or `network.dns.names`, and for a list. A key that the file leaves out keeps its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.admin` at `true`.
 
 In this example, the flags change two values of the config file:
 
 ```bash
 speakeasy --target sample.exe \
   --config profile.json \
-  --max-run-time 20 \
-  --no-analysis-strings \
+  --limits-per-run-time 20 \
+  --no-memory-strings \
   --output report.json
 ```
 
-If `profile.json` sets `max_run_time` to 120 and `analysis.strings` to `true`, the run uses `max_run_time` 20 and `analysis.strings` `false`.
+If `profile.json` sets `limits.per_run_time` to 120 and `memory.strings` to `true`, the run uses `limits.per_run_time` 20 and `memory.strings` `false`.
 
 ## Config-file-only fields
 
 These fields hold nested objects or lists of objects, or describe the config itself. They have no flag, so set them in a `--config` file:
 
-- `config_version`, `emu_engine`, `os_ver.name`
-- `symlinks`, `drives`
+- `config_version`, `emu_engine`, `system.os_ver.name`
+- `system.symlinks`, `system.drives`
 - `filesystem.files`
 - `registry.keys`
 - `network.adapters`, `network.dns.txt`, `network.http.responses`, `network.winsock.responses`
 - `processes`
-- `modules.user_modules`, `modules.system_modules`
+- `modules.user`, `modules.system`
 
 ## Examples
 
@@ -122,7 +122,7 @@ Run raw shellcode:
 speakeasy --target shellcode.bin --raw --arch x86 --raw-offset 0x20 --output report.json
 ```
 
-Write the dropped-files archive. The report has the memory snapshots by default:
+Write the dropped-files archive. The report has the final memory contents by default:
 
 ```bash
 speakeasy --target sample.exe --dropped-files-path dropped.zip --output report.json

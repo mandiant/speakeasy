@@ -361,7 +361,7 @@ _MODULE_RESULT_SERVER_SCRIPT = textwrap.dedent("""\
         se.mem_write(exports[0], bytes.fromhex("a100000000"))  # mov eax, [0]
         se.mem_write(exports[1], b"\\xe9" + (exports[0] - exports[1] - 5).to_bytes(4, "little", signed=True))
     print(json.dumps(exports), flush=True)
-    se.run_module(module, all_entrypoints=True)
+    se.run_module(module)
     print(json.dumps([run.error.type if run.error else None for run in se.get_report().entry_points]), flush=True)
     se.shutdown()
 """)
@@ -386,7 +386,7 @@ _SERVER_SCRIPT = textwrap.dedent("""\
 
     se = Speakeasy(config=cfg, gdb_port=port, gdb_host=host)
     module = se.load_module(data=data)
-    se.run_module(module, all_entrypoints=True)
+    se.run_module(module)
     se.shutdown()
 """)
 
@@ -1150,7 +1150,7 @@ def _load_patch_own_page(se: Speakeasy) -> int:
 
 
 def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
-    config["max_instructions"] = 1000
+    config["limits"]["instructions"] = 1000
     with Speakeasy(config=config) as se:
         se.run_shellcode(_load_patch_own_page(se))
         (run,) = se.get_report().entry_points
@@ -1158,7 +1158,7 @@ def test_gdb_step_over_store_into_own_code_page_counts_it_as_a_run_does(config):
         count = run.instruction_count
 
     # The limit that the run without a debugger needs exactly
-    config["max_instructions"] = count
+    config["limits"]["instructions"] = count
     port = _find_free_port()
     with Speakeasy(config=config, gdb_port=port) as se:
         address = _load_patch_own_page(se)
@@ -1238,7 +1238,7 @@ def _serve(se: Speakeasy, port: int, address: int) -> Iterator[GdbRspClient]:
 
 
 def test_gdb_breakpoint_instruction_counts_once_toward_the_instruction_limit(config):
-    config["max_instructions"] = 6
+    config["limits"]["instructions"] = 6
     port = _find_free_port()
     with Speakeasy(config=config, gdb_port=port) as se:
         # loop: nop; nop; nop; nop; jmp loop
@@ -1313,7 +1313,7 @@ def test_gdb_stops_at_fault_in_api_handler_that_runs_guest_code(config):
 
 @pytest.mark.parametrize(("resume", "reply"), [("c", "W00"), ("D", "OK"), ("k", None)])
 def test_gdb_resume_after_total_time_ends_emulation(config, resume, reply):
-    config.update(max_run_time=0, max_total_time=0.2)
+    config["limits"].update(per_run_time=0, total_time=0.2)
     port = _find_free_port()
     with Speakeasy(config=config, gdb_port=port) as se:
         address = se.load_shellcode(data=b"\xeb\xfe", arch="x86")  # jmp $
@@ -1385,7 +1385,7 @@ def test_gdb_stops_at_read_of_the_api_trap_reservation(config):
 
 
 def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
-    config.update(max_run_time=0, max_total_time=0.05)
+    config["limits"].update(per_run_time=0, total_time=0.05)
     port = _find_free_port()
     with Speakeasy(config=config, gdb_port=port) as se:
         # mov eax, GetTickCount; call eax; ret

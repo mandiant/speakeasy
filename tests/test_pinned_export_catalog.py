@@ -79,8 +79,8 @@ def test_export_of_another_build_fails_lookup_until_a_guest_import_binds_it(phys
     architecture, real = physical_kernel32
     name = "NlsWriteEtwEvent"
     assert real.get_export_by_name(name) is not None
-    config["modules"]["functions_always_exist"] = False
-    config["max_run_time"] = 3
+    config["apis"]["stubs"] = False
+    config["limits"]["per_run_time"] = 3
     with Speakeasy(config=config) as se:
         base = se.load_shellcode(data=b"\xc3", arch="x86" if architecture == 32 else "amd64")
         se.run_shellcode(base)

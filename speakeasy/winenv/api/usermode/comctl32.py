@@ -55,4 +55,4 @@ class Comctl32(api.ApiHandler):
         Common controls version 6 reports 6.10 with the build of the OS.
         """
         (pdvi,) = argv
-        return write_dll_version(self, pdvi, 6, 10, emu.config.os_ver.build or 0)
+        return write_dll_version(self, pdvi, 6, 10, emu.config.system.os_ver.build or 0)

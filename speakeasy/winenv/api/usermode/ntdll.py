@@ -211,7 +211,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
             PEXCEPTION_RECORD ExceptionRecord
         );
         """
-        if emu.config.exceptions.dispatch_handlers:
+        if emu.config.exceptions.dispatch:
             return emu.exception_dispatcher().rtl_raise_exception(emu, argv[0])
 
     @apihook("NtContinue", argc=2)
@@ -569,7 +569,7 @@ class Ntdll(ExceptionApis, api.ApiHandler):
         );
         """
         NtMajorVersion, NtMinorVersion, NtBuildNumber = argv
-        ver = emu.config.os_ver
+        ver = emu.config.system.os_ver
         if NtMajorVersion:
             self.write_dword(NtMajorVersion, ver.major or 0)
         if NtMinorVersion:

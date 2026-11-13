@@ -299,7 +299,7 @@ class Shell32(api.ApiHandler):
         """
         BOOL IsUserAnAdmin();
         """
-        return emu.config.user.is_admin
+        return emu.config.user.admin
 
     @apihook("SHGetMalloc", argc=1)
     def SHGetMalloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -524,5 +524,5 @@ class Shell32(api.ApiHandler):
         );
         """
         (pdvi,) = argv
-        ver = emu.config.os_ver
+        ver = emu.config.system.os_ver
         return write_dll_version(self, pdvi, ver.major or 0, ver.minor or 0, ver.build or 0)

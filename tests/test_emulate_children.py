@@ -1,4 +1,4 @@
-"""Child processes run after the parent unless emulate_children is false."""
+"""Child processes run after the parent unless runs.children is false."""
 
 import hashlib
 import logging
@@ -31,7 +31,7 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=parent)
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         child = se.emu.get_mod_from_addr(module.base)
         pids = [get_parent(se, module).pid, se.emu.get_current_process().pid]
         report = se.get_report()
@@ -47,12 +47,13 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
     assert [ep.pid for ep in entries] == pids
 
 
-@pytest.mark.parametrize(("kwargs", "count"), [({}, 2), ({"emulate_children": False}, 1)])
-def test_child_runs_by_default_unless_emulate_children_is_false(config, load_test_bin, kwargs, count):
+@pytest.mark.parametrize(("runs", "count"), [({}, 2), ({"children": False}, 1)])
+def test_child_runs_by_default_unless_runs_children_is_false(config, load_test_bin, runs, count):
+    config["runs"] = runs
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
-        se.run_module(module, **kwargs)
+        se.run_module(module)
 
         assert len(se.get_report().entry_points) == count
 
@@ -63,7 +64,7 @@ def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
         se.emu.mem_map(0x1000, base=CHILD_BASE, tag="test.block")
         with caplog.at_level(logging.WARNING):
-            se.run_module(module, emulate_children=True)
+            se.run_module(module)
         report = se.get_report()
 
     assert [(ep.type, ep.error) for ep in report.entry_points] == [("module_entry", None)]
@@ -75,7 +76,7 @@ def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bi
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         child = se.emu.get_current_process()
         entries = se.get_report().entry_points
 
@@ -93,7 +94,7 @@ def test_finished_parent_gives_up_its_image_peb_and_heap(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD_AT_CHILD_BASE))
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         parent = get_parent(se, module)
         maps = se.emu.get_mem_maps()
         heap = [address for address, _, name in parent.heap_allocs if name == "LocalAlloc"]
@@ -117,7 +118,7 @@ def test_child_does_not_get_the_exception_handlers_of_the_parent(config, load_te
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.add_api_hook(create_process, "kernel32", "CreateProcessA")
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         child = (se.emu.get_veh_handlers(), se.emu.get_unhandled_exception_handler())
         se.emu.set_current_process(get_parent(se, module))
         parent = (se.emu.get_veh_handlers(), se.emu.get_unhandled_exception_handler())
@@ -137,7 +138,7 @@ def test_child_gets_a_copy_of_the_directory_and_environment_of_the_parent(config
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.add_api_hook(create_process, "kernel32", "CreateProcessA")
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         child = (se.emu.get_cd(), "after" in se.emu.get_env())
         se.emu.set_current_process(get_parent(se, module))
         parent = (se.emu.get_cd(), "after" in se.emu.get_env())
@@ -195,7 +196,7 @@ def test_child_does_not_find_a_mutex_that_only_its_exited_parent_had_open(config
     with Speakeasy(config=config) as se:
         module = se.load_module(data=build_mutex_parent())
         se.emu.fileman.add_existing_file(CHILD_PATH, build_mutex_child())
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         entries = se.get_report().entry_points
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("thread", None), ("module_entry", None)]
@@ -229,7 +230,7 @@ def test_child_started_without_create_process_runs(config, load_test_bin, dll, a
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.add_api_hook(create_process, "kernel32", "CreateProcessA")
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         entries = se.get_report().entry_points
 
     assert [(ep.type, ep.error) for ep in entries] == [("module_entry", None), ("module_entry", None)]
@@ -240,7 +241,7 @@ def test_child_that_is_not_a_pe_is_skipped(config, load_test_bin):
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, b"@echo off\r\n")
-        se.run_module(module, emulate_children=True)
+        se.run_module(module)
         report = se.get_report()
 
     assert [(ep.type, ep.error) for ep in report.entry_points] == [("module_entry", None)]

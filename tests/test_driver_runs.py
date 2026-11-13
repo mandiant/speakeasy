@@ -11,6 +11,7 @@ from speakeasy.profiler import Run
 from speakeasy.report import EntryPointType, ErrorInfo, ErrorType
 from speakeasy.windows.kernel import DISPATCH_IOCTL
 from speakeasy.winenv.defs.nt import ddk
+from tests.test_run_lifecycle import update_config
 
 
 @pytest.fixture(params=["x86", "x64"])
@@ -98,7 +99,6 @@ def planned(emu) -> list[tuple[str, str | None]]:
 @pytest.fixture
 def plan_emu(driver_emu: Speakeasy):
     emu = driver_emu.emu
-    emu.all_entrypoints = True
     emu.run_queue.clear()
     return emu
 
@@ -140,8 +140,8 @@ def test_a_driver_entry_that_ends_with_an_emulator_error_does_not_end_the_driver
     assert planned(plan_emu) == [("irp", "IRP_MJ_CREATE"), ("driver_unload", None)]
 
 
-def test_without_all_entrypoints_only_driver_entry_runs(plan_emu) -> None:
-    plan_emu.all_entrypoints = False
+def test_without_export_runs_only_driver_entry_runs(plan_emu) -> None:
+    update_config(plan_emu, "runs", exports=False)
 
     plan_emu._queue_driver_routines(fake_driver(exports=["a"], unload=0x6000), driver_entry(0))
 

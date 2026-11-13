@@ -12,7 +12,7 @@ def test_sequential_runs_are_deterministic(config, load_test_bin, bin_file):
         se = Speakeasy(config=config, argv=[])
         try:
             module = se.load_module(data=data)
-            se.run_module(module, all_entrypoints=True)
+            se.run_module(module)
             return se.get_report()
         finally:
             se.shutdown()

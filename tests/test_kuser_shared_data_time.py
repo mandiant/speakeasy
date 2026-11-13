@@ -61,7 +61,7 @@ def sleep_until_kuser_time_passes(base: int, iat: dict[tuple[str, str | int], in
 
 
 def test_kuser_shared_data_wait_loop_ends(config: dict[str, Any]) -> None:
-    config["max_api_calls"] = 100
+    config["limits"]["api_calls"] = 100
     data, _ = build_pe(32, text=sleep_until_kuser_time_passes, imports={"kernel32.dll": ["Sleep", "ExitProcess"]})
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=data))

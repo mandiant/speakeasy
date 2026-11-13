@@ -3,12 +3,13 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 from speakeasy import Speakeasy
 from speakeasy.cli_config import (
     add_config_cli_arguments,
     get_active_config,
     get_config_cli_field_specs,
-    get_singular_word,
 )
 from speakeasy.config import SpeakeasyConfig
 from tests.handler_harness import alloc, call, load_emu
@@ -23,31 +24,36 @@ def get_cli_config(data: dict, argv: list[str]) -> SpeakeasyConfig:
 
 def test_config_precedence_prefers_cli_over_config_file():
     config = get_cli_config(
-        {"max_run_time": 15, "analysis": {"coverage": True}}, ["--max-run-time", "90", "--no-analysis-coverage"]
+        {"limits": {"per_run_time": 15}, "code": {"coverage": True}},
+        ["--limits-per-run-time", "90", "--no-code-coverage"],
     )
 
-    assert config.max_run_time == 90
-    assert config.analysis.coverage is False
+    assert config.limits.per_run_time == 90
+    assert config.code.coverage is False
 
 
 def test_cli_and_library_give_the_same_config_for_a_partial_dict():
-    part = {"user": {"name": "bob"}, "os_ver": {"major": 10, "minor": 0}}
+    part = {"user": {"name": "bob"}, "system": {"os_ver": {"major": 10, "minor": 0}}}
 
     library = Speakeasy(config=part).config
 
     assert get_cli_config(part, []) == library
-    assert library.user.is_admin is True
-    assert library.os_ver.build == 7601
+    assert library.user.admin is True
+    assert library.system.os_ver.build == 7601
 
 
 FEATURE_PATHS = [
-    "analysis.memory_tracing",
-    "analysis.coverage",
-    "analysis.dynamic_code_snapshots",
-    "keep_memory_on_free",
-    "snapshot_memory_regions",
-    "modules.modules_always_exist",
-    "modules.functions_always_exist",
+    "runs.exports",
+    "runs.children",
+    "memory.accesses",
+    "memory.strings",
+    "memory.final_contents",
+    "memory.dynamic_code_contents.enabled",
+    "memory.freed_regions",
+    "code.coverage",
+    "apis.stubs",
+    "modules.stubs",
+    "exceptions.dispatch",
 ]
 
 
@@ -69,10 +75,44 @@ def test_features_are_on_by_default_and_each_no_flag_turns_one_off():
     assert all(get_config_path_value(config, spec.path) is False for spec in bool_specs)
 
 
-def test_no_config_flag_repeats_a_word():
+def test_each_flag_is_the_config_path_with_dashes():
     for spec in get_config_cli_field_specs():
-        words = [get_singular_word(word) for word in spec.option.removeprefix("--").split("-")]
-        assert len(words) == len(set(words)), spec.option
+        path = spec.path.removesuffix(".enabled")
+        assert spec.option == "--" + path.replace(".", "-").replace("_", "-"), spec.path
+
+
+def test_the_enabled_key_of_a_group_gives_the_flag_of_the_group():
+    options = {spec.path: spec.option for spec in get_config_cli_field_specs()}
+    assert options["memory.dynamic_code_contents.enabled"] == "--memory-dynamic-code-contents"
+    assert options["memory.dynamic_code_contents.limit"] == "--memory-dynamic-code-contents-limit"
+
+    off = {"memory": {"dynamic_code_contents": {"enabled": False}}}
+    assert get_cli_config(off, ["--memory-dynamic-code-contents"]).memory.dynamic_code_contents.enabled is True
+    config = get_cli_config({}, ["--no-memory-dynamic-code-contents", "--memory-dynamic-code-contents-limit", "3"])
+    assert config.memory.dynamic_code_contents.enabled is False
+    assert config.memory.dynamic_code_contents.limit == 3
+
+
+def test_k_sets_runs_children():
+    assert get_cli_config({"runs": {"children": False}}, ["-k"]).runs.children is True
+    assert get_cli_config({}, ["--no-runs-children"]).runs.children is False
+
+
+@pytest.mark.parametrize("flag", ["--emulate-children", "--all-entrypoints"])
+def test_the_cli_rejects_a_run_flag_that_is_not_a_config_path(tmp_path, flag):
+    target = tmp_path / "sc.bin"
+    target.write_bytes(b"\xc3")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "speakeasy.cli", "-t", str(target), "--raw", "--arch", "x86", "--no-mp", flag],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert result.returncode == 2
+    assert f"unrecognized arguments: {flag}" in result.stderr
 
 
 def test_dump_default_config_flag_outputs_valid_json():
@@ -88,15 +128,15 @@ def test_dump_default_config_flag_outputs_valid_json():
 def test_env_names_from_the_cli_replace_the_defaults_in_any_case(load_test_bin):
     config = get_cli_config(
         {},
-        ["--env", "TEMP=C:\\Windows\\Temp"]
-        + ["--env", "APPDATA=C:\\Users\\jdoe\\AppData\\Roaming"]
-        + ["--env", "COMPUTERNAME=WS-3471"],
+        ["--process-env", "TEMP=C:\\Windows\\Temp"]
+        + ["--process-env", "APPDATA=C:\\Users\\jdoe\\AppData\\Roaming"]
+        + ["--process-env", "COMPUTERNAME=WS-3471"],
     )
 
-    assert config.env["temp"] == "C:\\Windows\\Temp"
-    assert config.env["appdata"] == "C:\\Users\\jdoe\\AppData\\Roaming"
-    assert config.env["computername"] == "WS-3471"
-    assert all(name.islower() for name in config.env)
+    assert config.process.env["temp"] == "C:\\Windows\\Temp"
+    assert config.process.env["appdata"] == "C:\\Users\\jdoe\\AppData\\Roaming"
+    assert config.process.env["computername"] == "WS-3471"
+    assert all(name.islower() for name in config.process.env)
 
     for se in load_emu(config.model_dump(), load_test_bin("dll_test_x86.dll.xz")):
         name = alloc(se, b"ComputerName\x00")
@@ -106,6 +146,6 @@ def test_env_names_from_the_cli_replace_the_defaults_in_any_case(load_test_bin):
 
 
 def test_an_env_name_from_the_cli_replaces_a_config_file_name_in_any_case():
-    config = get_cli_config({"env": {"TEMP": "C:\\config"}}, ["--env", "temp=C:\\cli"])
+    config = get_cli_config({"process": {"env": {"TEMP": "C:\\config"}}}, ["--process-env", "temp=C:\\cli"])
 
-    assert config.env["temp"] == "C:\\cli"
+    assert config.process.env["temp"] == "C:\\cli"

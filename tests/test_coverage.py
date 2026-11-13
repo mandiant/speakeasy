@@ -2,14 +2,13 @@ from speakeasy import Speakeasy
 
 
 def test_coverage_enabled(config, load_test_bin):
-    config["analysis"] = dict(config.get("analysis", {}))
-    config["analysis"]["coverage"] = True
+    config["code"]["coverage"] = True
 
     data = load_test_bin("dll_test_x86.dll.xz")
     se = Speakeasy(config=config)
     try:
         module = se.load_module(data=data)
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         report = se.get_report()
     finally:
         se.shutdown()

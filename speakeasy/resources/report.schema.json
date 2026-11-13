@@ -350,7 +350,7 @@
     },
     "DynamicCodeSegment": {
       "additionalProperties": false,
-      "description": "A dynamic code region where code ran, or a snapshot of the region.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region. With ``analysis.dynamic_code_snapshots``, the\nemulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the\nregion after the region changed, and control came from outside the region.",
+      "description": "A dynamic code region where code ran, or a snapshot of the region.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the\nemulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the\nregion after the region changed, and control came from outside the region.",
       "properties": {
         "tag": {
           "description": "Tag of the memory region.",
@@ -382,7 +382,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different data from the entry of the region before it. Only with ``analysis.dynamic_code_snapshots``.",
+          "description": "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different data from the entry of the region before it. Only with ``memory.dynamic_code_contents``.",
           "title": "Data Ref"
         },
         "snapshot_limit_reached": {
@@ -395,7 +395,7 @@
             }
           ],
           "default": null,
-          "description": "True on the last entry of a region if the region changed and code ran in it again after the last snapshot that ``analysis.dynamic_code_snapshot_limit`` allows. Absent otherwise.",
+          "description": "True on the last entry of a region if the region changed and code ran in it again after the last snapshot that ``memory.dynamic_code_contents.limit`` allows. Absent otherwise.",
           "title": "Snapshot Limit Reached"
         }
       },
@@ -654,11 +654,11 @@
             }
           ],
           "default": null,
-          "description": "Access counts of each API symbol. Only with ``analysis.memory_tracing``.",
+          "description": "Access counts of each API symbol. Only with ``memory.accesses``.",
           "title": "Symbol Accesses"
         },
         "dynamic_code_segments": {
-          "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``analysis.dynamic_code_snapshots``, a region has one entry for each snapshot.",
+          "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``memory.dynamic_code_contents``, a region has one entry for each snapshot.",
           "items": {
             "$ref": "#/$defs/DynamicCodeSegment"
           },
@@ -679,7 +679,7 @@
             }
           ],
           "default": null,
-          "description": "Sorted addresses of the instructions that ran. Only with ``analysis.coverage``.",
+          "description": "Sorted addresses of the instructions that ran. Only with ``code.coverage``.",
           "title": "Coverage"
         },
         "dropped_files": {
@@ -968,7 +968,7 @@
             }
           ],
           "default": null,
-          "description": "Limit that ended the run: ``max_api_calls`` of the config for ``max_api_count``, ``max_api_loop_calls`` for ``api_loop``, or the instruction limit for ``max_instructions``.",
+          "description": "Limit that ended the run: ``limits.api_calls`` of the config for ``max_api_count``, ``limits.api_loop_calls`` for ``api_loop``, or ``limits.instructions`` for ``max_instructions``.",
           "title": "Count"
         },
         "last_api": {
@@ -1957,7 +1957,7 @@
         },
         "is_free": {
           "default": false,
-          "description": "If true, the guest freed the region. Only ``keep_memory_on_free`` keeps a freed region.",
+          "description": "If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
           "title": "Is Free",
           "type": "boolean"
         },
@@ -1971,7 +1971,7 @@
             }
           ],
           "default": null,
-          "description": "Access counts of the region. Absent when memory tracing is off or the run did not use the region."
+          "description": "Access counts of the region. Absent when ``memory.accesses`` is off or the run did not use the region."
         },
         "data_ref": {
           "anyOf": [
@@ -1983,7 +1983,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the region data. Only with ``snapshot_memory_regions``, and never for the stack.",
+          "description": "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and never for the stack.",
           "title": "Data Ref"
         }
       },
@@ -3269,7 +3269,7 @@
         }
       ],
       "default": null,
-      "description": "Strings of the input and of memory. Only with ``analysis.strings``."
+      "description": "Strings of the input and of memory. Only with ``memory.strings``."
     },
     "data": {
       "additionalProperties": {

@@ -333,7 +333,7 @@ def test_api_fault_reports_the_first_unmapped_byte(config, load_test_bin):
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(MEMCPY_PAST_ARGS))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         run = next(ep for ep in se.get_report().entry_points if ep.name == "??4CHwDataEvent@@QEAAAEAU0@AEBU0@@Z")
         first_unmapped = se.get_address_map(0x41424000)
 
@@ -465,10 +465,10 @@ def test_engine_stop_without_a_cause_ends_the_run_with_an_error(config):
         ("x86", VMOVUPS_ZMM, "unsupported_cpu_feature", "vmovups zmm0, zmm1"),
     ],
 )
-@pytest.mark.parametrize("dispatch_handlers", [True, False])
-def test_invalid_instruction_ends_the_run(config, arch, insn, error, instruction, dispatch_handlers):
+@pytest.mark.parametrize("dispatch", [True, False])
+def test_invalid_instruction_ends_the_run(config, arch, insn, error, instruction, dispatch):
     """A valid VEX or EVEX instruction that Unicorn cannot run is an unsupported CPU feature, not junk code."""
-    config["exceptions"]["dispatch_handlers"] = dispatch_handlers
+    config["exceptions"]["dispatch"] = dispatch
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\x90" + insn + RETURN_42, arch=arch)
 
@@ -481,7 +481,7 @@ def test_invalid_instruction_ends_the_run(config, arch, insn, error, instruction
 
 def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
     # mov al, 0xf4 stopped by the instruction limit right after it
-    config.update(max_instructions=1)
+    config["limits"].update(instructions=1)
     with Speakeasy(config=config) as se:
         code = se.load_shellcode(data=b"\xb0\xf4" + RETURN_42, arch="amd64")
 
@@ -578,7 +578,7 @@ def test_run_after_a_fastfail_runs_once(config, load_test_bin):
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(FASTFAIL_IN_DLL_MAIN))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         dll_main, export = se.get_report().entry_points[:2]
 
     assert (dll_main.type, dll_main.name) == ("dll_entry", "DLL_PROCESS_ATTACH")
