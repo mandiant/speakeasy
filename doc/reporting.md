@@ -6,6 +6,8 @@ The report models are in `speakeasy/report.py` and `speakeasy/profiler_events.py
 
 For the changes from the 1.x report, see [Migrating to 2.0](migrating-to-2.0.md#report-schema-600).
 
+`get_json_report()` and the CLI write compact JSON, with no indentation and no line breaks. To indent a report, use `jq . report.json`.
+
 The examples on this page are JSONC: JSON with comments that explain the fields. Remove the comments before you parse an example as JSON.
 
 ## Report fields

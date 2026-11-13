@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -273,3 +274,17 @@ def test_memory_event_does_not_merge_into_another_run_or_process(event_type: Eve
 
     assert [(e.pid, e.base, e.size) for e in run1.events] == [(9, 0x1000, 4)]
     assert [(e.pid, e.base, e.size) for e in run2.events] == [(10, 0x1004, 4), (9, 0x1008, 8)]
+
+
+def test_json_report_is_compact():
+    profiler = Profiler()
+    run = Run()
+    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
+    profiler.record_file_access_event(run, pos, "C:\\temp\\x.bin", EventType.FILE_WRITE, data=b"a\nb", size=3)
+    report = build_report(profiler, run)
+
+    text = profiler.get_json_report()
+
+    assert "\n" not in text
+    assert ": " not in text
+    assert json.loads(text) == json.loads(report.model_dump_json(exclude_none=True))
