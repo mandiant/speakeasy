@@ -19,6 +19,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
 from speakeasy.errors import Win32EmuError, WindowsEmuError
+from speakeasy.memmgr import MemMap
 from speakeasy.profiler import Run
 from speakeasy.report import ErrorInfo, ErrorType, FileType, RunType
 from speakeasy.windows import objman
@@ -719,13 +720,26 @@ class Win32Emulator(WindowsEmulator):
                 self.profiler.record_dropped_files_event(run, self.get_dropped_files())
                 self._capture_memory_layout(run)
 
+    def _is_guest_memory(self, mm: MemMap) -> bool:
+        """
+        Get whether the guest owns the data of a memory map, so that the report keeps its contents.
+
+        The guest owns its allocations and heaps (``api.*`` tags) and the images of the modules that load
+        from a file, such as the input. The emulator owns the stub images of the system modules, its own
+        structures and the stacks.
+        """
+        if (mm.tag or "").startswith("api."):
+            return True
+        module = self._get_image_module(mm)
+        return module is not None and module._image.source != "synthetic"
+
     def _capture_memory_layout(self, run: Run) -> None:
         """Record the memory layout and the loaded modules in the report of the run."""
         capture_dumps = self.config.memory.final_contents and self.profiler is not None
 
         for mm in self.get_mem_maps():
             data = None
-            if capture_dumps and not (mm.tag or "").startswith("emu.stack"):
+            if capture_dumps and self._is_guest_memory(mm):
                 try:
                     data = self.mem_read(mm.base, mm.size)
                 except Exception:

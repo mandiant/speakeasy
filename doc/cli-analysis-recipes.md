@@ -8,7 +8,7 @@ Each recipe gives the flags for one kind of analysis output and a command that c
 At the end of each run, the memory regions in `runs[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. Kernel mode has no memory layout, so it has no contents. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
 ```bash
-jq '.runs[].memory.layout[] | select(.data_ref != null) | .tag' report.json
+jq '.runs[].memory.layout[] | select(.data_ref != null) | {base, tag, module, section}' report.json
 ```
 
 The report gets larger. Regions with the same bytes share one entry in `data`, also across runs. `--no-memory-final-contents` removes the data from the report.
