@@ -1655,11 +1655,6 @@ class WindowsEmulator(BinaryEmulator):
                     return False
                 stack_trace = traceback.format_exc()
 
-                try:
-                    mnem, op, instr = self.get_disasm(self.get_pc(), _arch.DISASM_SIZE)
-                except Exception as dis_err:
-                    logger.error(str(dis_err))
-
                 if isinstance(e, uc.UcError) and e.errno == uc.UC_ERR_INSN_INVALID:
                     pc = self.get_pc()
                     error = self.get_error_info(self._get_invalid_instruction_error(pc), pc, traceback=stack_trace)
@@ -2955,8 +2950,8 @@ class WindowsEmulator(BinaryEmulator):
         else:
             try:
                 mnem, op, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
-            except Exception as e:
-                logger.error(str(e))
+            except Exception:
+                logger.debug("cannot disassemble 0x%x", pc, exc_info=True)
                 instr = None
 
         registers = self.get_register_state()
@@ -4136,8 +4131,8 @@ class WindowsEmulator(BinaryEmulator):
         """Log an exception at address that is offered to a guest handler, and record it in the report."""
         try:
             _, _, instr = self.get_disasm(address, _arch.DISASM_SIZE)
-        except Exception as e:
-            logger.error(str(e))
+        except Exception:
+            logger.debug("cannot disassemble 0x%x", address, exc_info=True)
             instr = None
         pc_module, pc_offset = self._resolve_module_offset(address) or (None, None)
         handler_desc = f"0x{handler:x}"
