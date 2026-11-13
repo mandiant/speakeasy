@@ -50,6 +50,34 @@ def test_protecting_an_empty_range_changes_nothing(dll_emu: Speakeasy) -> None:
     assert list(emu.get_mem_regions()) == before
 
 
+def test_virtual_protect_returns_the_protection_of_the_first_page(config) -> None:
+    rw, rx = PAGE_PROTECTION_FLAGS.PAGE_READWRITE, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ
+    ro_guard = PAGE_PROTECTION_FLAGS.PAGE_READONLY | PAGE_PROTECTION_FLAGS.PAGE_GUARD
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=bytes(0x1000), arch="x86")
+        data = se.mem_alloc(0x100)
+        page, results, olds = data, data + 0x10, data + 0x20
+        virtual_protect = get_api(se, "kernel32", "VirtualProtect")
+        mem_commit_reserve = windefs.MEM_COMMIT | windefs.MEM_RESERVE
+        body = guest_call(4, get_api(se, "kernel32", "VirtualAlloc"), 0, 2 * PAGE, mem_commit_reserve, rw, store=page)
+        protects = [
+            (0, 2 * PAGE, rx),
+            (PAGE, PAGE, PAGE_PROTECTION_FLAGS.PAGE_READONLY),
+            (0, 2 * PAGE, ro_guard),
+            (PAGE, PAGE, rw),
+        ]
+        for index, (offset, size, new) in enumerate(protects):
+            # The code adds the offset to the base that VirtualAlloc returned.
+            body += b"\xa1" + struct.pack("<I", page) + b"\x05" + struct.pack("<I", offset)
+            body += b"\xa3" + struct.pack("<I", data + 4)
+            args = (Deref(data + 4), size, new, olds + 4 * index)
+            body += guest_call(4, virtual_protect, *args, store=results + 4 * index)
+        se.mem_write(code, body + b"\xc3")
+        se.run_shellcode(code)
+        assert struct.unpack("<4I", se.mem_read(results, 16)) == (1, 1, 1, 1)
+        assert struct.unpack("<4I", se.mem_read(olds, 16)) == (rw, rx, rx, ro_guard)
+
+
 @pytest.mark.parametrize("bin_name", ["dll_test_x86.dll.xz", "dll_test_x64.dll.xz"])
 def test_loaded_sections_have_expected_page_protections(config, load_test_bin, bin_name):
     se = Speakeasy(config=config)
