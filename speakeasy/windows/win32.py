@@ -147,6 +147,7 @@ class Win32Emulator(WindowsEmulator):
 
             p.base = proc.base_addr
             p.path = proc.path
+            p.cmdline = proc.command_line or ""
             p.session = proc.session or 0
             p.image = ntpath.basename(p.path)
 

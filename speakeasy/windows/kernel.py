@@ -172,6 +172,7 @@ class WinKernelEmulator(WindowsEmulator):
             if not p.path:
                 p.path = proc.path
             p.image = ntpath.basename(p.path)
+            p.cmdline = proc.command_line or ""
 
             t = objman.Thread(self)
             self.add_object(t)
