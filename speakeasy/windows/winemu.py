@@ -2959,6 +2959,7 @@ class WindowsEmulator(BinaryEmulator):
         access_type: str | None = None,
         api_name: str | None = None,
         message: str | None = None,
+        pc: int | None = None,
     ) -> ErrorInfo:
         """
         Get the state of the emulator for an error.
@@ -2966,9 +2967,11 @@ class WindowsEmulator(BinaryEmulator):
         For an error at an API call, give the API name, and the return address
         as address, because the token has no instruction to show.
         For an ``internal_error``, give the text of the Python exception as message.
+        Give pc when the error is at an instruction other than the current pc.
         """
         run = self.get_current_run()
-        pc = self.get_pc()
+        if pc is None:
+            pc = self.get_pc()
 
         if api_name:
             instr = f"api_trap {api_name}"
@@ -4259,16 +4262,16 @@ class WindowsEmulator(BinaryEmulator):
     def _hook_interrupt(self, emu, intnum):
         """Handle a software interrupt."""
         self.emu_eng.clear_exception_state()
+        pc = self.get_pc()
+        try:
+            code_bytes = self.mem_read(pc - 2, 2)
+        except uc.UcError:
+            code_bytes = b""
         if (
             not self.is_kernel_mode
             and self.config.exceptions.dispatch
             and intnum not in cpu_exceptions.SYSTEM_GATES[self.get_arch()]
         ):
-            pc = self.get_pc()
-            try:
-                code_bytes = self.mem_read(pc - 2, 2)
-            except uc.UcError:
-                code_bytes = b""
             trap_flag = bool(self.reg_read(_arch.X86_REG_EFLAGS) & seh.TRAP_FLAG)
             exception = cpu_exceptions.from_interrupt(intnum, pc, code_bytes, self.get_return_val(), trap_flag)
             if exception is None:
@@ -4291,10 +4294,10 @@ class WindowsEmulator(BinaryEmulator):
                 hook = self.add_code_hook(cb=_tmp_hook)
                 return True
 
-        pc = self.get_pc()
+        pc = cpu_exceptions.get_interrupt_instruction(intnum, pc, code_bytes)
         logger.debug("interrupt: intnum=0x%x", intnum)
         logger.error("0x%x: Unhandled interrupt: intnum=0x%x", pc, intnum)
-        error = self.get_error_info(ErrorType.UNHANDLED_INTERRUPT, pc)
+        error = self.get_error_info(ErrorType.UNHANDLED_INTERRUPT, pc, pc=pc)
         error.interrupt_num = intnum
         self._set_run_error(error)
         self.end_run_on_fault()

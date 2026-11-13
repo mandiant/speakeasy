@@ -78,6 +78,21 @@ def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: 
     return general_protection(pc)
 
 
+def get_interrupt_instruction(intno: int, pc: int, code_bytes: bytes) -> int:
+    """
+    Get the address of the instruction that raised an interrupt that Unicorn reports.
+
+    After ``int n``, ``int3`` and ``into``, Unicorn gives the pc of the next instruction. After a
+    fault, pc is at the faulting instruction, and after a single step, pc is the next instruction
+    to run. code_bytes are the two bytes before pc.
+    """
+    if code_bytes[-2:] == bytes((0xCD, intno)):
+        return pc - 2
+    if (intno, code_bytes[-1:]) in ((INT_BREAKPOINT, b"\xcc"), (INT_OVERFLOW, b"\xce")):
+        return pc - 1
+    return pc
+
+
 def skip_debug_service(pc: int) -> int:
     """Get the address where execution continues after an ``int 2d`` that raises no exception."""
     return pc + 1
