@@ -591,11 +591,7 @@ class ProcessInfo(BaseModel):
     )
     command_line: str | None = Field(
         default=None,
-        description=(
-            "Command line of the process. Absent for a process from the config with no ``command_line``, and for "
-            "a process that the guest created with no command line, such as ``CreateProcess`` with a NULL "
-            "``lpCommandLine``."
-        ),
+        description=("Command line of the process. Absent for a process from the config with no ``command_line``."),
     )
     runs: list[int] = Field(
         default_factory=list,
