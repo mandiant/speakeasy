@@ -81,3 +81,12 @@ def test_report_data_deduplicates_repeated_regions(report_with_dumps):
         if region.data_ref is not None
     ]
     assert len(set(region_refs)) < len(region_refs)
+
+
+def test_region_perms_are_permission_strings(report_with_dumps):
+    regions = [region for ep in report_with_dumps.entry_points for region in (ep.memory.layout if ep.memory else [])]
+
+    assert {region.perms for region in regions} <= {"---", "r--", "-w-", "--x", "rw-", "r-x", "-wx", "rwx"}
+    eprocess = [region for region in regions if region.tag.startswith("emu.struct.EPROCESS")]
+    assert eprocess
+    assert all(region.perms == "rwx" for region in eprocess)

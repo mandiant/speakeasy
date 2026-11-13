@@ -432,7 +432,7 @@ class Process(KernelObject):
         super().__init__(emu=emu)
         # Make ActiveProcessLinks an empty list. ntoskrnl.EPROCESS gives the offsets.
         self.object = self.nt_types.EPROCESS(emu.get_ptr_size())
-        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), perms=1, base=0xE0000000)
+        self.address = emu.mem_map(self.sizeof(), tag=self.get_mem_tag(), base=0xE0000000)
         if emu.get_arch() == _arch.ARCH_X86:
             list_entry = self.address + 0x88
             self.emu.mem_write(list_entry, list_entry.to_bytes(4, "little"))

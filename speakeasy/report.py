@@ -297,7 +297,10 @@ class DroppedFile(BaseModel):
     sha256: str = Field(description="SHA-256 of the file data.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the file data. Absent for a file above MAX_EMBEDDED_FILE_SIZE.",
+        description=(
+            "Key in the top-level ``data`` of the file data. It is equal to ``sha256``. Absent for an empty file"
+            " and for a file above MAX_EMBEDDED_FILE_SIZE."
+        ),
     )
 
 
