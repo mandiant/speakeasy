@@ -19,6 +19,7 @@ STATUS_ASSERTION_FAILURE = 0xC0000420
 
 # Interrupt gates that user mode can use. Any other `int n` is a general protection fault.
 INT_BREAKPOINT = 0x03
+INT_OVERFLOW = 0x04
 INT_ASSERTION = 0x2C
 INT_DEBUG_SERVICE = 0x2D
 
@@ -62,6 +63,8 @@ def from_interrupt(intno: int, pc: int, code_bytes: bytes, rax: int, trap_flag: 
     if intno == INT_BREAKPOINT:
         # The kernel moves the address back one byte: to `int3`, or into the middle of `int 3`
         return CpuException(ddk.STATUS_BREAKPOINT, pc - 1, pc - 1, (0,))
+    if intno == INT_OVERFLOW:  # `into` or `int 4`: pc is after the instruction
+        return CpuException(ddk.STATUS_INTEGER_OVERFLOW, pc, pc)
     if intno == INT_DEBUG_SERVICE:
         if rax in DEBUG_SERVICE_NO_EXCEPTION:
             return None

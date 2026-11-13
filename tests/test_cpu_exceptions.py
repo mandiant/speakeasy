@@ -14,6 +14,7 @@ STATUS_SINGLE_STEP = 0x80000004
 STATUS_ACCESS_VIOLATION = 0xC0000005
 STATUS_ILLEGAL_INSTRUCTION = 0xC000001D
 STATUS_INTEGER_DIVIDE_BY_ZERO = 0xC0000094
+STATUS_INTEGER_OVERFLOW = 0xC0000095
 STATUS_PRIVILEGED_INSTRUCTION = 0xC0000096
 
 MEM_COMMIT_RESERVE = 0x3000
@@ -32,6 +33,7 @@ CASES = {
     "int3": (b"\xcc", STATUS_BREAKPOINT, 0, 1),
     "int 3": (b"\xcd\x03", STATUS_BREAKPOINT, 1, 1),
     "int 2d": (b"\xcd\x2d", STATUS_BREAKPOINT, 3, 0),
+    "int 4": (b"\xcd\x04", STATUS_INTEGER_OVERFLOW, 2, 0),
     "int 0x80": (b"\xcd\x80", STATUS_ACCESS_VIOLATION, 0, 2),
     "int 1": (b"\xcd\x01", STATUS_ACCESS_VIOLATION, 0, 2),
     "icebp": (b"\xf1", STATUS_SINGLE_STEP, 1, 0),
@@ -135,6 +137,28 @@ def test_general_protection_fault_reports_the_faulting_instruction(config, load_
         se.run_module(module)
 
     assert seen == [(STATUS_ACCESS_VIOLATION, 0x40F231, 0x40F231)]
+
+
+def test_into_with_overflow_raises_integer_overflow(config):
+    """``into`` is a trap: the handler sees the address after it, as in Wine."""
+    setup = b"\xb0\x7f\x04\x01"  # mov al, 0x7f; add al, 1: sets OF
+    run, start, record = run_under_handler(config, "x86", setup + b"\xce", 0)
+    assert run.error is None
+    assert run.return_value == 42
+    assert record[:2] == (STATUS_INTEGER_OVERFLOW, start + len(setup) + 1)
+
+
+def test_into_on_amd64_is_an_illegal_instruction(config):
+    setup = b"\xb0\x7f\x04\x01"
+    run, start, record = run_under_handler(config, "amd64", setup + b"\xce", 1)
+    assert record[:2] == (STATUS_ILLEGAL_INSTRUCTION, start + len(setup))
+
+
+def test_into_without_overflow_does_nothing(config):
+    run, _, record = run_under_handler(config, "x86", b"\x31\xc0\xce", 0)  # xor eax, eax: clears OF
+    assert run.error is None
+    assert run.return_value == 42
+    assert record[0] == 0
 
 
 @pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A)])
