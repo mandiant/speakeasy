@@ -2664,6 +2664,21 @@ class WindowsEmulator(BinaryEmulator):
         for page in range(address & ~(self.page_size - 1), address + size, self.page_size):
             self.guard_pages.pop(page, None)
 
+    def protect_pages(self, address, size, perms, guard=False):
+        """
+        Change the protection of the page-aligned range for a protect API, such as ``VirtualProtect``.
+
+        Each allocation in the range also gets ``perms`` as the protection that the memory layout reports.
+        An allocation keeps one protection, so it gets ``perms`` also when the range covers only part of it.
+        """
+        self.mem_protect(address, size, perms)
+        self.clear_guard_pages(address, size)
+        if guard:
+            self.set_guard_pages(address, size, perms)
+        for mm in self.get_mem_maps():
+            if mm.base < address + size and address < mm.base + mm.size:
+                mm.prot = perms
+
     def _raise_protection_fault(self, address, access_type):
         """From a Unicorn hook: raise the exception for an access that page protections deny."""
         page = address & ~(self.page_size - 1)

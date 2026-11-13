@@ -1410,10 +1410,7 @@ class Ntoskrnl(api.ApiHandler):
             old = self.emu_perms_to_win_perms(uc_to_perms[perms])
 
         new = self.win_perms_to_emu_perms(NewProtection)
-        emu.mem_protect(base, region_size, new)
-        emu.clear_guard_pages(base, region_size)
-        if NewProtection & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
-            emu.set_guard_pages(base, region_size, new)
+        emu.protect_pages(base, region_size, new, guard=bool(NewProtection & PAGE_PROTECTION_FLAGS.PAGE_GUARD))
 
         self.write_ptr(BaseAddress, base)
         self.write_ptr(RegionSize, region_size)

@@ -1720,11 +1720,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             old_prot &= ~PAGE_PROTECTION_FLAGS.PAGE_GUARD
             if addr in emu.guard_pages:
                 old_prot |= PAGE_PROTECTION_FLAGS.PAGE_GUARD
-            emu.mem_protect(addr, size, new)
-            emu.clear_guard_pages(addr, size)
-            if flNewProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
-                emu.set_guard_pages(addr, size, new)
-            mm.prot = new
+            emu.protect_pages(addr, size, new, guard=bool(flNewProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD))
             self.write_dword(lpflOldProtect, old_prot)
             return 1
 
