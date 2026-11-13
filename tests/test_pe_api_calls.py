@@ -211,7 +211,7 @@ def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bi
         module = se.load_module(data=load_test_bin("unknown_import_x86.exe.xz"))
         se.run_module(module)
         error = se.get_report().runs[0].error
-        name = module.name
+        name = module.get_base_name()
     assert error.type == "unsupported_api"
     assert error.instruction == f"api_trap kernel32.{unknown}"
     assert error.context_summary == f"unsupported_api kernel32.{unknown} called from {name}+0x1006"

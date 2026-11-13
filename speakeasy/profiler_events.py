@@ -50,7 +50,13 @@ class StackEntry(BaseModel):
 
     offset: int = Field(description="Offset of the slot from the stack pointer, in bytes.")
     value: HexIntOptional = Field(default=None, description="Value in the slot. Absent when the slot is not mapped.")
-    tag: str | None = Field(default=None, description="Tag of the memory region that ``value`` points into.")
+    region: HexIntOptional = Field(
+        default=None,
+        description=(
+            "Base of the memory region that contains ``value``, as in ``memory.layout``: for a module image, the base"
+            " of its headers or section. Absent when ``value`` is not in mapped memory."
+        ),
+    )
 
 
 class TracePosition(BaseModel):
@@ -622,7 +628,10 @@ class ExceptionEvent(Event):
     address: HexIntOptional = Field(
         default=None, description="Memory address that caused an access violation or a guard page violation."
     )
-    pc_module: str | None = Field(default=None, description="Name of the module that contains the faulting PC.")
+    pc_module: str | None = Field(
+        default=None,
+        description="File name of the module that contains the faulting PC. The same as ``memory.modules[].name``.",
+    )
     pc_offset: int | None = Field(default=None, description="Offset of the faulting PC from the base of ``pc_module``.")
     stack: list[StackEntry] | None = Field(default=None, description="Stack slots at the time of the exception.")
 

@@ -392,7 +392,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
           "pc_module": "sample.exe",
           "pc_offset": 4306,
           "stack": [
-            {"offset": 0, "value": "0x401010", "tag": "emu.module.sample.exe.0x400000"},
+            {"offset": 0, "value": "0x401010", "region": "0x401000"},
             {"offset": 4, "value": "0x0"}
           ]
         }
@@ -449,10 +449,12 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
       "memory": {
         "layout": [
           {
-            "tag": "emu.module.main..text.0x401000",
             "base": "0x401000",
             "size": 8192,
             "perms": "r-x",
+            "tag": "emu.module",
+            "module": "sample.exe",
+            "section": ".text",
             "is_free": false,
             "accesses": {
               "reads": 10,
@@ -469,15 +471,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
             "name": "sample.exe",
             "path": "C:\\Windows\\System32\\sample.exe",
             "base": "0x400000",
-            "size": 20480,
-            "segments": [
-              {
-                "name": ".text",
-                "base": "0x401000",
-                "size": 8192,
-                "perms": "r-x"
-              }
-            ]
+            "size": 20480
           }
         ]
       }

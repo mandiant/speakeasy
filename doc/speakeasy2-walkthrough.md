@@ -80,42 +80,50 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
       "memory": {
         "layout": [
           {
-            "tag": "emu.module.<hash>.exe.headers.0x10000000",
             "base": "0x10000000",
             "size": 4096,
             "perms": "r--",
+            "tag": "emu.module",
+            "module": "<hash>.exe",
+            "section": "headers",
             "accesses": null,
             "data_ref": "<sha256>"
           },
           {
-            "tag": "emu.module.<hash>.exe..text.0x10001000",
             "base": "0x10001000",
             "size": 3300,
             "perms": "r-x",
+            "tag": "emu.module",
+            "module": "<hash>.exe",
+            "section": ".text",
             "accesses": {"reads": 0, "writes": 0, "execs": 677},
             "data_ref": "<sha256>"
           },
           {
-            "tag": "emu.module.<hash>.exe..rdata.0x10002000",
             "base": "0x10002000",
             "size": 2166,
             "perms": "r--",
+            "tag": "emu.module",
+            "module": "<hash>.exe",
+            "section": ".rdata",
             "accesses": {"reads": 15, "writes": 0, "execs": 0},
             "data_ref": "<sha256>"
           },
           {
-            "tag": "emu.module.<hash>.exe..data.0x10003000",
             "base": "0x10003000",
             "size": 904,
             "perms": "rw-",
+            "tag": "emu.module",
+            "module": "<hash>.exe",
+            "section": ".data",
             "accesses": {"reads": 30, "writes": 26, "execs": 0},
             "data_ref": "<sha256>"
           },
           {
-            "tag": "emu.stack.0x1200000",
             "base": "0x1200000",
             "size": 1048576,
             "perms": "rwx",
+            "tag": "emu.stack",
             "accesses": {"reads": 170, "writes": 210, "execs": 0}
           }
         ]
@@ -129,7 +137,7 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
 
 `LoadedImage` and `RuntimeModule` have the sections of the image. When `load_image` loads a PE, it sets the protection of each section from the section characteristics with `mem_protect`. A section can have any combination of read, write and execute access, or no access. If two sections share a page, the page gets the protections of both.
 
-You do not need a config setting for this. The report always has the sections in `memory.modules[*].segments` and the regions in `memory.layout`. This excerpt from `tests/bins/dll_test_x86.dll.xz` shows the section protections in both places:
+You do not need a config setting for this. The report always has one region for each section in `memory.layout`, with the `module` and `section` fields. This excerpt from `tests/bins/dll_test_x86.dll.xz` shows the section protections:
 
 ```json
 {
@@ -142,18 +150,13 @@ You do not need a config setting for this. The report always has the sections in
   "module": {
     "name": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe",
     "base": "0x10000000",
-    "size": 28672,
-    "segments": [
-      {"name": ".text", "base": "0x10001000", "size": 3300, "perms": "r-x"},
-      {"name": ".rdata", "base": "0x10002000", "size": 2166, "perms": "r--"},
-      {"name": ".data", "base": "0x10003000", "size": 904, "perms": "rw-"}
-    ]
+    "size": 28672
   },
   "layout": [
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe.headers.0x10000000", "base": "0x10000000", "size": 4096, "perms": "r--"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..text.0x10001000", "base": "0x10001000", "size": 3300, "perms": "r-x"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..rdata.0x10002000", "base": "0x10002000", "size": 2166, "perms": "r--"},
-    {"tag": "emu.module.30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe..data.0x10003000", "base": "0x10003000", "size": 904, "perms": "rw-"}
+    {"base": "0x10000000", "size": 4096, "perms": "r--", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": "headers"},
+    {"base": "0x10001000", "size": 3300, "perms": "r-x", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": ".text"},
+    {"base": "0x10002000", "size": 2166, "perms": "r--", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": ".rdata"},
+    {"base": "0x10003000", "size": 904, "perms": "rw-", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": ".data"}
   ]
 }
 ```
@@ -176,17 +179,20 @@ In a run of `tests/bins/dll_test_x86.dll.xz`, each section of the module has dif
 ```json
 [
   {
-    "tag": "emu.module.<sample>.exe..text.0x10001000",
+    "module": "<sample>.exe",
+    "section": ".text",
     "perms": "r-x",
     "accesses": {"reads": 0, "writes": 0, "execs": 677}
   },
   {
-    "tag": "emu.module.<sample>.exe..rdata.0x10002000",
+    "module": "<sample>.exe",
+    "section": ".rdata",
     "perms": "r--",
     "accesses": {"reads": 15, "writes": 0, "execs": 0}
   },
   {
-    "tag": "emu.module.<sample>.exe..data.0x10003000",
+    "module": "<sample>.exe",
+    "section": ".data",
     "perms": "rw-",
     "accesses": {"reads": 30, "writes": 26, "execs": 0}
   }

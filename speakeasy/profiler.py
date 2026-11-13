@@ -56,7 +56,6 @@ from speakeasy.report import (
     MemoryAccesses,
     MemoryLayout,
     MemoryRegion,
-    ModuleSegment,
     Report,
     RunReport,
     RunType,
@@ -818,35 +817,21 @@ class Profiler:
                         )
                     regions.append(
                         MemoryRegion(
-                            tag=reg["tag"],
                             base=reg["base"],
                             size=reg["size"],
                             perms=reg["perms"],
+                            tag=reg.get("tag"),
+                            module=reg.get("module"),
+                            section=reg.get("section"),
                             is_free=reg.get("is_free", False),
                             accesses=accesses,
                             data_ref=reg.get("data_ref"),
                         )
                     )
-                modules = []
-                for mod in r.loaded_modules:
-                    segs = [
-                        ModuleSegment(
-                            name=seg["name"],
-                            base=seg["base"],
-                            size=seg["size"],
-                            perms=seg["perms"],
-                        )
-                        for seg in mod.get("segments", [])
-                    ]
-                    modules.append(
-                        LoadedModule(
-                            name=mod["name"],
-                            path=mod["path"],
-                            base=mod["base"],
-                            size=mod["size"],
-                            segments=segs,
-                        )
-                    )
+                modules = [
+                    LoadedModule(name=mod["name"], path=mod["path"], base=mod["base"], size=mod["size"])
+                    for mod in r.loaded_modules
+                ]
                 memory_layout = MemoryLayout(layout=regions, modules=modules)
 
             ep_tid = r.thread.tid if r.thread else None
