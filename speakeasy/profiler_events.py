@@ -148,7 +148,7 @@ class ApiEvent(Event):
     One call to an API.
 
     The profiler leaves out a call that repeats the API, pc, return address, shown arguments and
-    return value of one of the last 3 events of the run.
+    return value of one of the last 3 events of the run, and adds 1 to ``calls`` of that event.
     """
 
     event: Literal[EventType.API] = Field(default=EventType.API, description="Event type of an API call.")
@@ -166,6 +166,13 @@ class ApiEvent(Event):
     return_address: HexIntOptional = Field(
         default=None,
         description="Address where the call returns to the caller. Absent when the emulator does not know it.",
+    )
+    calls: int = Field(
+        default=1,
+        description=(
+            "Number of calls that the event stands for: this call and the repeats that the profiler left out. "
+            "The event has the ``pos`` and the raw argument values of the first call."
+        ),
     )
 
 
