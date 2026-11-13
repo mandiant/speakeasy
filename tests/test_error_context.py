@@ -7,6 +7,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from speakeasy.report import ErrorInfo
+from tests.guest_harness import get_api, guest_call
 
 # -- x86 shellcode fragments ------------------------------------------------
 # mov eax, 0xdeadbeef; mov eax, [eax]   -> invalid read from 0xdeadbeef
@@ -155,3 +156,38 @@ def test_fault_after_the_end_of_a_module_is_not_in_the_module(base_config):
         e = se.get_report().runs[0].error
         assert e is not None
         assert (e.type, e.pc, e.pc_module) == ("invalid_fetch", end, None)
+
+
+_SC_JUMP_TO_NULL = b"\x31\xc0\xff\xe0"  # xor eax, eax; jmp rax
+
+
+def test_fault_with_no_disassembly_has_no_instruction(base_config):
+    with Speakeasy(config=copy.deepcopy(base_config)) as se:
+        code = se.load_shellcode(data=_SC_JUMP_TO_NULL, arch="amd64")
+        se.run_shellcode(code)
+
+        e = se.get_report().runs[0].error
+        assert e is not None
+        assert (e.type, e.pc, e.instruction) == ("invalid_fetch", 0, None)
+
+
+def test_exception_with_no_disassembly_has_no_instruction(base_config):
+    with Speakeasy(config=copy.deepcopy(base_config)) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x2000, arch="amd64")
+        resume = code + 0x1800
+        se.mem_write(resume, b"\xb8\x2a\x00\x00\x00\xc3")  # mov eax, 42; ret
+        handler = code + 0x1000
+        handler_code = b"\x48\x8b\x41\x08"  # mov rax, [rcx + 8]  (ContextRecord)
+        handler_code += b"\x48\xba" + struct.pack("<Q", resume)  # mov rdx, resume
+        handler_code += b"\x48\x89\x90\xf8\x00\x00\x00"  # mov [rax + Rip], rdx
+        handler_code += b"\xb8\xff\xff\xff\xff\xc3"  # return EXCEPTION_CONTINUE_EXECUTION
+        se.mem_write(handler, handler_code)
+        setup = guest_call(8, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
+        se.mem_write(code, setup + _SC_JUMP_TO_NULL)
+        se.run_shellcode(code)
+
+        run = se.get_report().runs[0]
+        assert (run.error, run.return_value) == (None, 42)
+        (event,) = [e for e in run.events if e.event == "exception"]
+        assert (event.exception_code, event.pos.pc) == (0xC0000005, 0)
+        assert "instruction" not in event.model_dump(exclude_none=True)

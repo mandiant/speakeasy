@@ -2957,7 +2957,7 @@ class WindowsEmulator(BinaryEmulator):
                 mnem, op, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
             except Exception as e:
                 logger.error(str(e))
-                instr = "disasm_failed"
+                instr = None
 
         registers = self.get_register_state()
         stack = self.get_stack_trace()
@@ -4138,7 +4138,7 @@ class WindowsEmulator(BinaryEmulator):
             _, _, instr = self.get_disasm(address, _arch.DISASM_SIZE)
         except Exception as e:
             logger.error(str(e))
-            instr = "disasm_failed"
+            instr = None
         pc_module, pc_offset = self._resolve_module_offset(address) or (None, None)
         handler_desc = f"0x{handler:x}"
         if self._resolve_module_offset(handler):

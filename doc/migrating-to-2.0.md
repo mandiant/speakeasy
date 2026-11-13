@@ -194,6 +194,7 @@ Some keys follow a new rule for absent, empty and zero values. A key is absent w
 - `freed` is present on each region only with `memory.freed_regions`. In 6.2.0, `is_free` was always present. With `memory.freed_regions` off, the layout leaves out each freed allocation.
 - `limit_reached` is present on each `dynamic_code` entry with `memory.dynamic_code_contents`. In 6.2.0, `snapshot_limit_reached` was present only on the last entry of a region that got to the limit.
 - `dropped_files` is absent in kernel mode. In 6.2.0 it was an empty list.
+- `instruction` of an error or an `exception` event is absent when Speakeasy cannot disassemble the instruction, for example when the pc is not mapped. In 6.2.0 it was `disasm_failed`.
 
 With `memory.final_contents`, only the regions of guest memory have a `data_ref`: the images of the modules that load from a file, the allocations and heaps of the guest, the regions with no tag and the static TLS data. In 6.2.0, each region except the stacks had one, also the stub images of the system modules and the structures of the emulator. An empty dropped file has no `data_ref`, and the top-level `data` has only the payloads that a `data_ref` refers to. The [report walkthrough](reporting.md#memory-regions) lists the regions.
 

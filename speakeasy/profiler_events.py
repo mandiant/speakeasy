@@ -643,7 +643,13 @@ class ExceptionEvent(Event):
     """An exception that the emulator sends to a guest handler."""
 
     event: Literal[EventType.EXCEPTION] = Field(default=EventType.EXCEPTION, description="Event type of an exception.")
-    instruction: str = Field(description="Disassembly of the instruction at the exception address.")
+    instruction: str | None = Field(
+        default=None,
+        description=(
+            "Disassembly of the instruction at the exception address. Absent when Speakeasy cannot disassemble it,"
+            " for example when the address is not mapped."
+        ),
+    )
     exception_code: HexInt = Field(description="Exception code, such as ``0xc0000005``.")
     handler_address: HexInt = Field(description="Address of the handler that gets the exception.")
     registers: dict[str, HexInt] = Field(description="Register values at the time of the exception.")
