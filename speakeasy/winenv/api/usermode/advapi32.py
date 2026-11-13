@@ -20,6 +20,7 @@ from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import (
     ENUM_SERVICE_STATE,
     ENUM_SERVICE_TYPE,
+    PROCESS_CREATION_FLAGS,
     REG_VALUE_TYPE,
     SERVICE_STATUS_CURRENT_STATE,
 )
@@ -1619,6 +1620,9 @@ class AdvApi32(api.ApiHandler):
 
         thread = proc.threads[0]
         thread_hnd = self.get_object_handle(thread)
+
+        if dwCreationFlags & PROCESS_CREATION_FLAGS.CREATE_SUSPENDED:
+            thread.suspend_count = 1
 
         _pi = self.k32types.PROCESS_INFORMATION(emu.get_ptr_size())
         data = self.mem_cast(_pi, lpProcessInformation)

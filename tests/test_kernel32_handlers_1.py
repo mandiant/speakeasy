@@ -454,14 +454,18 @@ def test_win_exec_without_program_name_fails(dll_emu: Speakeasy) -> None:
     assert rv == windefs.ERROR_FILE_NOT_FOUND
 
 
-def create_suspended_child(se: Speakeasy, path: bytes = b"c:\\Windows\\system32\\cmd.exe") -> tuple[int, int]:
+def create_suspended_child(
+    se: Speakeasy, path: bytes = b"c:\\Windows\\system32\\cmd.exe", api: str = "CreateProcessA"
+) -> tuple[int, int]:
     start_process(se)
     app = alloc(se, path + b"\x00")
     si = alloc(se, b"\x00" * 0x44)
     pi = alloc(se, b"\x00" * 0x10)
-    ok, _ = call(
-        se, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, PROCESS_CREATION_FLAGS.CREATE_SUSPENDED, 0, 0, si, pi]
-    )
+    args = [app, 0, 0, 0, 0, PROCESS_CREATION_FLAGS.CREATE_SUSPENDED, 0, 0, si, pi]
+    if api == "CreateProcessAsUserA":
+        ok, _ = call(se, "advapi32", api, [0, *args])
+    else:
+        ok, _ = call(se, "kernel32", api, args)
     assert ok
     hproc, hthread = struct.unpack("<II", se.mem_read(pi, 8))
     return hproc, hthread
@@ -495,14 +499,15 @@ def test_resume_thread_leaves_an_unmodified_child_for_child_emulation(dll_emu: S
     assert len(dll_emu.emu.child_processes) == 1
 
 
-def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Speakeasy) -> None:
-    hproc, hthread = create_suspended_child(dll_emu)
+@pytest.mark.parametrize("api", ["CreateProcessA", "CreateProcessAsUserA"])
+def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Speakeasy, api: str) -> None:
+    hproc, hthread = create_suspended_child(dll_emu, api=api)
     child = dll_emu.emu.child_processes[0]
     entry = get_entry(dll_emu, hthread)
     data = alloc(dll_emu, b"\x90" * 4)
     ok, _ = call(dll_emu, "kernel32", "WriteProcessMemory", [hproc, entry, data, 4, 0])
     assert ok
-    call(dll_emu, "kernel32", "ResumeThread", [hthread])
+    assert call(dll_emu, "kernel32", "ResumeThread", [hthread])[0] == 1
     run = dll_emu.emu.run_queue[-1]
     assert (run.start_addr, run.process_context) == (entry, child)
     assert dll_emu.emu.child_processes == []
