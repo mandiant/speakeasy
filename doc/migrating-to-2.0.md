@@ -119,7 +119,7 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 | `call_0x<address>` | `call` | none, the address is in `start_address` |
 | `thread`, `system_thread` | `thread` | none |
 | `injected_thread_<process>_<pid>` | `thread` | file name of the target process, for example `notepad.exe` |
-| `thread.<process>.<pid>` | `thread` | `<process>` |
+| `thread.<process>.<pid>` | `thread` | file name of the process image, for example `svchost.exe` |
 | `apc_thread_<handle>` | `thread` | `apc` |
 | `thread` of a service | `service_main` | service name |
 | `entry_point` | `driver_entry` | none |
