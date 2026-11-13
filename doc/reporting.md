@@ -34,17 +34,17 @@ The report writes each machine word as a hex string with a `0x` prefix and lower
 | `pid` | The process ID, the same as `pid` of the runs and of the events. |
 | `parent_pid` | The ID of the process that created this process, the `pos.pid` of its `process_create` event. Absent for the first process and for a process that existed before the emulation. |
 | `path` | The emulated path of the process image, for example `C:\Windows\system32\svchost.exe`. Absent when the process has no image path. |
-| `command_line` | The command line of the process. Absent for a process from the config with no `command_line`. For `CreateProcess` with a NULL `lpCommandLine`, it is the application name. |
+| `command_line` | The command line of the process. Absent for a process from the config with no `command_line`, except the container process. For `CreateProcess` with a NULL `lpCommandLine`, it is the application name. |
 | `runs` | The indexes in `runs` of the runs of the process. Empty when no run executed in the process, for example a child process with `runs.children=false`. |
 
-For the input EXE, the first process has the emulated path of the input and the process command line: `process.command_line` of the config, or the quoted path and the `--argv` arguments. For a DLL or shellcode, the first process is the container process of the config (the entry with `is_main_exe`). In kernel mode, the runs have no process, so the list has only the targets of memory events.
+For the input EXE, the first process has the emulated path of the input and the process command line: `process.command_line` of the config, or the quoted path and the `--argv` arguments. For a DLL or shellcode, the first process is the container process of the config (the entry with `is_main_exe`). Its command line is `process.command_line` of the config, or the `command_line` of the entry, or the quoted path of the entry and the `--argv` arguments. In kernel mode, the runs have no process, so the list has only the targets of memory events.
 
 This is `processes` of PMA Lab 12-01, which injects a thread into `explorer.exe`:
 
 ```json
 [
   {"pid": 1220, "path": "C:\\Windows\\explorer.exe", "runs": [1]},
-  {"pid": 1240, "path": "C:\\Windows\\system32\\Practical Malware Analysis Lab 12-01.exe_", "command_line": "svchost.exe myarg1 myarg2", "runs": [0]}
+  {"pid": 1240, "path": "C:\\Windows\\system32\\Practical Malware Analysis Lab 12-01.exe_", "command_line": "\"C:\\Windows\\system32\\Practical Malware Analysis Lab 12-01.exe_\"", "runs": [0]}
 ]
 ```
 
@@ -241,7 +241,7 @@ This example shows each field. It is not the output of one run, and the values d
       // The first process and a process that existed before the emulation have no parent_pid.
       "path": "C:\\Windows\\System32\\sample.exe",
       // Absent when the process has no command line.
-      "command_line": "sample.exe",
+      "command_line": "\"C:\\Windows\\System32\\sample.exe\"",
       // Indexes in runs of the runs of the process.
       "runs": [0]
     },
@@ -683,7 +683,7 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
     {
       "pid": 1240,
       "path": "C:\\Windows\\system32\\svchost.exe",
-      "command_line": "svchost.exe",
+      "command_line": "\"C:\\Windows\\system32\\svchost.exe\"",
       "runs": [
         0
       ]
