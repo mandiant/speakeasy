@@ -45,6 +45,23 @@ def test_stack_regions_excluded(report_with_dumps):
                     assert region.data_ref is None
 
 
+def test_only_guest_memory_has_contents(report_with_dumps):
+    run = report_with_dumps.runs[0]
+    image = run.memory.modules[0].name
+    layout = run.memory.layout
+
+    assert all(region.data_ref for region in layout if region.module == image)
+    assert any(region.module == "kernel32.dll" for region in layout)
+    assert not [region for region in layout if region.module not in (None, image) and region.data_ref]
+    assert not [region for region in layout if region.module is None and not region.tag and region.data_ref]
+    assert not [
+        region
+        for region in layout
+        if (region.tag or "").startswith("emu.") and region.module is None and region.data_ref
+    ]
+    assert any(region.tag == "emu.struct.PEB" for region in layout)
+
+
 def test_heap_block_captured(config):
     payload = b"MZ\x90\x00" + b"unpacked stage" * 4
 

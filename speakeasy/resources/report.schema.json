@@ -408,27 +408,6 @@
       "title": "DynamicCodeSegment",
       "type": "object"
     },
-    "EntryPointType": {
-      "description": "Kind of code that a run executes.",
-      "enum": [
-        "module_entry",
-        "dll_entry",
-        "tls_callback",
-        "export",
-        "shellcode",
-        "thread",
-        "service_main",
-        "dependency_dll_entry",
-        "dependency_tls_callback",
-        "call",
-        "driver_entry",
-        "driver_unload",
-        "driver_reinit",
-        "irp"
-      ],
-      "title": "EntryPointType",
-      "type": "string"
-    },
     "ErrorInfo": {
       "additionalProperties": false,
       "description": "Why a run, or the emulation, ended with an error.\n\nThe emulator fills only the fields that apply to the error ``type``.",
@@ -533,7 +512,7 @@
             }
           ],
           "default": null,
-          "description": "Name of the module that contains the faulting PC, for example ``sample.exe``.",
+          "description": "File name of the module that contains the faulting PC, for example ``sample.exe``. The same as ``memory.modules[].name``.",
           "title": "Pc Module"
         },
         "pc_offset": {
@@ -810,7 +789,7 @@
             }
           ],
           "default": null,
-          "description": "Name of the module that contains the faulting PC.",
+          "description": "File name of the module that contains the faulting PC. The same as ``memory.modules[].name``.",
           "title": "Pc Module"
         },
         "pc_offset": {
@@ -1209,7 +1188,7 @@
       "description": "A module that is loaded at the end of a run.",
       "properties": {
         "name": {
-          "description": "Name of the module.",
+          "description": "File name of the module, such as ``sample.exe``. The ``module`` of the regions of its image.",
           "title": "Name",
           "type": "string"
         },
@@ -1228,14 +1207,6 @@
           "description": "Size of the module image in bytes.",
           "title": "Size",
           "type": "integer"
-        },
-        "segments": {
-          "description": "Sections of the module.",
-          "items": {
-            "$ref": "#/$defs/ModuleSegment"
-          },
-          "title": "Segments",
-          "type": "array"
         }
       },
       "required": [
@@ -1577,29 +1548,25 @@
     },
     "MemoryAccesses": {
       "additionalProperties": false,
-      "description": "Read, write and execute counts of one memory region, from memory tracing.",
+      "description": "Read, write and execute counts of the memory regions and the symbols that a run used.",
       "properties": {
-        "reads": {
-          "description": "Number of reads in the region.",
-          "title": "Reads",
-          "type": "integer"
+        "regions": {
+          "description": "Counts of each region that the run read, wrote or ran code in, in the order of ``region``.",
+          "items": {
+            "$ref": "#/$defs/RegionAccesses"
+          },
+          "title": "Regions",
+          "type": "array"
         },
-        "writes": {
-          "description": "Number of writes in the region.",
-          "title": "Writes",
-          "type": "integer"
-        },
-        "execs": {
-          "description": "Number of instructions that ran in the region.",
-          "title": "Execs",
-          "type": "integer"
+        "symbols": {
+          "description": "Counts of each symbol address that the run read, wrote or ran code at, in the order of the address. Only an access at the exact address of the symbol counts.",
+          "items": {
+            "$ref": "#/$defs/SymbolAccesses"
+          },
+          "title": "Symbols",
+          "type": "array"
         }
       },
-      "required": [
-        "reads",
-        "writes",
-        "execs"
-      ],
       "title": "MemoryAccesses",
       "type": "object"
     },
@@ -1608,7 +1575,7 @@
       "description": "Memory regions and loaded modules at the end of a run.",
       "properties": {
         "layout": {
-          "description": "Memory regions, with one region for the headers and one for each section of a module.",
+          "description": "Memory regions, with one region for the headers and one for each section of a module image.",
           "items": {
             "$ref": "#/$defs/MemoryRegion"
           },
@@ -1629,13 +1596,8 @@
     },
     "MemoryRegion": {
       "additionalProperties": false,
-      "description": "One memory region at the end of a run.\n\nThe emulator splits the image of a module into one region for the headers and one region\nfor each section.",
+      "description": "One memory region at the end of a run.\n\nThe emulator splits the image of a module into one region for the headers and one region\nfor each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give\nthe image and the part.",
       "properties": {
-        "tag": {
-          "description": "Tag of the region. The tag of a module region starts with ``emu.module.``.",
-          "title": "Tag",
-          "type": "string"
-        },
         "base": {
           "description": "Base address of the region.",
           "pattern": "^0x[0-9a-f]+$",
@@ -1648,27 +1610,54 @@
           "type": "integer"
         },
         "perms": {
-          "description": "Permissions at the end of the run, such as ``r-x`` or ``rw-``.",
+          "description": "Permissions, such as ``r-x`` or ``rw-``. For a part of a module image, the permissions from the section header, and ``r--`` for the headers.",
           "title": "Perms",
           "type": "string"
         },
-        "is_free": {
-          "default": false,
-          "description": "If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
-          "title": "Is Free",
-          "type": "boolean"
-        },
-        "accesses": {
+        "tag": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MemoryAccesses"
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Access counts of the region. Absent when ``memory.accesses`` is off or the run did not use the region."
+          "description": "Tag of the memory manager, such as ``api.VirtualAlloc``, ``api.heap.HeapAlloc`` or ``emu.stack``. ``emu.module`` for a part of a module image. Absent when the region has no tag.",
+          "title": "Tag"
+        },
+        "module": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "File name of the module, such as ``sample.exe`` or ``kernel32.dll``, the same as ``memory.modules[].name``. Only for a part of a module image.",
+          "title": "Module"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the section, such as ``.text``, or ``headers`` for the PE headers. Absent for a region that is not part of a module image, for a module image with no sections, and for an address in a module image that is outside the headers and the sections. In the last two cases, the region is the full image.",
+          "title": "Section"
+        },
+        "is_free": {
+          "default": false,
+          "description": "If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
+          "title": "Is Free",
+          "type": "boolean"
         },
         "data_ref": {
           "anyOf": [
@@ -1680,12 +1669,11 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and never for the stack.",
+          "description": "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and only for guest memory: the images of the modules that load from a file, such as the input, and the allocations and heaps of the guest (``api.*`` tags). Absent for the stub images of system modules, the structures and stacks of the emulator, and other regions with no tag or an ``emu.*`` tag. Also absent when the emulator cannot read the region.",
           "title": "Data Ref"
         }
       },
       "required": [
-        "tag",
         "base",
         "size",
         "perms"
@@ -1738,41 +1726,6 @@
         "size"
       ],
       "title": "ModuleLoadEvent",
-      "type": "object"
-    },
-    "ModuleSegment": {
-      "additionalProperties": false,
-      "description": "One section of a loaded module.",
-      "properties": {
-        "name": {
-          "description": "Name of the section, such as ``.text``.",
-          "title": "Name",
-          "type": "string"
-        },
-        "base": {
-          "description": "Virtual address of the section.",
-          "pattern": "^0x[0-9a-f]+$",
-          "title": "Base",
-          "type": "string"
-        },
-        "size": {
-          "description": "Virtual size of the section in bytes.",
-          "title": "Size",
-          "type": "integer"
-        },
-        "perms": {
-          "description": "Permissions from the section header, such as ``r-x``.",
-          "title": "Perms",
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "base",
-        "size",
-        "perms"
-      ],
-      "title": "ModuleSegment",
       "type": "object"
     },
     "NetDnsEvent": {
@@ -2514,15 +2467,45 @@
       "title": "RegWriteValueEvent",
       "type": "object"
     },
-    "RegionInfo": {
+    "RegionAccesses": {
       "additionalProperties": false,
-      "description": "A memory region near a fault.",
+      "description": "Read, write and execute counts of one memory region in one run.",
       "properties": {
-        "tag": {
-          "description": "Tag of the memory region.",
-          "title": "Tag",
+        "region": {
+          "description": "Base of the region, as in ``memory.layout``: for a module image, the base of its headers or section. An access in a module image outside the headers and the sections counts for the headers.",
+          "pattern": "^0x[0-9a-f]+$",
+          "title": "Region",
           "type": "string"
         },
+        "reads": {
+          "description": "Number of reads in the region.",
+          "title": "Reads",
+          "type": "integer"
+        },
+        "writes": {
+          "description": "Number of writes in the region.",
+          "title": "Writes",
+          "type": "integer"
+        },
+        "execs": {
+          "description": "Number of instructions that ran in the region.",
+          "title": "Execs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "region",
+        "reads",
+        "writes",
+        "execs"
+      ],
+      "title": "RegionAccesses",
+      "type": "object"
+    },
+    "RegionInfo": {
+      "additionalProperties": false,
+      "description": "One memory region: an allocation of the memory manager, or one part of a module image.\n\nThe emulator splits the image of a module into one region for the headers and one region\nfor each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give\nthe image and the part.",
+      "properties": {
         "base": {
           "description": "Base address of the region.",
           "pattern": "^0x[0-9a-f]+$",
@@ -2535,6 +2518,11 @@
           "type": "integer"
         },
         "perms": {
+          "description": "Permissions, such as ``r-x`` or ``rw-``. For a part of a module image, the permissions from the section header, and ``r--`` for the headers.",
+          "title": "Perms",
+          "type": "string"
+        },
+        "tag": {
           "anyOf": [
             {
               "type": "string"
@@ -2544,14 +2532,40 @@
             }
           ],
           "default": null,
-          "description": "Permissions, such as ``r-x``.",
-          "title": "Perms"
+          "description": "Tag of the memory manager, such as ``api.VirtualAlloc``, ``api.heap.HeapAlloc`` or ``emu.stack``. ``emu.module`` for a part of a module image. Absent when the region has no tag.",
+          "title": "Tag"
+        },
+        "module": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "File name of the module, such as ``sample.exe`` or ``kernel32.dll``, the same as ``memory.modules[].name``. Only for a part of a module image.",
+          "title": "Module"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of the section, such as ``.text``, or ``headers`` for the PE headers. Absent for a region that is not part of a module image, for a module image with no sections, and for an address in a module image that is outside the headers and the sections. In the last two cases, the region is the full image.",
+          "title": "Section"
         }
       },
       "required": [
-        "tag",
         "base",
-        "size"
+        "size",
+        "perms"
       ],
       "title": "RegionInfo",
       "type": "object"
@@ -2561,7 +2575,7 @@
       "description": "One run, and the events and data that the run collected.\n\nA run starts at one address, such as the module entry point, an export, a TLS callback or a\nthread.",
       "properties": {
         "type": {
-          "$ref": "#/$defs/EntryPointType",
+          "$ref": "#/$defs/RunType",
           "description": "Kind of code that the run executes, such as ``module_entry``, ``export`` or ``thread``."
         },
         "name": {
@@ -2789,21 +2803,17 @@
           "title": "Events",
           "type": "array"
         },
-        "symbol_accesses": {
+        "accesses": {
           "anyOf": [
             {
-              "items": {
-                "$ref": "#/$defs/SymAccessReport"
-              },
-              "type": "array"
+              "$ref": "#/$defs/MemoryAccesses"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Access counts of each API symbol. Only with ``memory.accesses``.",
-          "title": "Symbol Accesses"
+          "description": "Read, write and execute counts of the regions and the symbols. Only with ``memory.accesses``."
         },
         "dynamic_code_segments": {
           "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``memory.dynamic_code_contents``, a region has one entry for each snapshot.",
@@ -2858,6 +2868,27 @@
       "title": "RunReport",
       "type": "object"
     },
+    "RunType": {
+      "description": "Kind of code that a run executes.",
+      "enum": [
+        "module_entry",
+        "dll_entry",
+        "tls_callback",
+        "export",
+        "shellcode",
+        "thread",
+        "service_main",
+        "dependency_dll_entry",
+        "dependency_tls_callback",
+        "call",
+        "driver_entry",
+        "driver_unload",
+        "driver_reinit",
+        "irp"
+      ],
+      "title": "RunType",
+      "type": "string"
+    },
     "StackEntry": {
       "additionalProperties": false,
       "description": "One pointer-size slot of the stack at the time of an error or an exception.",
@@ -2881,9 +2912,10 @@
           "description": "Value in the slot. Absent when the slot is not mapped.",
           "title": "Value"
         },
-        "tag": {
+        "region": {
           "anyOf": [
             {
+              "pattern": "^0x[0-9a-f]+$",
               "type": "string"
             },
             {
@@ -2891,8 +2923,8 @@
             }
           ],
           "default": null,
-          "description": "Tag of the memory region that ``value`` points into.",
-          "title": "Tag"
+          "description": "Base of the memory region that contains ``value``, as in ``memory.layout``: for a module image, the base of its headers or section. Absent when ``value`` is not in mapped memory.",
+          "title": "Region"
         }
       },
       "required": [
@@ -2941,9 +2973,9 @@
       "title": "StringsReport",
       "type": "object"
     },
-    "SymAccessReport": {
+    "SymbolAccesses": {
       "additionalProperties": false,
-      "description": "Read, write and execute counts of one symbol address, from memory tracing.",
+      "description": "Read, write and execute counts of one symbol address in one run.",
       "properties": {
         "symbol": {
           "description": "Symbol name in ``module.symbol`` form.",
@@ -2951,17 +2983,17 @@
           "type": "string"
         },
         "reads": {
-          "description": "Number of reads of the symbol address.",
+          "description": "Number of reads that start at the symbol address.",
           "title": "Reads",
           "type": "integer"
         },
         "writes": {
-          "description": "Number of writes to the symbol address.",
+          "description": "Number of writes that start at the symbol address.",
           "title": "Writes",
           "type": "integer"
         },
         "execs": {
-          "description": "Number of times that the guest ran code at the symbol address.",
+          "description": "Number of instructions that ran at the symbol address.",
           "title": "Execs",
           "type": "integer"
         }
@@ -2972,7 +3004,7 @@
         "writes",
         "execs"
       ],
-      "title": "SymAccessReport",
+      "title": "SymbolAccesses",
       "type": "object"
     },
     "ThreadCreateEvent": {

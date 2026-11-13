@@ -391,8 +391,11 @@ class MemoryRegion(RegionInfo):
     data_ref: str | None = Field(
         default=None,
         description=(
-            "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, "
-            "and never for the stack."
+            "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and only for "
+            "guest memory: the images of the modules that load from a file, such as the input, and the allocations "
+            "and heaps of the guest (``api.*`` tags). Absent for the stub images of system modules, the structures "
+            "and stacks of the emulator, and other regions with no tag or an ``emu.*`` tag. Also absent when the "
+            "emulator cannot read the region."
         ),
     )
 
