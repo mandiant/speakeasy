@@ -5,7 +5,7 @@ Each recipe gives the flags for one kind of analysis output and a command that c
 <a id="recipe-memory-snapshots"></a>
 ## Final memory contents (`--memory-final-contents`)
 
-At the end of each run, the memory regions in `runs[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. Kernel mode has no memory layout, so it has no contents. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
+At the end of each run, the regions of guest memory in `runs[].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Guest memory is the image of the input and of the other modules that load from a file, the allocations and heaps of the guest, the regions with no tag and the static TLS data. The stacks, the stub images of the system modules and the other memory of the emulator do not get one. Kernel mode has no memory layout, so it has no contents. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
 ```bash
 jq '.runs[].memory.layout[] | select(.data_ref != null) | {base, tag, module, section}' report.json
@@ -16,7 +16,7 @@ The report gets larger. Regions with the same bytes share one entry in `data`, a
 <a id="recipe-code-coverage"></a>
 ## Coverage collection (`--code-coverage`)
 
-`runs[*].coverage` has the addresses of the instructions that each run executed. To count them:
+`runs[].coverage` has the addresses of the instructions that each run executed. To count them:
 
 ```bash
 jq '.runs[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
@@ -27,7 +27,7 @@ The emulator runs a hook for each instruction, so emulation is slower. `--no-cod
 <a id="recipe-memory-accesses"></a>
 ## Memory access counts (`--memory-accesses`)
 
-`runs[*].accesses.regions` has the counts of reads, writes and executes of each region that the run used. `region` is the base of the region in `runs[*].memory.layout`. `runs[*].accesses.symbols` has the counts for each symbol. To count the symbols that each run accessed:
+`runs[].accesses.regions` has the counts of reads, writes and executes of each region that the run used. `region` is the base of the region in `runs[].memory.layout`. `runs[].accesses.symbols` has the counts for each symbol. To count the symbols that each run accessed:
 
 ```bash
 jq '.runs[] | {start_address, symbols: (.accesses.symbols // [] | length)}' report.json

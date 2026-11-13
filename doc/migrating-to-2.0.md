@@ -2,11 +2,12 @@
 
 This page tells you how to move code, config files and scripts from Speakeasy 1.x to 2.0. It covers the Python library, the config file and the command line. Each section names a change to the interface and tells you what to change in your code or command.
 
-## Report schema 6.1.0
+<a id="report-schema-600"></a>
+## Report from 1.x
 
-The report of 2.0 has `report_version` `6.1.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
+The report of 2.0 has `report_version` `7.0.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict. The 2.0 pre-releases wrote report 6.x. For the changes from 6.x, see [Report schema 7.0.0](#report-schema-700).
 
-In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` and `sym_accesses` move to `accesses`. Each entry of `dynamic_code_segments` has the new `pos`, and with `memory.dynamic_code_contents` a `data_ref`, one more entry for each later snapshot of the region, and `snapshot_limit_reached` on the last entry of a region that got to the limit. `dropped_files` does not change.
+In 1.x, the report had a list `entry_points`. In 2.0, this list is `runs`. Each entry point of 1.x had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, a run has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` and `sym_accesses` move to `accesses`. `dynamic_code_segments` becomes `dynamic_code`, with one entry for each region. `base` of a region becomes `region`, and `contents` has the `pos` of the first time that code ran in the region. With `memory.dynamic_code_contents`, each entry of `contents` also has a `data_ref`, `contents` has one more entry for each later snapshot of the region, and `limit_reached` tells if the region got to the snapshot limit. `dropped_files` does not change.
 
 Before:
 
@@ -49,12 +50,15 @@ These keys have new names:
 | 1.x | 2.0 |
 |---|---|
 | `filetype` | `file_type` |
+| `entry_points` | `runs` |
 | `entry_points[].ep_type` | `type` and `name`, see the table below |
 | `entry_points[].start_addr` | `start_address` |
 | `entry_points[].ep_args` | `args` |
 | `entry_points[].instr_count` | `instruction_count` |
 | `entry_points[].apihash` | `api_hash` |
 | `entry_points[].sym_accesses` | `accesses.symbols` |
+| `entry_points[].dynamic_code_segments` | `dynamic_code`, one entry for each region |
+| `dynamic_code_segments[].base` | `dynamic_code[].region` |
 | `entry_points[].error.regs` | `error.registers` |
 | `entry_points[].error.instr`, `handled_exceptions[].instr` | `error.instruction`, `instruction` of the event |
 | `entry_points[].ret_val`, `apis[].ret_val` | `return_value` |
@@ -123,9 +127,96 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 | `driver_reinit` | `driver_reinit` | none |
 | `irp_mj_<function>`, for example `irp_mj_create` | `irp` | `IRP_MJ_<FUNCTION>`, for example `IRP_MJ_CREATE` |
 
-2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each entry point has `pid`, `tid` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `code.coverage`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`.
+2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each run has `pid`, `tid`, `api_call_count` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `code.coverage`. Each region of `memory.layout` has `module` and `section` when it is a part of a module image. An `api` event has `return_address`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`. An `api_loop_limit` error has `loop`, the call sites of the API loop that ended the run.
 
-The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 6.1.0, and the [report walkthrough](reporting.md) describes each key.
+The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 7.0.0, and the [report walkthrough](reporting.md) describes each key.
+
+## Report schema 7.0.0
+
+The 2.0 pre-releases wrote report 6.x, and the last of them wrote `6.2.0`. 2.0 writes `7.0.0`. This section gives the changes from `6.2.0`. A 6.x report does not validate against the 7.0.0 models.
+
+Before:
+
+```python
+for ep in report.entry_points:
+    for sym in ep.symbol_accesses or []:
+        print(sym.symbol, sym.execs)
+    for seg in ep.dynamic_code_segments:
+        print(hex(seg.base), seg.pos.tick, seg.data_ref)
+```
+
+After:
+
+```python
+for run in report.runs:
+    if run.accesses is not None:
+        for sym in run.accesses.symbols:
+            print(sym.symbol, sym.execs)
+    for region in run.dynamic_code:
+        for contents in region.contents:
+            print(hex(region.region), contents.pos.tick, contents.data_ref)
+```
+
+These keys have new names or move:
+
+| 6.2.0 | 7.0.0 |
+|---|---|
+| `entry_points` | `runs` |
+| `entry_points[].symbol_accesses[]` | `runs[].accesses.symbols[]` |
+| `entry_points[].memory.layout[].accesses` | `runs[].accesses.regions[]`, with the `base` of the region in `region` |
+| `entry_points[].dynamic_code_segments[]` | `runs[].dynamic_code[]`, one entry for each region |
+| `dynamic_code_segments[].base` | `dynamic_code[].region` |
+| `dynamic_code_segments[].pos`, `dynamic_code_segments[].data_ref` | `dynamic_code[].contents[].pos`, `dynamic_code[].contents[].data_ref`, one entry of `contents` for each snapshot |
+| `dynamic_code_segments[].snapshot_limit_reached` | `dynamic_code[].limit_reached` |
+| `memory.layout[].is_free` | `memory.layout[].freed` |
+| `error.stack[].tag`, `stack[].tag` of an `exception` event | `stack[].region`, the base of the region in `memory.layout` |
+| `memory.modules[].segments[]` | the regions in `memory.layout` with the `module` and `section` of the module |
+
+These values have a new format:
+
+| Key | 6.2.0 | 7.0.0 |
+|---|---|---|
+| `tag` of a region in `memory.layout`, `address_region` and `nearby_regions` | the tag of the memory manager and the base address, such as `api.VirtualAlloc.0x450000` | the tag of the memory manager, such as `api.VirtualAlloc` |
+| `tag` of a part of a module image | `emu.module.<file>.<section>.0x<base>`, such as `emu.module.sample.exe..text.0x401000`, or `emu.module.<file>.headers.0x<base>` | `emu.module`, with the file name in `module` and the section name or `headers` in `section` |
+| `tag` of a region with no tag | `""` | absent |
+| `tag` of a `dynamic_code` entry | the tag of the memory manager and the base address | the tag of the memory manager, absent when the region has no tag |
+| `perms` of a region | `???` for some protections, absent in `address_region` and `nearby_regions` when not known | always present, three characters such as `r-x` |
+| `pc_module` of an error or an `exception` event | the name of the module, such as `kernel32` | the file name of the module, such as `kernel32.dll`, the same as `memory.modules[].name` |
+| `error.type` | `timeout`, `max_total_time`, `max_api_count`, `max_instructions`, `api_loop` | `per_run_time_limit`, `total_time_limit`, `api_call_limit`, `instruction_limit`, `api_loop_limit` |
+| `pos.pc` of an event that the code of an API adds, such as `file_create` | the address of the API | the address of the call, the same as the `pc` of the `api` event of the call |
+
+The report no longer has the run type `callback` and the `open_flags` of a `reg_open_key` event. Speakeasy did not set them.
+
+Some keys follow a new rule for absent, empty and zero values. A key is absent when Speakeasy did not collect its data, an empty list or object means that it collected the data and found nothing, and a counter or a boolean is present when Speakeasy collects it, also when it is 0 or false. So:
+
+- `instruction_count` is always present. In 6.2.0 it was absent when it was 0.
+- `freed` is present on each region only with `memory.freed_regions`. In 6.2.0, `is_free` was always present. With `memory.freed_regions` off, the layout leaves out each freed allocation.
+- `limit_reached` is present on each `dynamic_code` entry with `memory.dynamic_code_contents`. In 6.2.0, `snapshot_limit_reached` was present only on the last entry of a region that got to the limit.
+- `dropped_files` is absent in kernel mode. In 6.2.0 it was an empty list.
+
+With `memory.final_contents`, only the regions of guest memory have a `data_ref`: the images of the modules that load from a file, the allocations and heaps of the guest, the regions with no tag and the static TLS data. In 6.2.0, each region except the stacks had one, also the stub images of the system modules and the structures of the emulator. An empty dropped file has no `data_ref`, and the top-level `data` has only the payloads that a `data_ref` refers to. The [report walkthrough](reporting.md#memory-regions) lists the regions.
+
+7.0.0 adds `api_call_count` to each run and `return_address` to each `api` event. A handler event, such as `file_create`, comes just before the `api` event of its call, with the same `tick` and `pc`.
+
+`get_json_report()` and the CLI write compact JSON. 6.2.0 was indented. To indent a report, use `jq . report.json`.
+
+These Python names change in `speakeasy` and `speakeasy.report`:
+
+| 6.2.0 | 7.0.0 |
+|---|---|
+| `Report.entry_points` | `Report.runs` |
+| `EntryPoint` | `RunReport` |
+| `EntryPointType` | `RunType` |
+| `EntryPoint.symbol_accesses`, `MemoryRegion.accesses` | `RunReport.accesses`, a `MemoryAccesses` with `regions` and `symbols` |
+| `SymAccessReport` | `SymbolAccesses` |
+| `MemoryAccesses` (the counts of one region) | `RegionAccesses`, with `region` |
+| `DynamicCodeSegment` | `DynamicCodeRegion`, with a list of `DynamicCodeContents` |
+| `ModuleSegment`, `LoadedModule.segments` | removed |
+| `MemoryRegion.is_free` | `MemoryRegion.freed` |
+| `StackEntry.tag` | `StackEntry.region` |
+| `ErrorType.TIMEOUT`, `MAX_TOTAL_TIME`, `MAX_API_COUNT`, `MAX_INSTRUCTIONS`, `API_LOOP` | `ErrorType.PER_RUN_TIME_LIMIT`, `TOTAL_TIME_LIMIT`, `API_CALL_LIMIT`, `INSTRUCTION_LIMIT`, `API_LOOP_LIMIT` |
+
+`MemoryRegion` is a subclass of `RegionInfo`, and both have `module` and `section`.
 
 ## Exceptions
 
