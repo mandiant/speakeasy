@@ -1,3 +1,4 @@
+import hashlib
 import json
 import multiprocessing as mp
 import os
@@ -221,12 +222,15 @@ def test_cli_exits_nonzero_when_the_report_write_fails(tmp_path):
 
 
 @pytest.mark.parametrize(("args", "mounted"), [([], True), (["--no-auto-mount"], False)])
-def test_cli_auto_mounts_the_target_directory_unless_disabled(tmp_path, args, mounted):
-    target = tmp_path / "sample.exe"
-    target.write_bytes(build_pe(text=b"\xc3")[0])
-    (tmp_path / "secret.txt").write_bytes(b"secret")
+def test_cli_auto_mounts_the_target_directory_unless_no_auto_mount(tmp_path, load_test_bin, args, mounted):
+    # The sample opens and reads c:\myfile.txt.
+    target = tmp_path / "file_access_test_x86.exe"
+    target.write_bytes(load_test_bin("file_access_test_x86.exe.xz"))
+    content = b"next to the input"
+    (tmp_path / "myfile.txt").write_bytes(content)
 
-    result = run_cli("-t", str(target), "-o", str(tmp_path / "report.json"), "--no-mp", "-v", *args)
+    result = run_cli("-t", str(target), "--process-current-dir", "c:\\", "--no-mp", *args)
 
     assert result.returncode == 0, result.stderr
-    assert ("C:\\Windows\\system32\\secret.txt ->" in result.stderr) is mounted
+    [read] = [e for e in json.loads(result.stdout)["runs"][0]["events"] if e["event"] == "file_read"]
+    assert (read["data_ref"] == hashlib.sha256(content).hexdigest()) is mounted
