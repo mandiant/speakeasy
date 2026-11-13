@@ -245,3 +245,26 @@ def test_child_that_is_not_a_pe_is_skipped(config, load_test_bin):
         report = se.get_report()
 
     assert [(ep.type, ep.error) for ep in report.runs] == [("module_entry", None)]
+
+
+def build_command_line_child():
+    """Build a child that returns the pointer that GetCommandLineA gives."""
+
+    def text(base, iat):
+        return call_import(base, iat, "GetCommandLineA") + b"\xc3"
+
+    return build_pe(32, text=text, imports={"kernel32.dll": ["GetCommandLineA"]})[0]
+
+
+def test_child_started_without_a_command_line_gets_the_application_name(config):
+    # The parent calls CreateProcessA with lpApplicationName set and lpCommandLine NULL
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=build_mutex_parent())
+        se.emu.fileman.add_existing_file(CHILD_PATH, build_command_line_child())
+        se.run_module(module)
+        entries = se.get_report().runs
+        command_line = se.read_mem_string(entries[-1].return_value, 1)
+
+    assert [e.command_line for e in entries[0].events if e.event == "process_create"] == [CHILD_PATH]
+    assert entries[-1].type == "module_entry"
+    assert command_line == CHILD_PATH

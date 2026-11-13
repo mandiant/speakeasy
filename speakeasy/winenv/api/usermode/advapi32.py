@@ -1603,6 +1603,8 @@ class AdvApi32(api.ApiHandler):
         if lpCommandLine:
             cmdstr = self.read_mem_string(lpCommandLine, cw)
             ctx.args["lpCommandLine"].display = cmdstr
+        else:
+            cmdstr = appstr
         if lpCurrentDirectory:
             cdstr = self.read_mem_string(lpCurrentDirectory, cw)
             ctx.args["lpCurrentDirectory"].display = cdstr
