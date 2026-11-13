@@ -76,3 +76,12 @@ def test_by_ext_entry_matches_regardless_of_case_and_dot(ext):
     entry = fm.get_emu_file("c:\\temp\\a.exe")
     assert entry is not None
     assert entry.mode == "by_ext"
+
+
+@pytest.mark.parametrize(
+    ("byte", "data"),
+    [("0x41", b"AA"), ("41", b"AA"), ("0xff", b"\xff\xff"), ("FF", b"\xff\xff"), ("0", b"\x00\x00")],
+)
+def test_byte_fill_file_has_the_byte(byte, data):
+    fm = make_file_manager([{"mode": "default", "byte_fill": {"byte": byte, "size": 2}}])
+    assert fm.get_file_by_path("c:\\temp\\a.bin").get_data() == data

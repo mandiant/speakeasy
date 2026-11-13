@@ -203,14 +203,7 @@ class File:
                 return io.BytesIO(f.read())
         bf = getattr(self.config, "byte_fill", None)
         if bf:
-            byte = bf.byte
-            if byte.startswith("0x"):
-                byte = 0xFF & int(byte, 0)
-            else:
-                byte = 0xFF & int(byte, 16)
-            size = bf.size
-            b = (byte).to_bytes(1, "little")
-            return io.BytesIO(b * size)
+            return io.BytesIO(bytes([int(bf.byte, 16)]) * bf.size)
         return io.BytesIO(b"")
 
 
