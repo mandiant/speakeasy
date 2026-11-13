@@ -690,7 +690,7 @@ class Report(BaseModel):
         default_factory=list,
         description=(
             "Processes of the runs and of the events, in the order of ``pid``. A kernel-mode run has no process, "
-            "so in kernel mode the list has only the targets of process and memory events."
+            "so in kernel mode the list has only the targets of memory events."
         ),
     )
     runs: list[RunReport] = Field(

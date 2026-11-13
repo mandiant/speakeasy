@@ -37,7 +37,7 @@ The report writes each machine word as a hex string with a `0x` prefix and lower
 | `command_line` | The command line of the process. Absent for a process from the config with no `command_line`, and for a process that the guest created with no command line, for example `CreateProcess` with a NULL `lpCommandLine`. |
 | `runs` | The indexes in `runs` of the runs of the process. Empty when no run executed in the process, for example a child process with `runs.children=false`. |
 
-For the input EXE, the first process has the emulated path of the input, and `process.command_line` of the config. For a DLL or shellcode, the first process is the container process of the config (the entry with `is_main_exe`). In kernel mode, the runs have no process, so the list has only the targets of process and memory events.
+For the input EXE, the first process has the emulated path of the input and the process command line: `process.command_line` of the config, or the quoted path and the `--argv` arguments. For a DLL or shellcode, the first process is the container process of the config (the entry with `is_main_exe`). In kernel mode, the runs have no process, so the list has only the targets of memory events.
 
 This is `processes` of PMA Lab 12-01, which injects a thread into `explorer.exe`:
 

@@ -48,16 +48,21 @@ def test_child_exe_runs_at_the_base_of_the_parent_exe(config, load_test_bin):
 
 
 def test_report_lists_the_parent_and_the_child_with_their_runs(config, load_test_bin):
+    config["process"]["command_line"] = "parent.exe -x"
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(PARENT))
         se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
         se.run_module(module)
-        parent_cmdline = get_parent(se, module).cmdline
         report = se.get_report()
 
     parent, child = report.processes
-    assert (parent.pid, parent.parent_pid, parent.path, parent.runs) == (report.runs[0].pid, None, module.emu_path, [0])
-    assert parent.command_line == parent_cmdline != ""
+    assert (parent.pid, parent.parent_pid, parent.path, parent.command_line, parent.runs) == (
+        report.runs[0].pid,
+        None,
+        module.emu_path,
+        "parent.exe -x",
+        [0],
+    )
     # parent.c gives CreateProcessA no command line.
     assert (child.pid, child.parent_pid, child.path, child.command_line, child.runs) == (
         report.runs[1].pid,
