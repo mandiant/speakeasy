@@ -45,42 +45,47 @@ def _run(
         se.mem_write(base, get_code(se))
         se.run_shellcode(base)
         report = se.get_report()
-        segment = report.runs[0].dynamic_code_segments[-1]
-        end_of_run = bytes(se.mem_read(segment.base, segment.size))
+        region = report.runs[0].dynamic_code[-1]
+        end_of_run = bytes(se.mem_read(region.region, region.size))
     return report, end_of_run
 
 
-def test_dynamic_code_segment_has_position_of_first_run(config):
+def test_dynamic_code_region_has_position_of_first_run(config):
     # Without snapshots, the run counts ticks only with an instruction budget or memory tracing.
     config["limits"]["instructions"] = 1000
     report, _ = _run(config, snapshot=False)
 
     entry = report.runs[0]
-    [segment] = entry.dynamic_code_segments
+    [region] = entry.dynamic_code
     [virtual_alloc] = [e for e in entry.events if isinstance(e, ApiEvent) and e.api_name == "kernel32.VirtualAlloc"]
-    assert segment.pos.pc == segment.base
-    assert segment.pos.tick > virtual_alloc.pos.tick
-    assert (segment.pos.pid, segment.pos.tid) == (virtual_alloc.pos.pid, virtual_alloc.pos.tid)
-    assert segment.data_ref is None
-    assert segment.snapshot_limit_reached is None
+    [contents] = region.contents
+    assert region.tag == "api.VirtualAlloc"
+    assert contents.pos.pc == region.region
+    assert contents.pos.tick > virtual_alloc.pos.tick
+    assert (contents.pos.pid, contents.pos.tid) == (virtual_alloc.pos.pid, virtual_alloc.pos.tid)
+    assert contents.data_ref is None
+    assert region.limit_reached is None
+    assert "limit_reached" not in region.model_dump(exclude_none=True)
 
 
 def test_snapshot_keeps_the_region_bytes_at_first_run(config):
     report, end_of_run = _run(config, snapshot=True)
 
-    [segment] = report.runs[0].dynamic_code_segments
-    assert segment.data_ref is not None
-    artifact = report.data[segment.data_ref]
+    [region] = report.runs[0].dynamic_code
+    [contents] = region.contents
+    assert contents.data_ref is not None
+    artifact = report.data[contents.data_ref]
     first_run = zlib.decompress(b64decode(artifact.data))
-    assert first_run == b"\xc3" + bytes(segment.size - 1)
+    assert first_run == b"\xc3" + bytes(region.size - 1)
     assert end_of_run[0] == 0xCC
+    assert region.limit_reached is False
 
 
 def test_position_of_api_return_into_region_is_in_the_region(config):
     report, _ = _run(config, snapshot=False, get_code=_get_api_return_code)
 
-    [segment] = report.runs[0].dynamic_code_segments
-    assert segment.pos.pc == segment.base + 0x27
+    [region] = report.runs[0].dynamic_code
+    assert region.contents[0].pos.pc == region.region + 0x27
 
 
 def _get_region_writes(code: bytes) -> bytes:
@@ -125,33 +130,32 @@ def _get_write_process_memory_code(se: Speakeasy) -> bytes:
 
 
 def _get_snapshots(report: Report) -> list[bytes]:
-    segments = report.runs[0].dynamic_code_segments
-    assert len({segment.base for segment in segments}) == 1
-    return [zlib.decompress(b64decode(report.data[segment.data_ref].data)) for segment in segments if segment.data_ref]
+    [region] = report.runs[0].dynamic_code
+    return [zlib.decompress(b64decode(report.data[c.data_ref].data)) for c in region.contents if c.data_ref]
 
 
 def test_region_that_changes_between_calls_has_a_snapshot_of_each_stage(config):
     report, _ = _run(config, snapshot=True, get_code=lambda se: _get_stage_loop_code(se, passes=2))
 
-    first, later = report.runs[0].dynamic_code_segments
+    [region] = report.runs[0].dynamic_code
+    first, later = region.contents
     assert _get_snapshots(report) == [b"\xc3\x02" + bytes(0xFFE), b"\xc3\x01" + bytes(0xFFE)]
-    assert (later.tag, later.base, later.size) == (first.tag, first.base, first.size)
-    assert later.pos.pc == first.base
+    assert later.pos.pc == region.region
     assert later.pos.tick > first.pos.tick
-    assert (first.snapshot_limit_reached, later.snapshot_limit_reached) == (None, None)
+    assert region.limit_reached is False
 
 
 def test_snapshot_positions_have_the_ticks_of_a_run_with_an_instruction_limit(config):
     def get_positions(report: Report) -> list:
         entry = report.runs[0]
-        return [segment.pos for segment in entry.dynamic_code_segments] + [event.pos for event in entry.events]
+        return [contents.pos for contents in entry.dynamic_code[0].contents] + [event.pos for event in entry.events]
 
     get_code = partial(_get_stage_loop_code, passes=3)
     counted, _ = _run(config | {"limits": {"instructions": 1_000_000}}, snapshot=True, get_code=get_code)
     report, _ = _run(config, snapshot=True, get_code=get_code)
 
     assert get_positions(report) == get_positions(counted)
-    assert report.runs[0].dynamic_code_segments[-1].pos.tick > 0
+    assert report.runs[0].dynamic_code[0].contents[-1].pos.tick > 0
 
 
 def test_decoder_loop_in_the_region_gives_one_snapshot_for_each_call(config):
@@ -164,10 +168,10 @@ def test_decoder_loop_in_the_region_gives_one_snapshot_for_each_call(config):
 def test_api_return_into_a_changed_region_gives_a_snapshot(config):
     report, _ = _run(config, snapshot=True, get_code=_get_api_call_after_change_code)
 
-    segments = report.runs[0].dynamic_code_segments
+    [region] = report.runs[0].dynamic_code
     first, later = _get_snapshots(report)
     assert (first[0x40], later[0x40]) == (0, 1)
-    assert segments[1].pos.pc == segments[0].base + 10
+    assert region.contents[1].pos.pc == region.region + 10
 
 
 def test_write_by_an_api_handler_changes_the_region(config):
@@ -177,13 +181,13 @@ def test_write_by_an_api_handler_changes_the_region(config):
     assert (first[:4], later[:4]) == (b"\xc3\x00\x00\x00", b"\x90\x90\x90\xc3")
 
 
-def test_snapshot_limit_shows_on_the_last_entry_of_the_region(config):
+def test_snapshot_limit_shows_on_the_region(config):
     config["memory"]["dynamic_code_contents"]["limit"] = 2
     report, _ = _run(config, snapshot=True, get_code=lambda se: _get_stage_loop_code(se, passes=4))
 
-    segments = report.runs[0].dynamic_code_segments
-    assert len(_get_snapshots(report)) == 2
-    assert [segment.snapshot_limit_reached for segment in segments] == [None, True]
+    [region] = report.runs[0].dynamic_code
+    assert len(region.contents) == len(_get_snapshots(report)) == 2
+    assert region.limit_reached is True
 
 
 def test_delphi_object_instance_page_has_a_snapshot_of_each_new_thunk(config):
@@ -198,12 +202,13 @@ def test_delphi_object_instance_page_has_a_snapshot_of_each_new_thunk(config):
         se.run_module(module)
         report = se.get_report()
 
-    segment, later, *_ = report.runs[0].dynamic_code_segments
+    [region] = report.runs[0].dynamic_code
+    _, later, *_ = region.contents
     first, bound, *_ = _get_snapshots(report)
-    thunk = later.pos.pc - segment.base
+    thunk = later.pos.pc - region.region
     call = b"\xe8" + struct.pack("<i", 4 - (thunk + 5))
     [old_link] = struct.unpack_from("<I", first, thunk + 5)
     [method] = struct.unpack_from("<I", bound, thunk + 5)
     assert first[thunk : thunk + 5] == bound[thunk : thunk + 5] == call
-    assert segment.base <= old_link < segment.base + segment.size
+    assert region.region <= old_link < region.region + region.size
     assert module.base <= method < module.base + module.image_size

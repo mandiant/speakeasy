@@ -980,11 +980,11 @@ class BinaryEmulator(MemoryManager, ABC):
         mm = self.get_address_map(addr)
         run = self.get_current_run()
         # The hooks fire again when an API returns into the region, so read the region only the first time.
-        if profiler and mm.base not in run.dyn_code["base_addrs"]:
+        if profiler and mm.base not in run.dynamic_code:
             # After an API returns into the region, the pc is still at the API, so use the address in the region.
             pos = self.get_trace_position().model_copy(update={"pc": addr})
             data = self.mem_read(mm.base, mm.size) if self.config.memory.dynamic_code_contents.enabled else None
-            profiler.record_dyn_code_event(run, pos, mm.tag, mm.base, mm.size, data)
+            profiler.record_dynamic_code(run, pos, mm.get_tag_without_address(), mm.base, mm.size, data)
             if data is not None:
                 self._watch_dyn_code(_DynCodeWatch(mm.base, mm.size))
 
@@ -1025,10 +1025,10 @@ class BinaryEmulator(MemoryManager, ABC):
             return
         run = self.get_current_run()
         if watch.snapshots >= self.config.memory.dynamic_code_contents.limit:
-            self.profiler.record_dyn_code_limit(run, watch.base)
+            self.profiler.record_dynamic_code_limit(run, watch.base)
             return
         pos = self.get_trace_position().model_copy(update={"pc": addr})
-        if self.profiler.record_dyn_code_snapshot(run, pos, watch.base, self.mem_read(watch.base, watch.size)):
+        if self.profiler.record_dynamic_code_snapshot(run, pos, watch.base, self.mem_read(watch.base, watch.size)):
             watch.snapshots += 1
         self._watch_dyn_code(watch)
 
