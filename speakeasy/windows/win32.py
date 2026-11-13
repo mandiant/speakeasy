@@ -363,7 +363,7 @@ class Win32Emulator(WindowsEmulator):
         if not_run and self.profiler:
             noun = "process" if not_run == 1 else "processes"
             self.profiler.record_error_event(
-                ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, context_summary=f"{not_run} child {noun} did not run")
+                ErrorInfo(type=ErrorType.TOTAL_TIME_LIMIT, context_summary=f"{not_run} child {noun} did not run")
             )
 
     def _free_process_memory(self, process):

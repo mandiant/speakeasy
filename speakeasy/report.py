@@ -56,11 +56,11 @@ class RegionInfo(BaseModel):
 class ErrorType(str, Enum):
     """Reason why a run or the emulation ended with an error."""
 
-    TIMEOUT = "timeout"
-    MAX_TOTAL_TIME = "max_total_time"
-    MAX_INSTRUCTIONS = "max_instructions"
-    MAX_API_COUNT = "max_api_count"
-    API_LOOP = "api_loop"
+    PER_RUN_TIME_LIMIT = "per_run_time_limit"
+    TOTAL_TIME_LIMIT = "total_time_limit"
+    INSTRUCTION_LIMIT = "instruction_limit"
+    API_CALL_LIMIT = "api_call_limit"
+    API_LOOP_LIMIT = "api_loop_limit"
     UNSUPPORTED_API = "unsupported_api"
     INTERNAL_ERROR = "internal_error"
     ENGINE_STOPPED = "engine_stopped"
@@ -128,7 +128,7 @@ class ErrorInfo(BaseModel):
 
     type: ErrorType = Field(
         description=(
-            "Kind of error, such as ``unsupported_api``, ``max_api_count``, ``api_loop`` or ``invalid_read``. "
+            "Kind of error, such as ``unsupported_api``, ``api_call_limit``, ``api_loop_limit`` or ``invalid_read``. "
             "A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
         )
     )
@@ -193,17 +193,19 @@ class ErrorInfo(BaseModel):
     count: int | None = Field(
         default=None,
         description=(
-            "Limit that ended the run: ``limits.api_calls`` of the config for ``max_api_count``, "
-            "``limits.api_loop_calls`` for ``api_loop``, or ``limits.instructions`` for ``max_instructions``."
+            "Limit that ended the run: ``limits.api_calls`` of the config for ``api_call_limit``, "
+            "``limits.api_loop_calls`` for ``api_loop_limit``, or ``limits.instructions`` for ``instruction_limit``."
         ),
     )
     last_api: str | None = Field(
         default=None,
-        description="Name of the API of the last call before the run ended, for ``max_api_count`` and ``api_loop``.",
+        description=(
+            "Name of the API of the last call before the run ended, for ``api_call_limit`` and ``api_loop_limit``."
+        ),
     )
     loop: ApiLoop | None = Field(
         default=None,
-        description="The API loop that ended the run, for ``api_loop``.",
+        description="The API loop that ended the run, for ``api_loop_limit``.",
     )
     interrupt_num: int | None = Field(
         default=None,

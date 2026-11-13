@@ -109,8 +109,8 @@ def test_cli_waits_for_every_run_within_the_total_time(tmp_path):
 
     report = json.loads(output.read_text())
     assert [(ep["type"], ep["error"]["type"]) for ep in report["runs"]] == [
-        ("module_entry", "timeout"),
-        ("thread", "timeout"),
+        ("module_entry", "per_run_time_limit"),
+        ("thread", "per_run_time_limit"),
     ]
 
 

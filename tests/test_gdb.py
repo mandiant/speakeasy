@@ -1325,7 +1325,7 @@ def test_gdb_resume_after_total_time_ends_emulation(config, resume, reply):
             else:
                 assert client.query(resume) == reply
         (run,) = se.get_report().runs
-        assert run.error is not None and run.error.type == "max_total_time"
+        assert run.error is not None and run.error.type == "total_time_limit"
 
 
 @pytest.mark.parametrize(("resume", "runs"), [("D", 2), ("k", 1)])
@@ -1404,4 +1404,4 @@ def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
             assert client.read_x86_registers().eip == address + 7
             assert client.continue_() == "W00"
         (run,) = se.get_report().runs
-        assert run.error is not None and run.error.type == "max_total_time"
+        assert run.error is not None and run.error.type == "total_time_limit"

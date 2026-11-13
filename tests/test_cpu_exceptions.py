@@ -489,7 +489,7 @@ def test_hlt_byte_ending_an_instruction_is_not_hlt(config):
 
         run = se.get_report().runs[0]
         assert run.error is not None
-        assert run.error.type == "max_instructions"
+        assert run.error.type == "instruction_limit"
 
 
 def test_guard_on_commit_of_part_of_a_reservation(config):

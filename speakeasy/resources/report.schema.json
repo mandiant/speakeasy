@@ -336,7 +336,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the file data. Absent for a file above MAX_EMBEDDED_FILE_SIZE.",
+          "description": "Key in the top-level ``data`` of the file data. It is equal to ``sha256``. Absent for an empty file and for a file above MAX_EMBEDDED_FILE_SIZE.",
           "title": "Data Ref"
         }
       },
@@ -408,308 +408,6 @@
       "title": "DynamicCodeSegment",
       "type": "object"
     },
-    "EntryPoint": {
-      "additionalProperties": false,
-      "description": "One run, and the events and data that the run collected.\n\nA run starts at one address, such as the module entry point, an export, a TLS callback or a\nthread.",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/EntryPointType",
-          "description": "Kind of code that the run executes, such as ``module_entry``, ``export`` or ``thread``."
-        },
-        "name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Detail for ``type``, such as the export name, the TLS callback index, the dependency module or the IRP major function. Absent when the type has no detail.",
-          "title": "Name"
-        },
-        "start_address": {
-          "description": "Address where the run started.",
-          "pattern": "^0x[0-9a-f]+$",
-          "title": "Start Address",
-          "type": "string"
-        },
-        "args": {
-          "description": "Arguments that the emulator gives to the code at ``start_address``.",
-          "items": {
-            "pattern": "^0x[0-9a-f]+$",
-            "type": "string"
-          },
-          "title": "Args",
-          "type": "array"
-        },
-        "pid": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ID of the process of the run.",
-          "title": "Pid"
-        },
-        "tid": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "ID of the thread of the run.",
-          "title": "Tid"
-        },
-        "instruction_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Number of instructions that the run executed. Absent when the run executed none.",
-          "title": "Instruction Count"
-        },
-        "api_hash": {
-          "default": "",
-          "description": "SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.",
-          "title": "Api Hash",
-          "type": "string"
-        },
-        "return_value": {
-          "anyOf": [
-            {
-              "pattern": "^0x[0-9a-f]+$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Value of the return register when the run completed.",
-          "title": "Return Value"
-        },
-        "error": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ErrorInfo"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Error that ended the run. Absent when the run completed."
-        },
-        "events": {
-          "description": "Events of the run, in order.",
-          "items": {
-            "discriminator": {
-              "mapping": {
-                "api": "#/$defs/ApiEvent",
-                "directory_create": "#/$defs/DirectoryCreateEvent",
-                "directory_delete": "#/$defs/DirectoryDeleteEvent",
-                "exception": "#/$defs/ExceptionEvent",
-                "file_create": "#/$defs/FileCreateEvent",
-                "file_delete": "#/$defs/FileDeleteEvent",
-                "file_open": "#/$defs/FileOpenEvent",
-                "file_read": "#/$defs/FileReadEvent",
-                "file_write": "#/$defs/FileWriteEvent",
-                "mem_alloc": "#/$defs/MemAllocEvent",
-                "mem_free": "#/$defs/MemFreeEvent",
-                "mem_protect": "#/$defs/MemProtectEvent",
-                "mem_read": "#/$defs/MemReadEvent",
-                "mem_write": "#/$defs/MemWriteEvent",
-                "module_load": "#/$defs/ModuleLoadEvent",
-                "net_dns": "#/$defs/NetDnsEvent",
-                "net_http": "#/$defs/NetHttpEvent",
-                "net_traffic": "#/$defs/NetTrafficEvent",
-                "process_create": "#/$defs/ProcessCreateEvent",
-                "reg_create_key": "#/$defs/RegCreateKeyEvent",
-                "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
-                "reg_delete_value": "#/$defs/RegDeleteValueEvent",
-                "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
-                "reg_open_key": "#/$defs/RegOpenKeyEvent",
-                "reg_read_value": "#/$defs/RegReadValueEvent",
-                "reg_write_value": "#/$defs/RegWriteValueEvent",
-                "thread_create": "#/$defs/ThreadCreateEvent",
-                "thread_inject": "#/$defs/ThreadInjectEvent"
-              },
-              "propertyName": "event"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/$defs/ApiEvent"
-              },
-              {
-                "$ref": "#/$defs/ProcessCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/MemAllocEvent"
-              },
-              {
-                "$ref": "#/$defs/MemWriteEvent"
-              },
-              {
-                "$ref": "#/$defs/MemReadEvent"
-              },
-              {
-                "$ref": "#/$defs/MemProtectEvent"
-              },
-              {
-                "$ref": "#/$defs/MemFreeEvent"
-              },
-              {
-                "$ref": "#/$defs/ModuleLoadEvent"
-              },
-              {
-                "$ref": "#/$defs/ThreadCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/ThreadInjectEvent"
-              },
-              {
-                "$ref": "#/$defs/FileCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/FileOpenEvent"
-              },
-              {
-                "$ref": "#/$defs/FileReadEvent"
-              },
-              {
-                "$ref": "#/$defs/FileWriteEvent"
-              },
-              {
-                "$ref": "#/$defs/FileDeleteEvent"
-              },
-              {
-                "$ref": "#/$defs/DirectoryCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/DirectoryDeleteEvent"
-              },
-              {
-                "$ref": "#/$defs/RegOpenKeyEvent"
-              },
-              {
-                "$ref": "#/$defs/RegCreateKeyEvent"
-              },
-              {
-                "$ref": "#/$defs/RegReadValueEvent"
-              },
-              {
-                "$ref": "#/$defs/RegWriteValueEvent"
-              },
-              {
-                "$ref": "#/$defs/RegListSubkeysEvent"
-              },
-              {
-                "$ref": "#/$defs/RegDeleteKeyEvent"
-              },
-              {
-                "$ref": "#/$defs/RegDeleteValueEvent"
-              },
-              {
-                "$ref": "#/$defs/NetDnsEvent"
-              },
-              {
-                "$ref": "#/$defs/NetTrafficEvent"
-              },
-              {
-                "$ref": "#/$defs/NetHttpEvent"
-              },
-              {
-                "$ref": "#/$defs/ExceptionEvent"
-              }
-            ]
-          },
-          "title": "Events",
-          "type": "array"
-        },
-        "symbol_accesses": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/SymAccessReport"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Access counts of each API symbol. Only with ``memory.accesses``.",
-          "title": "Symbol Accesses"
-        },
-        "dynamic_code_segments": {
-          "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``memory.dynamic_code_contents``, a region has one entry for each snapshot.",
-          "items": {
-            "$ref": "#/$defs/DynamicCodeSegment"
-          },
-          "title": "Dynamic Code Segments",
-          "type": "array"
-        },
-        "coverage": {
-          "anyOf": [
-            {
-              "items": {
-                "pattern": "^0x[0-9a-f]+$",
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Sorted addresses of the instructions that ran. Only with ``code.coverage``.",
-          "title": "Coverage"
-        },
-        "dropped_files": {
-          "description": "Files that the guest wrote completely, up to the end of the run.",
-          "items": {
-            "$ref": "#/$defs/DroppedFile"
-          },
-          "title": "Dropped Files",
-          "type": "array"
-        },
-        "memory": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/MemoryLayout"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Memory regions and modules at the end of the run. User mode only."
-        }
-      },
-      "required": [
-        "type",
-        "start_address"
-      ],
-      "title": "EntryPoint",
-      "type": "object"
-    },
     "EntryPointType": {
       "description": "Kind of code that a run executes.",
       "enum": [
@@ -723,7 +421,6 @@
         "dependency_dll_entry",
         "dependency_tls_callback",
         "call",
-        "callback",
         "driver_entry",
         "driver_unload",
         "driver_reinit",
@@ -738,7 +435,7 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ErrorType",
-          "description": "Kind of error, such as ``unsupported_api``, ``max_api_count``, ``api_loop`` or ``invalid_read``. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
+          "description": "Kind of error, such as ``unsupported_api``, ``api_call_limit``, ``api_loop_limit`` or ``invalid_read``. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
         },
         "pc": {
           "anyOf": [
@@ -968,7 +665,7 @@
             }
           ],
           "default": null,
-          "description": "Limit that ended the run: ``limits.api_calls`` of the config for ``max_api_count``, ``limits.api_loop_calls`` for ``api_loop``, or ``limits.instructions`` for ``max_instructions``.",
+          "description": "Limit that ended the run: ``limits.api_calls`` of the config for ``api_call_limit``, ``limits.api_loop_calls`` for ``api_loop_limit``, or ``limits.instructions`` for ``instruction_limit``.",
           "title": "Count"
         },
         "last_api": {
@@ -981,7 +678,7 @@
             }
           ],
           "default": null,
-          "description": "Name of the API of the last call before the run ended, for ``max_api_count`` and ``api_loop``.",
+          "description": "Name of the API of the last call before the run ended, for ``api_call_limit`` and ``api_loop_limit``.",
           "title": "Last Api"
         },
         "loop": {
@@ -994,7 +691,7 @@
             }
           ],
           "default": null,
-          "description": "The API loop that ended the run, for ``api_loop``."
+          "description": "The API loop that ended the run, for ``api_loop_limit``."
         },
         "interrupt_num": {
           "anyOf": [
@@ -1019,11 +716,11 @@
     "ErrorType": {
       "description": "Reason why a run or the emulation ended with an error.",
       "enum": [
-        "timeout",
-        "max_total_time",
-        "max_instructions",
-        "max_api_count",
-        "api_loop",
+        "per_run_time_limit",
+        "total_time_limit",
+        "instruction_limit",
+        "api_call_limit",
+        "api_loop_limit",
         "unsupported_api",
         "internal_error",
         "engine_stopped",
@@ -2859,6 +2556,308 @@
       "title": "RegionInfo",
       "type": "object"
     },
+    "RunReport": {
+      "additionalProperties": false,
+      "description": "One run, and the events and data that the run collected.\n\nA run starts at one address, such as the module entry point, an export, a TLS callback or a\nthread.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/EntryPointType",
+          "description": "Kind of code that the run executes, such as ``module_entry``, ``export`` or ``thread``."
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Detail for ``type``, such as the export name, the TLS callback index, the dependency module or the IRP major function. Absent when the type has no detail.",
+          "title": "Name"
+        },
+        "start_address": {
+          "description": "Address where the run started.",
+          "pattern": "^0x[0-9a-f]+$",
+          "title": "Start Address",
+          "type": "string"
+        },
+        "args": {
+          "description": "Arguments that the emulator gives to the code at ``start_address``.",
+          "items": {
+            "pattern": "^0x[0-9a-f]+$",
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "pid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID of the process of the run.",
+          "title": "Pid"
+        },
+        "tid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ID of the thread of the run.",
+          "title": "Tid"
+        },
+        "instruction_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Number of instructions that the run executed. Absent when the run executed none.",
+          "title": "Instruction Count"
+        },
+        "api_hash": {
+          "default": "",
+          "description": "SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.",
+          "title": "Api Hash",
+          "type": "string"
+        },
+        "return_value": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-f]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Value of the return register when the run completed.",
+          "title": "Return Value"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Error that ended the run. Absent when the run completed."
+        },
+        "events": {
+          "description": "Events of the run, in order.",
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "api": "#/$defs/ApiEvent",
+                "directory_create": "#/$defs/DirectoryCreateEvent",
+                "directory_delete": "#/$defs/DirectoryDeleteEvent",
+                "exception": "#/$defs/ExceptionEvent",
+                "file_create": "#/$defs/FileCreateEvent",
+                "file_delete": "#/$defs/FileDeleteEvent",
+                "file_open": "#/$defs/FileOpenEvent",
+                "file_read": "#/$defs/FileReadEvent",
+                "file_write": "#/$defs/FileWriteEvent",
+                "mem_alloc": "#/$defs/MemAllocEvent",
+                "mem_free": "#/$defs/MemFreeEvent",
+                "mem_protect": "#/$defs/MemProtectEvent",
+                "mem_read": "#/$defs/MemReadEvent",
+                "mem_write": "#/$defs/MemWriteEvent",
+                "module_load": "#/$defs/ModuleLoadEvent",
+                "net_dns": "#/$defs/NetDnsEvent",
+                "net_http": "#/$defs/NetHttpEvent",
+                "net_traffic": "#/$defs/NetTrafficEvent",
+                "process_create": "#/$defs/ProcessCreateEvent",
+                "reg_create_key": "#/$defs/RegCreateKeyEvent",
+                "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
+                "reg_delete_value": "#/$defs/RegDeleteValueEvent",
+                "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
+                "reg_open_key": "#/$defs/RegOpenKeyEvent",
+                "reg_read_value": "#/$defs/RegReadValueEvent",
+                "reg_write_value": "#/$defs/RegWriteValueEvent",
+                "thread_create": "#/$defs/ThreadCreateEvent",
+                "thread_inject": "#/$defs/ThreadInjectEvent"
+              },
+              "propertyName": "event"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ApiEvent"
+              },
+              {
+                "$ref": "#/$defs/ProcessCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/MemAllocEvent"
+              },
+              {
+                "$ref": "#/$defs/MemWriteEvent"
+              },
+              {
+                "$ref": "#/$defs/MemReadEvent"
+              },
+              {
+                "$ref": "#/$defs/MemProtectEvent"
+              },
+              {
+                "$ref": "#/$defs/MemFreeEvent"
+              },
+              {
+                "$ref": "#/$defs/ModuleLoadEvent"
+              },
+              {
+                "$ref": "#/$defs/ThreadCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/ThreadInjectEvent"
+              },
+              {
+                "$ref": "#/$defs/FileCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/FileOpenEvent"
+              },
+              {
+                "$ref": "#/$defs/FileReadEvent"
+              },
+              {
+                "$ref": "#/$defs/FileWriteEvent"
+              },
+              {
+                "$ref": "#/$defs/FileDeleteEvent"
+              },
+              {
+                "$ref": "#/$defs/DirectoryCreateEvent"
+              },
+              {
+                "$ref": "#/$defs/DirectoryDeleteEvent"
+              },
+              {
+                "$ref": "#/$defs/RegOpenKeyEvent"
+              },
+              {
+                "$ref": "#/$defs/RegCreateKeyEvent"
+              },
+              {
+                "$ref": "#/$defs/RegReadValueEvent"
+              },
+              {
+                "$ref": "#/$defs/RegWriteValueEvent"
+              },
+              {
+                "$ref": "#/$defs/RegListSubkeysEvent"
+              },
+              {
+                "$ref": "#/$defs/RegDeleteKeyEvent"
+              },
+              {
+                "$ref": "#/$defs/RegDeleteValueEvent"
+              },
+              {
+                "$ref": "#/$defs/NetDnsEvent"
+              },
+              {
+                "$ref": "#/$defs/NetTrafficEvent"
+              },
+              {
+                "$ref": "#/$defs/NetHttpEvent"
+              },
+              {
+                "$ref": "#/$defs/ExceptionEvent"
+              }
+            ]
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "symbol_accesses": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/SymAccessReport"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Access counts of each API symbol. Only with ``memory.accesses``.",
+          "title": "Symbol Accesses"
+        },
+        "dynamic_code_segments": {
+          "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``memory.dynamic_code_contents``, a region has one entry for each snapshot.",
+          "items": {
+            "$ref": "#/$defs/DynamicCodeSegment"
+          },
+          "title": "Dynamic Code Segments",
+          "type": "array"
+        },
+        "coverage": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^0x[0-9a-f]+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sorted addresses of the instructions that ran. Only with ``code.coverage``.",
+          "title": "Coverage"
+        },
+        "dropped_files": {
+          "description": "Files that the guest wrote completely, up to the end of the run.",
+          "items": {
+            "$ref": "#/$defs/DroppedFile"
+          },
+          "title": "Dropped Files",
+          "type": "array"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryLayout"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Memory regions and modules at the end of the run. User mode only."
+        }
+      },
+      "required": [
+        "type",
+        "start_address"
+      ],
+      "title": "RunReport",
+      "type": "object"
+    },
     "StackEntry": {
       "additionalProperties": false,
       "description": "One pointer-size slot of the stack at the time of an error or an exception.",
@@ -3159,7 +3158,7 @@
   "description": "Report of one emulation: the input metadata, the runs and the payloads.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data. An empty list or\nobject means that Speakeasy collected the data and found nothing.",
   "properties": {
     "report_version": {
-      "default": "6.2.0",
+      "default": "7.0.0",
       "description": "Version of the report format.",
       "title": "Report Version",
       "type": "string"
@@ -3279,12 +3278,12 @@
       "title": "Data",
       "type": "object"
     },
-    "entry_points": {
+    "runs": {
       "description": "Runs of the emulation, in the order that the runs started.",
       "items": {
-        "$ref": "#/$defs/EntryPoint"
+        "$ref": "#/$defs/RunReport"
       },
-      "title": "Entry Points",
+      "title": "Runs",
       "type": "array"
     }
   },

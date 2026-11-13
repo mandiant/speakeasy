@@ -27,23 +27,23 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
 
     // Limit of the execution time of all runs of one run_module, run_shellcode,
     // call or resume call, in seconds.
-    // At the limit, the emulator ends the current run with a max_total_time error
+    // At the limit, the emulator ends the current run with a total_time_limit error
     // and cancels the other runs.
     "total_time": 0,
 
     // Limit of the API calls of each run. A run that makes more API calls ends
-    // with a max_api_count error. It stops a loop that calls APIs from new call
+    // with an api_call_limit error. It stops a loop that calls APIs from new call
     // sites in each iteration, which api_loop_calls does not stop.
     "api_calls": 10000,
 
     // Limit of the API calls of a run with no call from a new call site. A call
     // site is an API and a return address. A run that gets to the limit ends
-    // with an api_loop error, and error.loop of the report names the call sites
+    // with an api_loop_limit error, and error.loop of the report names the call sites
     // of the loop. Increase it to see more of a loop. 0 disables it.
     "api_loop_calls": 5000,
 
     // Limit of the instructions of each run.
-    // The emulator stops a run at the limit and records a max_instructions error.
+    // The emulator stops a run at the limit and records an instruction_limit error.
     "instructions": 0
   },
 

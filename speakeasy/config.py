@@ -570,7 +570,7 @@ class LimitsConfig(BaseModel):
         default=5000,
         ge=0,
         description="Limit of the API calls of a run with no call from a new call site (API and return address)."
-        " The run then ends with an api_loop error. 0 disables the limit.",
+        " The run then ends with an api_loop_limit error. 0 disables the limit.",
     )
     instructions: int = Field(
         default=0, ge=0, description="Limit of the instructions of each run. 0 disables the limit."
