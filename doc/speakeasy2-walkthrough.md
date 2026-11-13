@@ -49,7 +49,7 @@ When a sample writes a PE into a child process with `WriteProcessMemory`, the lo
 
 ## Final memory contents in the report
 
-The `memory.final_contents` config field (`--memory-final-contents` on the command line) adds the memory content at the end of each run to the report. It is on by default. At the end of each run, for example a module entry, a TLS callback or an export, Speakeasy records the memory layout. When this field is set, each region gets a `data_ref`, except the stack regions. The `data_ref` is a key of the top-level `data` mapping, which stores each payload one time, compressed with zlib and encoded with base64.
+The `memory.final_contents` config field (`--memory-final-contents` on the command line) adds the memory content at the end of each run to the report. It is on by default. At the end of each run, for example a module entry, a TLS callback or an export, Speakeasy records the memory layout. When this field is set, each region of guest memory gets a `data_ref`: the images of the modules that load from a file, such as the input, the allocations and heaps of the guest, the regions with no tag and the static TLS data. The stacks, the stub images of the system modules and the other memory of the emulator get no `data_ref`. The `data_ref` is a key of the top-level `data` mapping, which stores each payload one time, compressed with zlib and encoded with base64.
 
 Speakeasy stores dropped files and other binary data in the same `data` mapping, so the report holds each payload one time, even when many runs or files contain it.
 
@@ -69,9 +69,9 @@ speakeasy -t sample.exe --no-memory-final-contents -o report.json
 
 ## Memory layout for each section
 
-The memory layout of a run has one region for the headers of a module and one region for each section, in place of one region for the whole module. With `memory.final_contents`, Speakeasy captures each region that is not excluded, also when no write was counted. This includes memory that an API handler wrote, because the memory hooks do not count these writes.
+The memory layout of a run has one region for the headers of a module and one region for each section, in place of one region for the whole module. With `memory.final_contents`, Speakeasy captures each region of guest memory, also when no write was counted. This includes memory that an API handler wrote, because the memory hooks do not count these writes.
 
-This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `memory.final_contents` set. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection and size, and `runs[0].accesses.regions` has its own counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stack.
+This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config. The module also has `.gfids`, `.rsrc` and `.reloc` regions, which the excerpt leaves out. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection and size, and `runs[0].accesses.regions` has its own counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stacks.
 
 ```json
 {
@@ -84,26 +84,29 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
             "size": 4096,
             "perms": "r--",
             "tag": "emu.module",
-            "module": "<hash>.exe",
+            "module": "dll_test_x86.dll",
             "section": "headers",
+            "freed": false,
             "data_ref": "<sha256>"
           },
           {
             "base": "0x10001000",
-            "size": 3300,
+            "size": 3584,
             "perms": "r-x",
             "tag": "emu.module",
-            "module": "<hash>.exe",
+            "module": "dll_test_x86.dll",
             "section": ".text",
+            "freed": false,
             "data_ref": "<sha256>"
           },
           {
             "base": "0x10002000",
-            "size": 2166,
+            "size": 2560,
             "perms": "r--",
             "tag": "emu.module",
-            "module": "<hash>.exe",
+            "module": "dll_test_x86.dll",
             "section": ".rdata",
+            "freed": false,
             "data_ref": "<sha256>"
           },
           {
@@ -111,21 +114,23 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
             "size": 904,
             "perms": "rw-",
             "tag": "emu.module",
-            "module": "<hash>.exe",
+            "module": "dll_test_x86.dll",
             "section": ".data",
+            "freed": false,
             "data_ref": "<sha256>"
           },
           {
             "base": "0x1200000",
             "size": 1048576,
-            "perms": "rwx",
-            "tag": "emu.stack"
+            "perms": "rw-",
+            "tag": "emu.stack",
+            "freed": false
           }
         ]
       },
       "accesses": {
         "regions": [
-          {"region": "0x1200000", "reads": 170, "writes": 210, "execs": 0},
+          {"region": "0x1200000", "reads": 184, "writes": 224, "execs": 0},
           {"region": "0x10001000", "reads": 0, "writes": 0, "execs": 677},
           {"region": "0x10002000", "reads": 15, "writes": 0, "execs": 0},
           {"region": "0x10003000", "reads": 30, "writes": 26, "execs": 0}
@@ -140,33 +145,25 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
 
 `LoadedImage` and `RuntimeModule` have the sections of the image. When `load_image` loads a PE, it sets the protection of each section from the section characteristics with `mem_protect`. A section can have any combination of read, write and execute access, or no access. If two sections share a page, the page gets the protections of both.
 
-You do not need a config setting for this. The report always has one region for each section in `memory.layout`, with the `module` and `section` fields. This excerpt from `tests/bins/dll_test_x86.dll.xz` shows the section protections:
+You do not need a config setting for this. The report always has one region for each section in `memory.layout`, with the `module` and `section` fields. This excerpt of `runs[0].memory` from a run of `dll_test_x86.dll` shows the section protections. It leaves out `freed`, `data_ref` and the other regions and modules:
 
 ```json
 {
-  "config": {
-    "memory": {
-      "accesses": true,
-      "strings": false
-    }
-  },
-  "module": {
-    "name": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe",
-    "base": "0x10000000",
-    "size": 28672
-  },
   "layout": [
-    {"base": "0x10000000", "size": 4096, "perms": "r--", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": "headers"},
-    {"base": "0x10001000", "size": 3300, "perms": "r-x", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": ".text"},
-    {"base": "0x10002000", "size": 2166, "perms": "r--", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": ".rdata"},
-    {"base": "0x10003000", "size": 904, "perms": "rw-", "tag": "emu.module", "module": "30ec092d122a90441a2560f6778ef8233c98079cd34b7633f7bbc2874c8d7a45.exe", "section": ".data"}
+    {"base": "0x10000000", "size": 4096, "perms": "r--", "tag": "emu.module", "module": "dll_test_x86.dll", "section": "headers"},
+    {"base": "0x10001000", "size": 3584, "perms": "r-x", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".text"},
+    {"base": "0x10002000", "size": 2560, "perms": "r--", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".rdata"},
+    {"base": "0x10003000", "size": 904, "perms": "rw-", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".data"}
+  ],
+  "modules": [
+    {"name": "dll_test_x86.dll", "path": "C:\\Windows\\system32\\dll_test_x86.dll", "base": "0x10000000", "size": 28672}
   ]
 }
 ```
 
 ## Access counts for each section
 
-With `memory.accesses`, the memory hooks count reads, writes and executes for each section of a module. Outside modules, they count for each memory map. Speakeasy writes the counts to `runs[*].accesses.regions`, so the report shows which sections of a module ran code or had writes. `region` is the base of the region in `runs[*].memory.layout`.
+With `memory.accesses`, the memory hooks count reads, writes and executes for each section of a module. Outside modules, they count for each memory map. Speakeasy writes the counts to `runs[].accesses.regions`, so the report shows which sections of a module ran code or had writes. `region` is the base of the region in `runs[].memory.layout`.
 
 ```json
 {
@@ -177,7 +174,7 @@ With `memory.accesses`, the memory hooks count reads, writes and executes for ea
 }
 ```
 
-In a run of `tests/bins/dll_test_x86.dll.xz`, each section of the module (`.text` at `0x10001000`, `.rdata` at `0x10002000` and `.data` at `0x10003000`) has different counts:
+In a run of `dll_test_x86.dll`, each section of the module (`.text` at `0x10001000`, `.rdata` at `0x10002000` and `.data` at `0x10003000`) has different counts:
 
 ```json
 [
@@ -199,27 +196,27 @@ This excerpt comes from a run of `dll_test_x86.dll` with `runs.exports` set:
     "type": "dll_entry",
     "name": "DLL_PROCESS_ATTACH",
     "start_address": "0x10001383",
-    "pid": 1056,
-    "tid": 1076
+    "pid": 1240,
+    "tid": 1260
   },
   {
     "type": "export",
     "name": "emu_test_one",
     "start_address": "0x10001030",
-    "pid": 1056,
-    "tid": 1200
+    "pid": 1240,
+    "tid": 1448
   },
   {
     "type": "export",
     "name": "emu_test_two",
     "start_address": "0x10001050",
-    "pid": 1056,
-    "tid": 1212
+    "pid": 1240,
+    "tid": 1460
   }
 ]
 ```
 
-Each run has a different `tid` (`1076`, `1200`, `1212`), and all runs are in process `1056`.
+Each run has a different `tid` (`1260`, `1448`, `1460`), and all runs are in process `1240`.
 
 ## Debugging with --gdb
 

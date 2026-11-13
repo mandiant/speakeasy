@@ -21,7 +21,7 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
   // gives a ConfigError.
   "limits": {
     // Limit of the execution time of each run, in seconds.
-    // At the limit, the emulator ends the run with a timeout error.
+    // At the limit, the emulator ends the run with a per_run_time_limit error.
     // Increase it for slow samples. Decrease it for quick triage.
     "per_run_time": 60,
 
@@ -75,8 +75,12 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
     // Set it to false to make the emulation faster when you do not need the strings.
     "strings": true,
 
-    // Add the contents of each memory region at the end of each run to the
-    // report, except the stacks. Only in user mode.
+    // Add the contents of each region of guest memory at the end of each run
+    // to the report: the images of the modules that load from a file, the
+    // allocations and heaps of the guest, the memory that API handlers allocate
+    // for it, and its static TLS data. The stacks, the stub images of the system
+    // modules and the other memory of the emulator get no contents. Only in
+    // user mode.
     // The report keeps each content one time in its top-level data store.
     // The report is larger, but you do not need the emulator to examine the memory.
     "final_contents": true,
@@ -99,6 +103,8 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
     // Keep a freed region mapped, so you can read
     // the data that the sample freed. The guest can then also read and write the
     // region after the free without a fault, which is different from Windows.
+    // Each region in the report then has "freed". If false, the report leaves
+    // out the freed regions.
     "freed_regions": true
   },
 
@@ -457,10 +463,10 @@ Each feature option is a boolean, and each one is on by default. Some options ad
 |---|---|---|---|
 | `memory.accesses` | `--no-memory-accesses` | Report data | Fills `accesses`. Hooks each instruction and each memory access, so it is the slowest option. |
 | `memory.strings` | `--no-memory-strings` | Report data | Fills the top-level `strings`. |
-| `memory.final_contents` | `--no-memory-final-contents` | Report data | Fills `memory.layout[].data_ref` at the end of each run, except for the stacks. User mode only. |
+| `memory.final_contents` | `--no-memory-final-contents` | Report data | Fills `memory.layout[].data_ref` of the regions of guest memory at the end of each run. User mode only. |
 | `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` | Report data | Fills `dynamic_code[].contents[].data_ref` and `dynamic_code[].limit_reached`. Adds an instruction counting hook when `memory.accesses` is off and `limits.instructions` is 0. |
 | `code.coverage` | `--no-code-coverage` | Report data | Fills `runs[].coverage`. Hooks each instruction. |
-| `memory.freed_regions` | `--no-memory-freed-regions` | Guest behavior | A freed region stays mapped, so a read after the free does not fault. Adds `freed` to each region in the report. |
+| `memory.freed_regions` | `--no-memory-freed-regions` | Guest behavior | A freed region stays mapped, so a read after the free does not fault. Adds `freed` to each region in the report. Off: the report leaves out the freed regions. |
 | `runs.exports` | `--no-runs-exports` | Guest behavior | Runs the exports of a DLL, and the IRP dispatch functions and the unload routine of a driver. |
 | `runs.children` | `--no-runs-children` | Guest behavior | Runs the child processes after the input. |
 | `apis.stubs` | `--no-apis-stubs` | Guest behavior | An unknown API returns 1. Off: the run ends with `unsupported_api`. |

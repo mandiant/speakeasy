@@ -46,7 +46,7 @@ The CLI writes the report JSON to the `--output` file, or to stdout without `--o
 speakeasy --target sample.exe | jq '.runs[].error'
 ```
 
-The CLI exits 0 when it writes a report. This is also true when an entry point in the report has an `error`, for example an invalid instruction or a timeout. To find the runs that stopped early, read `error` in each entry point. The CLI exits 1 when it cannot make a report, for example because the loader rejects the input. It then writes the error message to stderr. If an error stops the emulation outside an entry point, the CLI still gives the partial report and exits 1. An argument error gives exit status 2, for example `--raw` without `--arch`, or a `--volume` host path that does not exist.
+The CLI exits 0 when it writes a report. This is also true when a run in the report has an `error`, for example an invalid instruction or a `per_run_time_limit`. To find the runs that stopped early, read `error` in each entry of `runs`. The CLI exits 1 when it cannot make a report, for example because the loader rejects the input. It then writes the error message to stderr. If an error stops the emulation outside a run, the CLI still gives the partial report and exits 1. An argument error gives exit status 2, for example `--raw` without `--arch`, or a `--volume` host path that does not exist.
 
 ## Config flags
 
