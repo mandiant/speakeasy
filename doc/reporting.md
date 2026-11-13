@@ -223,7 +223,8 @@ This example shows each field. It is not the output of one run, and the values d
       "pid": 1337,
       "tid": 2000,
 
-      // Instructions that the run executed. 0 when no option counts them.
+      // Instructions that the run executed. Present only with memory.accesses,
+      // memory.dynamic_code_contents or limits.instructions above 0.
       "instruction_count": 12345,
 
       // API calls of the run, also the calls that events leaves out as repeats.
