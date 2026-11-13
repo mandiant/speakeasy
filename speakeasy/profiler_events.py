@@ -64,11 +64,12 @@ class TracePosition(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tick: int = Field(
+    tick: int | None = Field(
+        default=None,
         description=(
             "Instruction count of the run at the time of the event, as in ``instruction_count`` of the run. "
-            "The events of a run are in tick order."
-        )
+            "The events of a run are in tick order. Absent when no option counts the instructions."
+        ),
     )
     tid: int = Field(description="ID of the thread that did the operation.")
     pid: int = Field(description="ID of the process that did the operation.")

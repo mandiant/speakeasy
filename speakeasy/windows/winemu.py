@@ -775,7 +775,7 @@ class WindowsEmulator(BinaryEmulator):
         run = self.get_current_run()
         thread = self.get_current_thread()
         proc = self.get_current_process()
-        tick = run.instr_cnt if run else 0
+        tick = self.get_tick(run)
         tid = thread.tid if thread else 0
         pid = proc.id if proc else 0
         frame = self._active_api_frame
@@ -1179,8 +1179,8 @@ class WindowsEmulator(BinaryEmulator):
         limits = RunLimits.from_run(origin_run, timeout, budget, self._execution_budget)
         if limits.budget > 0:
             hook = self._add_accounting_hook(limits, origin_run, debugger)
-        elif self.config.memory.dynamic_code_contents.enabled and not self.config.memory.accesses:
-            # The positions of the snapshots need the instruction count, and no other hook counts.
+        elif self.counts_instructions() and not self.config.memory.accesses:
+            # The report positions need the instruction count, and no other hook counts.
             hook = self._add_counting_hook(debugger)
         else:
             hook = None
@@ -3056,7 +3056,7 @@ class WindowsEmulator(BinaryEmulator):
         logger.info("%s: %s -> %s", hex(pc) if pc is not None else "?", repr(call_str), rv_str)
         run = self.curr_run if run is None else run
         if self.profiler and run:
-            tick = run.instr_cnt
+            tick = self.get_tick(run)
             thread = run.thread or self.curr_thread
             process = run.process_context or (thread.process if thread else None) or self.curr_process
             tid = thread.tid if thread else 0
@@ -4153,7 +4153,7 @@ class WindowsEmulator(BinaryEmulator):
         )
         if self.profiler:
             run = self.get_current_run()
-            tick = run.instr_cnt if run else 0
+            tick = self.get_tick(run)
             tid = self.curr_thread.tid if self.curr_thread else 0
             pid = self.curr_process.id if self.curr_process else 0
             self.profiler.record_exception_event(

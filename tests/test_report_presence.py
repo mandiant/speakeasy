@@ -38,6 +38,39 @@ def test_counters_are_present_when_zero():
     assert runs[-1]["api_call_count"] == 0
 
 
+def get_counting_config(counter: str | None) -> dict:
+    """Get a config where only ``counter`` counts the instructions, or no option if it is None."""
+    config = get_default_config_dict()
+    config["memory"]["accesses"] = counter == "accesses"
+    config["memory"]["dynamic_code_contents"]["enabled"] = counter == "dynamic_code_contents"
+    config["limits"]["instructions"] = 1_000_000 if counter == "instructions" else 0
+    return config
+
+
+def get_heap_test_run(config: dict) -> dict:
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=get_heap_test_pe()))
+        return json.loads(se.get_json_report())["runs"][0]
+
+
+def test_instruction_count_and_ticks_are_absent_when_no_option_counts_instructions():
+    run = get_heap_test_run(get_counting_config(None))
+
+    assert "instruction_count" not in run
+    assert [event["event"] for event in run["events"]].count("api") == 4
+    assert all("tick" not in event["pos"] for event in run["events"])
+
+
+@pytest.mark.parametrize("counter", ["accesses", "dynamic_code_contents", "instructions"])
+def test_instruction_count_and_ticks_are_present_when_one_option_counts_instructions(counter):
+    run = get_heap_test_run(get_counting_config(counter))
+
+    ticks = [event["pos"]["tick"] for event in run["events"]]
+    assert len(ticks) >= 4
+    assert ticks == sorted(ticks)
+    assert 0 < ticks[-1] <= run["instruction_count"]
+
+
 def test_freed_marks_each_region_with_freed_regions_on():
     config = get_default_config_dict()
     config["memory"]["freed_regions"] = True

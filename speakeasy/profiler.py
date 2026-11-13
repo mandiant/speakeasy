@@ -757,13 +757,17 @@ class Profiler:
         )
         run.events.append(event)
 
-    def get_json_report(self) -> str:
+    def get_json_report(self, *, instructions_counted: bool = True) -> str:
         """Get the report as compact JSON, with no indentation. Fields with a ``None`` value are left out."""
-        report = self.get_report()
+        report = self.get_report(instructions_counted=instructions_counted)
         return report.model_dump_json(exclude_none=True)
 
-    def get_report(self) -> Report:
-        """Build the report from the runs, the strings and the artifacts."""
+    def get_report(self, *, instructions_counted: bool = True) -> Report:
+        """
+        Build the report from the runs, the strings and the artifacts.
+
+        Without ``instructions_counted``, no hook counted the instructions, and the runs have no ``instruction_count``.
+        """
         run_reports = []
 
         for r in self.runs:
@@ -842,7 +846,7 @@ class Profiler:
                 args=list(r.args or []),
                 pid=ep_pid,
                 tid=ep_tid,
-                instruction_count=r.instr_cnt,
+                instruction_count=r.instr_cnt if instructions_counted else None,
                 api_call_count=r.num_apis,
                 api_hash=r.api_hash.hexdigest(),
                 return_value=r.return_value,

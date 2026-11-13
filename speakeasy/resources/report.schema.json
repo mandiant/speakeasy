@@ -2664,10 +2664,17 @@
           "title": "Tid"
         },
         "instruction_count": {
-          "default": 0,
-          "description": "Number of instructions that the run executed. The emulator counts them only with ``memory.accesses``, ``memory.dynamic_code_contents`` or a ``limits.instructions`` above 0, else the count is 0.",
-          "title": "Instruction Count",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Number of instructions that the run executed. The emulator counts them only with ``memory.accesses``, ``memory.dynamic_code_contents`` or a ``limits.instructions`` above 0. Absent when no option counts them.",
+          "title": "Instruction Count"
         },
         "api_call_count": {
           "default": 0,
@@ -3186,9 +3193,17 @@
       "description": "Position of an event: the instruction count, the thread, the process and the pc.",
       "properties": {
         "tick": {
-          "description": "Instruction count of the run at the time of the event, as in ``instruction_count`` of the run. The events of a run are in tick order.",
-          "title": "Tick",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Instruction count of the run at the time of the event, as in ``instruction_count`` of the run. The events of a run are in tick order. Absent when no option counts the instructions.",
+          "title": "Tick"
         },
         "tid": {
           "description": "ID of the thread that did the operation.",
@@ -3216,7 +3231,6 @@
         }
       },
       "required": [
-        "tick",
         "tid",
         "pid"
       ],
