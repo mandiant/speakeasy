@@ -94,7 +94,7 @@ These keys take one value from a fixed set. The schema lists them:
 | `arch` | `arch` | `x86`, `x64` |
 | `filetype` | `file_type` | `exe`, `dll`, `driver`, `shellcode` |
 | `entry_points[].ep_type` | `type` | `module_entry`, `dll_entry`, `tls_callback`, `export`, `shellcode`, `thread`, `service_main`, `dependency_dll_entry`, `dependency_tls_callback`, `call`, `driver_entry`, `driver_unload`, `driver_reinit`, `irp` |
-| `error.type` | `error.type` | `timeout`, `max_total_time`, `max_instructions`, `max_api_count`, `api_loop`, `unsupported_api`, `internal_error`, `engine_stopped`, `invalid_image`, `dll_initialization_failed`, `api_handler_did_not_return`, `invalid_read`, `invalid_write`, `invalid_fetch`, `invalid_protect_read`, `invalid_protect_write`, `invalid_protect_fetch`, `guard_page_violation`, `privileged_instruction`, `invalid_instruction`, `unsupported_cpu_feature`, `unhandled_interrupt`, `unhandled_exception`, `hardware_breakpoint`, `bug_check` |
+| `error.type` | `error.type` | `per_run_time_limit`, `total_time_limit`, `instruction_limit`, `api_call_limit`, `api_loop_limit`, `unsupported_api`, `internal_error`, `engine_stopped`, `invalid_image`, `dll_initialization_failed`, `api_handler_did_not_return`, `invalid_read`, `invalid_write`, `invalid_fetch`, `invalid_protect_read`, `invalid_protect_write`, `invalid_protect_fetch`, `guard_page_violation`, `privileged_instruction`, `invalid_instruction`, `unsupported_cpu_feature`, `unhandled_interrupt`, `unhandled_exception`, `hardware_breakpoint`, `bug_check` |
 | `network_events.traffic[].type` | `type` of `net_traffic` | `connect`, `bind`, `accept`, `data_in`, `data_out` |
 | `network_events.traffic[].proto` | `proto` of `net_traffic` | `tcp`, `udp`, `raw`, `unknown` |
 | `network_events.traffic[].proto` of an HTTP request | `proto` of `net_http` | `http`, `https` |
@@ -314,7 +314,7 @@ A config file of 2.0 has `config_version` `"2.0"`, and the options are in groups
 
 For each key of `limits`, 0 means "no limit", and a negative value gives a `ConfigError`. In 1.x and the 2.0 pre-releases, `max_api_count` and `max_api_calls` had no value for "no limit", and `max_instructions` used -1 for "no limit". Change a `max_instructions` of -1 to a `limits.instructions` of 0.
 
-2.0 does not patch call sites that call an API many times, so `api_hammering` has no 2.0 key. `limits.api_loop_calls` (default 5000) ends a run that makes this number of API calls with no call from a new call site, with an `api_loop` error.
+2.0 does not patch call sites that call an API many times, so `api_hammering` has no 2.0 key. `limits.api_loop_calls` (default 5000) ends a run that makes this number of API calls with no call from a new call site, with an `api_loop_limit` error.
 
 No group accepts `null`. The 2.0 pre-releases accepted `null` for `registry`, `network.dns`, `network.http` and `network.winsock`. Replace each `null` with the value that turns the feature off:
 

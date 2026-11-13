@@ -94,7 +94,7 @@ def test_the_api_limit_ends_the_run_and_the_next_run_starts(emu):
 
     emu.emu.start()
 
-    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "max_api_count"), ("b", None)]
+    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "api_call_limit"), ("b", None)]
     assert emu.emu.runs[-2].get_api_count() == 3
 
 
@@ -105,7 +105,7 @@ def test_the_instruction_limit_ends_the_run_and_the_next_run_starts(emu):
 
     emu.emu.start()
 
-    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "max_instructions"), ("b", None)]
+    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "instruction_limit"), ("b", None)]
 
 
 def test_an_unsupported_api_ends_the_run_and_the_next_run_starts(emu):

@@ -25,7 +25,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-01-01-dll",
         sample="Practical Malware Analysis Lab 01-01.dll_",
         expected_apis=("KERNEL32.OpenMutexA", "WS2_32.WSAStartup"),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
     ),
     PmaCase(
         name="pma-01-01-exe",
@@ -36,7 +36,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-01-01-exe-staged",
         sample="Practical Malware Analysis Lab 01-01.exe_",
         expected_apis=("KERNEL32.CreateFileMappingA", "KERNEL32.MapViewOfFile"),
-        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
+        allowed_entrypoint_errors=("api_call_limit", "invalid_read"),
         profile=profile_pma_0101_staged,
     ),
     PmaCase(
@@ -47,7 +47,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             domains=("www.malwareanalysisbook.com",),
             urls=("http://www.malwareanalysisbook.com",),
         ),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
         profile=profile_pma_0102,
     ),
     PmaCase(
@@ -64,7 +64,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             registry_keys=("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost",),
             domains=("practicalmalwareanalysis.com",),
         ),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
     ),
     PmaCase(
         name="pma-03-03-exe",
@@ -108,7 +108,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 05-01.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("max_api_count", "invalid_read", "privileged_instruction"),
+        allowed_entrypoint_errors=("api_call_limit", "invalid_read", "privileged_instruction"),
     ),
     PmaCase(
         name="pma-06-03-exe",
@@ -158,7 +158,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         sample="Practical Malware Analysis Lab 11-03.dll_",
         expected_apis=("KERNEL32.CreateThread", "USER32.GetAsyncKeyState", "KERNEL32.Sleep"),
         indicators=IndicatorExpectations(files=("C:\\WINDOWS\\System32\\kernel64x.dll",)),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
         profile=profile_pma_1103_dll,
     ),
     PmaCase(
@@ -171,7 +171,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-12-01-dll",
         sample="Practical Malware Analysis Lab 12-01.dll_",
         expected_apis=("KERNEL32.TlsAlloc", "KERNEL32.InitializeCriticalSection"),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
     ),
     PmaCase(
         name="pma-12-01-exe",
@@ -212,7 +212,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-14-02-exe",
         sample="Practical Malware Analysis Lab 14-02.exe_",
         expected_apis=("KERNEL32.CreatePipe", "SHELL32.ShellExecuteExA", "SHELL32.SHChangeNotify"),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
         profile=profile_pma_1402,
     ),
     PmaCase(
@@ -239,7 +239,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 17-02.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("max_api_count", "invalid_read"),
+        allowed_entrypoint_errors=("api_call_limit", "invalid_read"),
         profile=profile_pma_1702,
     ),
     PmaCase(
@@ -283,7 +283,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         sample="Practical Malware Analysis Lab 18-03.exe_",
         expected_apis=("WS2_32.WSAStartup", "WS2_32.gethostbyname", "WS2_32.connect", "KERNEL32.CreateProcessA"),
         indicators=IndicatorExpectations(domains=("www.practicalmalwareanalysis.com",)),
-        allowed_entrypoint_errors=("max_api_count",),
+        allowed_entrypoint_errors=("api_call_limit",),
         profile=profile_pma_1803_ocl,
     ),
 )

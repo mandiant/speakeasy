@@ -7,6 +7,7 @@ import pytest
 import unicorn as uc
 
 from speakeasy import Speakeasy
+from speakeasy.config import LimitsConfig
 from speakeasy.engines.start_timer import StartTimer
 from speakeasy.engines.unicorn_eng import (
     EmuEngine,
@@ -15,7 +16,8 @@ from speakeasy.engines.unicorn_eng import (
     get_tsc_offset_location,
 )
 from speakeasy.profiler import Run
-from speakeasy.windows.winemu import RunLimits, _ExecutionBudget
+from speakeasy.report import ErrorType
+from speakeasy.windows.winemu import LimitKind, RunLimits, _ExecutionBudget
 from speakeasy.winenv import arch
 
 
@@ -35,7 +37,7 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
 
         spinning, created = se.get_report().runs
         assert spinning.error is not None
-        assert spinning.error.type == "max_instructions"
+        assert spinning.error.type == "instruction_limit"
         assert int(spinning.error.pc) == base + thread - 2
         assert created.error is None
         assert created.return_value == 0x2A
@@ -43,7 +45,7 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
         se.shutdown()
 
 
-@pytest.mark.parametrize(("limit", "error", "calls"), [(0, None, 4), (2, "max_api_count", 3)])
+@pytest.mark.parametrize(("limit", "error", "calls"), [(0, None, 4), (2, "api_call_limit", 3)])
 def test_an_api_call_limit_of_0_does_not_end_the_run(config, limit, error, calls):
     config["limits"]["api_calls"] = limit
     # MOV EAX,GetTickCount; CALL EAX, four times; RET
@@ -82,7 +84,7 @@ def test_exit_event_stops_an_api_loop_as_a_timeout(config, load_test_bin):
         assert exit_event.is_set()
         (entry,) = se.get_report().runs
         assert entry.error is not None
-        assert entry.error.type == "timeout"
+        assert entry.error.type == "per_run_time_limit"
         assert module.base <= int(entry.error.pc) < module.base + module.image_size
     finally:
         se.shutdown()
@@ -159,18 +161,18 @@ def test_run_limits_stop_at_the_total_time_when_it_comes_first():
     total = _ExecutionBudget(limit=5, elapsed=5)
     limits = RunLimits.from_run(_run_with(elapsed=1), timeout=60, budget=0, total_budget=total)
 
-    assert limits.deadline_kind == "max_total_time"
+    assert limits.deadline_kind == "total_time_limit"
     assert limits.is_total_time_reached()
-    assert limits.get_reached_limit() == "max_total_time"
+    assert limits.get_reached_limit() == "total_time_limit"
 
 
 def test_run_limits_stop_at_the_run_timeout_when_it_comes_first():
     total = _ExecutionBudget(limit=100)
     limits = RunLimits.from_run(_run_with(elapsed=10), timeout=10, budget=0, total_budget=total)
 
-    assert limits.deadline_kind == "timeout"
+    assert limits.deadline_kind == "per_run_time_limit"
     assert not limits.is_total_time_reached()
-    assert limits.get_reached_limit() == "timeout"
+    assert limits.get_reached_limit() == "per_run_time_limit"
 
 
 def test_run_limits_count_the_instructions_that_the_run_already_used():
@@ -181,8 +183,22 @@ def test_run_limits_count_the_instructions_that_the_run_already_used():
     assert limits.get_native_count() == 3
     assert limits.get_reached_limit() is None
     limits.remaining = 0
-    assert limits.get_reached_limit() == "max_instructions"
+    assert limits.get_reached_limit() == "instruction_limit"
 
     unlimited = RunLimits.from_run(_run_with(instructions=7), timeout=0, budget=0, total_budget=None)
     assert unlimited.get_native_count() == 0
     assert unlimited.get_reached_limit() is None
+
+
+def test_limit_error_types_name_their_limits_key():
+    error_types = {
+        "per_run_time": "per_run_time_limit",
+        "total_time": "total_time_limit",
+        "api_calls": "api_call_limit",
+        "api_loop_calls": "api_loop_limit",
+        "instructions": "instruction_limit",
+    }
+
+    assert set(error_types) == set(LimitsConfig.model_fields)
+    assert {t.value for t in ErrorType if t.value.endswith("_limit")} == set(error_types.values())
+    assert {kind.value for kind in LimitKind} <= set(error_types.values())

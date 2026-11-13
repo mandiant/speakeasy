@@ -261,9 +261,9 @@ def get_page_protection_runs(page_perms: dict[int, int], page_size: int) -> list
 class LimitKind(str, Enum):
     """A limit that ends a run. The value is the type of the error of the run, and the kind of the debugger stop."""
 
-    TIMEOUT = "timeout"
-    MAX_TOTAL_TIME = "max_total_time"
-    MAX_INSTRUCTIONS = "max_instructions"
+    PER_RUN_TIME_LIMIT = "per_run_time_limit"
+    TOTAL_TIME_LIMIT = "total_time_limit"
+    INSTRUCTION_LIMIT = "instruction_limit"
 
 
 @dataclass
@@ -311,7 +311,7 @@ class RunLimits:
     timeout: float
     # When the call must stop, from time.monotonic(), or None for no time limit.
     deadline: float | None
-    # MAX_TOTAL_TIME if the total execution time gives the deadline, otherwise TIMEOUT.
+    # TOTAL_TIME_LIMIT if the total execution time gives the deadline, otherwise PER_RUN_TIME_LIMIT.
     deadline_kind: LimitKind
     # The total execution time of all runs, or None for no total limit.
     total_budget: _ExecutionBudget | None
@@ -328,12 +328,12 @@ class RunLimits:
         started = time.monotonic()
         spent = run.execution_elapsed
         deadline = started + max(timeout - spent, 0) if timeout > 0 else None
-        deadline_kind = LimitKind.TIMEOUT
+        deadline_kind = LimitKind.PER_RUN_TIME_LIMIT
         if total_budget is not None and total_budget.limit > 0:
             total_deadline = started + max(total_budget.limit - total_budget.elapsed, 0)
             if deadline is None or total_deadline < deadline:
                 deadline = total_deadline
-                deadline_kind = LimitKind.MAX_TOTAL_TIME
+                deadline_kind = LimitKind.TOTAL_TIME_LIMIT
         remaining = max(budget - run.budget_instructions, 0) if budget > 0 else -1
         return cls(started, spent, timeout, deadline, deadline_kind, total_budget, budget, remaining)
 
@@ -342,13 +342,13 @@ class RunLimits:
         if self.deadline is not None and time.monotonic() >= self.deadline:
             return self.deadline_kind
         if self.budget > 0 and self.remaining <= 0:
-            return LimitKind.MAX_INSTRUCTIONS
+            return LimitKind.INSTRUCTION_LIMIT
         return None
 
     def is_total_time_reached(self) -> bool:
         """Get whether the run reached the total execution time of all runs."""
         return (
-            self.deadline_kind == LimitKind.MAX_TOTAL_TIME
+            self.deadline_kind == LimitKind.TOTAL_TIME_LIMIT
             and self.deadline is not None
             and time.monotonic() >= self.deadline
         )
@@ -1303,15 +1303,15 @@ class WindowsEmulator(BinaryEmulator):
         stopped = self.exit_event is not None and self.exit_event.is_set()
         if stopped and debugger is None and not self.is_run_complete:
             if origin_run.error is None:
-                origin_run.error = ErrorInfo(type=ErrorType.TIMEOUT, pc=self.get_pc())
+                origin_run.error = ErrorInfo(type=ErrorType.PER_RUN_TIME_LIMIT, pc=self.get_pc())
             self._cancel_execution_runs()
         total_budget = limits.total_budget
         if total_budget is not None and total_budget.add(elapsed):
             self._cancel_execution_runs()
             if not self.is_run_complete and origin_run.error is None:
-                origin_run.error = ErrorInfo(type=ErrorType.MAX_TOTAL_TIME, pc=self.get_pc())
+                origin_run.error = ErrorInfo(type=ErrorType.TOTAL_TIME_LIMIT, pc=self.get_pc())
             if debugger is not None:
-                debugger._request_stop(StopReason(kind=LimitKind.MAX_TOTAL_TIME.value, address=self.get_pc()))
+                debugger._request_stop(StopReason(kind=LimitKind.TOTAL_TIME_LIMIT.value, address=self.get_pc()))
 
     def _handle_exit(self, limits: RunLimits, origin_run: Run, debugger: GdbServer | None) -> bool:
         """
@@ -1336,7 +1336,7 @@ class WindowsEmulator(BinaryEmulator):
         if debugger is not None and debugger.has_pending_stop():
             return False
         if limits.is_total_time_reached():
-            self._stop_at_limit(LimitKind.MAX_TOTAL_TIME, limits, origin_run, debugger)
+            self._stop_at_limit(LimitKind.TOTAL_TIME_LIMIT, limits, origin_run, debugger)
             return False
         if isinstance(native_exit, (RunReturn, RunEnd)):
             self._complete_run()
@@ -1373,7 +1373,7 @@ class WindowsEmulator(BinaryEmulator):
             return False
         if self.end_requested:
             if limits.is_total_time_reached():
-                self._stop_at_limit(LimitKind.MAX_TOTAL_TIME, limits, origin_run, debugger)
+                self._stop_at_limit(LimitKind.TOTAL_TIME_LIMIT, limits, origin_run, debugger)
                 return False
             self._complete_run()
         return True
@@ -1402,11 +1402,11 @@ class WindowsEmulator(BinaryEmulator):
         """
         if isinstance(self._native_exit, SuspendedApiCall):
             self.set_pc(self._native_exit.entry.address)
-        if kind == LimitKind.TIMEOUT:
+        if kind == LimitKind.PER_RUN_TIME_LIMIT:
             # Each debugger resume of a timed out run stops at once; log only the first stop.
             if limits.spent < limits.timeout:
                 logger.error("* Timeout of %d sec(s) reached.", limits.timeout)
-        elif kind == LimitKind.MAX_TOTAL_TIME:
+        elif kind == LimitKind.TOTAL_TIME_LIMIT:
             assert limits.total_budget is not None
             logger.error("* Total execution time of %d sec(s) reached.", limits.total_budget.limit)
             limits.total_budget.exhausted = True
@@ -1423,7 +1423,7 @@ class WindowsEmulator(BinaryEmulator):
                 origin_run.error = ErrorInfo(
                     type=ErrorType(kind.value),
                     pc=self.get_pc(),
-                    count=limits.budget if kind == LimitKind.MAX_INSTRUCTIONS else None,
+                    count=limits.budget if kind == LimitKind.INSTRUCTION_LIMIT else None,
                 )
             self._complete_run()
 
@@ -3428,7 +3428,7 @@ class WindowsEmulator(BinaryEmulator):
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             self.end_run(
                 ErrorInfo(
-                    type=ErrorType.MAX_API_COUNT,
+                    type=ErrorType.API_CALL_LIMIT,
                     pc=self.get_pc(),
                     count=limit,
                     last_api=imp_api,
@@ -3440,7 +3440,7 @@ class WindowsEmulator(BinaryEmulator):
             logger.info("* %d API calls with no new call site. Stopping current run.", limit)
             self.end_run(
                 ErrorInfo(
-                    type=ErrorType.API_LOOP,
+                    type=ErrorType.API_LOOP_LIMIT,
                     pc=self.get_pc(),
                     count=limit,
                     last_api=imp_api,

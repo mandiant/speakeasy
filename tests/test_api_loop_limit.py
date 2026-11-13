@@ -101,7 +101,7 @@ def test_an_endless_loop_on_one_api_ends_with_api_loop_and_the_next_run_starts(e
 
     emu.emu.start()
 
-    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "api_loop"), ("b", None)]
+    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "api_loop_limit"), ("b", None)]
     error = emu.emu.runs[-2].error
     assert error.count == LIMIT
     assert error.last_api == "kernel32.GetTickCount"
@@ -119,7 +119,7 @@ def test_a_loop_of_two_apis_ends_with_api_loop_and_names_both_sites(emu):
 
     emu.emu.start()
 
-    assert ran(emu.emu)[0][1] == "api_loop"
+    assert ran(emu.emu)[0][1] == "api_loop_limit"
     loop = emu.emu.runs[-1].error.loop
     assert loop.calls == LIMIT
     assert {(site.api_name, site.return_address, site.calls) for site in loop.sites} == {
@@ -135,10 +135,10 @@ def test_a_loop_limit_of_0_leaves_the_loop_to_the_api_call_limit(emu):
 
     emu.emu.start()
 
-    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "max_api_count")]
+    assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "api_call_limit")]
 
 
-@pytest.mark.parametrize("count, error", [(LIMIT, None), (LIMIT + 1, "api_loop")])
+@pytest.mark.parametrize("count, error", [(LIMIT, None), (LIMIT + 1, "api_loop_limit")])
 def test_a_finite_loop_ends_with_api_loop_only_above_the_limit(emu, count, error):
     tick = emu.emu.get_proc("kernel32", "GetTickCount")
     queue(emu.emu, loop_times(count, call_api(tick)) + RETURN_2, "a")
