@@ -34,6 +34,7 @@ These flags do not come from the config schema.
 - `--gdb-host`: address where the GDB server listens (default `127.0.0.1`)
 - `--gdb-port`: port of the GDB server (default `1234`)
 - `-V, --volume`: `host_path:guest_path` mapping (repeatable). See [Volumes](volumes.md)
+- `--no-auto-mount`: do not mount the files of the directory of the input into the emulated current directory. See [Automatic mount of the target directory](volumes.md#automatic-mount-of-the-target-directory)
 - `--version`: print the speakeasy version and exit
 
 With `--gdb`, the CLI also sets `--no-mp`. `--raw-offset`, `--entry-point` and the integer config flags take a decimal number, or a hex number with `0x`, so `--raw-offset 32` and `--raw-offset 0x20` are the same. The CLI does not accept abbreviated flag names.

@@ -54,6 +54,7 @@ def emulate_binary(
     entry_point=None,
     gdb_port=None,
     gdb_host="127.0.0.1",
+    auto_mount=True,
 ) -> ChildResult:
     report = None
     error = None
@@ -65,6 +66,7 @@ def emulate_binary(
             exit_event=exit_event,
             gdb_port=gdb_port,
             gdb_host=gdb_host,
+            auto_mount=auto_mount,
         )
         if do_raw:
             sc_addr = se.load_shellcode(fpath, arch)
@@ -246,6 +248,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             entry_point=entry_point,
             gdb_port=gdb_port,
             gdb_host=gdb_host,
+            auto_mount=not args.no_auto_mount,
         )
     else:
         q: mp.Queue[ChildResult] = mp.Queue()
@@ -267,6 +270,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
                 "entry_point": entry_point,
                 "gdb_port": gdb_port,
                 "gdb_host": gdb_host,
+                "auto_mount": not args.no_auto_mount,
             },
         )
         p.start()
@@ -426,6 +430,13 @@ def main():
         metavar="HOST:GUEST",
         default=[],
         help="Map a host path into the emulated file system (host_path:guest_path). Can be given more than once.",
+    )
+    parser.add_argument(
+        "--no-auto-mount",
+        action="store_true",
+        dest="no_auto_mount",
+        required=False,
+        help="Do not mount the files of the directory of the input into the emulated current directory",
     )
     parser.add_argument(
         "--version", action="version", version=f"speakeasy {__version__}", help="Show the version and exit"

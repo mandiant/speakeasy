@@ -333,7 +333,7 @@ The boolean parameters of the public methods of `Speakeasy`, `Win32Emulator` and
 
 | Method | Keyword-only parameters |
 |---|---|
-| `Speakeasy(...)` | `debug`, `exit_event`, `gdb_port`, `volumes`, `gdb_host` |
+| `Speakeasy(...)` | `debug`, `exit_event`, `gdb_port`, `volumes`, `gdb_host`, `auto_mount` |
 | `Speakeasy.run_module`, `Win32Emulator.run_module`, `WinKernelEmulator.run_module` | `entry_point` |
 | `Speakeasy.disasm`, `disasm`, `get_disasm` | `fast` |
 | `Win32Emulator(...)`, `WinKernelEmulator(...)` | `debug`, `exit_event`, `gdb_port`, `gdb_host` |

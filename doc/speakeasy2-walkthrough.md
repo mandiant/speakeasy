@@ -35,7 +35,7 @@ The `emu_path=c:\myfile.txt  host_path=...` line shows the volume as a `full_pat
 
 ## Automatic mount of the target directory
 
-When you load a PE file from a host path, Speakeasy mounts the other files in the same host directory into the emulated current directory (`process.current_dir` in the config). Malware often expects payloads or config files next to the executable. Speakeasy does not mount subdirectories. It also does not mount a directory for shellcode or for a PE that you load from bytes. Speakeasy puts these entries before the volume and config entries, so they take priority when more than one entry matches a path.
+When you load a PE file from a host path, Speakeasy mounts the other files in the same host directory into the emulated current directory (`process.current_dir` in the config). Malware often expects payloads or config files next to the executable. Speakeasy does not mount subdirectories. It also does not mount a directory for shellcode or for a PE that you load from bytes. Speakeasy puts these entries before the volume and config entries, so they take priority when more than one entry matches a path. To turn off the automatic mount, give `--no-auto-mount`, or `auto_mount=False` to `Speakeasy`.
 
 For example, put `file_access_test_x86.exe` and `myfile.txt` in one directory, set `process.current_dir` to `c:\` in the config and run with `--no-mp -v`. At startup, the log shows an `Auto-mounted ... into c:\` line and a debug line for each file, such as `c:\myfile.txt -> /tmp/.../myfile.txt`. The file manager then lists the file in its `full_path` entries. The sample opens and reads `c:\myfile.txt` without a `--volume` flag: the log shows `file_open: c:\myfile.txt`, a successful `NtReadFile` and the `File contained: ...` output.
 
