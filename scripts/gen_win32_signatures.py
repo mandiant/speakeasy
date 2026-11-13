@@ -96,6 +96,7 @@ import glob
 import gzip
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -130,6 +131,16 @@ NATIVE_TYPES = {
 # NativeTypedefs of IntPtr and UIntPtr that are integers. The other typedefs of
 # IntPtr and UIntPtr are handles or opaque pointers, such as alljoyn_busattachment.
 INTEGER_TYPEDEFS = {"LPARAM", "WPARAM", "LRESULT"}
+
+# win32metadata gives some handles as a bare IntPtr or UIntPtr, with no typedef:
+# HCRYPTPROV, HCRYPTKEY, HCRYPTHASH, HMACHINE, SCARDCONTEXT, HTHEME, HGLOBAL in
+# GlobalReAlloc. A parameter of these types with a handle name (hProv, phHash)
+# gets the code h.
+HANDLE_PARAM_NAME = re.compile(r"p?h[A-Z]")
+
+# Parameters with a handle name that are not handles: the hUser of DdeSetUserHandle
+# is a DWORD_PTR value that the caller chooses.
+NOT_HANDLE_PARAMS = {("DdeSetUserHandle", "hUser")}
 
 # NativeTypedefs that carry meaning beyond their underlying integer.
 SPECIAL_TYPEDEFS = {
@@ -508,6 +519,18 @@ def _rpc_string_code(t: dict) -> str | None:
     return RPC_STRING_CODES.get(child["Name"])
 
 
+def _handle_param_code(fn_name: str, param_name: str, t: dict) -> str | None:
+    """Get the code of a parameter with a handle name that win32metadata gives as IntPtr or UIntPtr, else None."""
+    if not HANDLE_PARAM_NAME.match(param_name) or (fn_name, param_name) in NOT_HANDLE_PARAMS:
+        return None
+    prefix = {"PointerTo": "p:", "LPArray": "a:"}.get(t["Kind"], "")
+    if prefix:
+        t = t["Child"]
+    if t["Kind"] == "Native" and t["Name"] in ("IntPtr", "UIntPtr"):
+        return f"{prefix}h"
+    return None
+
+
 def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
     dll = normalize_dll(fn["DllImport"])
     entry: dict = {"dll": dll}
@@ -532,6 +555,7 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
         except UnsupportedType as e:
             code = "p"
             skip_reason = skip_reason or f"param {pm['Name']}: {e}"
+        code = _handle_param_code(name, param_name, pm["Type"]) or code
         if dll in RPC_STRING_DLLS and not name.startswith("Ndr"):
             code = _rpc_string_code(pm["Type"]) or code
         param = [param_name, code, flags]
