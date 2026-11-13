@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import datetime
+import re
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, PlainSerializer, TypeAdapter, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 
 _DEFAULT_ENV: dict[str, str] = {
     "comspec": "C:\\Windows\\system32\\cmd.exe",
@@ -284,8 +294,23 @@ def _parse_config_int(value: Any) -> Any:
     return int(value, 16)
 
 
-_Address = Annotated[int, BeforeValidator(_parse_config_int), PlainSerializer(hex, when_used="json")]
-_Size = Annotated[int, BeforeValidator(_parse_config_int)]
+_Address = Annotated[int, BeforeValidator(_parse_config_int), Field(ge=0), PlainSerializer(hex, when_used="json")]
+_Size = Annotated[int, BeforeValidator(_parse_config_int), Field(ge=0)]
+
+_HEX_BYTE = re.compile(r"(0x)?[0-9a-f]{1,2}", re.IGNORECASE)
+
+
+def _validate_one_data_source(path: str | None, byte_fill: ByteFillConfig | None) -> None:
+    """
+    Check that a file entry gives its data from exactly one source.
+
+    Raises:
+        ValueError: if a file entry has neither or both of path and byte_fill.
+    """
+    if path is None and byte_fill is None:
+        raise ValueError("a file entry needs path or byte_fill")
+    if path is not None and byte_fill is not None:
+        raise ValueError("a file entry takes path or byte_fill, not both")
 
 
 class OsVersionConfig(BaseModel):
@@ -316,7 +341,18 @@ class DriveConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     root_path: str | None = Field(default=None, description="Root path of the drive, such as C:\\.")
-    drive_type: str | None = Field(default=None, description="Drive type, such as DRIVE_FIXED.")
+    drive_type: (
+        Literal[
+            "DRIVE_UNKNOWN",
+            "DRIVE_NO_ROOT_DIR",
+            "DRIVE_REMOVABLE",
+            "DRIVE_FIXED",
+            "DRIVE_REMOTE",
+            "DRIVE_CDROM",
+            "DRIVE_RAMDISK",
+        ]
+        | None
+    ) = Field(default=None, description="Drive type that GetDriveType returns, such as DRIVE_FIXED.")
     volume_guid_path: str | None = Field(default=None, description="Volume GUID path of the drive.")
 
 
@@ -325,6 +361,13 @@ class ByteFillConfig(BaseModel):
 
     byte: str = Field(description="Byte that fills the content, in hex, such as 0x41.")
     size: _Size = Field(description="Size of the content in bytes.")
+
+    @field_validator("byte")
+    @classmethod
+    def validate_byte(cls, v: str) -> str:
+        if not _HEX_BYTE.fullmatch(v):
+            raise ValueError(f"{v!r} is not a hex byte: use 00 to ff, or 0x00 to 0xff")
+        return v
 
 
 _HOST_PATH_DESCRIPTION = "Host file that gives the data. $ROOT$ is the directory of the speakeasy package."
@@ -339,6 +382,11 @@ class FileEntryFullPath(BaseModel):
     path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
     byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
 
+    @model_validator(mode="after")
+    def validate_data_source(self) -> FileEntryFullPath:
+        _validate_one_data_source(self.path, self.byte_fill)
+        return self
+
 
 class FileEntryByExt(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -349,6 +397,11 @@ class FileEntryByExt(BaseModel):
     )
     path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
     byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
+
+    @model_validator(mode="after")
+    def validate_data_source(self) -> FileEntryByExt:
+        _validate_one_data_source(self.path, self.byte_fill)
+        return self
 
     @field_validator("ext")
     @classmethod
@@ -363,6 +416,11 @@ class FileEntryDefault(BaseModel):
     mode: Literal["default"] = Field(description="default matches all paths that no other entry matches.")
     path: str | None = Field(default=None, description=_HOST_PATH_DESCRIPTION)
     byte_fill: ByteFillConfig | None = Field(default=None, description=_BYTE_FILL_DESCRIPTION)
+
+    @model_validator(mode="after")
+    def validate_data_source(self) -> FileEntryDefault:
+        _validate_one_data_source(self.path, self.byte_fill)
+        return self
 
 
 FileEntry = Annotated[
@@ -385,8 +443,19 @@ class RegistryValueConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(description="Value name. default is the unnamed default value.")
-    type: str = Field(description="Value type, such as REG_SZ, REG_DWORD or REG_MULTI_SZ.")
+    type: Literal["REG_SZ", "REG_EXPAND_SZ", "REG_MULTI_SZ", "REG_BINARY", "REG_DWORD", "REG_QWORD"] = Field(
+        description="Value type."
+    )
     data: str = Field(description="Value data as a string. REG_DWORD and REG_QWORD data is a number, such as 0x3.")
+
+    @model_validator(mode="after")
+    def validate_number_data(self) -> RegistryValueConfig:
+        if self.type in ("REG_DWORD", "REG_QWORD"):
+            try:
+                int(self.data, 0)
+            except ValueError:
+                raise ValueError(f"{self.type} data {self.data!r} is not a number, such as 0x3") from None
+        return self
 
 
 class RegistryKeyConfig(BaseModel):

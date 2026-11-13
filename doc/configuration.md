@@ -6,7 +6,9 @@ The config has these groups: `limits`, `runs`, `memory`, `code`, `apis`, `module
 
 By default, Speakeasy collects all the data that it can and emulates as much of the sample as it can, so all the [feature options](#feature-options) are on. Set an option to `false`, or use its `--no-` flag, to turn a feature off. A run with fewer features is faster and gives a smaller report.
 
-Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
+Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints of 0 or more. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
+
+Speakeasy checks the values of the config before the emulation starts. A value that is not valid gives a `ConfigError` in the library, and a usage error with exit code 2 in the CLI.
 
 ```jsonc
 {
@@ -220,6 +222,8 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
     "random_seed": 0,
 
     // Drives that the drive APIs, such as GetLogicalDrives, give.
+    // drive_type is the value that GetDriveType gives: DRIVE_UNKNOWN, DRIVE_NO_ROOT_DIR,
+    // DRIVE_REMOVABLE, DRIVE_FIXED, DRIVE_REMOTE, DRIVE_CDROM or DRIVE_RAMDISK.
     "drives": [
       {
         "root_path": "C:\\",
@@ -327,6 +331,7 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
 
         // Host file that gives the content of the file.
         // $ROOT$ is the directory of the installed speakeasy package.
+        // Each entry has path or byte_fill, but not both.
         "path": "$ROOT$/resources/files/default.bin"
       },
       {
@@ -335,7 +340,7 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
 
         // Content that the emulator makes, in place of a host file.
         "byte_fill": {
-          // Byte that fills the content.
+          // Byte that fills the content, in hex: "00" to "ff", or "0x00" to "0xff".
           "byte": "0x41",
           // Size of the content in bytes.
           "size": 512
@@ -365,9 +370,9 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
           {
             // Value name. "default" is the unnamed default value.
             "name": "Updater",
-            // Value type, such as REG_SZ, REG_DWORD or REG_MULTI_SZ.
+            // Value type: REG_SZ, REG_EXPAND_SZ, REG_MULTI_SZ, REG_BINARY, REG_DWORD or REG_QWORD.
             "type": "REG_SZ",
-            // Data as a string. REG_DWORD and REG_QWORD data is a number, such as "0x3".
+            // Data as a string. REG_DWORD and REG_QWORD data is a number, such as "3" or "0x3".
             // REG_MULTI_SZ data separates the strings with "\u0000".
             "data": "C:\\ProgramData\\updater.exe"
           }

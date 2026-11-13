@@ -20,10 +20,13 @@ def make_file_manager(file_entries):
 def fm():
     return make_file_manager(
         [
-            {"mode": "full_path", "emu_path": "c:\\programdata\\mydir\\myfile.bin"},
-            {"mode": "full_path", "emu_path": "c:\\Windows\\system32\\cmd.exe"},
-            {"mode": "full_path", "emu_path": "c:\\Windows\\system32\\svchost.exe"},
-            {"mode": "full_path", "emu_path": "c:\\pagefile.sys"},
+            {"mode": "full_path", "emu_path": emu_path, "byte_fill": {"byte": "0x00", "size": 0}}
+            for emu_path in (
+                "c:\\programdata\\mydir\\myfile.bin",
+                "c:\\Windows\\system32\\cmd.exe",
+                "c:\\Windows\\system32\\svchost.exe",
+                "c:\\pagefile.sys",
+            )
         ]
     )
 
