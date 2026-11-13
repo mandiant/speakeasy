@@ -7,6 +7,7 @@ import unicorn.x86_const as ux
 import speakeasy.windows.common as winemu
 from speakeasy import Speakeasy
 from speakeasy.windows.win32 import Win32Emulator
+from tests.guest_harness import read_process_parameters
 from tests.pe_builder import build_pe
 
 
@@ -167,3 +168,15 @@ def test_no_other_object_has_the_id_of_a_configured_pid(config):
         assert len(ids) == len(set(ids))
     finally:
         se.shutdown()
+
+
+@pytest.mark.parametrize("arch", ["x86", "amd64"])
+def test_configured_process_peb_has_its_image_path_and_command_line(config, arch):
+    smss = next(p for p in config["processes"] if p["name"] == "smss")
+    smss["command_line"] = "\\SystemRoot\\System32\\smss.exe"
+    config["process"]["current_dir"] = "C:\\work"
+    with Speakeasy(config=config) as se:
+        se.load_shellcode(data=b"\xc3", arch=arch)
+        process = next(p for p in se.emu.get_processes() if p.name == "smss")
+
+        assert read_process_parameters(se, process) == (smss["path"], smss["command_line"], "C:\\work\\")
