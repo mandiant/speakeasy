@@ -143,9 +143,6 @@ def profile_pma_1204_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 def profile_pma_1402(cfg: dict[str, Any], _: Path) -> CaseRuntime:
     cfg["max_run_time"] = 6
     cfg["max_api_calls"] = 800
-    cfg.setdefault("api_hammering", {})
-    cfg["api_hammering"]["enabled"] = True
-    cfg["api_hammering"]["threshold"] = 50
     return CaseRuntime()
 
 
@@ -158,9 +155,6 @@ def profile_pma_1603(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 def profile_pma_1702(cfg: dict[str, Any], _: Path) -> CaseRuntime:
     cfg["max_run_time"] = 4
     cfg["max_api_calls"] = 600
-    cfg.setdefault("api_hammering", {})
-    cfg["api_hammering"]["enabled"] = True
-    cfg["api_hammering"]["threshold"] = 100
     return CaseRuntime()
 
 

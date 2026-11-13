@@ -52,13 +52,13 @@ The CLI exits 0 when it writes a report. This is also true when an entry point i
 
 ## Config flags
 
-The CLI makes a flag for each config field with a boolean, number, string, string list or string-to-string mapping value. The [config-file-only fields](#config-file-only-fields) have no flag. `speakeasy --help` shows the description and the default of each flag.
+The CLI makes a flag for each config field with a boolean, number, string or string-to-string mapping value. The [config-file-only fields](#config-file-only-fields) have no flag. `speakeasy --help` shows the description and the default of each flag.
 
 The CLI makes the flag name from the config path. `analysis.memory_tracing` gives `--analysis-memory-tracing`. If a path part starts with the same word as the part before it, the CLI uses that word one time: `modules.modules_always_exist` gives `--modules-always-exist`. A boolean field has two flags, such as `--analysis-coverage` and `--no-analysis-coverage`.
 
-A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to the mapping or replaces its value, and the other keys of the mapping do not change. A list flag takes one `VALUE` and is repeatable. The values replace the whole list.
+A mapping flag takes `KEY=VALUE` and is repeatable. Each value adds the key to the mapping or replaces its value, and the other keys of the mapping do not change.
 
-Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--api-hammering-enabled`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form. All of them are on by default, so use the `--no-` form to turn a feature off. For example, a fast triage run without the analysis data:
+Boolean flags: `--analysis-memory-tracing`, `--analysis-strings`, `--analysis-coverage`, `--analysis-dynamic-code-snapshots`, `--keep-memory-on-free`, `--snapshot-memory-regions`, `--exceptions-dispatch-handlers`, `--user-is-admin`, `--modules-always-exist` and `--modules-functions-always-exist`, each also with a `--no-` form. All of them are on by default, so use the `--no-` form to turn a feature off. For example, a fast triage run without the analysis data:
 
 ```bash
 speakeasy --target sample.exe \
@@ -69,9 +69,9 @@ speakeasy --target sample.exe \
   --output report.json
 ```
 
-Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--api-hammering-threshold`, `--module-directory-x86` and `--module-directory-x64`.
+Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--module-directory-x86` and `--module-directory-x64`.
 
-Mapping flags: `--env KEY=VALUE` and `--network-dns-names KEY=VALUE`. List flag: `--api-hammering-allow-list VALUE`.
+Mapping flags: `--env KEY=VALUE` and `--network-dns-names KEY=VALUE`.
 
 ## Config precedence
 

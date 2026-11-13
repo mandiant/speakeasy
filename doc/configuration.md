@@ -2,7 +2,7 @@
 
 `speakeasy/config.py` defines the config fields and their defaults. `speakeasy --dump-default-config` prints the default config. The example below shows the fields with comments. It is JSONC (JSON with comments), so remove the comments before you give it to Speakeasy.
 
-By default, Speakeasy collects all the data that it can and emulates as much of the sample as it can, so the features of the `analysis` section, `keep_memory_on_free`, `snapshot_memory_regions`, `api_hammering`, `modules_always_exist` and `functions_always_exist` are on. Set a field to `false`, or use its `--no-` flag, to turn a feature off. A run with fewer features is faster and gives a smaller report.
+By default, Speakeasy collects all the data that it can and emulates as much of the sample as it can, so the features of the `analysis` section, `keep_memory_on_free`, `snapshot_memory_regions`, `modules_always_exist` and `functions_always_exist` are on. Set a field to `false`, or use its `--no-` flag, to turn a feature off. A run with fewer features is faster and gives a smaller report.
 
 Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
 
@@ -158,22 +158,6 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
     // SID of the user.
     "sid": "S-1-5-21-1111111111-2222222222-3333333333-1001"
-  },
-
-  "api_hammering": {
-    // If true, the emulator patches API hammering loops in x86 code.
-    // Set it to false, or set "api_hammering" to null, to turn the mitigation off.
-    "enabled": true,
-
-    // When the guest calls one API from one call site this number of times,
-    // the emulator patches the call to return 0.
-    "threshold": 2000,
-
-    // APIs that the emulator does not patch. An empty list uses a built-in list.
-    "allow_list": [
-      "kernel32.WriteFile",
-      "kernel32.ReadFile"
-    ]
   },
 
   // Symbolic links of the object manager. The emulator uses them to resolve device paths.
@@ -427,7 +411,7 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
 
 The CLI has a flag for most config fields. `speakeasy/cli_config.py` makes the flags from the fields of `SpeakeasyConfig`. A flag joins the parts of the config path with `-` and replaces `_` with `-`, so `analysis.coverage` gives `--analysis-coverage`. The CLI leaves out a path part when the next part starts with the same word, so `modules.modules_always_exist` gives `--modules-always-exist` and `modules.module_directory_x86` gives `--module-directory-x86`.
 
-A boolean field has two flags, such as `--analysis-strings` and `--no-analysis-strings`. An int flag takes a decimal value or a hex value that starts with `0x`. A list of strings takes one value for each flag, such as `--api-hammering-allow-list kernel32.WriteFile`, and the flag values replace the list. A mapping takes one `KEY=VALUE` for each flag, such as `--network-dns-names c2.example=203.0.113.10`, and each flag adds or replaces one key. A list of objects, such as `processes`, `filesystem.files` or `registry.keys`, has no flag, so set it in a config file.
+A boolean field has two flags, such as `--analysis-strings` and `--no-analysis-strings`. An int flag takes a decimal value or a hex value that starts with `0x`. A mapping takes one `KEY=VALUE` for each flag, such as `--network-dns-names c2.example=203.0.113.10`, and each flag adds or replaces one key. A list of objects, such as `processes`, `filesystem.files` or `registry.keys`, has no flag, so set it in a config file.
 
 The CLI builds the config in this order, and each step changes the result of the step before it:
 

@@ -1,6 +1,6 @@
 # CLI environment overrides
 
-These flags set the identity of the emulated host, the process environment, DNS answers, module loading and API hammering mitigation. At the start of each emulation, Speakeasy logs the active config to stderr, so you can check the values in the log.
+These flags set the identity of the emulated host, the process environment, DNS answers and module loading. At the start of each emulation, Speakeasy logs the active config to stderr, so you can check the values in the log.
 
 ## Host, user and OS identity
 
@@ -82,20 +82,6 @@ speakeasy -t sample.exe \
 ```
 
 Use the `--no-` flags when a sample checks for a fake module or function to detect the emulator.
-
-## API hammering controls
-
-Some samples call an API many times in a loop to make emulation slow. By default, the emulator counts the calls to each API from each call site. When the count reaches `--api-hammering-threshold`, the emulator patches an x86 call site so that the call gives 0 and does not run the API. It can patch `call [mem]`, `call reg`, and a direct `call` to the API or to a `jmp [mem]` import thunk. If it cannot patch a call site, it logs this one time and stops counting the calls from that site. The emulator does not patch x64 code. `--api-hammering-allow-list` gives an API in the form `dll.name` that the emulator does not patch. The flag is repeatable, and its values replace the default allow list. `--no-api-hammering-enabled` turns the mitigation off.
-
-```bash
-speakeasy -t sample.exe \
-  --api-hammering-threshold 5000 \
-  --api-hammering-allow-list kernel32.WriteFile \
-  --api-hammering-allow-list kernel32.ReadFile \
-  -o report.json
-```
-
-Increase the threshold if the emulator patches calls that the sample needs.
 
 ## Related docs
 
