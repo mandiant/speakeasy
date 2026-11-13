@@ -45,6 +45,37 @@ def test_instruction_limit_stops_spinning_run_and_next_run_executes(config):
         se.shutdown()
 
 
+@pytest.mark.parametrize(
+    ("limits", "error"),
+    [
+        ({"api_calls": 50}, "api_call_limit"),
+        ({"api_loop_calls": 50}, "api_loop_limit"),
+        ({"instructions": 1000}, "instruction_limit"),
+        ({"per_run_time": 0.2}, "per_run_time_limit"),
+        ({"total_time": 0.2}, "total_time_limit"),
+    ],
+)
+def test_a_limit_error_has_the_process_and_thread_of_its_run(config, limits, error):
+    config["limits"].update({"per_run_time": 0, "api_calls": 0, "api_loop_calls": 0, **limits})
+    with Speakeasy(config=config) as se:
+        # CreateThread(NULL, 0, thread, NULL, 0, NULL); RET; thread: MOV EAX,GetTickCount; CALL EAX; JMP thread
+        code = b"\x6a\0\x6a\0\x6a\0\x68" + b"\0" * 4 + b"\x6a\0\x6a\0\xb8" + b"\0" * 4 + b"\xff\xd0\xc3"
+        thread = len(code)
+        code += b"\xb8" + b"\0" * 4 + b"\xff\xd0\xeb\xf7"
+        base = se.load_shellcode(data=code, arch="x86")
+        se.mem_write(base + 7, (base + thread).to_bytes(4, "little"))
+        se.mem_write(base + 16, se.emu.get_proc("kernel32", "CreateThread").to_bytes(4, "little"))
+        se.mem_write(base + thread + 1, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
+
+        se.run_shellcode(base)
+
+        main, created = se.get_report().runs
+        assert main.error is None
+        assert created.error is not None and created.error.type == error
+        assert created.tid != main.tid
+        assert (created.error.pid, created.error.tid) == (created.pid, created.tid)
+
+
 @pytest.mark.parametrize(("limit", "error", "calls"), [(0, None, 4), (2, "api_call_limit", 3)])
 def test_an_api_call_limit_of_0_does_not_end_the_run(config, limit, error, calls):
     config["limits"]["api_calls"] = limit
