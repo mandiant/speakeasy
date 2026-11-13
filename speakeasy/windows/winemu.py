@@ -522,7 +522,6 @@ class WindowsEmulator(BinaryEmulator):
     def _parse_config(self, config):
         super()._parse_config(config)
         self.cd = self.config.process.current_dir
-        self.command_line: str = self.config.process.command_line
 
     def init_machine(self, arch):
         """

@@ -46,7 +46,6 @@
 
     "process": {
         "current_dir": "C:\\Windows\\system32",
-        "command_line": "svchost.exe myarg1 myarg2",
         "env": {
             "comspec": "C:\\Windows\\system32\\cmd.exe",
             "systemroot": "C:\\Windows",

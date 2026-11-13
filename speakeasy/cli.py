@@ -214,6 +214,8 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
         validated = get_active_config(user_cfg, args.volumes, args, config_specs)
     except Exception as err:
         parser.error(f"Invalid active configuration: {err}")
+    if argv and validated.process.command_line is not None:
+        parser.error("--argv and process.command_line both give the command line: set only one")
 
     active_cfg = validated.model_dump(mode="python")
     # The CLI limit stops a child process that hangs in Python code, so it must not stop the child before the

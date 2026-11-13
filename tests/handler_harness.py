@@ -114,7 +114,9 @@ def start_process(se: Speakeasy) -> None:
     module = emu.modules[0]
     emu.prepare_module_for_emulation(module, False)
     if emu.curr_process is None:
-        p = objman.Process(emu, path=module.emu_path, base=module.base, pe=module, cmdline=emu.command_line)
+        p = objman.Process(
+            emu, path=module.emu_path, base=module.base, pe=module, cmdline=emu.get_main_command_line(module.emu_path)
+        )
         emu.processes.append(p)
         emu.curr_process = p
         emu.om.add_object(p)

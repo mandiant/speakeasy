@@ -1454,6 +1454,7 @@ def test_the_host_exe_of_a_dll_run_is_not_the_sample(emu: Speakeasy, load_test_b
 def test_an_exe_finds_itself_by_its_command_line_name(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> None:
+    config["process"]["command_line"] = "svchost.exe myarg1"
     data = load_test_bin("argv_test_x86.exe.xz")
     for se in load_emu(config, data):
         start_process(se)
