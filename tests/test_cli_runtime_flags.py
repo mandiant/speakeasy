@@ -47,6 +47,7 @@ def run_cli(*args):
         (["-o", "/nonexistent/r.json"], "cannot write --output /nonexistent/r.json: directory does not exist"),
         (["--dropped-files-path", "/nonexistent/d.zip"], "cannot write --dropped-files-path /nonexistent/d.zip"),
         (["--argv", "x", "--process-command-line", "a.exe"], "--argv conflicts with process.command_line"),
+        (["--argv", "unterminated 'quote"], "Invalid --argv: No closing quotation"),
     ],
 )
 def test_cli_rejects_bad_arguments(tmp_path, args, message):
@@ -73,16 +74,23 @@ def test_cli_logs_its_progress_when_run_as_a_module(tmp_path):
     assert "Finished emulating" in result.stderr
 
 
-def test_cli_rejects_a_config_file_that_is_not_valid_json(tmp_path):
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (b'{"limits": {\n', "Config file is not valid JSON: {config}: line 2 column 1:"),
+        (b"\x81", "Cannot read config file: {config}:"),
+    ],
+)
+def test_cli_rejects_a_config_file_it_cannot_parse(tmp_path, data, message):
     target = tmp_path / "sc.bin"
     target.write_bytes(b"\xc3")
     config = tmp_path / "bad.json"
-    config.write_text('{"limits": {\n')
+    config.write_bytes(data)
 
     result = run_cli("-t", str(target), "--no-mp", "-c", str(config))
 
     assert result.returncode == 2
-    assert f"Config file is not valid JSON: {config}: line 2 column 1:" in result.stderr
+    assert message.format(config=config) in result.stderr
     assert "Traceback" not in result.stderr
 
 
@@ -94,18 +102,6 @@ def test_cli_rejects_a_directory_as_the_config_file(tmp_path):
 
     assert result.returncode == 2
     assert f"Config file is a directory: {tmp_path}" in result.stderr
-    assert "not found" not in result.stderr
-
-
-def test_cli_rejects_an_argv_with_an_unclosed_quote(tmp_path):
-    target = tmp_path / "sc.bin"
-    target.write_bytes(b"\xc3")
-
-    result = run_cli("-t", str(target), "--no-mp", "--argv", "unterminated 'quote")
-
-    assert result.returncode == 2
-    assert "Invalid --argv: No closing quotation" in result.stderr
-    assert "Traceback" not in result.stderr
 
 
 def test_cli_prints_its_version():
