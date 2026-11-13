@@ -437,7 +437,7 @@ In 1.x and the 2.0 pre-releases, Speakeasy accepted these values and then gave a
 
 To give an empty file, use `"byte_fill": {"byte": "0x00", "size": 0}`.
 
-`process.command_line` defaults to `null`, which gives the quoted path of the process image followed by the arguments of `--argv` or `Speakeasy(argv=...)`. Without arguments, the command line is only the quoted path. In 1.x and the 2.0 pre-releases, the default was `svchost.exe myarg1 myarg2` for each sample, and `argv` replaced the configured command line with no error. In 2.0, `argv` together with `process.command_line`, or together with the `command_line` of the `is_main_exe` entry of a DLL or shellcode run, gives a `ConfigError`. To keep the 1.x command line, set `"process": {"command_line": "svchost.exe myarg1 myarg2"}`.
+`process.command_line` defaults to `null`, which gives the quoted path of the process image followed by the arguments of `--argv` or `Speakeasy(argv=...)`. In 1.x and the 2.0 pre-releases, each EXE got the command line `svchost.exe myarg1 myarg2`, the container process of a DLL or shellcode run got `svchost.exe`, and `argv` changed only the `argv` that the CRT gives to `main`. In 2.0, `argv` together with `process.command_line`, or with the `command_line` of the `is_main_exe` entry in a DLL or shellcode run, gives a `ConfigError`. To keep the 1.x command line, set `"process": {"command_line": "svchost.exe myarg1 myarg2"}`.
 
 Before, a 1.x config file:
 
