@@ -118,6 +118,20 @@
           "default": null,
           "description": "Return value of the API, when the handler gives one.",
           "title": "Return Value"
+        },
+        "return_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-f]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Address where the call returns to the caller. Absent when the emulator does not know it.",
+          "title": "Return Address"
         }
       },
       "required": [
@@ -336,7 +350,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the file data. It is equal to ``sha256``. Absent for an empty file and for a file above MAX_EMBEDDED_FILE_SIZE.",
+          "description": "Key in the top-level ``data`` of the file data. It is equal to ``sha256``. Absent for an empty file and for a file above ``MAX_EMBEDDED_FILE_SIZE`` (10 MiB).",
           "title": "Data Ref"
         }
       },
@@ -348,26 +362,10 @@
       "title": "DroppedFile",
       "type": "object"
     },
-    "DynamicCodeSegment": {
+    "DynamicCodeContents": {
       "additionalProperties": false,
-      "description": "A dynamic code region where code ran, or a snapshot of the region.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the\nemulator adds one more entry with the same ``tag``, ``base`` and ``size`` each time that code runs in the\nregion after the region changed, and control came from outside the region.",
+      "description": "The position and the data of a dynamic code region when code ran in it.",
       "properties": {
-        "tag": {
-          "description": "Tag of the memory region.",
-          "title": "Tag",
-          "type": "string"
-        },
-        "base": {
-          "description": "Base address of the region.",
-          "pattern": "^0x[0-9a-f]+$",
-          "title": "Base",
-          "type": "string"
-        },
-        "size": {
-          "description": "Size of the region in bytes.",
-          "title": "Size",
-          "type": "integer"
-        },
         "pos": {
           "$ref": "#/$defs/TracePosition",
           "description": "Position when the emulator found code that ran in the region: the first time, or for a later snapshot, the first block in the region after the change. ``pc`` is in the region."
@@ -382,10 +380,53 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the region data at ``pos``. Each entry of a region has different data from the entry of the region before it. Only with ``memory.dynamic_code_contents``.",
+          "description": "Key in the top-level ``data`` of the region data at ``pos``. Each snapshot of a region has different data from the snapshot before it. Absent when ``memory.dynamic_code_contents`` is off.",
           "title": "Data Ref"
+        }
+      },
+      "required": [
+        "pos"
+      ],
+      "title": "DynamicCodeContents",
+      "type": "object"
+    },
+    "DynamicCodeRegion": {
+      "additionalProperties": false,
+      "description": "A dynamic code region where code ran.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the\nemulator adds one more snapshot to ``contents`` each time that code runs in the region after the\nregion changed, and control came from outside the region.",
+      "properties": {
+        "region": {
+          "description": "Base address of the region, as in ``memory.layout``.",
+          "pattern": "^0x[0-9a-f]+$",
+          "title": "Region",
+          "type": "string"
         },
-        "snapshot_limit_reached": {
+        "size": {
+          "description": "Size of the region in bytes.",
+          "title": "Size",
+          "type": "integer"
+        },
+        "tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Tag of the memory manager, such as ``api.VirtualAlloc``. Absent when the region has no tag.",
+          "title": "Tag"
+        },
+        "contents": {
+          "description": "With ``memory.dynamic_code_contents``, one snapshot for each time that code ran in the region with new data, in the order of ``pos.tick``. With the option off, one entry with the ``pos`` of the first time that code ran in the region.",
+          "items": {
+            "$ref": "#/$defs/DynamicCodeContents"
+          },
+          "title": "Contents",
+          "type": "array"
+        },
+        "limit_reached": {
           "anyOf": [
             {
               "type": "boolean"
@@ -395,17 +436,16 @@
             }
           ],
           "default": null,
-          "description": "True on the last entry of a region if the region changed and code ran in it again after the last snapshot that ``memory.dynamic_code_contents.limit`` allows. Absent otherwise.",
-          "title": "Snapshot Limit Reached"
+          "description": "True if the region changed and code ran in it again after the last snapshot that ``memory.dynamic_code_contents.limit`` allows. Absent when ``memory.dynamic_code_contents`` is off.",
+          "title": "Limit Reached"
         }
       },
       "required": [
-        "tag",
-        "base",
+        "region",
         "size",
-        "pos"
+        "contents"
       ],
-      "title": "DynamicCodeSegment",
+      "title": "DynamicCodeRegion",
       "type": "object"
     },
     "ErrorInfo": {
@@ -1065,7 +1105,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes that the guest read.",
+          "description": "Key in the top-level ``data`` of the first bytes that the guest read. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -1158,7 +1198,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes that the guest wrote.",
+          "description": "Key in the top-level ``data`` of the first bytes that the guest wrote. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -1453,7 +1493,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the read.",
+          "description": "Key in the top-level ``data`` of the first bytes of the read. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "pid": {
@@ -1520,7 +1560,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the write.",
+          "description": "Key in the top-level ``data`` of the first bytes of the write. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "pid": {
@@ -1653,11 +1693,18 @@
           "description": "Name of the section, such as ``.text``, or ``headers`` for the PE headers. Absent for a region that is not part of a module image, for a module image with no sections, and for an address in a module image that is outside the headers and the sections. In the last two cases, the region is the full image.",
           "title": "Section"
         },
-        "is_free": {
-          "default": false,
-          "description": "If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
-          "title": "Is Free",
-          "type": "boolean"
+        "freed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "True if the guest freed the allocation of the region. Only with ``memory.freed_regions``, which keeps a freed allocation mapped. With the option off, the emulator unmaps a freed allocation when no other allocation of its block is live, and keeps it mapped while one is. The layout then leaves out each freed allocation.",
+          "title": "Freed"
         },
         "data_ref": {
           "anyOf": [
@@ -1669,7 +1716,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and only for guest memory: the images of the modules that load from a file, such as the input, and the allocations and heaps of the guest (``api.*`` tags). Absent for the stub images of system modules, the structures and stacks of the emulator, and other regions with no tag or an ``emu.*`` tag. Also absent when the emulator cannot read the region.",
+          "description": "Key in the top-level ``data`` of the region data: the images of the modules that load from a file, such as the input, the allocations and heaps of the guest (``api.*`` tags), the regions with no tag that API handlers allocate for the guest, and the static TLS data (``emu.tls.*`` tags). Absent when ``memory.final_contents`` is off, for the stacks, for the memory of the emulator (the stub images of system modules and the other ``emu.*`` tags), and when the emulator cannot read the region.",
           "title": "Data Ref"
         }
       },
@@ -1821,7 +1868,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the request body.",
+          "description": "Key in the top-level ``data`` of the first bytes of the request body. Absent when there are no bytes.",
           "title": "Data Ref"
         }
       },
@@ -1894,7 +1941,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes that the guest sent or received.",
+          "description": "Key in the top-level ``data`` of the first bytes that the guest sent or received. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "method": {
@@ -2237,22 +2284,6 @@
           "description": "Key handle that the API returns.",
           "title": "Handle"
         },
-        "open_flags": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Names of the open flags of the call. Speakeasy does not set it.",
-          "title": "Open Flags"
-        },
         "access_flags": {
           "anyOf": [
             {
@@ -2347,7 +2378,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the value data.",
+          "description": "Key in the top-level ``data`` of the first bytes of the value data. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -2442,7 +2473,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the value data.",
+          "description": "Key in the top-level ``data`` of the first bytes of the value data. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "buffer": {
@@ -2633,17 +2664,16 @@
           "title": "Tid"
         },
         "instruction_count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Number of instructions that the run executed. Absent when the run executed none.",
-          "title": "Instruction Count"
+          "default": 0,
+          "description": "Number of instructions that the run executed.",
+          "title": "Instruction Count",
+          "type": "integer"
+        },
+        "api_call_count": {
+          "default": 0,
+          "description": "Number of API calls that the run made, also the calls that ``events`` leaves out as repeats. ``limits.api_calls`` limits this count.",
+          "title": "Api Call Count",
+          "type": "integer"
         },
         "api_hash": {
           "default": "",
@@ -2815,12 +2845,12 @@
           "default": null,
           "description": "Read, write and execute counts of the regions and the symbols. Only with ``memory.accesses``."
         },
-        "dynamic_code_segments": {
-          "description": "Dynamic code regions where code ran in the run, in the order of ``pos.tick``. With ``memory.dynamic_code_contents``, a region has one entry for each snapshot.",
+        "dynamic_code": {
+          "description": "Dynamic code regions where code ran in the run, one entry for each region, in the order of the first time that code ran in the region.",
           "items": {
-            "$ref": "#/$defs/DynamicCodeSegment"
+            "$ref": "#/$defs/DynamicCodeRegion"
           },
-          "title": "Dynamic Code Segments",
+          "title": "Dynamic Code",
           "type": "array"
         },
         "coverage": {
@@ -2841,12 +2871,20 @@
           "title": "Coverage"
         },
         "dropped_files": {
-          "description": "Files that the guest wrote completely, up to the end of the run.",
-          "items": {
-            "$ref": "#/$defs/DroppedFile"
-          },
-          "title": "Dropped Files",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DroppedFile"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Files that the guest wrote completely, up to the end of the run. User mode only.",
+          "title": "Dropped Files"
         },
         "memory": {
           "anyOf": [
@@ -3173,7 +3211,7 @@
             }
           ],
           "default": null,
-          "description": "Address of the instruction that did the operation. For an API event, the address of the call.",
+          "description": "Address of the instruction that did the operation. For an API event, the address of the call. For an event that the code of an API makes, such as a file, registry, memory, process, thread or network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. Such an event comes just before the ``api`` event of its call, with the same ``tick``.",
           "title": "Pc"
         }
       },
@@ -3187,7 +3225,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "Report of one emulation: the input metadata, the runs and the payloads.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data. An empty list or\nobject means that Speakeasy collected the data and found nothing.",
+  "description": "Report of one emulation: the input metadata, the runs and the payloads.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data: its option is off,\nor the data does not apply, such as the memory layout in kernel mode. An\nempty list or object means that Speakeasy collected the data and found\nnothing. A counter or a boolean is always present when Speakeasy collects\nit, also when it is 0 or false.",
   "properties": {
     "report_version": {
       "default": "7.0.0",
