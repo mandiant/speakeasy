@@ -148,3 +148,22 @@ def test_process_list_has_each_configured_process_one_time(emulator, config):
     child = emu.create_process(path="C:\\Windows\\system32\\notepad.exe")
     assert get_names() == [*configured, child.name]
     assert emu.get_processes().count(emu.curr_process) == 1
+
+
+def test_no_other_object_has_the_id_of_a_configured_pid(config):
+    # Speakeasy gives out object IDs from 0x400 up, so these pids are in the range of the object IDs.
+    entries = [p for p in config["processes"] if p["name"] != "System" and not p.get("is_main_exe")]
+    for i, p in enumerate(entries):
+        p["pid"] = 0x400 + 4 * i
+    se = Speakeasy(config=config)
+    try:
+        se.load_shellcode(None, "x86", data=b"\xc3")
+        emu = se.emu
+        assert emu.om is not None
+        for proc in emu.get_processes():
+            if proc is not emu.curr_process:
+                assert emu.get_object_from_id(proc.pid) is proc
+        ids = [obj.id for obj in emu.om.objects.values()]
+        assert len(ids) == len(set(ids))
+    finally:
+        se.shutdown()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ntpath
 import os
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from types import MappingProxyType, ModuleType
 from typing import TYPE_CHECKING, Any, cast
 
@@ -38,10 +38,12 @@ class HandleAllocator:
     # handle value in the report refers to one object for the whole run (mandiant/speakeasy#293).
     REUSE_CLOSED_HANDLES = False
 
-    def __init__(self):
+    def __init__(self, process_ids: Iterable[int] = ()):
         self._handle: int = 0x80
         self._kernel_object_id: int = 0x400
         self._closed_handles: list[int] = []
+        # A configured process ID is the object ID of its process, so no other object gets it.
+        self._process_ids: frozenset[int] = frozenset(process_ids)
 
     def _next(self, attr: str) -> int:
         val: int = getattr(self, attr)
@@ -58,7 +60,10 @@ class HandleAllocator:
             self._closed_handles.append(handle)
 
     def allocate_kernel_object_id(self) -> int:
-        return self._next("_kernel_object_id")
+        oid = self._next("_kernel_object_id")
+        while oid in self._process_ids:
+            oid = self._next("_kernel_object_id")
+        return oid
 
 
 class Console:
