@@ -46,7 +46,7 @@ def run_cli(*args):
         (["-V", "/nonexistent:c:\\x"], "Volume host path does not exist: /nonexistent"),
         (["-o", "/nonexistent/r.json"], "cannot write --output /nonexistent/r.json: directory does not exist"),
         (["--dropped-files-path", "/nonexistent/d.zip"], "cannot write --dropped-files-path /nonexistent/d.zip"),
-        (["--argv", "x", "--process-command-line", "a.exe"], "--argv and process.command_line"),
+        (["--argv", "x", "--process-command-line", "a.exe"], "--argv conflicts with process.command_line"),
     ],
 )
 def test_cli_rejects_bad_arguments(tmp_path, args, message):
