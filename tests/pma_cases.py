@@ -70,6 +70,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-03-03-exe",
         sample="Practical Malware Analysis Lab 03-03.exe_",
         expected_apis=("KERNEL32.HeapCreate", "KERNEL32.Sleep"),
+        argv=("myarg1", "myarg2"),
     ),
     PmaCase(
         name="pma-03-04-exe",
@@ -224,6 +225,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-16-02-exe",
         sample="Practical Malware Analysis Lab 16-02.exe_",
         expected_apis=("USER32.FindWindowA", "KERNEL32.CreateThread"),
+        argv=("myarg1", "myarg2"),
     ),
     PmaCase(
         name="pma-16-03-exe",
@@ -249,6 +251,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         indicators=IndicatorExpectations(
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\DeviceClasses",),
         ),
+        argv=("myarg1", "myarg2"),
     ),
     PmaCase(
         name="pma-18-01-exe",

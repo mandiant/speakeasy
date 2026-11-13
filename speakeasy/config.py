@@ -178,7 +178,6 @@ _DEFAULT_PROCESSES: list[dict[str, Any]] = [
         "name": "main",
         "base_addr": 0x00400000,
         "path": "C:\\Windows\\system32\\svchost.exe",
-        "command_line": "svchost.exe",
         "is_main_exe": True,
         "session": 1,
     },
@@ -559,7 +558,13 @@ class ProcessConfig(BaseModel):
     base_addr: _Address = Field(description="Base address of the process image.")
     path: str = Field(description="Path of the process image.")
     pid: int | None = Field(default=None, description="Process ID.")
-    command_line: str | None = Field(default=None, description="Command line of the process.")
+    command_line: str | None = Field(
+        default=None,
+        description=(
+            "Command line of the process. In the is_main_exe entry, the command line of the container process "
+            "when process.command_line is null."
+        ),
+    )
     is_main_exe: bool | None = Field(
         default=None,
         description="If true, this entry gives the container process, in which a DLL or shellcode input runs.",
@@ -783,9 +788,12 @@ class ProcessEnvironmentConfig(BaseModel):
         # A later name wins over an earlier name that differs only in case.
         return {name.lower(): value for name, value in v.items()}
 
-    command_line: str = Field(
-        default="svchost.exe myarg1 myarg2",
-        description="Command line of the process, for example for GetCommandLine.",
+    command_line: str | None = Field(
+        default=None,
+        description=(
+            "Command line of the process, for example for GetCommandLine. null gives the quoted path of the "
+            "process image followed by argv. Do not set it together with argv."
+        ),
     )
     current_dir: str = Field(
         default="C:\\Windows\\system32",

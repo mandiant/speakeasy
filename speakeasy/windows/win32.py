@@ -5,7 +5,6 @@ import logging
 import ntpath
 import os
 import re
-import shlex
 import subprocess
 import time
 from typing import Any
@@ -18,7 +17,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.binemu import BinaryEmulator
-from speakeasy.errors import Win32EmuError, WindowsEmuError
+from speakeasy.errors import ConfigError, Win32EmuError, WindowsEmuError
 from speakeasy.memmgr import MemMap
 from speakeasy.profiler import Run
 from speakeasy.report import ErrorInfo, ErrorType, FileType, RunType
@@ -34,6 +33,7 @@ from speakeasy.windows.loaders import (
 from speakeasy.windows.sessman import SessionManager
 from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, REPORT_ARCHES, WindowsEmulator, execution_scope
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
+from speakeasy.winenv.api.usermode.shell32 import split_command_line
 from speakeasy.winenv.codepage import encode_ansi
 
 logger = logging.getLogger(__name__)
@@ -59,20 +59,41 @@ class Win32Emulator(WindowsEmulator):
         self.sessman: SessionManager = SessionManager(config, self.handle_allocator)
         self.com: COM = COM(config)
 
-    def get_argv(self):
-        """Get the ``argv`` of the emulated process, from the configured arguments or the command line."""
-        argv0 = ""
-        out = []
+    def get_command_line(self):
+        """Get the command line of the current process, or an empty string if there is no process."""
+        proc = self.get_current_process()
+        return (proc.cmdline or "") if proc is not None else ""
 
-        if len(self.argv):
-            for m in self.modules:
-                if isinstance(m, RuntimeModule) and m.is_exe():
-                    argv0 = m.emu_path
-                    break
-            out = [argv0] + self.argv
-        elif self.command_line:
-            out = shlex.split(self.command_line, posix=False)
-        return out
+    def get_argv(self):
+        """Get the ``argv`` of the current process, split from its command line."""
+        cmdline = self.get_command_line()
+        return split_command_line(cmdline) if cmdline else []
+
+    def init_crt_command_line(self):
+        """
+        Point the CRT command line globals, such as msvcrt ``_acmdln``, at the command line of the current process.
+
+        The globals initialize with the machine, before a process exists, and all processes share one CRT image.
+        """
+        for entry in tuple(self.api_registry.entries.values()):
+            if entry.initialized and entry.name in ("_acmdln", "_wcmdln"):
+                entry.initialized = False
+                self._initialize_api_data(entry)
+
+    def get_main_command_line(self, path, configured=None):
+        """
+        Get the command line of the process in which the input runs.
+
+        ``process.command_line`` comes first, then ``configured``, the command line of the container entry. Without
+        either, the command line is the quoted image path followed by ``argv``.
+        """
+        for cmdline in (self.config.process.command_line, configured):
+            if cmdline is not None:
+                return cmdline
+        args = subprocess.list2cmdline(self.argv)
+        if not path:
+            return args
+        return f'"{path}" {args}' if args else f'"{path}"'
 
     def build_service_main_args(self, service_name, service_args=None, char_width=1):
         ptr_size = self.get_ptr_size()
@@ -275,11 +296,11 @@ class Win32Emulator(WindowsEmulator):
 
         # The main module gets a new process if there is no container process.
         if self.curr_process is None:
-            if self.argv:
-                self.command_line = f'"{module.emu_path}" {subprocess.list2cmdline(self.argv)}'
-            p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=self.command_line)
+            cmdline = self.get_main_command_line(module.emu_path)
+            p = objman.Process(self, path=module.emu_path, base=module.base, pe=module, cmdline=cmdline)
             self.processes.append(p)
             self.curr_process = p
+            self.init_crt_command_line()
             self.get_object_manager("process registration").add_object(p)
             mm = self.get_address_map(module.base)
             if mm:
@@ -331,6 +352,7 @@ class Win32Emulator(WindowsEmulator):
 
                 self.curr_process = child
                 self.curr_thread = child.threads[0]
+                self.init_crt_command_line()
 
                 try:
                     image = PeLoader(data=child.pe_data).make_image()
@@ -356,7 +378,6 @@ class Win32Emulator(WindowsEmulator):
                 self._cancel_execution_runs()
                 not_run = 1
                 break
-            self.command_line = child.cmdline
             self.get_object_manager("thread registration").add_object(self.curr_thread)
             self.start()
             finished = child
@@ -463,9 +484,10 @@ class Win32Emulator(WindowsEmulator):
 
         # The shellcode gets a new process if there is no container process.
         if self.curr_process is None:
-            p = objman.Process(self)
+            p = objman.Process(self, cmdline=self.get_main_command_line(""))
             self.processes.append(p)
             self.curr_process = p
+            self.init_crt_command_line()
 
         mm = self.get_address_map(sc_addr)
         if mm:
@@ -629,6 +651,7 @@ class Win32Emulator(WindowsEmulator):
         Raises:
             WindowsEmuError: if the machine is not initialized, or the container is already loaded.
             OutOfMemoryError: if, on x86, the container image does not fit below the TEB.
+            ConfigError: if ``argv`` and the command line of the entry are both set.
         """
         if not self.is_machine_ready:
             raise WindowsEmuError("the machine is not initialized: call init_machine before load_container")
@@ -637,6 +660,8 @@ class Win32Emulator(WindowsEmulator):
         entry = next((p for p in self.config.processes if p.is_main_exe), None)
         if entry is None:
             return None
+        if self.argv and entry.command_line is not None:
+            raise ConfigError("Set argv or the command_line of the is_main_exe process, not both")
 
         # Load the container image in the machine range, so that the input image can use its preferred base.
         with self.allocations_from(winemu.MACHINE_BASE):
@@ -647,11 +672,12 @@ class Win32Emulator(WindowsEmulator):
             name=entry.name or "",
             path=entry.path or "",
             base=self.container_image.base,
-            cmdline=entry.command_line or "",
+            cmdline=self.get_main_command_line(entry.path, entry.command_line),
             session=entry.session or 0,
         )
         self.processes.append(process)
         self.curr_process = process
+        self.init_crt_command_line()
         return process
 
     def exit_process(self):

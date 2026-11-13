@@ -631,12 +631,11 @@ class Msvcrt(api.ApiHandler):
 
         Command line global CRT variable.
         """
-        _argv = self.emu.get_argv()
-        _argv = encode_ansi(" ".join(_argv))
+        data = encode_ansi(self.emu.get_command_line())
 
-        p_cmdln = self.mem_alloc(len(_argv) + 1, base=None, tag="api.msvcrt.command_line")
+        p_cmdln = self.mem_alloc(len(data) + 1, base=None, tag="api.msvcrt.command_line")
         self.write_ptr(ptr, p_cmdln)
-        self.emu.mem_write(p_cmdln, _argv + b"\x00")
+        self.emu.mem_write(p_cmdln, data + b"\x00")
         return ptr
 
     @impdata("_wcmdln")
@@ -646,7 +645,7 @@ class Msvcrt(api.ApiHandler):
 
         Wide command line global CRT variable.
         """
-        data = (" ".join(self.emu.get_argv()) + "\x00").encode("utf-16le")
+        data = (self.emu.get_command_line() + "\x00").encode("utf-16le")
         p_cmdln = self.mem_alloc(len(data), tag="api.msvcrt.command_line")
         self.write_ptr(ptr, p_cmdln)
         self.emu.mem_write(p_cmdln, data)

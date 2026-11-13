@@ -1358,7 +1358,7 @@ def test_p_wcmdln_points_at_the_wide_command_line(dll_emu: Speakeasy) -> None:
     p = int.from_bytes(dll_emu.mem_read(pp, 4), "little")
     cmdln = dll_emu.mem_read(p, 0x200)
     text = cmdln[: next(i for i in range(0, len(cmdln), 2) if cmdln[i : i + 2] == b"\0\0")].decode("utf-16le")
-    assert text == " ".join(get_win32_emu(dll_emu).get_argv())
+    assert text == get_win32_emu(dll_emu).get_command_line()
 
 
 def test_fileno_returns_the_descriptor_of_a_standard_stream(dll_emu: Speakeasy) -> None:

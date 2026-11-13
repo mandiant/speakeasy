@@ -115,7 +115,8 @@ class Speakeasy:
 
         Raises:
             ConfigError: if ``volumes`` is set and ``config`` is a ``SpeakeasyConfig``, if a volume
-                is malformed or its host path does not exist, or if the configuration is not valid.
+                is malformed or its host path does not exist, if the configuration is not valid, or if
+                ``argv`` and ``process.command_line`` are both set.
         """
         if volumes and isinstance(config, SpeakeasyConfig):
             raise ConfigError(
@@ -131,6 +132,8 @@ class Speakeasy:
             except (ValueError, FileNotFoundError) as err:
                 raise ConfigError(f"Invalid volume: {err}") from err
             self._init_config(data)
+        if argv and self.config.process.command_line is not None:
+            raise ConfigError("Set argv or process.command_line, not both: each one gives the command line")
         self._emu: Win32Emulator | WinKernelEmulator | None = None
         self.pending_hooks: list[common.Hook] = []
         self.argv: list[str] = argv if argv is not None else []

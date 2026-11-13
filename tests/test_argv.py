@@ -1,6 +1,8 @@
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.config import SpeakeasyConfig
+from speakeasy.errors import ConfigError
 from speakeasy.windows import objman
 from tests.handler_harness import call, start_process
 
@@ -58,3 +60,66 @@ def test_each_process_has_its_own_command_line_buffer(dll_emu, api, width):
     assert dll_emu.read_mem_string(first, width) == "parent.exe a"
     assert dll_emu.read_mem_string(second, width) == "child.exe " + "x" * 100
     assert call(dll_emu, "kernel32", api, [])[0] == first
+
+
+def read_command_line(se):
+    rv, _ = call(se, "kernel32", "GetCommandLineA", [])
+    return se.read_mem_string(rv, 1)
+
+
+@pytest.mark.parametrize(("argv", "tail"), [([], ""), (["a", "b c"], ' a "b c"')])
+def test_default_command_line_is_the_quoted_image_path_and_argv(load_test_bin, argv, tail):
+    with Speakeasy(argv=argv) as se:
+        module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
+        se.run_module(module)
+        assert read_command_line(se) == f'"{module.emu_path}"{tail}'
+        assert se.emu.get_argv() == [module.emu_path, *argv]
+
+
+def test_configured_command_line_gives_argv(load_test_bin):
+    with Speakeasy(config={"process": {"command_line": 'lab.exe -x "a b"'}}) as se:
+        module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
+        se.run_module(module)
+        assert read_command_line(se) == 'lab.exe -x "a b"'
+        assert se.emu.get_argv() == ["lab.exe", "-x", "a b"]
+
+
+def test_argv_and_a_configured_command_line_are_an_error():
+    with pytest.raises(ConfigError, match="argv"):
+        Speakeasy(config={"process": {"command_line": "lab.exe"}}, argv=["x"])
+
+
+def test_dll_runs_in_a_container_with_the_quoted_container_path_and_argv(load_test_bin):
+    with Speakeasy(argv=["x"]) as se:
+        se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
+        start_process(se)
+        path = se.emu.get_current_process().path
+        assert read_command_line(se) == f'"{path}" x'
+        assert se.emu.get_argv() == [path, "x"]
+
+
+def test_argv_and_a_container_command_line_are_an_error(load_test_bin):
+    processes = SpeakeasyConfig().model_dump()["processes"]
+    next(p for p in processes if p["is_main_exe"])["command_line"] = "svchost.exe -k netsvcs"
+    with Speakeasy(config={"processes": processes}, argv=["x"]) as se, pytest.raises(ConfigError, match="argv"):
+        se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
+
+
+def test_child_gets_the_argv_of_its_own_command_line(load_test_bin):
+    with Speakeasy(argv=["x"]) as se:
+        module = se.load_module(data=load_test_bin("parent_x86.exe.xz"))
+        se.emu.fileman.add_existing_file("c:\\child.exe", load_test_bin("child_x86.exe.xz"))
+        se.run_module(module)
+        child = se.emu.get_current_process()
+        # parent.c passes no command line to CreateProcessA
+        assert (child.path, child.cmdline) == ("c:\\child.exe", "")
+        assert se.emu.get_argv() == []
+
+
+@pytest.mark.parametrize(("name", "width"), [("_acmdln", 1), ("_wcmdln", 2)])
+def test_crt_command_line_global_is_the_command_line_of_the_process(load_test_bin, name, width):
+    with Speakeasy(argv=["a b"]) as se:
+        module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
+        se.run_module(module)
+        ptr = int.from_bytes(se.mem_read(se.emu.get_proc("msvcrt", name), 4), "little")
+        assert se.read_mem_string(ptr, width) == f'"{module.emu_path}" "a b"'
