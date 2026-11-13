@@ -68,7 +68,7 @@ Type codes (``kind`` or ``kind:qualifier``):
     p:CODE            pointer to a value of type CODE (p:u32, p:h, p:p, p:S)
     ps:NAME           pointer to struct/union NAME (see ``structs``)
     a:CODE            array/buffer of CODE elements; its length, if declared, is in
-                      the parameter's 4th element (see below)
+                      the parameter's 4th element (see below). BYTE* is a:u8
     arr:N:CODE        inline array of N CODE elements (struct fields only)
     s                 pointer to NUL-terminated narrow string (PSTR)
     S                 pointer to NUL-terminated wide string (PWSTR)
@@ -132,6 +132,11 @@ SPECIAL_TYPEDEFS = {
     "BOOL": "b",
     "BOOLEAN": "B",
 }
+
+# win32metadata gives RPC_CSTR and RPC_WSTR as PointerTo Byte and PointerTo UInt16.
+# The Ndr* functions use the same types for marshalling buffers.
+RPC_STRING_DLLS = ("rpcrt4", "rpcns4")
+RPC_STRING_CODES = {"Byte": "s", "UInt16": "S"}
 
 # Parameter attribute -> flag character.
 ATTR_FLAGS = {
@@ -272,7 +277,8 @@ class TypeResolver:
             child = t["Child"]
             if child["Kind"] == "Native":
                 if child["Name"] == "Byte":
-                    return "s"
+                    # BYTE* and char* are both PointerTo Byte. PSTR names the strings.
+                    return "a:u8"
                 if child["Name"] == "Char":
                     return "S"
                 if child["Name"] == "Void":
@@ -486,6 +492,14 @@ def _buffer_length(pm: dict, nparams: int) -> dict | None:
     return None
 
 
+def _rpc_string_code(t: dict) -> str | None:
+    """Get the string code of an RPC_CSTR or RPC_WSTR parameter, else None."""
+    child = t.get("Child", {})
+    if t["Kind"] != "PointerTo" or child.get("Kind") != "Native":
+        return None
+    return RPC_STRING_CODES.get(child["Name"])
+
+
 def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
     dll = normalize_dll(fn["DllImport"])
     entry: dict = {"dll": dll}
@@ -510,6 +524,8 @@ def build_entry(fn: dict, resolver: TypeResolver, overrides: dict) -> dict:
         except UnsupportedType as e:
             code = "p"
             skip_reason = skip_reason or f"param {pm['Name']}: {e}"
+        if dll in RPC_STRING_DLLS and not name.startswith("Ndr"):
+            code = _rpc_string_code(pm["Type"]) or code
         param = [param_name, code, flags]
         length = _buffer_length(pm, len(fn["Params"]))
         if length:

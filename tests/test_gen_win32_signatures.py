@@ -255,6 +255,20 @@ def mini_win32json(tmp_path: Path) -> Path:
             ),
             _func("ldap_bind_sA", "WLDAP32.dll", _native("UInt32"), []),
             _func(
+                "Bytes",
+                "KERNEL32.dll",
+                _native("Void"),
+                [
+                    ("data", _ptr(_native("Byte")), ["In", {"Kind": "MemorySize", "BytesParamIndex": 1}]),
+                    ("size", _native("UInt32"), ["In"]),
+                    ("text", _ptr(_native("Char")), ["In"]),
+                    ("pdata", _ptr(_ptr(_native("Byte"))), ["Out"]),
+                ],
+            ),
+            _func("UuidFromStringA", "RPCRT4.dll", _native("Int32"), [("StringUuid", _ptr(_native("Byte")), ["In"])]),
+            _func("UuidFromStringW", "RPCRT4.dll", _native("Int32"), [("StringUuid", _ptr(_native("UInt16")), ["In"])]),
+            _func("NdrPointerFree", "RPCRT4.dll", _native("Void"), [("pMemory", _ptr(_native("Byte")), ["In"])]),
+            _func(
                 "OnlyX86",
                 "odbc32.dll",
                 _native("Int16"),
@@ -385,6 +399,22 @@ def test_generate_by_value_struct_sizes(gen: ModuleType, mini_win32json: Path) -
         "s": [16, 24],
         "f": [["a", "u8", 0, 0], ["p", "p", 4, 8], ["b", "u16", 8, 16], ["name", "arr:3:u16", 10, 18]],
     }
+
+
+def test_generate_byte_pointer_is_a_buffer(gen: ModuleType, mini_win32json: Path) -> None:
+    """Only string types get a string code. win32metadata has no type for BYTE* that differs from char*."""
+    doc, _ = gen.generate(str(mini_win32json), str(OVERRIDES))
+    (fn,) = doc["functions"]["Bytes"]
+    assert fn["params"] == [
+        ["data", "a:u8", "i", {"n": 1}],
+        ["size", "u32", "i"],
+        ["text", "S", "i"],
+        ["pdata", "p:a:u8", "o"],
+    ]
+    # RPC_CSTR and RPC_WSTR are unsigned char* and unsigned short* in win32metadata
+    assert doc["functions"]["UuidFromStringA"][0]["params"] == [["StringUuid", "s", "i"]]
+    assert doc["functions"]["UuidFromStringW"][0]["params"] == [["StringUuid", "S", "i"]]
+    assert doc["functions"]["NdrPointerFree"][0]["params"] == [["pMemory", "a:u8", "i"]]
 
 
 def test_generate_applies_overrides(gen: ModuleType, mini_win32json: Path) -> None:

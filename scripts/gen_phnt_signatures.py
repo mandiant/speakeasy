@@ -493,8 +493,8 @@ class TypeTable:
                 raise UnsupportedType(f"multi-word type {ctype!r}")
         else:
             base = self._resolve_name(words[0], depth)
-        for _ in range(stars):
-            base = _pointer_to(base)
+        for i in range(stars):
+            base = _pointer_to(base, words[0] if i == 0 and len(words) == 1 else None)
         return base
 
     def _resolve_name(self, name: str, depth: int) -> str:
@@ -524,7 +524,7 @@ class TypeTable:
                     or rest in self.aliases
                     or rest in SDK_SCALARS
                 ):
-                    return _pointer_to(self._resolve_name(rest, depth + 1))
+                    return _pointer_to(self._resolve_name(rest, depth + 1), rest)
                 if _looks_like_struct_name(rest):
                     # pointer to a Windows SDK struct phnt does not define itself
                     return f"ps:{rest}"
@@ -541,15 +541,20 @@ def _looks_like_struct_name(name: str) -> bool:
     return name.isupper() and "_" in name and not name.startswith("P_")
 
 
-def _pointer_to(code: str) -> str:
+def _pointer_to(code: str, name: str | None = None) -> str:
+    """Get the code of a pointer to ``code``. ``name`` is the C type name of the target, if known."""
     kind = code.split(":", 1)[0]
     if kind == "st":
         return "ps:" + code.split(":", 2)[1]
     if code == "v":
         return "p"
-    if code in ("u8", "i8"):
+    if code == "i8":
         return "s"
-    if code == "u16":
+    if code == "u8":
+        # UCHAR and BYTE pointers are binary buffers
+        return "a:u8"
+    if name == "WCHAR":
+        # USHORT is also u16, but only a WCHAR pointer is a string
         return "S"
     return f"p:{code}"
 
