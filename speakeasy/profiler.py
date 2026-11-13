@@ -328,9 +328,9 @@ class Profiler:
         If ``deduplicate`` is true, the profiler does not add a call that has the same API, pc,
         return address, shown arguments and return value as one of the last 3 events of the run.
         It adds 1 to ``calls`` of that event and returns it. Calls through one thunk have the same
-        pc, and the return address keeps the calls of different callers apart. The shown
-        argument values are compared, not the raw values, so a loop that passes the same string
-        from a different buffer gives one event.
+        pc, and the return address keeps the calls of different callers apart. The shown argument
+        values are compared, not the raw values, so a loop that passes the same string from a
+        different buffer gives one event.
         """
         run.num_apis += 1
         run.api_loop.record((name, return_address), pos)

@@ -170,7 +170,7 @@ class ApiEvent(Event):
     calls: int = Field(
         default=1,
         description=(
-            "Number of calls that the event stands for: this call and the repeats that the profiler left out. "
+            "Number of calls that the event stands for: this call and the repeats that the profiler leaves out. "
             "The event has the ``pos`` and the raw argument values of the first call."
         ),
     )
