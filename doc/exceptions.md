@@ -9,11 +9,12 @@ an `exception` event for each exception that the emulator sends to a handler.
 
 - CPU faults. These are access violations, which include reads of no-access
   pages and writes to read-only pages, and division by zero.
-- Trap instructions, as in Wine. These are `int3` and `int 3`, `int 2d`, other
-  `int n` as access violations, `ud2`, `icebp`, `hlt`, `in`, `out` and the trap
-  flag. `int 2d` raises nothing for the debug service codes 1, 3, 4 and
-  5. The emulator does not emulate the system service gates (`int 2e`, and
-  `int 2a` and `int 2b` on x86). They end the run as an unhandled interrupt.
+- Trap instructions, as in Wine. These are `int3` and `int 3`, `into` and
+  `int 4`, `int 2d`, other `int n` as access violations, `ud2`, `icebp`, `hlt`,
+  `in`, `out` and the trap flag. `int 2d` raises nothing for the debug service
+  codes 1, 3, 4 and 5. The emulator does not emulate the system service gates
+  (`int 2e`, and `int 2a` and `int 2b` on x86). They end the run as an
+  unhandled interrupt.
 - `PAGE_GUARD` pages, one time, with `STATUS_GUARD_PAGE_VIOLATION`.
 - Execute breakpoints in the debug registers of the current thread. The sample
   sets them with `SetThreadContext`, or a handler sets them in its context
