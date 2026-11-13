@@ -2095,7 +2095,7 @@
             }
           ],
           "default": null,
-          "description": "Command line of the process. Absent for a process from the config with no ``command_line``.",
+          "description": "Command line of the process. Absent for a process from the config with no ``command_line``, except the container process.",
           "title": "Command Line"
         },
         "runs": {

@@ -591,7 +591,10 @@ class ProcessInfo(BaseModel):
     )
     command_line: str | None = Field(
         default=None,
-        description=("Command line of the process. Absent for a process from the config with no ``command_line``."),
+        description=(
+            "Command line of the process. Absent for a process from the config with no ``command_line``, "
+            "except the container process."
+        ),
     )
     runs: list[int] = Field(
         default_factory=list,
