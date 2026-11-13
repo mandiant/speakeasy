@@ -292,6 +292,10 @@ Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints.
   // The emulator ignores the base_addr of this entry and loads the container image
   // at the first free base above 0x7D000000.
   // The container process gets the session of the entry, but not its pid.
+  // The pid of an entry is the process ID that the guest and the report use.
+  // An entry without pid gets the next free object ID. Object IDs start at
+  // 0x400, so give a pid below 0x400. In kernel mode, the System process
+  // always has pid 4.
   "processes": [
     {
       "name": "System",

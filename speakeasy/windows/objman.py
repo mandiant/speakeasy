@@ -445,7 +445,6 @@ class Process(KernelObject):
         self._peb_modules: dict[int, RuntimeModule] = {}
         self.name: str = name
         self.base: int = base
-        self.pid: int = self.id
         self.modules: list[RuntimeModule] = user_modules if user_modules is not None else []
         self.threads: list[Thread] = []
         self.handles: HandleTable = HandleTable(emu.handle_allocator, emu.dec_ref, emu.get_pseudo_handle_object)
@@ -543,6 +542,15 @@ class Process(KernelObject):
     def get_ep(self):
         if self.pe:
             return self.pe.get_ep()
+
+    @property
+    def pid(self) -> int:
+        """The process ID, which is the object ID. A config entry with a pid sets it."""
+        return self.id
+
+    @pid.setter
+    def pid(self, pid: int) -> None:
+        self.id = pid
 
     @property
     def peb_modules(self) -> Mapping[int, RuntimeModule]:
