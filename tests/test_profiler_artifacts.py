@@ -127,7 +127,7 @@ def test_report_data_holds_only_referenced_payloads():
     report = build_report(profiler, run)
 
     refs = get_dumped_data_refs(report.model_dump(mode="json"))
-    assert len(refs) == 3
+    assert len(refs) == 5
     assert set(report.data) == refs
 
 
@@ -258,22 +258,51 @@ def test_repeated_api_call_from_another_caller_is_recorded():
 
 
 @pytest.mark.parametrize("event_type", [EventType.MEM_WRITE, EventType.MEM_READ])
-def test_memory_event_does_not_merge_into_another_run_or_process(event_type: EventType) -> None:
+def test_each_contiguous_memory_call_gets_its_own_event_with_all_bytes(event_type: EventType) -> None:
     profiler = Profiler()
-    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
-    explorer = TargetProcess(id=9, path="C:\\Windows\\explorer.exe")
+    run = Run()
     svchost = TargetProcess(id=10, path="C:\\Windows\\system32\\svchost.exe")
+    headers = bytes(range(256)) * 16
+    text = b"\xcc" * 0x3000
 
-    run1 = Run()
-    profiler.record_process_event(run1, pos, explorer, event_type, {"base": 0x1000, "size": 4, "data": b"aaaa"})
-    run2 = Run()
-    profiler.record_process_event(run2, pos, svchost, event_type, {"base": 0x1004, "size": 4, "data": b"bbbb"})
-    profiler.record_process_event(run2, pos, explorer, event_type, {"base": 0x1008, "size": 4, "data": b"cccc"})
-    # The same run and target process, and the range starts at the end of the last range: one event.
-    profiler.record_process_event(run2, pos, explorer, event_type, {"base": 0x100C, "size": 4, "data": b"dddd"})
+    profiler.record_process_event(
+        run,
+        TracePosition(tick=1, tid=2, pid=3, pc=0x401000),
+        svchost,
+        event_type,
+        {"base": 0x40D000, "size": len(headers), "data": headers},
+    )
+    profiler.record_process_event(
+        run,
+        TracePosition(tick=2, tid=2, pid=3, pc=0x401010),
+        svchost,
+        event_type,
+        {"base": 0x40E000, "size": len(text), "data": text},
+    )
+    report = build_report(profiler, run)
 
-    assert [(e.pid, e.base, e.size) for e in run1.events] == [(9, 0x1000, 4)]
-    assert [(e.pid, e.base, e.size) for e in run2.events] == [(10, 0x1004, 4), (9, 0x1008, 8)]
+    events = report.runs[0].events
+    assert [(e.pos.tick, e.base, e.size) for e in events] == [(1, 0x40D000, 0x1000), (2, 0x40E000, 0x3000)]
+    assert [profiler.artifact_store.get_bytes(e.data_ref) for e in events] == [headers, text]
+
+
+def test_repeated_memory_write_payload_is_stored_once():
+    profiler = Profiler()
+    run = Run()
+    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
+    svchost = TargetProcess(id=10, path="C:\\Windows\\system32\\svchost.exe")
+    page = b"\x00" * 0x1000
+
+    for base in (0x411000, 0x412000):
+        profiler.record_process_event(
+            run, pos, svchost, EventType.MEM_WRITE, {"base": base, "size": 0x1000, "data": page}
+        )
+    report = build_report(profiler, run)
+
+    events = report.runs[0].events
+    assert len(events) == 2
+    assert events[0].data_ref == events[1].data_ref
+    assert list(report.data) == [events[0].data_ref]
 
 
 def test_json_report_is_compact():

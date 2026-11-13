@@ -1454,7 +1454,7 @@
     },
     "MemReadEvent": {
       "additionalProperties": false,
-      "description": "Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``.\n\nThe profiler merges a read into the last process event when that event is a read that ends at\nthe start of the new read.",
+      "description": "Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
@@ -1493,7 +1493,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the read. Absent when there are no bytes.",
+          "description": "Key in the top-level ``data`` of the bytes of the read. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "pid": {
@@ -1521,7 +1521,7 @@
     },
     "MemWriteEvent": {
       "additionalProperties": false,
-      "description": "Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``.\n\nThe profiler merges a write into the last process event when that event is a write that ends\nat the start of the new write.",
+      "description": "Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",
@@ -1560,7 +1560,7 @@
             }
           ],
           "default": null,
-          "description": "Key in the top-level ``data`` of the first bytes of the write. Absent when there are no bytes.",
+          "description": "Key in the top-level ``data`` of the bytes of the write. Absent when there are no bytes.",
           "title": "Data Ref"
         },
         "pid": {
