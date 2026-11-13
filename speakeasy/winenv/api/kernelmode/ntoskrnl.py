@@ -1398,16 +1398,12 @@ class Ntoskrnl(api.ApiHandler):
         base = addr & ~page_mask
         region_size = ((addr + size + page_mask) & ~page_mask) - base
         # get_first_unmapped also returns the start of the range when the first page is unmapped.
-        perms = next((p for start, end, p in emu.get_mem_regions() if start <= base <= end), None)
-        if perms is None or get_first_unmapped(emu, base, region_size) != base:
+        mapped = any(start <= base <= end for start, end, _ in emu.get_mem_regions())
+        if not mapped or get_first_unmapped(emu, base, region_size) != base:
             return ddk.STATUS_CONFLICTING_ADDRESSES
 
         # Windows returns the protection of the first page.
-        if base in emu.guard_pages:
-            old = self.emu_perms_to_win_perms(emu.guard_pages[base]) | PAGE_PROTECTION_FLAGS.PAGE_GUARD
-        else:
-            uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
-            old = self.emu_perms_to_win_perms(uc_to_perms[perms])
+        old = self.get_page_protection(base)
 
         new = self.win_perms_to_emu_perms(NewProtection)
         emu.protect_pages(base, region_size, new, guard=bool(NewProtection & PAGE_PROTECTION_FLAGS.PAGE_GUARD))

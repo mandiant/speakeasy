@@ -1116,20 +1116,11 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         return rv
 
     def commit_pages(self, emu, mm, address, size, protect):
-        """
-        Apply the protection of a commit to the pages of an existing allocation, and return the first page.
-
-        A ``MemMap`` has one protection, so the allocation gets the protection of the commit in the memory layout, also
-        when the commit covers only part of it, as with ``VirtualProtect``.
-        """
+        """Apply the protection of a commit to the pages of an existing allocation, and return the first page."""
         base = address & ~0xFFF
         end = min((address + size + 0xFFF) & ~0xFFF, mm.base + mm.size)
         perms = self.win_perms_to_emu_perms(protect)
-        emu.clear_guard_pages(base, end - base)
-        emu.mem_protect(base, end - base, perms)
-        if protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
-            emu.set_guard_pages(base, end - base, perms)
-        mm.prot = perms
+        emu.protect_pages(base, end - base, perms, guard=bool(protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD))
         return base
 
     @apihook("VirtualAlloc", argc=4)
@@ -1631,22 +1622,17 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             self.mem_write(lpBuffer, mbi.get_bytes())
             return mbi.sizeof()
 
-        base, size, prot = mm.base, mm.size, mm.prot
-        uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
-        for begin, end, uc_perms in emu.get_mem_regions():
+        base, size = mm.base, mm.size
+        for begin, end, _ in emu.get_mem_regions():
             if begin <= lpAddress <= end:
-                base, size, prot = begin, end + 1 - begin, uc_to_perms.get(uc_perms, prot)
+                base, size = begin, end + 1 - begin
                 break
         mbi.BaseAddress = base
         mbi.AllocationBase = mm.base
         mbi.AllocationProtect = self.emu_perms_to_win_perms(mm.prot)
         mbi.RegionSize = size
         mbi.State = windefs.MEM_COMMIT
-        page = lpAddress & ~(e_arch.PAGE_SIZE - 1)
-        if page in emu.guard_pages:
-            mbi.Protect = self.emu_perms_to_win_perms(emu.guard_pages[page]) | PAGE_PROTECTION_FLAGS.PAGE_GUARD
-        else:
-            mbi.Protect = self.emu_perms_to_win_perms(prot)
+        mbi.Protect = self.get_page_protection(lpAddress)
         mbi.Type = 0
 
         self.mem_write(lpBuffer, mbi.get_bytes())
@@ -1716,12 +1702,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
                 return 0
 
-            # Windows returns the protection of the first page. Unicorn gives a guard page no access.
-            uc_to_perms = {v: k for k, v in emu.emu_eng.perms.items()}
-            uc_perms = next(p for start, end, p in emu.get_mem_regions() if start <= addr <= end)
-            old_prot = self.emu_perms_to_win_perms(emu.guard_pages.get(addr, uc_to_perms[uc_perms]))
-            if addr in emu.guard_pages:
-                old_prot |= PAGE_PROTECTION_FLAGS.PAGE_GUARD
+            # Windows returns the protection of the first page.
+            old_prot = self.get_page_protection(addr)
             emu.protect_pages(addr, size, new, guard=bool(flNewProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD))
             self.write_dword(lpflOldProtect, old_prot)
             return 1
