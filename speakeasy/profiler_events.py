@@ -214,7 +214,7 @@ class MemWriteEvent(Event):
     size: int = Field(description="Number of bytes written.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes of the write.",
+        description=("Key in the top-level ``data`` of the first bytes of the write. Absent when there are no bytes."),
     )
     pid: int | None = Field(
         default=None,
@@ -236,7 +236,7 @@ class MemReadEvent(Event):
     size: int = Field(description="Number of bytes read.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes of the read.",
+        description=("Key in the top-level ``data`` of the first bytes of the read. Absent when there are no bytes."),
     )
     pid: int | None = Field(
         default=None,
@@ -376,7 +376,9 @@ class FileReadEvent(Event):
     size: int | None = Field(default=None, description="Total number of bytes that the guest read.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes that the guest read.",
+        description=(
+            "Key in the top-level ``data`` of the first bytes that the guest read. Absent when there are no bytes."
+        ),
     )
     buffer: HexIntOptional = Field(
         default=None,
@@ -399,7 +401,9 @@ class FileWriteEvent(Event):
     size: int | None = Field(default=None, description="Total number of bytes that the guest wrote.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes that the guest wrote.",
+        description=(
+            "Key in the top-level ``data`` of the first bytes that the guest wrote. Absent when there are no bytes."
+        ),
     )
     buffer: HexIntOptional = Field(
         default=None,
@@ -443,10 +447,6 @@ class RegOpenKeyEvent(Event):
     )
     path: str = Field(description="Path of the key.")
     handle: HexIntOptional = Field(default=None, description="Key handle that the API returns.")
-    open_flags: list[str] | None = Field(
-        default=None,
-        description="Names of the open flags of the call. Speakeasy does not set it.",
-    )
     access_flags: list[str] | None = Field(
         default=None,
         description="Names of the access rights that the caller asks for, such as ``KEY_READ``.",
@@ -488,7 +488,9 @@ class RegReadValueEvent(Event):
     size: int | None = Field(default=None, description="Size of the value data in bytes.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes of the value data.",
+        description=(
+            "Key in the top-level ``data`` of the first bytes of the value data. Absent when there are no bytes."
+        ),
     )
     buffer: HexIntOptional = Field(default=None, description="Address of the output buffer.")
 
@@ -506,7 +508,9 @@ class RegWriteValueEvent(Event):
     size: int | None = Field(default=None, description="Size of the value data in bytes.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes of the value data.",
+        description=(
+            "Key in the top-level ``data`` of the first bytes of the value data. Absent when there are no bytes."
+        ),
     )
     buffer: HexIntOptional = Field(default=None, description="Address of the input buffer.")
 
@@ -600,7 +604,10 @@ class NetTrafficEvent(Event):
     type: NetTrafficType | None = Field(default=None, description="Socket operation of the event.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes that the guest sent or received.",
+        description=(
+            "Key in the top-level ``data`` of the first bytes that the guest sent or received."
+            " Absent when there are no bytes."
+        ),
     )
     method: str | None = Field(default=None, description="Name of the operation, such as ``winsock.connect``.")
 
@@ -619,7 +626,9 @@ class NetHttpEvent(Event):
     headers: str | None = Field(default=None, description="Headers of the request, as text.")
     data_ref: str | None = Field(
         default=None,
-        description="Key in the top-level ``data`` of the first bytes of the request body.",
+        description=(
+            "Key in the top-level ``data`` of the first bytes of the request body. Absent when there are no bytes."
+        ),
     )
 
 

@@ -370,7 +370,7 @@ class DroppedFile(BaseModel):
         default=None,
         description=(
             "Key in the top-level ``data`` of the file data. It is equal to ``sha256``. Absent for an empty file"
-            " and for a file above MAX_EMBEDDED_FILE_SIZE."
+            " and for a file above ``MAX_EMBEDDED_FILE_SIZE`` (10 MiB)."
         ),
     )
 
@@ -384,19 +384,23 @@ class MemoryRegion(RegionInfo):
     the image and the part.
     """
 
-    is_free: bool = Field(
-        default=False,
-        description="If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
+    freed: bool | None = Field(
+        default=None,
+        description=(
+            "True if the guest freed the allocation of the region. Only with ``memory.freed_regions``, which keeps "
+            "a freed allocation mapped. With the option off, the emulator unmaps a freed allocation when no other "
+            "allocation of its block is live, and keeps it mapped while one is. The layout then leaves out each "
+            "freed allocation."
+        ),
     )
     data_ref: str | None = Field(
         default=None,
         description=(
-            "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and only for "
-            "guest memory: the images of the modules that load from a file, such as the input, the allocations "
-            "and heaps of the guest (``api.*`` tags), the regions with no tag that API handlers allocate for the "
-            "guest, and the static TLS data (``emu.tls.*`` tags). Absent for the stub images of system modules, "
-            "the other structures of the emulator (``emu.*`` tags) and the stacks. Also absent when the emulator "
-            "cannot read the region."
+            "Key in the top-level ``data`` of the region data: the images of the modules that load from a file, "
+            "such as the input, the allocations and heaps of the guest (``api.*`` tags), the regions with no tag "
+            "that API handlers allocate for the guest, and the static TLS data (``emu.tls.*`` tags). Absent when "
+            "``memory.final_contents`` is off, for the stacks, for the memory of the emulator (the stub images of "
+            "system modules and the other ``emu.*`` tags), and when the emulator cannot read the region."
         ),
     )
 
@@ -481,9 +485,9 @@ class RunReport(BaseModel):
         default=None,
         description="ID of the thread of the run.",
     )
-    instruction_count: int | None = Field(
-        default=None,
-        description="Number of instructions that the run executed. Absent when the run executed none.",
+    instruction_count: int = Field(
+        default=0,
+        description="Number of instructions that the run executed.",
     )
     api_call_count: int = Field(
         default=0,
@@ -526,9 +530,9 @@ class RunReport(BaseModel):
         default=None,
         description="Sorted addresses of the instructions that ran. Only with ``code.coverage``.",
     )
-    dropped_files: list[DroppedFile] = Field(
-        default_factory=list,
-        description="Files that the guest wrote completely, up to the end of the run.",
+    dropped_files: list[DroppedFile] | None = Field(
+        default=None,
+        description="Files that the guest wrote completely, up to the end of the run. User mode only.",
     )
     memory: MemoryLayout | None = Field(
         default=None,
@@ -563,8 +567,11 @@ class Report(BaseModel):
     JSON number with no error. Quantities, such as sizes, counts, offsets,
     ticks and IDs, are JSON numbers.
 
-    A key is absent when Speakeasy did not collect its data. An empty list or
-    object means that Speakeasy collected the data and found nothing.
+    A key is absent when Speakeasy did not collect its data: its option is off,
+    or the data does not apply, such as the memory layout in kernel mode. An
+    empty list or object means that Speakeasy collected the data and found
+    nothing. A counter or a boolean is always present when Speakeasy collects
+    it, also when it is 0 or false.
     """
 
     model_config = ConfigDict(extra="forbid")

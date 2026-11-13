@@ -466,7 +466,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
             "tag": "emu.module",
             "module": "sample.exe",
             "section": ".text",
-            "is_free": false,
+            "freed": false,
 
             // Optional: resolve via the top-level data store.
             "data_ref": "data-region"

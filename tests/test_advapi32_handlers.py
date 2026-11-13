@@ -1234,7 +1234,7 @@ def test_reg_create_key_ex_and_reg_open_key_ex_record_the_disposition_and_access
         (["REG_OPENED_EXISTING_KEY"], ["KEY_READ"]),
     ]
     opens = [e for e in run.events if isinstance(e, RegOpenKeyEvent)]
-    assert [(e.open_flags, e.access_flags) for e in opens] == [(None, ["KEY_SET_VALUE"])]
+    assert [e.access_flags for e in opens] == [["KEY_SET_VALUE"]]
 
 
 def test_close_service_handle_does_not_free_guest_memory(dll_emu: Speakeasy) -> None:

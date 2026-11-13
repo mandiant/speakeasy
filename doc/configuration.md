@@ -460,7 +460,7 @@ Each feature option is a boolean, and each one is on by default. Some options ad
 | `memory.final_contents` | `--no-memory-final-contents` | Report data | Fills `memory.layout[].data_ref` at the end of each run, except for the stacks. User mode only. |
 | `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` | Report data | Fills `dynamic_code_segments[].data_ref`. Adds an instruction counting hook when `memory.accesses` is off and `limits.instructions` is 0. |
 | `code.coverage` | `--no-code-coverage` | Report data | Fills `runs[].coverage`. Hooks each instruction. |
-| `memory.freed_regions` | `--no-memory-freed-regions` | Guest behavior | A freed region stays mapped, so a read after the free does not fault. Adds `is_free` to the region in the report. |
+| `memory.freed_regions` | `--no-memory-freed-regions` | Guest behavior | A freed region stays mapped, so a read after the free does not fault. Adds `freed` to each region in the report. |
 | `runs.exports` | `--no-runs-exports` | Guest behavior | Runs the exports of a DLL, and the IRP dispatch functions and the unload routine of a driver. |
 | `runs.children` | `--no-runs-children` | Guest behavior | Runs the child processes after the input. |
 | `apis.stubs` | `--no-apis-stubs` | Guest behavior | An unknown API returns 1. Off: the run ends with `unsupported_api`. |
