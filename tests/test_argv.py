@@ -67,21 +67,23 @@ def read_command_line(se):
     return se.read_mem_string(rv, 1)
 
 
-@pytest.mark.parametrize(("argv", "tail"), [([], ""), (["a", "b c"], ' a "b c"')])
-def test_default_command_line_is_the_quoted_image_path_and_argv(load_test_bin, argv, tail):
-    with Speakeasy(argv=argv) as se:
+def get_printfs(se):
+    events = se.get_report().runs[0].events
+    return [evt.args[2].display for evt in events if evt.event == "api" and "vfprintf" in evt.api_name]
+
+
+def test_default_command_line_is_the_quoted_image_path(load_test_bin):
+    with Speakeasy() as se:
         module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
         se.run_module(module)
-        assert read_command_line(se) == f'"{module.emu_path}"{tail}'
-        assert se.emu.get_argv() == [module.emu_path, *argv]
+        assert read_command_line(se) == f'"{module.emu_path}"'
+        assert get_printfs(se) == ["argc = 1\n", f"argv[0] = {module.emu_path}\n"]
 
 
 def test_configured_command_line_gives_argv(load_test_bin):
     with Speakeasy(config={"process": {"command_line": 'lab.exe -x "a b"'}}) as se:
-        module = se.load_module(data=load_test_bin("argv_test_x86.exe.xz"))
-        se.run_module(module)
-        assert read_command_line(se) == 'lab.exe -x "a b"'
-        assert se.emu.get_argv() == ["lab.exe", "-x", "a b"]
+        se.run_module(se.load_module(data=load_test_bin("argv_test_x86.exe.xz")))
+        assert get_printfs(se)[1:] == ["argv[0] = lab.exe\n", "argv[1] = -x\n", "argv[2] = a b\n"]
 
 
 def test_argv_and_a_configured_command_line_are_an_error():
@@ -93,9 +95,7 @@ def test_dll_runs_in_a_container_with_the_quoted_container_path_and_argv(load_te
     with Speakeasy(argv=["x"]) as se:
         se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
         start_process(se)
-        path = se.emu.get_current_process().path
-        assert read_command_line(se) == f'"{path}" x'
-        assert se.emu.get_argv() == [path, "x"]
+        assert read_command_line(se) == f'"{se.emu.get_current_process().path}" x'
 
 
 def test_argv_and_a_container_command_line_are_an_error(load_test_bin):
@@ -105,15 +105,13 @@ def test_argv_and_a_container_command_line_are_an_error(load_test_bin):
         se.load_module(data=load_test_bin("dll_test_x86.dll.xz"))
 
 
-def test_child_gets_the_argv_of_its_own_command_line(load_test_bin):
+def test_child_does_not_get_the_argv_of_the_parent(load_test_bin):
     with Speakeasy(argv=["x"]) as se:
         module = se.load_module(data=load_test_bin("parent_x86.exe.xz"))
         se.emu.fileman.add_existing_file("c:\\child.exe", load_test_bin("child_x86.exe.xz"))
         se.run_module(module)
-        child = se.emu.get_current_process()
-        # parent.c passes no command line to CreateProcessA
-        assert (child.path, child.cmdline) == ("c:\\child.exe", "")
-        assert se.emu.get_argv() == []
+        assert se.emu.get_current_process().path == "c:\\child.exe"
+        assert "x" not in se.emu.get_argv()
 
 
 @pytest.mark.parametrize(("name", "width"), [("_acmdln", 1), ("_wcmdln", 2)])

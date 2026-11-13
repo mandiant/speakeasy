@@ -133,7 +133,7 @@ class Speakeasy:
                 raise ConfigError(f"Invalid volume: {err}") from err
             self._init_config(data)
         if argv and self.config.process.command_line is not None:
-            raise ConfigError("Set argv or process.command_line, not both: each one gives the command line")
+            raise ConfigError("argv conflicts with process.command_line: set only one")
         self._emu: Win32Emulator | WinKernelEmulator | None = None
         self.pending_hooks: list[common.Hook] = []
         self.argv: list[str] = argv if argv is not None else []

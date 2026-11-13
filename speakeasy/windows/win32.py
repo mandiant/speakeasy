@@ -84,8 +84,8 @@ class Win32Emulator(WindowsEmulator):
         """
         Get the command line of the process in which the input runs.
 
-        ``process.command_line`` comes first, then ``configured``, the command line of the container entry. Without
-        either, the command line is the quoted image path followed by ``argv``.
+        ``process.command_line`` wins over ``configured``, the command line of the container entry. Without either,
+        the command line is the quoted image path followed by ``argv``.
         """
         for cmdline in (self.config.process.command_line, configured):
             if cmdline is not None:
@@ -651,7 +651,7 @@ class Win32Emulator(WindowsEmulator):
         Raises:
             WindowsEmuError: if the machine is not initialized, or the container is already loaded.
             OutOfMemoryError: if, on x86, the container image does not fit below the TEB.
-            ConfigError: if ``argv`` and the command line of the entry are both set.
+            ConfigError: if ``argv`` and the ``command_line`` of the entry are both set.
         """
         if not self.is_machine_ready:
             raise WindowsEmuError("the machine is not initialized: call init_machine before load_container")
@@ -661,7 +661,7 @@ class Win32Emulator(WindowsEmulator):
         if entry is None:
             return None
         if self.argv and entry.command_line is not None:
-            raise ConfigError("Set argv or the command_line of the is_main_exe process, not both")
+            raise ConfigError("argv conflicts with the command_line of the is_main_exe process: set only one")
 
         # Load the container image in the machine range, so that the input image can use its preferred base.
         with self.allocations_from(winemu.MACHINE_BASE):
