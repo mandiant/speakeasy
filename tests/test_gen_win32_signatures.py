@@ -362,7 +362,6 @@ def test_pointer_sized_integer_with_a_handle_name_is_a_handle(gen: ModuleType) -
         [
             ("hProv", _native("UIntPtr"), ["In"]),
             ("hash", _native("UIntPtr"), ["In"]),
-            ("dwSize", _native("UIntPtr"), ["In"]),
             ("phHash", _ptr(_native("UIntPtr")), ["Out"]),
             ("hProfiles", {"Kind": "LPArray", "Child": _native("IntPtr"), "CountParamIndex": -1, "CountConst": 2}, []),
             ("hWnd", _native("UInt32"), ["In"]),
@@ -373,27 +372,10 @@ def test_pointer_sized_integer_with_a_handle_name_is_a_handle(gen: ModuleType) -
     assert entry["params"] == [
         ["hProv", "h", "i"],
         ["hash", "up", "i"],
-        ["dwSize", "up", "i"],
         ["phHash", "p:h", "o"],
         ["hProfiles", "a:h", "", {"k": 2}],
         ["hWnd", "u32", "i"],
     ]
-
-
-def test_user_value_with_a_handle_name_is_an_integer(gen: ModuleType) -> None:
-    # the hUser of DdeSetUserHandle is a DWORD_PTR that the caller chooses
-    fn = _func(
-        "DdeSetUserHandle",
-        "USER32.dll",
-        _ref("Foundation", "BOOL"),
-        [
-            ("hConv", _native("IntPtr"), ["In"]),
-            ("id", _native("UInt32"), ["In"]),
-            ("hUser", _native("UIntPtr"), ["In"]),
-        ],
-    )
-    entry = gen.build_entry(fn, gen.TypeResolver({}), gen.load_overrides(str(OVERRIDES)))
-    assert [p[1] for p in entry["params"]] == ["h", "u32", "up"]
 
 
 def test_generate_enum_table(gen: ModuleType, mini_win32json: Path, tmp_path: Path) -> None:

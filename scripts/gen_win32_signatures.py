@@ -134,8 +134,9 @@ INTEGER_TYPEDEFS = {"LPARAM", "WPARAM", "LRESULT"}
 
 # win32metadata gives some handles as a bare IntPtr or UIntPtr, with no typedef:
 # HCRYPTPROV, HCRYPTKEY, HCRYPTHASH, HMACHINE, SCARDCONTEXT, HTHEME, HGLOBAL in
-# GlobalReAlloc. A parameter of these types with a handle name (hProv, phHash)
-# gets the code h.
+# GlobalReAlloc. win32json keeps no C type name for them, so the generator uses the
+# parameter name: an IntPtr or UIntPtr parameter with a handle name (hProv, phHash)
+# gets the code h, and a pointer to one or an array of them gets p:h or a:h.
 HANDLE_PARAM_NAME = re.compile(r"p?h[A-Z]")
 
 # Parameters with a handle name that are not handles: the hUser of DdeSetUserHandle
