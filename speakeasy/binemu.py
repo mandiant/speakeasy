@@ -32,7 +32,7 @@ from speakeasy.hooks import (
     SyscallHookCallback,
 )
 from speakeasy.memmgr import MemoryManager
-from speakeasy.profiler import Profiler
+from speakeasy.profiler import Profiler, Run
 from speakeasy.profiler_events import StackEntry, TracePosition
 from speakeasy.report import Report
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
@@ -175,13 +175,28 @@ class BinaryEmulator(MemoryManager, ABC):
         """Get the profiler, which records the report events."""
         return self.profiler
 
+    def counts_instructions(self) -> bool:
+        """
+        Get whether a hook counts the instructions of each run, for ``instruction_count`` and ``pos.tick``.
+
+        ``memory.accesses``, ``memory.dynamic_code_contents`` and an instruction limit each add such a hook.
+        """
+        memory = self.config.memory
+        return memory.accesses or memory.dynamic_code_contents.enabled or self.config.limits.instructions > 0
+
+    def get_tick(self, run: Run | None) -> int | None:
+        """Get the instruction count of ``run`` for a report position, or None if no hook counts instructions."""
+        if not self.counts_instructions():
+            return None
+        return run.instr_cnt if run else 0
+
     def get_report(self) -> Report:
         """Get the report of the runs."""
-        return self.profiler.get_report()
+        return self.profiler.get_report(instructions_counted=self.counts_instructions())
 
     def get_json_report(self) -> str:
         """Get the report of the runs as a JSON string."""
-        return self.profiler.get_json_report()
+        return self.profiler.get_json_report(instructions_counted=self.counts_instructions())
 
     def _parse_config(self, config: SpeakeasyConfig):
         """

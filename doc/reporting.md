@@ -45,7 +45,7 @@ A run starts at one address, such as the module entry point, an export, a TLS ca
 | `dropped_files` | In user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted. Each file has `path`, `size`, `sha256` and `data_ref`. `data_ref` is equal to `sha256`. An empty file and a file above `MAX_EMBEDDED_FILE_SIZE` (10 MiB, `speakeasy/artifacts.py`) have no `data_ref`. |
 | `memory` | In user mode, the memory regions (`layout`) and the modules (`modules`) at the end of the run. |
 
-The emulator counts instructions only when a hook that counts them is active: with `memory.accesses`, with `memory.dynamic_code_contents`, or with `limits.instructions` above 0. Without these options, `instruction_count` and the `tick` of each event are 0.
+The emulator counts instructions only when a hook that counts them is active: with `memory.accesses`, with `memory.dynamic_code_contents`, or with `limits.instructions` above 0. Without these options, the runs have no `instruction_count` and the events have no `tick`. With one of them, each run has `instruction_count` and each event has `tick`, also when the value is 0.
 
 If the kind of run has no detail (`None` in Python), the JSON report leaves out `name`.
 
@@ -641,7 +641,6 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
       ],
       "pid": 1240,
       "tid": 1444,
-      "instruction_count": 0,
       "api_call_count": 0,
       "api_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "return_value": "0x0",
@@ -679,7 +678,7 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
 }
 ```
 
-The report has no `strings`, `accesses` or `coverage`, because their options are off. The regions have no `freed` and no `data_ref` for the same reason. `errors`, `data`, `events`, `dynamic_code` and `dropped_files` are empty: Speakeasy collected them and found nothing. The shellcode called no API, so `api_call_count` is 0 and `api_hash` is the SHA-256 of no bytes. `instruction_count` is 0, but the run executed two instructions, because no option counts the instructions. `return_value` is the value of `eax` after `xor eax, eax`.
+The report has no `strings`, `accesses`, `coverage` or `instruction_count`, because their options are off. The regions have no `freed` and no `data_ref` for the same reason. `errors`, `data`, `events`, `dynamic_code` and `dropped_files` are empty: Speakeasy collected them and found nothing. The shellcode called no API, so `api_call_count` is 0 and `api_hash` is the SHA-256 of no bytes. `return_value` is the value of `eax` after `xor eax, eax`.
 
 ## Related docs
 

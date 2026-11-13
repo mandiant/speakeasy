@@ -189,7 +189,7 @@ The report no longer has the run type `callback` and the `open_flags` of a `reg_
 
 Some keys follow a new rule for absent, empty and zero values. A key is absent when Speakeasy did not collect its data, an empty list or object means that it collected the data and found nothing, and a counter or a boolean is present when Speakeasy collects it, also when it is 0 or false. So:
 
-- `instruction_count` is always present. In 6.2.0 it was absent when it was 0.
+- `instruction_count` and `pos.tick` are present when an option counts the instructions (`memory.accesses`, `memory.dynamic_code_contents` or `limits.instructions` above 0), also when they are 0, and absent when no option counts them. In 6.2.0, `instruction_count` was absent when it was 0, and `tick` was always present.
 - `freed` is present on each region only with `memory.freed_regions`. In 6.2.0, `is_free` was always present. With `memory.freed_regions` off, the layout leaves out each freed allocation.
 - `limit_reached` is present on each `dynamic_code` entry with `memory.dynamic_code_contents`. In 6.2.0, `snapshot_limit_reached` was present only on the last entry of a region that got to the limit.
 - `dropped_files` is absent in kernel mode. In 6.2.0 it was an empty list.
