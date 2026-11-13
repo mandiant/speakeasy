@@ -310,3 +310,31 @@ def test_json_report_is_compact():
     assert "\n" not in text
     assert ": " not in text
     assert json.loads(text) == json.loads(report.model_dump_json(exclude_none=True))
+
+
+def test_report_lists_the_processes_of_the_runs_and_of_the_event_targets():
+    profiler = Profiler()
+    explorer = TargetProcess(id=2, path="C:\\Windows\\explorer.exe")
+    sample = TargetProcess(id=3, path="C:\\sample.exe", cmdline="sample.exe -x")
+    child = TargetProcess(id=9, path="C:\\child.exe")
+    pos = TracePosition(tick=1, tid=4, pid=3, pc=0x401000)
+
+    main = Run()
+    main.process_context = sample
+    profiler.record_process_event(main, pos, explorer, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
+    profiler.record_process_event(main, pos, child, EventType.PROCESS_CREATE, {})
+    injected = Run()
+    injected.process_context = explorer
+    for run, run_type in ((main, RunType.MODULE_ENTRY), (injected, RunType.THREAD)):
+        run.args = []
+        run.start_addr = 0x401000
+        run.type = run_type
+        profiler.add_run(run)
+    profiler.stop_run_clock()
+    report = profiler.get_report()
+
+    assert [p.model_dump(exclude_none=True) for p in report.processes] == [
+        {"pid": 2, "path": "C:\\Windows\\explorer.exe", "runs": [1]},
+        {"pid": 3, "path": "C:\\sample.exe", "command_line": "sample.exe -x", "runs": [0]},
+        {"pid": 9, "parent_pid": 3, "path": "C:\\child.exe", "runs": []},
+    ]

@@ -22,7 +22,31 @@ The report writes each machine word as a hex string with a `0x` prefix and lower
 - `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image or an import descriptor that the Windows loader cannot resolve, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks. If `limits.total_time` runs out before all child processes run, the emulator adds a `total_time_limit` error with the number of child processes that did not run in `context_summary`.
 - `strings`: the strings from the input file and from memory, only if `memory.strings=true`. `static` has the strings of the input file. `in_memory` has the strings at the end of the emulation that are not in `static`. Speakeasy reads them from the stack, from the memory that API handlers allocate, and from the images of the guest modules. In an image, it reads only the strings that the guest changed after the load, for example the strings that an unpacker decodes in place.
 - `data`: the payloads that the report stores once, keyed by the SHA-256 of their bytes. Each payload has `compression` (`zlib`), `encoding` (`base64`), `size` (before compression) and `data`. Each `data_ref` field holds a key of `data`. `data` has only the payloads that a `data_ref` refers to.
+- `processes`: the processes that the report refers to, in the order of `pid`. See [Processes](#processes).
 - `runs`: the runs, in the order that the runs started.
+
+## Processes
+
+`processes` has one entry for the process of each run, for each process that the guest created, and for each process that is the target of an event. A process that existed before the emulation, for example `explorer.exe` from the `processes` of the config, gets an entry when the guest writes to its memory or starts a thread in it. Each entry has these fields:
+
+| Field | Content |
+|---|---|
+| `pid` | The process ID, the same as `pid` of the runs and of the events. |
+| `parent_pid` | The ID of the process that created this process, the `pos.pid` of its `process_create` event. Absent for the first process and for a process that existed before the emulation. |
+| `path` | The emulated path of the process image, for example `C:\Windows\system32\svchost.exe`. Absent when the process has no image path. |
+| `command_line` | The command line of the process. Absent for a process that existed before the emulation, and for a process that the guest created with no command line, for example `CreateProcess` with a NULL `lpCommandLine`. |
+| `runs` | The indexes in `runs` of the runs of the process. Empty when no run executed in the process, for example a child process with `runs.children=false`. |
+
+For the input EXE, the first process has the emulated path of the input, and `process.command_line` of the config. For a DLL or shellcode, the first process is the container process of the config (the entry with `is_main_exe`). In kernel mode, the runs have no process, so the list has only the targets of process and memory events.
+
+This is `processes` of PMA Lab 12-01, which injects a thread into `explorer.exe`:
+
+```json
+[
+  {"pid": 1220, "path": "C:\\Windows\\explorer.exe", "runs": [1]},
+  {"pid": 1240, "path": "C:\\Windows\\system32\\Practical Malware Analysis Lab 12-01.exe_", "command_line": "svchost.exe myarg1 myarg2", "runs": [0]}
+]
+```
 
 ## Runs
 
@@ -207,6 +231,27 @@ This example shows each field. It is not the output of one run, and the values d
   "data": {
     "data-region": {"compression": "zlib", "encoding": "base64", "size": 1, "data": "eJxjAAAAAQAB"}
   },
+
+  // Processes of the runs and of the events, in the order of pid.
+  "processes": [
+    {
+      "pid": 1337,
+      // The first process and a process that existed before the emulation have no parent_pid.
+      "path": "C:\\Windows\\System32\\sample.exe",
+      // Absent when the process has no command line.
+      "command_line": "sample.exe",
+      // Indexes in runs of the runs of the process.
+      "runs": [0]
+    },
+    {
+      "pid": 1444,
+      // pos.pid of the process_create event of this process.
+      "parent_pid": 1337,
+      "path": "C:\\Windows\\system32\\svchost.exe",
+      // A child process with runs.children=false has no runs.
+      "runs": []
+    }
+  ],
 
   "runs": [
     {
@@ -632,6 +677,16 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
   "image_base": "0x10140",
   "errors": [],
   "data": {},
+  "processes": [
+    {
+      "pid": 1240,
+      "path": "C:\\Windows\\system32\\svchost.exe",
+      "command_line": "svchost.exe",
+      "runs": [
+        0
+      ]
+    }
+  ],
   "runs": [
     {
       "type": "shellcode",

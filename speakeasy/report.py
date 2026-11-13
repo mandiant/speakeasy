@@ -560,6 +560,46 @@ class RunReport(BaseModel):
     )
 
 
+class ProcessInfo(BaseModel):
+    """
+    One process that the report refers to.
+
+    The report has an entry for the process of each run, for each process that the guest created,
+    and for each process that is the target of an event, such as a process that existed before the
+    emulation.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pid: int = Field(description="Process ID, the same as the ``pid`` of runs and events.")
+    parent_pid: int | None = Field(
+        default=None,
+        description=(
+            "ID of the process that created this process, the ``pos.pid`` of its ``process_create`` event. "
+            "Absent for the first process and for a process that existed before the emulation."
+        ),
+    )
+    path: str | None = Field(
+        default=None,
+        description=(
+            "Emulated path of the process image, such as ``C:\\Windows\\explorer.exe``. "
+            "Absent when the process has no image path."
+        ),
+    )
+    command_line: str | None = Field(
+        default=None,
+        description=(
+            "Command line of the process. Absent when the emulator has no command line for the process: for a "
+            "process that existed before the emulation, and for a process that the guest created with no command "
+            "line, such as ``CreateProcess`` with a NULL ``lpCommandLine``."
+        ),
+    )
+    runs: list[int] = Field(
+        default_factory=list,
+        description="Indexes in ``runs`` of the runs of the process. Empty when no run executed in the process.",
+    )
+
+
 class Arch(str, Enum):
     """Architecture of the input."""
 
@@ -645,6 +685,13 @@ class Report(BaseModel):
     data: dict[str, DataArtifact] = Field(
         default_factory=dict,
         description="Payloads of the report, keyed by SHA-256. Each ``data_ref`` field holds a key of this mapping.",
+    )
+    processes: list[ProcessInfo] = Field(
+        default_factory=list,
+        description=(
+            "Processes of the runs and of the events, in the order of ``pid``. A kernel-mode run has no process, "
+            "so in kernel mode the list has only the targets of process and memory events."
+        ),
     )
     runs: list[RunReport] = Field(
         default_factory=list,
