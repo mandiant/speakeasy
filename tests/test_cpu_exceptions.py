@@ -167,6 +167,31 @@ def test_system_service_gate_is_not_an_exception(config, arch, gate):
     assert not [e for e in run.events if e.event == "exception"]
 
 
+@pytest.mark.parametrize(
+    "arch, dispatch, setup, insn, instruction",
+    [
+        ("x86", True, b"\xb9\x07\x00\x00\x00", b"\xcd\x29", "int 0x29"),  # mov ecx, 7 (FAST_FAIL_FATAL_APP_EXIT)
+        ("amd64", True, b"\xb9\x07\x00\x00\x00", b"\xcd\x29", "int 0x29"),
+        ("amd64", False, b"", b"\xcc", "int3"),
+        ("amd64", False, b"", b"\xcd\x03", "int 3"),
+        ("x86", False, b"\xb0\x7f\x04\x01", b"\xce", "into"),  # mov al, 0x7f; add al, 1: sets OF
+    ],
+    ids=["x86 fastfail", "amd64 fastfail", "int3", "int 3", "into"],
+)
+def test_unhandled_interrupt_reports_the_interrupt_instruction(config, arch, dispatch, setup, insn, instruction):
+    config["exceptions"]["dispatch"] = dispatch
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\x90" + setup + insn + RETURN_42, arch=arch)
+
+        se.run_shellcode(code)
+
+        run = se.get_report().runs[0]
+        start = code + 1 + len(setup)
+        assert run.error is not None
+        assert run.error.type == "unhandled_interrupt"
+        assert (run.error.pc, run.error.address, run.error.instruction.strip()) == (start, start, instruction)
+
+
 def test_debug_service_without_exception_skips_a_byte(config):
     # mov eax, 1 (BREAKPOINT_PRINT); int 2d; a byte the kernel skips; mov eax, 42; ret
     with Speakeasy(config=config) as se:
