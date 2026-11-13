@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from speakeasy import Speakeasy
+from tests.strict_report import get_strict_report
 
 TESTS_DIR = Path(__file__).resolve().parent
 PMA_DIR = TESTS_DIR / "capa-testfiles"
@@ -97,7 +98,9 @@ def run_case(base_config: dict[str, Any], case: PmaCase, tmp_path: Path):
     try:
         module = se.load_module(str(sample_path))
         se.run_module(module)
-        return se.get_report()
+        report = se.get_report()
+        get_strict_report(report.model_dump_json(exclude_none=True))
+        return report
     finally:
         se.shutdown()
 

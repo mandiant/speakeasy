@@ -76,6 +76,7 @@ from speakeasy.profiler_events import (
     ThreadCreateEvent,
     ThreadInjectEvent,
     TracePosition,
+    UnknownEvent,
 )
 from speakeasy.report import (
     AccessType,
@@ -192,6 +193,7 @@ __all__ = [
     "ThreadCreateEvent",
     "ThreadInjectEvent",
     "TracePosition",
+    "UnknownEvent",
     "SpeakeasyError",
     "ConfigError",
     "InputError",

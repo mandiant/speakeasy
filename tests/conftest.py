@@ -10,6 +10,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from tests.handler_harness import load_emu
+from tests.strict_report import get_strict_report
 
 TESTS_DIR = Path(__file__).resolve().parent
 BINS_DIR = TESTS_DIR / "bins"
@@ -43,7 +44,9 @@ def run_test():
         try:
             module = se.load_module(data=target)
             se.run_module(module)
-            return se.get_report()
+            report = se.get_report()
+            get_strict_report(report.model_dump_json(exclude_none=True))
+            return report
         finally:
             se.shutdown()
 

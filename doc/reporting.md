@@ -2,13 +2,23 @@
 
 The report models are in `speakeasy/report.py` and `speakeasy/profiler_events.py`. `speakeasy/profiler.py` builds the report from the data that the emulator records in `speakeasy/windows/winemu.py`, `win32.py` and `kernel.py`.
 
-`speakeasy/resources/report.schema.json` is the JSON schema of the report, and the package includes it. After you change a report model, run `just gen-report-schema`. The models reject unknown keys.
+`speakeasy/resources/report.schema.json` is the JSON schema of the report, and the package includes it. After you change a report model, run `just gen-report-schema`.
 
 For the changes from the 1.x report, see [Migrating to 2.0](migrating-to-2.0.md#report-from-1x). For the changes from the 6.x report of the 2.0 pre-releases, see [Report schema 7.0.0](migrating-to-2.0.md#report-schema-700).
 
 `get_json_report()` and the CLI write compact JSON, with no indentation and no line breaks. To indent a report, use `jq . report.json`.
 
 The examples on this page are JSONC: JSON with comments that explain the fields. Remove the comments before you parse an example as JSON.
+
+## Report versions
+
+`report_version` has the form `major.minor.patch`. A patch version does not change the keys or their values. A minor version can add a key to any object, a new event type and a new error type, but it does not remove or rename a key, and it does not change the type or the meaning of a value. Each other change needs a new major version, for example a new run `type` or a new argument `type`.
+
+So a consumer that knows one 7.x version can read each 7.x report. It must check the major of `report_version` and stop for a major that it does not know. It must ignore unknown keys, and accept an event or an error of an unknown type. It can skip such an event.
+
+The models in `speakeasy.report` and `speakeasy.profiler_events` follow this rule. `Report.model_validate` fails for a report of a different major, and ignores the keys that the models do not have. An event of a new type becomes an `UnknownEvent`, with `pos`, `event` and the other keys in `model_extra`. The `type` of an error of a new type stays a plain `str`. `speakeasy/resources/report.schema.json` accepts the same reports.
+
+The Speakeasy tests are stricter: `tests/strict_report.py` validates each report with `extra="forbid"`, and rejects an `UnknownEvent` and an error `type` outside `ErrorType`. So Speakeasy cannot write data that its models do not describe. When you add a key, an event type or an error type, increase the minor of `REPORT_VERSION`.
 
 ## Report fields
 

@@ -11,7 +11,6 @@
       "type": "string"
     },
     "ApiArg": {
-      "additionalProperties": false,
       "description": "One argument of an API call, as passed by the caller and as shown in the trace.",
       "properties": {
         "name": {
@@ -78,7 +77,6 @@
       "type": "string"
     },
     "ApiEvent": {
-      "additionalProperties": false,
       "description": "One call to an API.\n\nThe profiler leaves out a call that repeats the API, pc, return address, shown arguments and\nreturn value of one of the last 3 events of the run, and adds 1 to ``calls`` of that event.",
       "properties": {
         "pos": {
@@ -149,7 +147,6 @@
       "type": "object"
     },
     "ApiLoop": {
-      "additionalProperties": false,
       "description": "The API calls of a run after its last call from a new call site.\n\nA call site is an API and a return address.",
       "properties": {
         "start": {
@@ -179,7 +176,6 @@
       "type": "object"
     },
     "ApiLoopSite": {
-      "additionalProperties": false,
       "description": "One call site of an API loop.",
       "properties": {
         "api_name": {
@@ -240,7 +236,6 @@
       "type": "string"
     },
     "DataArtifact": {
-      "additionalProperties": false,
       "description": "One payload of the report.\n\nThe top-level ``data`` of the report keys each payload by the SHA-256 of its bytes. A ``data_ref``\nfield elsewhere in the report holds such a key.",
       "properties": {
         "compression": {
@@ -272,7 +267,6 @@
       "type": "object"
     },
     "DirectoryCreateEvent": {
-      "additionalProperties": false,
       "description": "A directory that the guest creates.",
       "properties": {
         "pos": {
@@ -300,7 +294,6 @@
       "type": "object"
     },
     "DirectoryDeleteEvent": {
-      "additionalProperties": false,
       "description": "A directory that the guest deletes.",
       "properties": {
         "pos": {
@@ -328,7 +321,6 @@
       "type": "object"
     },
     "DroppedFile": {
-      "additionalProperties": false,
       "description": "A file that the guest wrote completely, up to the end of the run.",
       "properties": {
         "path": {
@@ -369,7 +361,6 @@
       "type": "object"
     },
     "DynamicCodeContents": {
-      "additionalProperties": false,
       "description": "The position and the data of a dynamic code region when code ran in it.",
       "properties": {
         "pos": {
@@ -397,7 +388,6 @@
       "type": "object"
     },
     "DynamicCodeRegion": {
-      "additionalProperties": false,
       "description": "A dynamic code region where code ran.\n\nThe emulator watches the memory that the guest allocates, for example with ``VirtualAlloc``, and\nadds a region when the guest runs code in the region. With ``memory.dynamic_code_contents``, the\nemulator adds one more snapshot to ``contents`` each time that code runs in the region after the\nregion changed, and control came from outside the region.",
       "properties": {
         "region": {
@@ -455,12 +445,19 @@
       "type": "object"
     },
     "ErrorInfo": {
-      "additionalProperties": false,
       "description": "Why a run, or the emulation, ended with an error.\n\nThe emulator fills only the fields that apply to the error ``type``.",
       "properties": {
         "type": {
-          "$ref": "#/$defs/ErrorType",
-          "description": "Kind of error, such as ``unsupported_api``, ``api_call_limit``, ``api_loop_limit`` or ``invalid_read``. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorType"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Kind of error, such as ``unsupported_api``, ``api_call_limit``, ``api_loop_limit`` or ``invalid_read``. A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``. A string that is not an ``ErrorType`` comes from a report of a newer minor version.",
+          "title": "Type"
         },
         "pc": {
           "anyOf": [
@@ -771,7 +768,6 @@
       "type": "string"
     },
     "ExceptionEvent": {
-      "additionalProperties": false,
       "description": "An exception that the emulator sends to a guest handler.",
       "properties": {
         "pos": {
@@ -886,7 +882,6 @@
       "type": "object"
     },
     "FileCreateEvent": {
-      "additionalProperties": false,
       "description": "A file that the guest creates, or opens with a disposition that can create the file.",
       "properties": {
         "pos": {
@@ -960,7 +955,6 @@
       "type": "object"
     },
     "FileDeleteEvent": {
-      "additionalProperties": false,
       "description": "A file that the guest deletes.",
       "properties": {
         "pos": {
@@ -988,7 +982,6 @@
       "type": "object"
     },
     "FileOpenEvent": {
-      "additionalProperties": false,
       "description": "A file that the guest opens without a create disposition.",
       "properties": {
         "pos": {
@@ -1062,7 +1055,6 @@
       "type": "object"
     },
     "FileReadEvent": {
-      "additionalProperties": false,
       "description": "Data that the guest reads from a file.\n\nThe profiler merges all reads of one path in a run into one event.",
       "properties": {
         "pos": {
@@ -1155,7 +1147,6 @@
       "type": "string"
     },
     "FileWriteEvent": {
-      "additionalProperties": false,
       "description": "Data that the guest writes to a file.\n\nThe profiler merges all writes to one path in a run into one event.",
       "properties": {
         "pos": {
@@ -1237,7 +1228,6 @@
       "type": "object"
     },
     "LoadedModule": {
-      "additionalProperties": false,
       "description": "A module that is loaded at the end of a run.",
       "properties": {
         "name": {
@@ -1272,7 +1262,6 @@
       "type": "object"
     },
     "MemAllocEvent": {
-      "additionalProperties": false,
       "description": "Memory that the guest allocates with ``VirtualAlloc`` or ``VirtualAllocEx``.",
       "properties": {
         "pos": {
@@ -1332,7 +1321,6 @@
       "type": "object"
     },
     "MemFreeEvent": {
-      "additionalProperties": false,
       "description": "Memory that the guest frees.",
       "properties": {
         "pos": {
@@ -1386,7 +1374,6 @@
       "type": "object"
     },
     "MemProtectEvent": {
-      "additionalProperties": false,
       "description": "A change of page permissions with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``.",
       "properties": {
         "pos": {
@@ -1446,7 +1433,6 @@
       "type": "object"
     },
     "MemReadEvent": {
-      "additionalProperties": false,
       "description": "Data that the guest reads from process memory with an API, such as ``ReadProcessMemory``.",
       "properties": {
         "pos": {
@@ -1513,7 +1499,6 @@
       "type": "object"
     },
     "MemWriteEvent": {
-      "additionalProperties": false,
       "description": "Data that the guest writes to process memory with an API, such as ``WriteProcessMemory``.",
       "properties": {
         "pos": {
@@ -1580,7 +1565,6 @@
       "type": "object"
     },
     "MemoryAccesses": {
-      "additionalProperties": false,
       "description": "Read, write and execute counts of the memory regions and the symbols that a run used.",
       "properties": {
         "regions": {
@@ -1604,7 +1588,6 @@
       "type": "object"
     },
     "MemoryLayout": {
-      "additionalProperties": false,
       "description": "Memory regions and loaded modules at the end of a run.",
       "properties": {
         "layout": {
@@ -1628,7 +1611,6 @@
       "type": "object"
     },
     "MemoryRegion": {
-      "additionalProperties": false,
       "description": "One memory region at the end of a run.\n\nThe emulator splits the image of a module into one region for the headers and one region\nfor each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give\nthe image and the part.",
       "properties": {
         "base": {
@@ -1722,7 +1704,6 @@
       "type": "object"
     },
     "ModuleLoadEvent": {
-      "additionalProperties": false,
       "description": "A module that the guest loads at run time.",
       "properties": {
         "pos": {
@@ -1769,7 +1750,6 @@
       "type": "object"
     },
     "NetDnsEvent": {
-      "additionalProperties": false,
       "description": "A host name that the guest looks up.\n\nThe profiler adds one event for each query and response in a run.",
       "properties": {
         "pos": {
@@ -1810,7 +1790,6 @@
       "type": "object"
     },
     "NetHttpEvent": {
-      "additionalProperties": false,
       "description": "An HTTP request that the guest sends with WinINet or WinHTTP.\n\nThe profiler adds one event for each server, port, protocol and headers in a run.",
       "properties": {
         "pos": {
@@ -1884,7 +1863,6 @@
       "type": "string"
     },
     "NetTrafficEvent": {
-      "additionalProperties": false,
       "description": "A socket operation of the guest: connect, bind, accept, send or receive.",
       "properties": {
         "pos": {
@@ -1984,7 +1962,6 @@
       "type": "string"
     },
     "ProcessCreateEvent": {
-      "additionalProperties": false,
       "description": "A process that the guest creates, such as with ``CreateProcess`` or ``ShellExecute``.",
       "properties": {
         "pos": {
@@ -2031,7 +2008,6 @@
       "type": "object"
     },
     "ProcessInfo": {
-      "additionalProperties": false,
       "description": "One process that the report refers to.\n\nThe report has an entry for the process of each run, for each process that the guest created,\nand for each process that is the target of an event, such as a process that existed before the\nemulation.",
       "properties": {
         "pid": {
@@ -2094,7 +2070,6 @@
       "type": "object"
     },
     "RegCreateKeyEvent": {
-      "additionalProperties": false,
       "description": "A registry key that the guest creates or opens with a create API, such as ``RegCreateKeyEx``.",
       "properties": {
         "pos": {
@@ -2168,7 +2143,6 @@
       "type": "object"
     },
     "RegDeleteKeyEvent": {
-      "additionalProperties": false,
       "description": "A registry key that the guest deletes.",
       "properties": {
         "pos": {
@@ -2210,7 +2184,6 @@
       "type": "object"
     },
     "RegDeleteValueEvent": {
-      "additionalProperties": false,
       "description": "A registry value that the guest deletes.",
       "properties": {
         "pos": {
@@ -2265,7 +2238,6 @@
       "type": "object"
     },
     "RegListSubkeysEvent": {
-      "additionalProperties": false,
       "description": "A registry key whose subkeys the guest lists.",
       "properties": {
         "pos": {
@@ -2307,7 +2279,6 @@
       "type": "object"
     },
     "RegOpenKeyEvent": {
-      "additionalProperties": false,
       "description": "A registry key that the guest opens.",
       "properties": {
         "pos": {
@@ -2365,7 +2336,6 @@
       "type": "object"
     },
     "RegReadValueEvent": {
-      "additionalProperties": false,
       "description": "A registry value that the guest reads.",
       "properties": {
         "pos": {
@@ -2460,7 +2430,6 @@
       "type": "object"
     },
     "RegWriteValueEvent": {
-      "additionalProperties": false,
       "description": "A registry value that the guest writes.",
       "properties": {
         "pos": {
@@ -2555,7 +2524,6 @@
       "type": "object"
     },
     "RegionAccesses": {
-      "additionalProperties": false,
       "description": "Read, write and execute counts of one memory region in one run.",
       "properties": {
         "region": {
@@ -2590,7 +2558,6 @@
       "type": "object"
     },
     "RegionInfo": {
-      "additionalProperties": false,
       "description": "One memory region: an allocation of the memory manager, or one part of a module image.\n\nThe emulator splits the image of a module into one region for the headers and one region\nfor each section. Each part has the tag ``emu.module``, and ``module`` and ``section`` give\nthe image and the part.",
       "properties": {
         "base": {
@@ -2658,7 +2625,6 @@
       "type": "object"
     },
     "RunReport": {
-      "additionalProperties": false,
       "description": "One run, and the events and data that the run collected.\n\nA run starts at one address, such as the module entry point, an export, a TLS callback or a\nthread.",
       "properties": {
         "type": {
@@ -2773,123 +2739,130 @@
         "events": {
           "description": "Events of the run, in order.",
           "items": {
-            "discriminator": {
-              "mapping": {
-                "api": "#/$defs/ApiEvent",
-                "directory_create": "#/$defs/DirectoryCreateEvent",
-                "directory_delete": "#/$defs/DirectoryDeleteEvent",
-                "exception": "#/$defs/ExceptionEvent",
-                "file_create": "#/$defs/FileCreateEvent",
-                "file_delete": "#/$defs/FileDeleteEvent",
-                "file_open": "#/$defs/FileOpenEvent",
-                "file_read": "#/$defs/FileReadEvent",
-                "file_write": "#/$defs/FileWriteEvent",
-                "mem_alloc": "#/$defs/MemAllocEvent",
-                "mem_free": "#/$defs/MemFreeEvent",
-                "mem_protect": "#/$defs/MemProtectEvent",
-                "mem_read": "#/$defs/MemReadEvent",
-                "mem_write": "#/$defs/MemWriteEvent",
-                "module_load": "#/$defs/ModuleLoadEvent",
-                "net_dns": "#/$defs/NetDnsEvent",
-                "net_http": "#/$defs/NetHttpEvent",
-                "net_traffic": "#/$defs/NetTrafficEvent",
-                "process_create": "#/$defs/ProcessCreateEvent",
-                "reg_create_key": "#/$defs/RegCreateKeyEvent",
-                "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
-                "reg_delete_value": "#/$defs/RegDeleteValueEvent",
-                "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
-                "reg_open_key": "#/$defs/RegOpenKeyEvent",
-                "reg_read_value": "#/$defs/RegReadValueEvent",
-                "reg_write_value": "#/$defs/RegWriteValueEvent",
-                "thread_create": "#/$defs/ThreadCreateEvent",
-                "thread_inject": "#/$defs/ThreadInjectEvent"
-              },
-              "propertyName": "event"
-            },
             "oneOf": [
               {
-                "$ref": "#/$defs/ApiEvent"
+                "discriminator": {
+                  "mapping": {
+                    "api": "#/$defs/ApiEvent",
+                    "directory_create": "#/$defs/DirectoryCreateEvent",
+                    "directory_delete": "#/$defs/DirectoryDeleteEvent",
+                    "exception": "#/$defs/ExceptionEvent",
+                    "file_create": "#/$defs/FileCreateEvent",
+                    "file_delete": "#/$defs/FileDeleteEvent",
+                    "file_open": "#/$defs/FileOpenEvent",
+                    "file_read": "#/$defs/FileReadEvent",
+                    "file_write": "#/$defs/FileWriteEvent",
+                    "mem_alloc": "#/$defs/MemAllocEvent",
+                    "mem_free": "#/$defs/MemFreeEvent",
+                    "mem_protect": "#/$defs/MemProtectEvent",
+                    "mem_read": "#/$defs/MemReadEvent",
+                    "mem_write": "#/$defs/MemWriteEvent",
+                    "module_load": "#/$defs/ModuleLoadEvent",
+                    "net_dns": "#/$defs/NetDnsEvent",
+                    "net_http": "#/$defs/NetHttpEvent",
+                    "net_traffic": "#/$defs/NetTrafficEvent",
+                    "process_create": "#/$defs/ProcessCreateEvent",
+                    "reg_create_key": "#/$defs/RegCreateKeyEvent",
+                    "reg_delete_key": "#/$defs/RegDeleteKeyEvent",
+                    "reg_delete_value": "#/$defs/RegDeleteValueEvent",
+                    "reg_list_subkeys": "#/$defs/RegListSubkeysEvent",
+                    "reg_open_key": "#/$defs/RegOpenKeyEvent",
+                    "reg_read_value": "#/$defs/RegReadValueEvent",
+                    "reg_write_value": "#/$defs/RegWriteValueEvent",
+                    "thread_create": "#/$defs/ThreadCreateEvent",
+                    "thread_inject": "#/$defs/ThreadInjectEvent"
+                  },
+                  "propertyName": "event"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ApiEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ProcessCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemAllocEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemWriteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemReadEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemProtectEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/MemFreeEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ModuleLoadEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ThreadCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ThreadInjectEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileOpenEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileReadEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileWriteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/FileDeleteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/DirectoryCreateEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/DirectoryDeleteEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegOpenKeyEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegCreateKeyEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegReadValueEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegWriteValueEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegListSubkeysEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegDeleteKeyEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/RegDeleteValueEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/NetDnsEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/NetTrafficEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/NetHttpEvent"
+                  },
+                  {
+                    "$ref": "#/$defs/ExceptionEvent"
+                  }
+                ]
               },
               {
-                "$ref": "#/$defs/ProcessCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/MemAllocEvent"
-              },
-              {
-                "$ref": "#/$defs/MemWriteEvent"
-              },
-              {
-                "$ref": "#/$defs/MemReadEvent"
-              },
-              {
-                "$ref": "#/$defs/MemProtectEvent"
-              },
-              {
-                "$ref": "#/$defs/MemFreeEvent"
-              },
-              {
-                "$ref": "#/$defs/ModuleLoadEvent"
-              },
-              {
-                "$ref": "#/$defs/ThreadCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/ThreadInjectEvent"
-              },
-              {
-                "$ref": "#/$defs/FileCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/FileOpenEvent"
-              },
-              {
-                "$ref": "#/$defs/FileReadEvent"
-              },
-              {
-                "$ref": "#/$defs/FileWriteEvent"
-              },
-              {
-                "$ref": "#/$defs/FileDeleteEvent"
-              },
-              {
-                "$ref": "#/$defs/DirectoryCreateEvent"
-              },
-              {
-                "$ref": "#/$defs/DirectoryDeleteEvent"
-              },
-              {
-                "$ref": "#/$defs/RegOpenKeyEvent"
-              },
-              {
-                "$ref": "#/$defs/RegCreateKeyEvent"
-              },
-              {
-                "$ref": "#/$defs/RegReadValueEvent"
-              },
-              {
-                "$ref": "#/$defs/RegWriteValueEvent"
-              },
-              {
-                "$ref": "#/$defs/RegListSubkeysEvent"
-              },
-              {
-                "$ref": "#/$defs/RegDeleteKeyEvent"
-              },
-              {
-                "$ref": "#/$defs/RegDeleteValueEvent"
-              },
-              {
-                "$ref": "#/$defs/NetDnsEvent"
-              },
-              {
-                "$ref": "#/$defs/NetTrafficEvent"
-              },
-              {
-                "$ref": "#/$defs/NetHttpEvent"
-              },
-              {
-                "$ref": "#/$defs/ExceptionEvent"
+                "$ref": "#/$defs/UnknownEvent"
               }
             ]
           },
@@ -2991,7 +2964,6 @@
       "type": "string"
     },
     "StackEntry": {
-      "additionalProperties": false,
       "description": "One pointer-size slot of the stack at the time of an error or an exception.",
       "properties": {
         "offset": {
@@ -3035,7 +3007,6 @@
       "type": "object"
     },
     "StringCollection": {
-      "additionalProperties": false,
       "description": "ANSI and UTF-16 strings from one source.",
       "properties": {
         "ansi": {
@@ -3059,7 +3030,6 @@
       "type": "object"
     },
     "StringsReport": {
-      "additionalProperties": false,
       "description": "Strings of the input file, and strings that the guest made in memory.",
       "properties": {
         "static": {
@@ -3075,7 +3045,6 @@
       "type": "object"
     },
     "SymbolAccesses": {
-      "additionalProperties": false,
       "description": "Read, write and execute counts of one symbol address in one run.",
       "properties": {
         "symbol": {
@@ -3109,7 +3078,6 @@
       "type": "object"
     },
     "ThreadCreateEvent": {
-      "additionalProperties": false,
       "description": "A thread that the guest creates in its own process.",
       "properties": {
         "pos": {
@@ -3177,7 +3145,6 @@
       "type": "object"
     },
     "ThreadInjectEvent": {
-      "additionalProperties": false,
       "description": "A thread that the guest creates in another process, such as with ``CreateRemoteThread``.",
       "properties": {
         "pos": {
@@ -3245,7 +3212,6 @@
       "type": "object"
     },
     "TracePosition": {
-      "additionalProperties": false,
       "description": "Position of an event: the instruction count, the thread, the process and the pc.",
       "properties": {
         "tick": {
@@ -3292,14 +3258,67 @@
       ],
       "title": "TracePosition",
       "type": "object"
+    },
+    "UnknownEvent": {
+      "additionalProperties": true,
+      "description": "An event of a type that these models do not know, from a report of a newer minor version.\n\n``model_extra`` has the other keys of the event.",
+      "properties": {
+        "pos": {
+          "$ref": "#/$defs/TracePosition",
+          "description": "Position of the thread that did the operation."
+        },
+        "event": {
+          "description": "Type of the event. Not one of the known types.",
+          "not": {
+            "enum": [
+              "api",
+              "process_create",
+              "mem_alloc",
+              "mem_write",
+              "mem_read",
+              "mem_protect",
+              "mem_free",
+              "module_load",
+              "thread_create",
+              "thread_inject",
+              "file_create",
+              "file_open",
+              "file_read",
+              "file_write",
+              "file_delete",
+              "directory_create",
+              "directory_delete",
+              "reg_open_key",
+              "reg_create_key",
+              "reg_read_value",
+              "reg_write_value",
+              "reg_list_subkeys",
+              "reg_delete_key",
+              "reg_delete_value",
+              "net_dns",
+              "net_traffic",
+              "net_http",
+              "exception"
+            ]
+          },
+          "title": "Event",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pos",
+        "event"
+      ],
+      "title": "UnknownEvent",
+      "type": "object"
     }
   },
-  "additionalProperties": false,
   "description": "Report of one emulation: the input metadata, the runs and the payloads.\n\nMachine words are ``0x``-prefixed hex strings: addresses, pointers,\nhandles, raw argument values, return values, register values and exception\ncodes. A 64-bit word can be above 2**53 or 2**63, and JavaScript, Go\n``interface{}``, jq and int64 stores such as SQLite lose such a value as a\nJSON number with no error. Quantities, such as sizes, counts, offsets,\nticks and IDs, are JSON numbers.\n\nA key is absent when Speakeasy did not collect its data: its option is off,\nor the data does not apply, such as the memory layout in kernel mode. An\nempty list or object means that Speakeasy collected the data and found\nnothing. A counter or a boolean is always present when Speakeasy collects\nit, also when it is 0 or false.",
   "properties": {
     "report_version": {
       "default": "7.0.0",
-      "description": "Version of the report format.",
+      "description": "Version of the report format. The models read each report of the same major version, also of a newer minor version.",
+      "pattern": "^7\\.",
       "title": "Report Version",
       "type": "string"
     },
