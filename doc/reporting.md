@@ -12,13 +12,13 @@ The examples on this page are JSONC: JSON with comments that explain the fields.
 
 ## Report versions
 
-`report_version` has the form `major.minor.patch`. A patch version does not change the keys or their values. A minor version can add a key to any object, a new event type and a new error type, but it does not remove or rename a key, and it does not change the type or the meaning of a value. Each other change needs a new major version, for example a new run `type` or a new argument `type`.
+`report_version` has the form `major.minor.patch`. A patch version does not change the keys or their values. A minor version can add a key to an object, an event type or an error type. It does not remove or rename a key, and it does not change the type or the meaning of a value. Each other change needs a new major version, for example a new run `type` or a new `type` of an `api` argument.
 
 So a consumer that knows one 7.x version can read each 7.x report. It must check the major of `report_version` and stop for a major that it does not know. It must ignore unknown keys, and accept an event or an error of an unknown type. It can skip such an event.
 
-The models in `speakeasy.report` and `speakeasy.profiler_events` follow this rule. `Report.model_validate` fails for a report of a different major, and ignores the keys that the models do not have. An event of a new type becomes an `UnknownEvent`, with `pos`, `event` and the other keys in `model_extra`. The `type` of an error of a new type stays a plain `str`. `speakeasy/resources/report.schema.json` accepts the same reports.
+The models in `speakeasy.report` and `speakeasy.profiler_events` follow this rule. `Report.model_validate` fails for a report of a different major, and ignores the keys that the models do not have. An event of a new type becomes an `UnknownEvent`, with `pos`, `event` and the other keys in `model_extra`. An error of a new type has a plain `str` as `type`. `speakeasy/resources/report.schema.json` accepts the same reports.
 
-The Speakeasy tests are stricter: `tests/strict_report.py` validates each report with `extra="forbid"`, and rejects an `UnknownEvent` and an error `type` outside `ErrorType`. So Speakeasy cannot write data that its models do not describe. When you add a key, an event type or an error type, increase the minor of `REPORT_VERSION`.
+When you add a key, an event type or an error type to the models, increase the minor of `REPORT_VERSION`.
 
 ## Report fields
 

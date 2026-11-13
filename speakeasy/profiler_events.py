@@ -702,7 +702,8 @@ class UnknownEvent(BaseModel):
     pos: TracePosition = Field(description="Position of the thread that did the operation.")
     event: str = Field(
         description="Type of the event. Not one of the known types.",
-        # A JSON schema validator must match exactly one branch of the ``oneOf`` of ``AnyEvent``.
+        # Without this, a known event matches both branches of the ``oneOf`` of ``AnyEvent``,
+        # and a JSON schema validator rejects it.
         json_schema_extra={"not": {"enum": [t.value for t in EventType]}},
     )
 
@@ -712,7 +713,7 @@ _KNOWN_EVENT_TYPES = frozenset(t.value for t in EventType)
 
 def _get_event_kind(v: Any) -> str:
     event = v.get("event") if isinstance(v, dict) else getattr(v, "event", None)
-    return "known" if getattr(event, "value", event) in _KNOWN_EVENT_TYPES else "unknown"
+    return "known" if isinstance(event, str) and event in _KNOWN_EVENT_TYPES else "unknown"
 
 
 AnyEvent = Annotated[
