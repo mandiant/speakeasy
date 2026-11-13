@@ -12,6 +12,7 @@ import unicorn
 
 from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
+from speakeasy.profiler_events import ProcessCreateEvent
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.codepage import CP_ACP, CP_OEMCP, CP_UTF8
 from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION, LCTYPE, PAGE_PROTECTION_FLAGS, THREAD_CREATION_FLAGS
@@ -1379,7 +1380,30 @@ def test_create_process_uses_the_application_name_as_the_path(
     hproc = int.from_bytes(emu.mem_read(pi, 4), "little")
     proc = emu.emu.get_object_from_handle(hproc)
     assert proc.path == path
-    assert proc.cmdline == (cmdline or "")
+    assert proc.cmdline == (cmdline or app)
+
+
+@pytest.mark.parametrize(
+    "dll, api, cw, before, after",
+    [
+        ("kernel32", "CreateProcessW", 2, 0, 0),
+        ("kernel32", "CreateProcessInternalW", 2, 1, 1),
+        ("advapi32", "CreateProcessAsUserW", 2, 1, 0),
+        ("kernel32", "CreateProcessA", 1, 0, 0),
+    ],
+)
+def test_create_process_without_command_line_records_the_application_name(
+    emu: Speakeasy, dll: str, api: str, cw: int, before: int, after: int
+) -> None:
+    app = alloc(emu, (PROGRAM_FILES_APP + "\x00").encode("utf-16le" if cw == 2 else "latin-1"))
+    si = alloc(emu, b"\x00" * 0x68)
+    pi = alloc(emu, b"\x00" * 0x18)
+    assert call(emu, dll, api, [0] * before + [app, 0, *[0] * 6, si, pi] + [0] * after)[0]
+    [child] = emu.emu.child_processes
+    assert child.cmdline == PROGRAM_FILES_APP
+    run = emu.emu.curr_run
+    assert run is not None
+    assert [e.command_line for e in run.events if isinstance(e, ProcessCreateEvent)] == [PROGRAM_FILES_APP]
 
 
 @pytest.mark.parametrize(
