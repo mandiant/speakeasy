@@ -199,7 +199,7 @@ With `memory.final_contents`, only the regions of guest memory have a `data_ref`
 
 7.0.0 adds `api_call_count` to each run and `return_address` to each `api` event. A handler event, such as `file_create`, comes just before the `api` event of its call, with the same `tick` and `pc`.
 
-7.0.0 also adds the top-level `processes` list (`Report.processes`, a list of `ProcessInfo`), with the `pid`, `parent_pid`, `path`, `command_line` and run indexes of each process of the runs and of the events. In 6.2.0, a consumer built the process tree from `process_create` events, the `pid` and `path` of memory and thread events, and the run `name`, and only `memory.modules` gave the guest path of the first process. See [Processes](reporting.md#processes).
+7.0.0 also adds the top-level `processes` list (`Report.processes`, a list of `ProcessInfo`), with the `pid`, `parent_pid`, `path`, `command_line` and run indexes of each process of the runs and of the events. In 6.2.0, a consumer built the process tree from the `process_create` events, the `pid` and `path` of the memory and thread events, and the entry point `name`, and only `memory.modules` gave the emulated path of the first process. See [Processes](reporting.md#processes).
 
 `get_json_report()` and the CLI write compact JSON. 6.2.0 was indented. To indent a report, use `jq . report.json`.
 

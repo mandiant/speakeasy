@@ -3426,7 +3426,7 @@
       "type": "object"
     },
     "processes": {
-      "description": "Processes of the runs and of the events, in the order of ``pid``. A kernel-mode run has no process, so in kernel mode the list has only the targets of process and memory events.",
+      "description": "Processes of the runs and of the events, in the order of ``pid``. A kernel-mode run has no process, so in kernel mode the list has only the targets of memory events.",
       "items": {
         "$ref": "#/$defs/ProcessInfo"
       },
