@@ -12,7 +12,7 @@ import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import EventType
-from speakeasy.report import EntryPointType
+from speakeasy.report import RunType
 from speakeasy.windows import objman
 from speakeasy.windows.cryptman import CIPHER_MODES, CryptoApiError, CryptoApiKey
 from speakeasy.winenv.api.token import query_token_information
@@ -623,7 +623,7 @@ class AdvApi32(api.ApiHandler):
                 service_main = entry.lpServiceProc
                 table += f", lpServiceProc={hex(service_main)} }} "
                 argc, svc_argv = emu.build_service_main_args(service_name, char_width=cw)
-                self.queue_run(EntryPointType.SERVICE_MAIN, service_main, [argc, svc_argv], name=service_name)
+                self.queue_run(RunType.SERVICE_MAIN, service_main, [argc, svc_argv], name=service_name)
             else:
                 table += ", lpServiceProc=NULL } "
 

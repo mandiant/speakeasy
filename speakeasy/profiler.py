@@ -51,7 +51,6 @@ from speakeasy.report import (
     ApiLoopSite,
     DroppedFile,
     DynamicCodeSegment,
-    EntryPointType,
     ErrorInfo,
     LoadedModule,
     MemoryAccesses,
@@ -60,6 +59,7 @@ from speakeasy.report import (
     ModuleSegment,
     Report,
     RunReport,
+    RunType,
     StringCollection,
     StringsReport,
     SymAccessReport,
@@ -197,7 +197,7 @@ class Run:
         self.args: list[Any] | tuple[Any, ...] | None = None
         self.registers: dict[int, int] = {}
         self.start_addr: int | None = None
-        self.type: EntryPointType | None = None
+        self.type: RunType | None = None
         self.name: str | None = None
         self.error: ErrorInfo | None = None
         self.num_apis: int = 0

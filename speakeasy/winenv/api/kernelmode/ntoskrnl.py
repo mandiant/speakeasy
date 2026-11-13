@@ -17,7 +17,7 @@ import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import ApiEmuError
 from speakeasy.profiler_events import EventType
-from speakeasy.report import EntryPointType, ErrorType
+from speakeasy.report import ErrorType, RunType
 from speakeasy.windows import objman
 from speakeasy.windows.guest_callbacks import get_first_unmapped
 from speakeasy.winenv.api import api
@@ -1718,7 +1718,7 @@ class Ntoskrnl(api.ApiHandler):
         """
         DriverObject, DriverReinitializationRoutine, Context = argv
 
-        self.queue_run(EntryPointType.DRIVER_REINIT, DriverReinitializationRoutine, (DriverObject, Context, 1))
+        self.queue_run(RunType.DRIVER_REINIT, DriverReinitializationRoutine, (DriverObject, Context, 1))
 
     @apihook("KdDisableDebugger", argc=0)
     def KdDisableDebugger(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

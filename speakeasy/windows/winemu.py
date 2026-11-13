@@ -32,7 +32,7 @@ from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuErr
 from speakeasy.gdb import GdbServer, ResumeAction, StopReason
 from speakeasy.profiler import GuestCallbackFrame, MemAccess, Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType, NetTrafficProtocol, NetTrafficType, TracePosition
-from speakeasy.report import AccessType, Arch, EntryPointType, ErrorInfo, ErrorType, FileType, RegionInfo
+from speakeasy.report import AccessType, Arch, ErrorInfo, ErrorType, FileType, RegionInfo, RunType
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
@@ -920,9 +920,9 @@ class WindowsEmulator(BinaryEmulator):
         for routine in self.module_loader.collect_initializers():
             run = Run()
             if routine.is_entry_point:
-                run.type = EntryPointType.DEPENDENCY_DLL_ENTRY
+                run.type = RunType.DEPENDENCY_DLL_ENTRY
             else:
-                run.type = EntryPointType.DEPENDENCY_TLS_CALLBACK
+                run.type = RunType.DEPENDENCY_TLS_CALLBACK
             run.name = routine.module.name
             run.start_addr = routine.address
             run.args = routine.args
@@ -970,7 +970,7 @@ class WindowsEmulator(BinaryEmulator):
         mm = self.get_address_map(self.stack_base - 1)
         self.mem_write(mm.base, b"\x00" * mm.size)
         run = Run()
-        run.type = EntryPointType.CALL
+        run.type = RunType.CALL
         run.start_addr = addr
         run.args = params or []
 
@@ -2373,7 +2373,7 @@ class WindowsEmulator(BinaryEmulator):
         hnd = om.new_handle(thread)
 
         run = Run()
-        run.type = EntryPointType.THREAD
+        run.type = RunType.THREAD
         run.name = name
         run.start_addr = addr
         run.instr_cnt = 0
