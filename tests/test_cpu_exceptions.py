@@ -175,8 +175,9 @@ def test_system_service_gate_is_not_an_exception(config, arch, gate):
         ("amd64", False, b"", b"\xcc", "int3"),
         ("amd64", False, b"", b"\xcd\x03", "int 3"),
         ("x86", False, b"\xb0\x7f\x04\x01", b"\xce", "into"),  # mov al, 0x7f; add al, 1: sets OF
+        ("amd64", False, b"\x31\xc9", b"\xf7\xf1", "div ecx"),  # xor ecx, ecx
     ],
-    ids=["x86 fastfail", "amd64 fastfail", "int3", "int 3", "into"],
+    ids=["x86 fastfail", "amd64 fastfail", "int3", "int 3", "into", "divide error"],
 )
 def test_unhandled_interrupt_reports_the_interrupt_instruction(config, arch, dispatch, setup, insn, instruction):
     config["exceptions"]["dispatch"] = dispatch
@@ -190,6 +191,22 @@ def test_unhandled_interrupt_reports_the_interrupt_instruction(config, arch, dis
         assert run.error is not None
         assert run.error.type == "unhandled_interrupt"
         assert (run.error.pc, run.error.address, run.error.instruction.strip()) == (start, start, instruction)
+
+
+def test_unhandled_int3_at_the_start_of_a_region(config):
+    """Nothing is mapped before the region, so the emulator cannot read two bytes before pc."""
+    config["exceptions"]["dispatch"] = False
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\x90" * 7, arch="amd64")
+        start = se.mem_alloc(0x1000, base=0x30000000)
+        se.mem_write(start, b"\xcc" + RETURN_42)
+        se.mem_write(code, b"\xb8" + struct.pack("<I", start) + b"\xff\xe0")  # mov eax, start; jmp rax
+
+        se.run_shellcode(code)
+
+        run = se.get_report().runs[0]
+        assert run.error is not None
+        assert (run.error.type, run.error.pc, run.error.instruction.strip()) == ("unhandled_interrupt", start, "int3")
 
 
 def test_debug_service_without_exception_skips_a_byte(config):
