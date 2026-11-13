@@ -34,4 +34,4 @@ Each method that uses the emulator raises `SpeakeasyError` if no input is loaded
 | `mem_alloc` | `OutOfMemoryError` if no free range below the address limit can hold the block |
 | `reg_read`, `reg_write` | `CpuError` if the name is not a register |
 
-`run_module`, `run_shellcode`, `call` and `resume` do not raise for errors in the guest program. The run stops and the report records the error.
+`run_module`, `run_shellcode`, `call` and `resume` do not raise for errors in the guest program. The run stops and the report records the error. They also do not raise when a run reaches a limit. For example, a run that calls APIs in a loop ends with an `api_loop` error, and `error.loop` names the call sites of the loop. See the [report walkthrough](reporting.md).

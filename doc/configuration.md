@@ -27,8 +27,15 @@ Addresses and sizes (`base_addr`, `stack_size`, `byte_fill.size`) are ints. JSON
   "max_total_time": 0,
 
   // Limit of the API calls of each run. A run that makes more API calls ends
-  // with a max_api_count error. Decrease it to stop anti-analysis loops sooner.
+  // with a max_api_count error. It stops a loop that calls APIs from new call
+  // sites in each iteration, which max_api_loop_calls does not stop.
   "max_api_calls": 10000,
+
+  // Limit of the API calls of a run with no call from a new call site. A call
+  // site is an API and a return address. A run that gets to the limit ends
+  // with an api_loop error, and error.loop of the report names the call sites
+  // of the loop. Increase it to see more of a loop. 0 disables it.
+  "max_api_loop_calls": 5000,
 
   // Limit of the instructions of each run. -1 disables it.
   // The emulator stops a run at the limit and records a max_instructions error.

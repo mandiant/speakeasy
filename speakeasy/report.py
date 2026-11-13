@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
 
-REPORT_VERSION = "6.1.0"
+REPORT_VERSION = "6.2.0"
 
 
 class StringCollection(BaseModel):
@@ -60,6 +60,7 @@ class ErrorType(str, Enum):
     MAX_TOTAL_TIME = "max_total_time"
     MAX_INSTRUCTIONS = "max_instructions"
     MAX_API_COUNT = "max_api_count"
+    API_LOOP = "api_loop"
     UNSUPPORTED_API = "unsupported_api"
     INTERNAL_ERROR = "internal_error"
     ENGINE_STOPPED = "engine_stopped"
@@ -90,6 +91,32 @@ class AccessType(str, Enum):
     FETCH = "fetch"
 
 
+class ApiLoopSite(BaseModel):
+    """One call site of an API loop."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    api_name: str = Field(description="Name of the API in ``module.function`` form.")
+    return_address: HexIntOptional = Field(default=None, description="Return address of the calls from this site.")
+    calls: int = Field(description="Number of calls from this site in the loop.")
+
+
+class ApiLoop(BaseModel):
+    """
+    The API calls of a run after its last call from a new call site.
+
+    A call site is an API and a return address.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    start: TracePosition = Field(description="Position of the first API call of the loop.")
+    calls: int = Field(description="Number of API calls in the loop.")
+    sites: list[ApiLoopSite] = Field(
+        description="Call sites of the loop, the site with the most calls first. At most 16 sites."
+    )
+
+
 class ErrorInfo(BaseModel):
     """
     Why a run, or the emulation, ended with an error.
@@ -101,7 +128,7 @@ class ErrorInfo(BaseModel):
 
     type: ErrorType = Field(
         description=(
-            "Kind of error, such as ``unsupported_api``, ``max_api_count`` or ``invalid_read``. "
+            "Kind of error, such as ``unsupported_api``, ``max_api_count``, ``api_loop`` or ``invalid_read``. "
             "A Python exception in Speakeasy itself, such as a bug in an API handler, is ``internal_error``."
         )
     )
@@ -167,12 +194,16 @@ class ErrorInfo(BaseModel):
         default=None,
         description=(
             "Limit that ended the run: ``max_api_calls`` of the config for ``max_api_count``, "
-            "or the instruction limit for ``max_instructions``."
+            "``max_api_loop_calls`` for ``api_loop``, or the instruction limit for ``max_instructions``."
         ),
     )
     last_api: str | None = Field(
         default=None,
-        description="Name of the API call that went above the limit, for ``max_api_count``.",
+        description="Name of the API of the last call before the run ended, for ``max_api_count`` and ``api_loop``.",
+    )
+    loop: ApiLoop | None = Field(
+        default=None,
+        description="The API loop that ended the run, for ``api_loop``.",
     )
     interrupt_num: int | None = Field(
         default=None,

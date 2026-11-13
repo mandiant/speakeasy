@@ -47,6 +47,8 @@ from speakeasy.profiler_events import (
     TracePosition,
 )
 from speakeasy.report import (
+    ApiLoop,
+    ApiLoopSite,
     DroppedFile,
     DynamicCodeSegment,
     EntryPoint,
@@ -104,6 +106,51 @@ class GuestCallbackFrame:
     saved_registers: tuple[tuple[int, int], ...] | None = None
 
 
+ApiCallSite = tuple[str, int | None]
+"""An API name and the return address of a call."""
+
+MAX_API_LOOP_SITES = 16
+
+
+@dataclass
+class ApiLoopTracker:
+    """
+    Count the API calls of a run since its last call from a new call site.
+
+    A call site is an API and a return address. A call from a site that the run did not call before
+    is progress, and it sets the count to 0.
+    """
+
+    sites: set[ApiCallSite] = field(default_factory=set)
+    calls: int = 0
+    start: TracePosition | None = None
+    site_calls: dict[ApiCallSite, int] = field(default_factory=dict)
+
+    def record(self, site: ApiCallSite, pos: TracePosition) -> None:
+        """Count one API call from ``site`` at ``pos``."""
+        if site not in self.sites:
+            self.sites.add(site)
+            self.calls = 0
+            self.start = None
+            self.site_calls.clear()
+            return
+        if self.start is None:
+            self.start = pos
+        self.calls += 1
+        self.site_calls[site] = self.site_calls.get(site, 0) + 1
+
+    def get_loop(self) -> ApiLoop | None:
+        """Get the calls since the last new call site, with the sites that have the most calls first."""
+        if self.start is None:
+            return None
+        ranked = sorted(self.site_calls.items(), key=lambda item: item[1], reverse=True)
+        sites = [
+            ApiLoopSite(api_name=name, return_address=return_address, calls=calls)
+            for (name, return_address), calls in ranked[:MAX_API_LOOP_SITES]
+        ]
+        return ApiLoop(start=self.start, calls=self.calls, sites=sites)
+
+
 class DynCodeMapping(TypedDict):
     tag: str
     base: int
@@ -154,6 +201,7 @@ class Run:
         self.name: str | None = None
         self.error: ErrorInfo | None = None
         self.num_apis: int = 0
+        self.api_loop: ApiLoopTracker = ApiLoopTracker()
         self.coverage: set[int] = set()
         self.memory_regions: list[dict[str, Any]] = []
         self.loaded_modules: list[dict[str, Any]] = []
@@ -269,6 +317,7 @@ class Profiler:
         from a different buffer gives one event.
         """
         run.num_apis += 1
+        run.api_loop.record((name, return_address), pos)
 
         if name not in run.unique_apis:
             run.api_hash.update(name.lower().encode("utf-8"))

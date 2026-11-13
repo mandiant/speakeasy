@@ -69,7 +69,7 @@ speakeasy --target sample.exe \
   --output report.json
 ```
 
-Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--module-directory-x86` and `--module-directory-x64`.
+Value flags: `--max-run-time`, `--max-total-time`, `--max-api-calls`, `--max-api-loop-calls`, `--max-instructions`, `--stack-size`, `--random-seed`, `--start-time`, `--analysis-dynamic-code-snapshot-limit`, `--os-ver-major`, `--os-ver-minor`, `--os-ver-build`, `--current-dir`, `--command-line`, `--domain`, `--hostname`, `--user-name`, `--user-sid`, `--module-directory-x86` and `--module-directory-x64`.
 
 Mapping flags: `--env KEY=VALUE` and `--network-dns-names KEY=VALUE`.
 
