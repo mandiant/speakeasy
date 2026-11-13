@@ -40,7 +40,7 @@ With `--gdb`, the CLI also sets `--no-mp`. `--raw-offset`, `--entry-point` and t
 
 ## Output and exit status
 
-The CLI writes the report JSON to the `--output` file, or to stdout without `--output`. Log messages go to stderr, so you can pipe stdout to another tool:
+The CLI writes the report JSON to the `--output` file, or to stdout without `--output`. Log messages go to stderr, so you can pipe stdout to another tool. When stderr is a terminal, the CLI formats the log messages with Rich. When stderr is a pipe or a file, the CLI writes each log message as one plain line, so `grep` and line-based readers get full messages:
 
 ```bash
 speakeasy --target sample.exe | jq '.runs[].error'
