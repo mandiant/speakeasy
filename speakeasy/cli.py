@@ -19,7 +19,8 @@ from speakeasy.cli_config import add_config_cli_arguments, get_active_config, ge
 from speakeasy.config import SpeakeasyConfig
 from speakeasy.version import __version__
 
-# Not __name__: under "python -m speakeasy.cli" it is __main__ (__mp_main__ in a child), outside the speakeasy tree.
+# setup_logging configures only the "speakeasy" logger. With "python -m speakeasy.cli", __name__ is "__main__"
+# (or "__mp_main__" in the child process), so the logger name cannot come from __name__.
 logger = logging.getLogger("speakeasy.cli")
 
 CHILD_EXIT_GRACE = 5
