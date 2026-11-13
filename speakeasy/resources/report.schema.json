@@ -1417,7 +1417,7 @@
           "type": "integer"
         },
         "permissions": {
-          "description": "New permissions, such as ``r-x``, in the format of ``memory.layout[].permissions``.",
+          "description": "Requested permissions, such as ``r-x``, in the format of ``memory.layout[].permissions``.",
           "title": "Permissions",
           "type": "string"
         },

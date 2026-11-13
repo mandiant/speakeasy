@@ -262,7 +262,7 @@ class MemProtectEvent(Event):
     base: HexInt = Field(description="Base address of the range.")
     size: int = Field(description="Size of the range in bytes.")
     permissions: str = Field(
-        description="New permissions, such as ``r-x``, in the format of ``memory.layout[].permissions``.",
+        description="Requested permissions, such as ``r-x``, in the format of ``memory.layout[].permissions``.",
     )
     pid: int | None = Field(
         default=None,
