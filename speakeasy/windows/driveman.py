@@ -38,6 +38,6 @@ class DriveManager:
         drive = self.get_drive(root_path=root_path)
         if drive:
             if drive.root_path == root_path:
-                return DRIVE_TYPE.__members__.get(drive.drive_type)
+                return DRIVE_TYPE[drive.drive_type] if drive.drive_type else DRIVE_TYPE.DRIVE_UNKNOWN
 
         return DRIVE_TYPE.DRIVE_NO_ROOT_DIR

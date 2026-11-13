@@ -14,7 +14,13 @@ from speakeasy import Speakeasy
 from speakeasy.config import get_default_config_dict
 from speakeasy.winenv import arch as e_arch
 from speakeasy.winenv.codepage import CP_ACP, CP_OEMCP, CP_UTF8
-from speakeasy.winenv.defs.enums import FILE_CREATION_DISPOSITION, LCTYPE, PAGE_PROTECTION_FLAGS, THREAD_CREATION_FLAGS
+from speakeasy.winenv.defs.enums import (
+    DRIVE_TYPE,
+    FILE_CREATION_DISPOSITION,
+    LCTYPE,
+    PAGE_PROTECTION_FLAGS,
+    THREAD_CREATION_FLAGS,
+)
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
 from speakeasy.winenv.defs.windows import windows as windefs
 from tests.handler_harness import alloc, call, invalid_handle, load_emu, start_process
@@ -1638,6 +1644,22 @@ def test_find_first_volume_fails_without_a_volume_guid_path(
         hnd, _ = call(se, "kernel32", "FindFirstVolumeA", [buf, 64])
         assert hnd == 0xFFFFFFFF
         assert last_error(se) == windefs.ERROR_NO_MORE_FILES
+
+
+@pytest.mark.parametrize(
+    "drive, drive_type",
+    [
+        ({"root_path": "D:\\", "drive_type": "DRIVE_CDROM"}, DRIVE_TYPE.DRIVE_CDROM),
+        ({"root_path": "D:\\"}, DRIVE_TYPE.DRIVE_UNKNOWN),
+    ],
+    ids=["DRIVE_CDROM", "no_drive_type"],
+)
+def test_get_drive_type_gives_the_type_of_the_drive(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], drive: dict[str, str], drive_type: DRIVE_TYPE
+) -> None:
+    config["system"]["drives"] = [drive]
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        assert call(se, "kernel32", "GetDriveTypeA", [alloc(se, b"D:\\\x00")])[0] == drive_type
 
 
 def test_ansi_strings_use_code_page_1252(strict_fs_emu: Speakeasy) -> None:

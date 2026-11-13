@@ -419,7 +419,7 @@ No group accepts `null`. The 2.0 pre-releases accepted `null` for `registry`, `n
 
 `system.domain`, `system.os_ver.major`, `.minor` and `.build`, and `modules.directory_x86` and `_x64` still accept `null`.
 
-The 2.0 pre-releases accepted these values and then gave an error or wrong data during the run. 2.0 gives a `ConfigError` (in the CLI, a usage error) for each of them:
+In 1.x and the 2.0 pre-releases, Speakeasy accepted these values and then gave an error or wrong data during the run. 2.0 gives a `ConfigError` (in the CLI, a usage error) for each of them:
 
 - a negative `base_addr`, `runs.stack_size` or `byte_fill.size`
 - a `byte_fill.byte` that is not one hex byte, such as `"zz"` or `"0x100"`

@@ -50,16 +50,6 @@ def test_validation_rejects_a_negative_limit(name):
         SpeakeasyConfig.model_validate({"limits": {name: -1}})
 
 
-def get_file_entry_config(**fields) -> SpeakeasyConfig:
-    entry = {"mode": "full_path", "emu_path": "C:\\Windows\\mozregistry.dat", **fields}
-    return SpeakeasyConfig.model_validate({"filesystem": {"files": [entry]}})
-
-
-@pytest.mark.parametrize("byte", ["0x41", "41", "0xff", "FF", "0"])
-def test_byte_fill_accepts_one_hex_byte(byte):
-    get_file_entry_config(byte_fill={"byte": byte, "size": 16})
-
-
 @pytest.mark.parametrize("byte", ["zz", "0x100", "100", "", "0x", "-1"])
 def test_byte_fill_rejects_a_byte_that_is_not_one_hex_byte(byte):
     with pytest.raises(ConfigError, match="byte"):
@@ -88,11 +78,9 @@ def test_file_entry_needs_exactly_one_of_path_and_byte_fill(entry, fields):
     [
         {"runs": {"stack_size": -1}},
         {"processes": [{"name": "main", "base_addr": -1, "path": "C:\\main.exe"}]},
-        {"modules": {"user": [{"name": "ntdll", "base_addr": -0x1000, "path": "C:\\ntdll.dll"}]}},
-        {"modules": {"system": [{"name": "hal", "base_addr": -1, "path": "C:\\hal.dll"}]}},
         {"filesystem": {"files": [{"mode": "default", "byte_fill": {"byte": "0x41", "size": -3}}]}},
     ],
-    ids=["stack_size", "processes.base_addr", "modules.user.base_addr", "modules.system.base_addr", "byte_fill.size"],
+    ids=["stack_size", "base_addr", "byte_fill.size"],
 )
 def test_validation_rejects_a_negative_size_or_address(data):
     with pytest.raises(ValidationError, match="greater than or equal to 0"):

@@ -454,7 +454,9 @@ class RegistryValueConfig(BaseModel):
             try:
                 int(self.data, 0)
             except ValueError:
-                raise ValueError(f"{self.type} data {self.data!r} is not a number, such as 0x3") from None
+                raise ValueError(
+                    f"{self.type} data {self.data!r} is not a number: use a number such as 3 or 0x3"
+                ) from None
         return self
 
 

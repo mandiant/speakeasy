@@ -8,7 +8,7 @@ By default, Speakeasy collects all the data that it can and emulates as much of 
 
 Addresses and sizes (`base_addr`, `runs.stack_size`, `byte_fill.size`) are ints of 0 or more. JSON has no hex numbers, so these fields also take a string that starts with `0x`, such as `"0x400000"`. `--dump-default-config` writes each `base_addr` as a `0x` string.
 
-Speakeasy checks the values of the config before the emulation starts. A value that is not valid gives a `ConfigError` in the library, and a usage error with exit code 2 in the CLI.
+Speakeasy checks the values of the config before the emulation starts. A value that is not valid gives a `ConfigError` in the library, and a usage error with exit status 2 in the CLI.
 
 ```jsonc
 {
@@ -223,7 +223,8 @@ Speakeasy checks the values of the config before the emulation starts. A value t
 
     // Drives that the drive APIs, such as GetLogicalDrives, give.
     // drive_type is the value that GetDriveType gives: DRIVE_UNKNOWN, DRIVE_NO_ROOT_DIR,
-    // DRIVE_REMOVABLE, DRIVE_FIXED, DRIVE_REMOTE, DRIVE_CDROM or DRIVE_RAMDISK.
+    // DRIVE_REMOVABLE, DRIVE_FIXED, DRIVE_REMOTE, DRIVE_CDROM or DRIVE_RAMDISK. A drive with no
+    // drive_type gives DRIVE_UNKNOWN.
     "drives": [
       {
         "root_path": "C:\\",
