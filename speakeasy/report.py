@@ -228,7 +228,7 @@ class ErrorInfo(BaseModel):
         default=None,
         description="Name of the API that has no handler, for ``unsupported_api``.",
     )
-    count: int | None = Field(
+    limit: int | None = Field(
         default=None,
         description=(
             "Limit that ended the run: ``limits.api_calls`` of the config for ``api_call_limit``, "

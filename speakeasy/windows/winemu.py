@@ -1464,7 +1464,7 @@ class WindowsEmulator(BinaryEmulator):
                 origin_run.error = ErrorInfo(
                     type=ErrorType(kind.value),
                     pc=self.get_pc(),
-                    count=limits.budget if kind == LimitKind.INSTRUCTION_LIMIT else None,
+                    limit=limits.budget if kind == LimitKind.INSTRUCTION_LIMIT else None,
                 )
             self._complete_run()
 
@@ -3537,7 +3537,7 @@ class WindowsEmulator(BinaryEmulator):
                 ErrorInfo(
                     type=ErrorType.API_CALL_LIMIT,
                     pc=self.get_pc(),
-                    count=limit,
+                    limit=limit,
                     last_api=imp_api,
                 )
             )
@@ -3549,7 +3549,7 @@ class WindowsEmulator(BinaryEmulator):
                 ErrorInfo(
                     type=ErrorType.API_LOOP_LIMIT,
                     pc=self.get_pc(),
-                    count=limit,
+                    limit=limit,
                     last_api=imp_api,
                     loop=run.api_loop.get_loop(),
                 )

@@ -103,7 +103,7 @@ def test_an_endless_loop_on_one_api_ends_with_api_loop_and_the_next_run_starts(e
 
     assert [(name, error) for name, error, _ in ran(emu.emu)] == [("a", "api_loop_limit"), ("b", None)]
     error = emu.emu.runs[-2].error
-    assert error.count == LIMIT
+    assert error.limit == LIMIT
     assert error.last_api == "kernel32.GetTickCount"
     assert error.loop.calls == LIMIT
     assert error.loop.start.pc == base + 5

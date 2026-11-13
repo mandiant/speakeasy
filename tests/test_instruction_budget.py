@@ -26,7 +26,7 @@ def capped_session(config):
 
 def assert_limit(run, budget):
     assert run.error.type == "instruction_limit"
-    assert run.error.count == budget
+    assert run.error.limit == budget
     assert run.instruction_count == budget
 
 
