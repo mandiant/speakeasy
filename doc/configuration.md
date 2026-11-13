@@ -264,8 +264,16 @@ Speakeasy checks the values of the config before the emulation starts. A value t
 
   // The process in which the input runs.
   "process": {
-    // Command line of the process, for example for GetCommandLine.
-    "command_line": "svchost.exe -k netsvcs",
+    // Command line of the process, for example for GetCommandLine and the argv
+    // that the CRT gives to main. null gives the quoted path of the process image
+    // followed by the argv of the CLI or the library, for example
+    // "C:\Windows\system32\sample.exe" -x. For a DLL or shellcode input,
+    // the process image is the container image, and null gives the command_line
+    // of the is_main_exe entry when that entry has one.
+    // Do not set it together with argv: Speakeasy gives a ConfigError.
+    // The program name also opens the input file, so a sample that opens
+    // svchost.exe gets its own file when the command line starts with svchost.exe.
+    "command_line": null,
 
     // Current directory of the process. The emulator resolves relative paths from it.
     "current_dir": "C:\\Windows\\system32",
@@ -297,6 +305,9 @@ Speakeasy checks the values of the config before the emulation starts. A value t
   // The emulator ignores the base_addr of this entry and loads the container image
   // at the first free base above 0x7D000000.
   // The container process gets the session of the entry, but not its pid.
+  // When process.command_line is null, the container process gets the
+  // command_line of the entry. Do not set it together with argv: Speakeasy
+  // gives a ConfigError.
   // The pid of an entry is the process ID that the guest and the report use.
   // Speakeasy gives an entry without pid a free process ID of 0x400 or more.
   // In kernel mode, the System process always has pid 4.
