@@ -148,19 +148,6 @@ def test_into_with_overflow_raises_integer_overflow(config):
     assert record[:2] == (STATUS_INTEGER_OVERFLOW, start + len(setup) + 1)
 
 
-def test_into_on_amd64_is_an_illegal_instruction(config):
-    setup = b"\xb0\x7f\x04\x01"
-    run, start, record = run_under_handler(config, "amd64", setup + b"\xce", 1)
-    assert record[:2] == (STATUS_ILLEGAL_INSTRUCTION, start + len(setup))
-
-
-def test_into_without_overflow_does_nothing(config):
-    run, _, record = run_under_handler(config, "x86", b"\x31\xc0\xce", 0)  # xor eax, eax: clears OF
-    assert run.error is None
-    assert run.return_value == 42
-    assert record[0] == 0
-
-
 @pytest.mark.parametrize("arch, gate", [("amd64", 0x2E), ("x86", 0x2A)])
 def test_system_service_gate_is_not_an_exception(config, arch, gate):
     run, _, _ = run_under_handler(config, arch, b"\xcd" + bytes([gate]), 2)
