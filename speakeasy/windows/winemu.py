@@ -2829,19 +2829,29 @@ class WindowsEmulator(BinaryEmulator):
             )
         return parts
 
-    def get_region_part(self, address: int) -> RegionPart | None:
+    def _find_region_part(self, address: int) -> tuple[RegionPart, bool] | None:
         """
-        Get the region of the report that contains ``address``, or None if ``address`` is not mapped.
+        Get the region of the report that contains ``address``, and whether ``address`` is in its range.
 
-        For an address in a module image outside the headers and the sections, get the full image.
+        For an address in a module image outside the headers and the sections, get the full image and False.
+        Return None if ``address`` is not mapped.
         """
         mm = self.get_address_map(address)
         if mm is None:
             return None
         for part in self.get_region_parts(mm):
             if part.contains(address):
-                return part
-        return self._get_full_region_part(mm)
+                return part, True
+        return self._get_full_region_part(mm), False
+
+    def get_region_part(self, address: int) -> RegionPart | None:
+        """
+        Get the region of the report that contains ``address``, or None if ``address`` is not mapped.
+
+        For an address in a module image outside the headers and the sections, get the full image.
+        """
+        found = self._find_region_part(address)
+        return found[0] if found else None
 
     def get_region_base(self, address: int) -> int | None:
         """Get the base of the region of the report that contains ``address``, or None if it is not mapped."""
@@ -3718,55 +3728,56 @@ class WindowsEmulator(BinaryEmulator):
         self.stop()
         return False
 
-    def _count_symbol_access(self, counter: str, address: int, symbol: str) -> None:
-        """Count a read, write or execute of a symbol. counter is "reads", "writes" or "execs"."""
-        run = self.curr_run
-        assert run is not None
-        access = run.sym_access.get(address) or MemAccess(sym=symbol)
-        setattr(access, counter, getattr(access, counter) + 1)
-        run.sym_access[address] = access
-
-    def _get_cached_region_access(self, address: int, cache: deque[MemAccess]) -> MemAccess | None:
-        """
-        Get the access counts of the section or memory map that contains address.
-
-        Look in cache first. Return None if address is not mapped.
-        """
-        for access in cache:
-            if access.base is not None and access.base <= address < access.base + access.size:
-                return access
-        region = self._get_region_access(address)
-        if region is not None:
-            cache.appendleft(region)
-        return region
-
-    def _get_region_access(self, address: int) -> MemAccess | None:
-        run = self.curr_run
-        assert run is not None
-        mod = self.get_mod_from_addr(address)
-        if mod and mod.sections:
-            sect = mod.get_section_for_addr(address)
-            if sect:
-                key = (mod.base, sect.virtual_address)
-                if key not in run.section_access:
-                    run.section_access[key] = MemAccess(base=mod.base + sect.virtual_address, size=sect.virtual_size)
-                return run.section_access[key]
-
-        mmap = self.get_address_map(address)
-        if not mmap:
+    def _get_exact_symbol(self, address: int) -> str | None:
+        """Get the symbol whose address is ``address`` as "dll.name", or None. An address inside an API is no symbol."""
+        entry = self.api_registry.entries.get(address)
+        if entry is not None:
+            return entry.symbol
+        if self.api_registry.overlaps_traps(address):
             return None
-        return run.mem_access.setdefault(mmap, MemAccess(base=mmap.base, size=mmap.size))
+        auxiliary = self.symbols.get(address)
+        return "{}.{}".format(*auxiliary) if auxiliary else None
+
+    def _count_symbol_access(self, run: Run, counter: str, address: int) -> None:
+        """Count a read, write or execute at the address of a symbol. counter is "reads", "writes" or "execs"."""
+        access = run.sym_access.get(address)
+        if access is None:
+            symbol = self._get_exact_symbol(address)
+            if symbol is None:
+                return
+            access = run.sym_access[address] = MemAccess(sym=symbol)
+        setattr(access, counter, getattr(access, counter) + 1)
+
+    def _get_cached_region_access(self, address: int, cache: deque[tuple[int, int, MemAccess]]) -> MemAccess | None:
+        """
+        Get the access counts of the region of the report that contains address.
+
+        Look in cache first. Return None if address is not mapped. An access in a module image outside
+        the headers and the sections counts for the region at the image base, which is the headers.
+        """
+        for start, end, cached in cache:
+            if start <= address < end:
+                return cached
+        run = self.curr_run
+        assert run is not None
+        found = self._find_region_part(address)
+        if found is None:
+            return None
+        part, in_range = found
+        access = run.region_access.get(part.base)
+        if access is None:
+            access = run.region_access[part.base] = MemAccess(base=part.base, size=part.size)
+        if in_range:
+            cache.appendleft((part.base, part.base + part.size, access))
+        return access
 
     def _hook_mem_read(self, emu, access, address, size, value):
         """Count the reads of each symbol, section and memory map."""
         try:
-            symbol = self.get_symbol_from_address(address)
-            if symbol:
-                self._count_symbol_access("reads", address, symbol)
-                logger.debug("mem_read: addr=0x%x size=0x%x sym=%s", address, size, symbol)
             run = self.curr_run
             if run is None:
                 return True
+            self._count_symbol_access(run, "reads", address)
             region = self._get_cached_region_access(address, run.read_cache)
             if region is None:
                 return False
@@ -3778,13 +3789,10 @@ class WindowsEmulator(BinaryEmulator):
     def _hook_mem_write(self, emu, access, address, size, value):
         """Count the writes of each symbol, section and memory map."""
         try:
-            symbol = self.get_symbol_from_address(address)
-            if symbol:
-                self._count_symbol_access("writes", address, symbol)
-                logger.debug("mem_write: addr=0x%x size=0x%x sym=%s", address, size, symbol)
             run = self.curr_run
             if run is None:
                 return True
+            self._count_symbol_access(run, "writes", address)
             region = self._get_cached_region_access(address, run.write_cache)
             if region is None:
                 return False
@@ -3920,14 +3928,11 @@ class WindowsEmulator(BinaryEmulator):
                 disasm = self.get_disasm(addr, size)[2]
                 logger.debug("exec: 0x%x %s", addr, disasm)
 
-            symbol = self.get_symbol_from_address(addr)
-            if symbol:
-                self._count_symbol_access("execs", addr, symbol)
-
             self.prev_pc = addr
             run = self.curr_run
             if run is None:
                 return True
+            self._count_symbol_access(run, "execs", addr)
             run.instr_cnt += 1
             region = self._get_cached_region_access(addr, run.exec_cache)
             if region is None:

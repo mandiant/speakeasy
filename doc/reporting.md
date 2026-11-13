@@ -28,7 +28,7 @@ Each entry point has these fields:
 
 - `api_hash`: the SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.
 - `events`: the events of the run, in order. The `record_*_event` methods of `Profiler` add them.
-- `symbol_accesses`: the read, write and execute counts of each symbol, only if `memory.accesses=true`.
+- `accesses`: only if `memory.accesses=true`. `regions` has the read, write and execute counts of each region that the run used, by the base of the region in `memory.layout`. `symbols` has the counts of each symbol address. Only an access at the exact address of a symbol counts.
 - `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `memory.dynamic_code_contents.enabled=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry for the region, with the same `tag`, `base` and `size` and its own `pos` and `data_ref`. The list is in the order of `pos.tick`, and with snapshots `pos.tick` is always the instruction count of the run. Each entry of a region has different data from the entry of the region before it. A decoder loop in the region gives no snapshot for each pass, because its blocks do not come from outside the region. `memory.dynamic_code_contents.limit` (default 8) is the maximum number of snapshots of a region in a run, with the first one. `snapshot_limit_reached` is true on the last entry of a region when the region changed and ran again after the last snapshot that the limit allows, and it is absent on the other entries. The report does not have a stage that the region decodes and runs before control leaves the region. Each write in the region counts, also a write to data. A region that holds an unpacked image with its global variables can get a snapshot after most API calls, and it gets to the limit fast.
 - `coverage`: the addresses of the instructions that ran, only if `code.coverage=true`.
 - `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
@@ -85,7 +85,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
 
 - `--memory-strings` controls the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-memory-strings)).
 - `--code-coverage` fills `runs[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-code-coverage)).
-- `--memory-accesses` fills `runs[*].symbol_accesses` and `runs[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)).
+- `--memory-accesses` fills `runs[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)).
 - `--memory-final-contents` fills `runs[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
 - `--memory-dynamic-code-contents` fills `runs[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--memory-dynamic-code-contents-limit` sets the maximum number of snapshots of each region.
 - `runs[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
@@ -398,15 +398,26 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
         }
       ],
 
-      // Symbol-level R/W/X counts, only with memory.accesses.
-      "symbol_accesses": [
-        {
-          "symbol": "kernel32.LoadLibraryA",
-          "reads": 1,
-          "writes": 0,
-          "execs": 1
-        }
-      ],
+      // R/W/X counts of the regions and the symbols, only with memory.accesses.
+      "accesses": {
+        "regions": [
+          {
+            // The base of the region in memory.layout.
+            "region": "0x401000",
+            "reads": 10,
+            "writes": 0,
+            "execs": 400
+          }
+        ],
+        "symbols": [
+          {
+            "symbol": "kernel32.LoadLibraryA",
+            "reads": 1,
+            "writes": 0,
+            "execs": 1
+          }
+        ]
+      },
 
       // Dynamic code segments that executed, in tick order.
       "dynamic_code_segments": [
@@ -456,11 +467,6 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
             "module": "sample.exe",
             "section": ".text",
             "is_free": false,
-            "accesses": {
-              "reads": 10,
-              "writes": 0,
-              "execs": 400
-            },
 
             // Optional: resolve via the top-level data store.
             "data_ref": "data-region"

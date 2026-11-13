@@ -56,17 +56,17 @@ from speakeasy.report import (
     MemoryAccesses,
     MemoryLayout,
     MemoryRegion,
+    RegionAccesses,
     Report,
     RunReport,
     RunType,
     StringCollection,
     StringsReport,
-    SymAccessReport,
+    SymbolAccesses,
 )
 from speakeasy.windows.loaders import InitRoutine
 
 if TYPE_CHECKING:
-    from speakeasy.memmgr import MemMap
     from speakeasy.windows.objman import Process, Thread
 
 
@@ -180,8 +180,8 @@ class Run:
         self.events: list[AnyEvent] = []
         self.sym_access: dict[int, MemAccess] = {}
         self.dropped_files: list[dict[str, Any]] = []
-        self.mem_access: dict[MemMap, MemAccess] = {}
-        self.section_access: dict[tuple[int, int], MemAccess] = {}
+        # The access counts of each region, by the base of the region in the report.
+        self.region_access: dict[int, MemAccess] = {}
         self.dyn_code: DynCode = {"mmap": [], "base_addrs": set()}
         self.process_context: Process | None = None
         self.thread: Thread | None = None
@@ -189,9 +189,10 @@ class Run:
         self.api_hash: hashlib._Hash = hashlib.sha256()
         self.stack: MemAccess | None = None
         self.guest_callbacks: list[GuestCallbackFrame] = []
-        self.exec_cache: deque[MemAccess] = deque(maxlen=4)
-        self.read_cache: deque[MemAccess] = deque(maxlen=4)
-        self.write_cache: deque[MemAccess] = deque(maxlen=4)
+        # The address range [start, end) and the access counts of the regions of the last accesses.
+        self.exec_cache: deque[tuple[int, int, MemAccess]] = deque(maxlen=4)
+        self.read_cache: deque[tuple[int, int, MemAccess]] = deque(maxlen=4)
+        self.write_cache: deque[tuple[int, int, MemAccess]] = deque(maxlen=4)
 
         self.args: list[Any] | tuple[Any, ...] | None = None
         self.registers: dict[int, int] = {}
@@ -779,13 +780,19 @@ class Profiler:
         for r in self.runs:
             error_info = r.error
 
-            symbol_accesses: list[SymAccessReport] | None = None
+            accesses = None
             if self.memory_config.accesses:
-                symbol_accesses = [
-                    SymAccessReport(symbol=maccess.sym, reads=maccess.reads, writes=maccess.writes, execs=maccess.execs)
-                    for maccess in r.sym_access.values()
-                    if maccess.sym is not None
-                ]
+                accesses = MemoryAccesses(
+                    regions=[
+                        RegionAccesses(region=base, reads=access.reads, writes=access.writes, execs=access.execs)
+                        for base, access in sorted(r.region_access.items())
+                    ],
+                    symbols=[
+                        SymbolAccesses(symbol=access.sym, reads=access.reads, writes=access.writes, execs=access.execs)
+                        for _, access in sorted(r.sym_access.items())
+                        if access.sym is not None
+                    ],
+                )
 
             dyn_code_segments = [
                 DynamicCodeSegment(
@@ -808,13 +815,6 @@ class Profiler:
             if r.memory_regions or r.loaded_modules:
                 regions = []
                 for reg in r.memory_regions:
-                    accesses = None
-                    if reg.get("accesses"):
-                        accesses = MemoryAccesses(
-                            reads=reg["accesses"]["reads"],
-                            writes=reg["accesses"]["writes"],
-                            execs=reg["accesses"]["execs"],
-                        )
                     regions.append(
                         MemoryRegion(
                             base=reg["base"],
@@ -824,7 +824,6 @@ class Profiler:
                             module=reg.get("module"),
                             section=reg.get("section"),
                             is_free=reg.get("is_free", False),
-                            accesses=accesses,
                             data_ref=reg.get("data_ref"),
                         )
                     )
@@ -857,7 +856,7 @@ class Profiler:
                 return_value=r.return_value,
                 error=error_info,
                 events=list(r.events),
-                symbol_accesses=symbol_accesses,
+                accesses=accesses,
                 dynamic_code_segments=dyn_code_segments,
                 coverage=sorted(r.coverage) if self.code_config.coverage else None,
                 dropped_files=dropped_files,

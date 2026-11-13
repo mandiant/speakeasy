@@ -71,7 +71,7 @@ speakeasy -t sample.exe --no-memory-final-contents -o report.json
 
 The memory layout of a run has one region for the headers of a module and one region for each section, in place of one region for the whole module. With `memory.final_contents`, Speakeasy captures each region that is not excluded, also when no write was counted. This includes memory that an API handler wrote, because the memory hooks do not count these writes.
 
-This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `memory.final_contents` set. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection, size and counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stack.
+This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `memory.final_contents` set. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection and size, and `runs[0].accesses.regions` has its own counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stack.
 
 ```json
 {
@@ -86,7 +86,6 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
             "tag": "emu.module",
             "module": "<hash>.exe",
             "section": "headers",
-            "accesses": null,
             "data_ref": "<sha256>"
           },
           {
@@ -96,7 +95,6 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
             "tag": "emu.module",
             "module": "<hash>.exe",
             "section": ".text",
-            "accesses": {"reads": 0, "writes": 0, "execs": 677},
             "data_ref": "<sha256>"
           },
           {
@@ -106,7 +104,6 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
             "tag": "emu.module",
             "module": "<hash>.exe",
             "section": ".rdata",
-            "accesses": {"reads": 15, "writes": 0, "execs": 0},
             "data_ref": "<sha256>"
           },
           {
@@ -116,16 +113,22 @@ This excerpt comes from a run of `dll_test_x86.dll` with `memory.accesses` and `
             "tag": "emu.module",
             "module": "<hash>.exe",
             "section": ".data",
-            "accesses": {"reads": 30, "writes": 26, "execs": 0},
             "data_ref": "<sha256>"
           },
           {
             "base": "0x1200000",
             "size": 1048576,
             "perms": "rwx",
-            "tag": "emu.stack",
-            "accesses": {"reads": 170, "writes": 210, "execs": 0}
+            "tag": "emu.stack"
           }
+        ]
+      },
+      "accesses": {
+        "regions": [
+          {"region": "0x1200000", "reads": 170, "writes": 210, "execs": 0},
+          {"region": "0x10001000", "reads": 0, "writes": 0, "execs": 677},
+          {"region": "0x10002000", "reads": 15, "writes": 0, "execs": 0},
+          {"region": "0x10003000", "reads": 30, "writes": 26, "execs": 0}
         ]
       }
     }
@@ -163,7 +166,7 @@ You do not need a config setting for this. The report always has one region for 
 
 ## Access counts for each section
 
-With `memory.accesses`, the memory hooks count reads, writes and executes for each section of a module. Outside modules, they count for each memory map. Speakeasy writes the counts to `runs[*].memory.layout[*].accesses`, so the report shows which sections of a module ran code or had writes.
+With `memory.accesses`, the memory hooks count reads, writes and executes for each section of a module. Outside modules, they count for each memory map. Speakeasy writes the counts to `runs[*].accesses.regions`, so the report shows which sections of a module ran code or had writes. `region` is the base of the region in `runs[*].memory.layout`.
 
 ```json
 {
@@ -174,28 +177,13 @@ With `memory.accesses`, the memory hooks count reads, writes and executes for ea
 }
 ```
 
-In a run of `tests/bins/dll_test_x86.dll.xz`, each section of the module has different counts:
+In a run of `tests/bins/dll_test_x86.dll.xz`, each section of the module (`.text` at `0x10001000`, `.rdata` at `0x10002000` and `.data` at `0x10003000`) has different counts:
 
 ```json
 [
-  {
-    "module": "<sample>.exe",
-    "section": ".text",
-    "perms": "r-x",
-    "accesses": {"reads": 0, "writes": 0, "execs": 677}
-  },
-  {
-    "module": "<sample>.exe",
-    "section": ".rdata",
-    "perms": "r--",
-    "accesses": {"reads": 15, "writes": 0, "execs": 0}
-  },
-  {
-    "module": "<sample>.exe",
-    "section": ".data",
-    "perms": "rw-",
-    "accesses": {"reads": 30, "writes": 26, "execs": 0}
-  }
+  {"region": "0x10001000", "reads": 0, "writes": 0, "execs": 677},
+  {"region": "0x10002000", "reads": 15, "writes": 0, "execs": 0},
+  {"region": "0x10003000", "reads": 30, "writes": 26, "execs": 0}
 ]
 ```
 
