@@ -7,6 +7,8 @@ from speakeasy.profiler_events import EventType
 from speakeasy.windows.winemu import get_page_protection_runs
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import windows as windefs
+from tests.guest_harness import Deref, get_api, guest_call
 from tests.handler_harness import alloc, call, start_process
 
 PAGE = 0x1000
@@ -96,6 +98,29 @@ def protect(se: Speakeasy, address: int, size: int, new: int) -> tuple[int, int,
     size = struct.unpack(ptr, se.mem_read(p_size, se.get_ptr_size()))[0]
     old = struct.unpack("<I", se.mem_read(p_old, 4))[0]
     return rv, base, size, old
+
+
+def test_commit_changes_the_perms_of_the_region_in_the_memory_layout(config) -> None:
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=bytes(0x1000), arch="x86")
+        data = se.mem_alloc(0x100)
+        reserved, committed = data, data + 4
+        virtual_alloc = get_api(se, "kernel32", "VirtualAlloc")
+        body = guest_call(
+            4, virtual_alloc, 0, 4 * PAGE, windefs.MEM_RESERVE, PAGE_PROTECTION_FLAGS.PAGE_NOACCESS, store=reserved
+        )
+        args = (Deref(reserved), PAGE, windefs.MEM_COMMIT, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+        body += guest_call(4, virtual_alloc, *args, store=committed)
+        se.mem_write(code, body + b"\xc3")
+        se.run_shellcode(code)
+        base, commit_base = struct.unpack("<2I", se.mem_read(data, 8))
+        report = se.get_report()
+
+    assert commit_base == base
+    run = report.runs[0]
+    assert run.memory is not None
+    [region] = [r for r in run.memory.layout if r.tag == "api.VirtualAlloc"]
+    assert (region.base, region.size, region.perms) == (base, 4 * PAGE, "rw-")
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
