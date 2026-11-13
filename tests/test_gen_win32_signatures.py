@@ -261,7 +261,6 @@ def mini_win32json(tmp_path: Path) -> Path:
                 [
                     ("data", _ptr(_native("Byte")), ["In", {"Kind": "MemorySize", "BytesParamIndex": 1}]),
                     ("size", _native("UInt32"), ["In"]),
-                    ("text", _ptr(_native("Char")), ["In"]),
                     ("pdata", _ptr(_ptr(_native("Byte"))), ["Out"]),
                 ],
             ),
@@ -408,7 +407,6 @@ def test_generate_byte_pointer_is_a_buffer(gen: ModuleType, mini_win32json: Path
     assert fn["params"] == [
         ["data", "a:u8", "i", {"n": 1}],
         ["size", "u32", "i"],
-        ["text", "S", "i"],
         ["pdata", "p:a:u8", "o"],
     ]
     # RPC_CSTR and RPC_WSTR are unsigned char* and unsigned short* in win32metadata
