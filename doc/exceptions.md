@@ -1,6 +1,6 @@
 # Exception dispatch
 
-When `exceptions.dispatch_handlers` is set (the default), the emulator sends
+When `exceptions.dispatch` is set (the default), the emulator sends
 exceptions to the handlers of the sample as Windows does. So code that uses
 exceptions for control flow or anti-analysis continues to run. The report has
 an `exception` event for each exception that the emulator sends to a handler.

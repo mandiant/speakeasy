@@ -17,7 +17,7 @@ DISPATCH_SCRIPT = [
 
 def test_seh_dispatch(config, load_test_bin, run_test):
     cfg = copy.deepcopy(config)
-    cfg["exceptions"]["dispatch_handlers"] = True
+    cfg["exceptions"]["dispatch"] = True
     data = load_test_bin("seh_test_x86.exe.xz")
     report = run_test(cfg, data)
 
@@ -35,7 +35,7 @@ def test_seh_dispatch(config, load_test_bin, run_test):
 
 def test_seh_without_dispatch(config, load_test_bin, run_test):
     cfg = copy.deepcopy(config)
-    cfg["exceptions"]["dispatch_handlers"] = False
+    cfg["exceptions"]["dispatch"] = False
 
     data = load_test_bin("seh_test_x86.exe.xz")
     report = run_test(cfg, data)
@@ -78,7 +78,7 @@ SEH_CASES_X86 = {
 @pytest.mark.parametrize("arch", ["x64", "x86"])
 def test_seh_cases(config, load_test_bin, run_test, arch):
     cfg = copy.deepcopy(config)
-    cfg["exceptions"]["dispatch_handlers"] = True
+    cfg["exceptions"]["dispatch"] = True
     report = run_test(cfg, load_test_bin(f"seh_cases_{arch}.exe.xz"))
 
     ep = report.entry_points[0]

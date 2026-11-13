@@ -39,7 +39,7 @@ def _get_api_return_code(se: Speakeasy) -> bytes:
 def _run(
     config: dict, snapshot: bool, get_code: Callable[[Speakeasy], bytes] = _get_overwrite_after_run_code
 ) -> tuple[Report, bytes]:
-    config["analysis"] = {**config.get("analysis", {}), "dynamic_code_snapshots": snapshot}
+    config["memory"]["dynamic_code_contents"]["enabled"] = snapshot
     with Speakeasy(config=config) as se:
         base = se.load_shellcode(data=bytes(0x1000), arch="x86")
         se.mem_write(base, get_code(se))
@@ -52,7 +52,7 @@ def _run(
 
 def test_dynamic_code_segment_has_position_of_first_run(config):
     # Without snapshots, the run counts ticks only with an instruction budget or memory tracing.
-    config["max_instructions"] = 1000
+    config["limits"]["instructions"] = 1000
     report, _ = _run(config, snapshot=False)
 
     entry = report.entry_points[0]
@@ -147,7 +147,7 @@ def test_snapshot_positions_have_the_ticks_of_a_run_with_an_instruction_limit(co
         return [segment.pos for segment in entry.dynamic_code_segments] + [event.pos for event in entry.events]
 
     get_code = partial(_get_stage_loop_code, passes=3)
-    counted, _ = _run(config | {"max_instructions": 1_000_000}, snapshot=True, get_code=get_code)
+    counted, _ = _run(config | {"limits": {"instructions": 1_000_000}}, snapshot=True, get_code=get_code)
     report, _ = _run(config, snapshot=True, get_code=get_code)
 
     assert get_positions(report) == get_positions(counted)
@@ -178,7 +178,7 @@ def test_write_by_an_api_handler_changes_the_region(config):
 
 
 def test_snapshot_limit_shows_on_the_last_entry_of_the_region(config):
-    config["analysis"] = {"dynamic_code_snapshot_limit": 2}
+    config["memory"]["dynamic_code_contents"]["limit"] = 2
     report, _ = _run(config, snapshot=True, get_code=lambda se: _get_stage_loop_code(se, passes=4))
 
     segments = report.entry_points[0].dynamic_code_segments
@@ -192,7 +192,7 @@ def test_delphi_object_instance_page_has_a_snapshot_of_each_new_thunk(config):
     path = Path(__file__).resolve().parent / "capa-testfiles" / "5dd0b130d5c3d40c69e3972f39fd7d62.exe_"
     if not path.exists():
         pytest.skip(f"missing sample: {path}")
-    config["analysis"] = {"dynamic_code_snapshots": True}
+    config["memory"]["dynamic_code_contents"]["enabled"] = True
     with Speakeasy(config=config) as se:
         module = se.load_module(str(path))
         se.run_module(module)

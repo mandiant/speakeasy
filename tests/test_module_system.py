@@ -29,7 +29,7 @@ def test_get_mod_from_addr_excludes_the_end_of_the_current_module(config, load_t
 
 
 def test_win32_shellcode_peb_uses_mapped_user_modules(config):
-    config["max_instructions"] = 1
+    config["limits"]["instructions"] = 1
     se = Speakeasy(config=config)
     try:
         sc_addr = se.load_shellcode(data=b"\x90\x90", arch="amd64")
@@ -43,7 +43,7 @@ def test_win32_shellcode_peb_uses_mapped_user_modules(config):
     finally:
         se.shutdown()
 
-    system_names = {mod["name"].lower() for mod in config["modules"]["system_modules"]}
+    system_names = {mod["name"].lower() for mod in config["modules"]["system"]}
     assert system_names <= loaded_names
     assert system_names.isdisjoint(peb_names)
     assert {"main", "ntdll", "kernel32", "kernelbase", "wininet"} <= peb_names

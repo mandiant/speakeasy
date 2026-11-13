@@ -10,15 +10,15 @@ The examples on this page are JSONC: JSON with comments that explain the fields.
 
 ## Report fields
 
-If Speakeasy did not collect the data of a key, the report leaves out the key, for example `coverage` when `analysis.coverage=false`. By default, Speakeasy collects all the data that this page describes. An empty list or object means that Speakeasy collected the data and found nothing.
+If Speakeasy did not collect the data of a key, the report leaves out the key, for example `coverage` when `code.coverage=false`. By default, Speakeasy collects all the data that this page describes. An empty list or object means that Speakeasy collected the data and found nothing.
 
 The report writes each machine word as a hex string with a `0x` prefix and lowercase digits. Machine words are addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage addresses. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value when it is a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number.
 
 `report_version` is the value of `speakeasy.report.REPORT_VERSION`. `timestamp` is the Unix time in seconds of the first start of the run queue, and `emulation_total_runtime` is the wall-clock time in seconds from that start to the end of the emulation. A `call()` after `run_module()` and each child process start the run queue again, and the time to the last end counts. The other top-level fields are:
 
 - `arch` (`x86` or `x64`), `path`, `sha256`, `size`, `file_type` (`exe`, `dll`, `driver` or `shellcode`) and `image_base`: the input metadata that the loader records. `path` is the host path of the input file. If the input came from bytes in memory, the report has no `path`.
-- `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image or an import descriptor that the Windows loader cannot resolve, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks. If `max_total_time` runs out before all child processes run, the emulator adds a `max_total_time` error with the number of child processes that did not run in `context_summary`.
-- `strings`: the strings from the input file and from memory, only if `analysis.strings=true`. `static` has the strings of the input file. `in_memory` has the strings at the end of the emulation that are not in `static`. Speakeasy reads them from the stack, from the memory that API handlers allocate, and from the images of the guest modules. In an image, it reads only the strings that the guest changed after the load, for example the strings that an unpacker decodes in place.
+- `errors`: the errors of the session that do not belong to one run. If the input PE has a defect, for example an entry point outside the image or an import descriptor that the Windows loader cannot resolve, the loader adds an `invalid_image` error with the defect in `context_summary`, and emulation continues. `PeLoader` in `speakeasy/windows/loaders.py` has the checks. If `limits.total_time` runs out before all child processes run, the emulator adds a `max_total_time` error with the number of child processes that did not run in `context_summary`.
+- `strings`: the strings from the input file and from memory, only if `memory.strings=true`. `static` has the strings of the input file. `in_memory` has the strings at the end of the emulation that are not in `static`. Speakeasy reads them from the stack, from the memory that API handlers allocate, and from the images of the guest modules. In an image, it reads only the strings that the guest changed after the load, for example the strings that an unpacker decodes in place.
 - `data`: the payloads that the report stores once, keyed by SHA-256. Each `data_ref` field holds a key of `data`.
 - `entry_points`: a list of the runs (`Run` objects), in the order that the runs started.
 
@@ -26,11 +26,11 @@ Each entry point has these fields:
 
 - `api_hash`: the SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.
 - `events`: the events of the run, in order. The `record_*_event` methods of `Profiler` add them.
-- `symbol_accesses`: the read, write and execute counts of each symbol, only if `analysis.memory_tracing=true`.
-- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `analysis.dynamic_code_snapshots=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry for the region, with the same `tag`, `base` and `size` and its own `pos` and `data_ref`. The list is in the order of `pos.tick`, and with snapshots `pos.tick` is always the instruction count of the run. Each entry of a region has different data from the entry of the region before it. A decoder loop in the region gives no snapshot for each pass, because its blocks do not come from outside the region. `analysis.dynamic_code_snapshot_limit` (default 8) is the maximum number of snapshots of a region in a run, with the first one. `snapshot_limit_reached` is true on the last entry of a region when the region changed and ran again after the last snapshot that the limit allows, and it is absent on the other entries. The report does not have a stage that the region decodes and runs before control leaves the region. Each write in the region counts, also a write to data. A region that holds an unpacked image with its global variables can get a snapshot after most API calls, and it gets to the limit fast.
-- `coverage`: the addresses of the instructions that ran, only if `analysis.coverage=true`.
+- `symbol_accesses`: the read, write and execute counts of each symbol, only if `memory.accesses=true`.
+- `dynamic_code_segments`: the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each region has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `memory.dynamic_code_contents.enabled=true`, each region also has a `data_ref` to its contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry for the region, with the same `tag`, `base` and `size` and its own `pos` and `data_ref`. The list is in the order of `pos.tick`, and with snapshots `pos.tick` is always the instruction count of the run. Each entry of a region has different data from the entry of the region before it. A decoder loop in the region gives no snapshot for each pass, because its blocks do not come from outside the region. `memory.dynamic_code_contents.limit` (default 8) is the maximum number of snapshots of a region in a run, with the first one. `snapshot_limit_reached` is true on the last entry of a region when the region changed and ran again after the last snapshot that the limit allows, and it is absent on the other entries. The report does not have a stage that the region decodes and runs before control leaves the region. Each write in the region counts, also a write to data. A region that holds an unpacked image with its global variables can get a snapshot after most API calls, and it gets to the limit fast.
+- `coverage`: the addresses of the instructions that ran, only if `code.coverage=true`.
 - `dropped_files`: in user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted.
-- `memory`: in user mode, the memory regions and the modules at the end of the run. If `snapshot_memory_regions=true`, each region also has a `data_ref` to its contents.
+- `memory`: in user mode, the memory regions and the modules at the end of the run. If `memory.final_contents=true`, each region also has a `data_ref` to its contents, except the stacks.
 
 If the run ended abnormally, the entry point has an `error`. Its `type` is an identifier such as `invalid_read`, `unsupported_api` or `timeout`. The report schema lists all values. A run that `max_api_calls` ends has `max_api_count`. A run that makes `max_api_loop_calls` API calls with no call from a new call site has `api_loop`, and `error.loop` tells about the calls after the last new call site. In `error.loop`, `start` is the position of the first of these calls, `calls` is their number, and `sites` has up to 16 call sites (`api_name`, `return_address` and `calls`), the site with the most calls first. For both types, `count` is the limit and `last_api` is the API of the last call. A Python exception in Speakeasy itself, such as a bug in an API handler, gives `internal_error`, with the exception text in `message` and the Python traceback in `traceback`.
 
@@ -83,11 +83,11 @@ Each event has `pos`, the position of the thread that did the operation, so the 
 
 The boolean flags in this list are on by default. The `--no-` form of each flag removes its data from the report.
 
-- `--analysis-strings` controls the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-analysis-strings)).
-- `--analysis-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-analysis-coverage)).
-- `--analysis-memory-tracing` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-tracing)).
-- `--snapshot-memory-regions` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
-- `--analysis-dynamic-code-snapshots` fills `entry_points[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--analysis-dynamic-code-snapshot-limit` sets the maximum number of snapshots of each region.
+- `--memory-strings` controls the top-level `strings` ([recipe](cli-analysis-recipes.md#recipe-memory-strings)).
+- `--code-coverage` fills `entry_points[*].coverage` ([recipe](cli-analysis-recipes.md#recipe-code-coverage)).
+- `--memory-accesses` fills `entry_points[*].symbol_accesses` and `entry_points[*].memory.layout[*].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)).
+- `--memory-final-contents` fills `entry_points[*].memory.layout[*].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)).
+- `--memory-dynamic-code-contents` fills `entry_points[*].dynamic_code_segments[*].data_ref` and `snapshot_limit_reached`, and adds an entry for each later snapshot of a region. `--memory-dynamic-code-contents-limit` sets the maximum number of snapshots of each region.
 - `entry_points[*].dropped_files[*].data_ref` holds a key of the top-level `data`. A file above `MAX_EMBEDDED_FILE_SIZE` (`speakeasy/artifacts.py`) has no `data_ref`. To also write the dropped files to an archive, use `--dropped-files-path` ([recipe](cli-analysis-recipes.md#recipe-dropped-files)).
 
 ## Annotated report schema example
@@ -398,7 +398,7 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
         }
       ],
 
-      // Symbol-level R/W/X counts from memory tracing.
+      // Symbol-level R/W/X counts, only with memory.accesses.
       "symbol_accesses": [
         {
           "symbol": "kernel32.LoadLibraryA",
@@ -416,11 +416,11 @@ The boolean flags in this list are on by default. The `--no-` form of each flag 
           "size": 4096,
           // Position when code first ran in the region.
           "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
-          // Only with analysis.dynamic_code_snapshots: the region contents at pos.
+          // Only with memory.dynamic_code_contents: the region contents at pos.
           "data_ref": "data-dyn-code"
         },
         {
-          // Only with analysis.dynamic_code_snapshots: the same region, when code
+          // Only with memory.dynamic_code_contents: the same region, when code
           // ran in it again after the region changed.
           "tag": "emu.alloc.0x10000000",
           "base": "0x10000000",

@@ -11,12 +11,11 @@ from tests.pe_builder import build_pe
 def tracing_report(base_config, load_test_bin):
     data = load_test_bin("dll_test_x86.dll.xz")
     cfg = copy.deepcopy(base_config)
-    cfg["analysis"] = dict(cfg.get("analysis", {}))
-    cfg["analysis"]["memory_tracing"] = True
+    cfg["memory"]["accesses"] = True
     se = Speakeasy(config=cfg)
     try:
         module = se.load_module(data=data)
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         return se.get_report()
     finally:
         se.shutdown()
@@ -70,8 +69,7 @@ def test_untouched_section_has_no_accesses(base_config):
     # mov eax, [image base]; ret: the run reads the headers and does not touch .data.
     data, _ = build_pe(32, text=lambda base, iat: b"\xa1" + struct.pack("<I", base) + b"\xc3")
     cfg = copy.deepcopy(base_config)
-    cfg["analysis"] = dict(cfg.get("analysis", {}))
-    cfg["analysis"]["memory_tracing"] = True
+    cfg["memory"]["accesses"] = True
     with Speakeasy(config=cfg) as se:
         module = se.load_module(data=data)
         se.run_module(module)

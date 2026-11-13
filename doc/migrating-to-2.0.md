@@ -1,12 +1,12 @@
 # Migrating to 2.0
 
-This page tells you how to move code and scripts from Speakeasy 1.x to 2.0. It covers the Python library and the command line. Each section names a change to the interface and tells you what to change in your code or command.
+This page tells you how to move code, config files and scripts from Speakeasy 1.x to 2.0. It covers the Python library, the config file and the command line. Each section names a change to the interface and tells you what to change in your code or command.
 
-## Report schema 6.2.0
+## Report schema 6.1.0
 
-The report of 2.0 has `report_version` `6.2.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
+The report of 2.0 has `report_version` `6.1.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
 
-In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. Each entry of `dynamic_code_segments` has the new `pos`, and with `--analysis-dynamic-code-snapshots` a `data_ref`, one more entry for each later snapshot of the region, and `snapshot_limit_reached` on the last entry of a region that got to the limit. `dropped_files` does not change.
+In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. Each entry of `dynamic_code_segments` has the new `pos`, and with `memory.dynamic_code_contents` a `data_ref`, one more entry for each later snapshot of the region, and `snapshot_limit_reached` on the last entry of a region that got to the limit. `dropped_files` does not change.
 
 Before:
 
@@ -123,9 +123,9 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 | `driver_reinit` | `driver_reinit` | none |
 | `irp_mj_<function>`, for example `irp_mj_create` | `irp` | `IRP_MJ_<FUNCTION>`, for example `IRP_MJ_CREATE` |
 
-2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each entry point has `pid`, `tid` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `--analysis-coverage`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`. An `api_loop` error has `loop`, the call sites of the API loop that ended the run.
+2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each entry point has `pid`, `tid` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `code.coverage`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`.
 
-The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 6.2.0, and the [report walkthrough](reporting.md) describes each key.
+The models reject unknown keys (`extra="forbid"`), so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 6.1.0, and the [report walkthrough](reporting.md) describes each key.
 
 ## Exceptions
 
@@ -240,8 +240,7 @@ The boolean parameters of the public methods of `Speakeasy`, `Win32Emulator` and
 | Method | Keyword-only parameters |
 |---|---|
 | `Speakeasy(...)` | `debug`, `exit_event`, `gdb_port`, `volumes`, `gdb_host` |
-| `Speakeasy.run_module`, `Win32Emulator.run_module` | `all_entrypoints`, `emulate_children`, `entry_point` |
-| `WinKernelEmulator.run_module` | `all_entrypoints`, `entry_point` |
+| `Speakeasy.run_module`, `Win32Emulator.run_module`, `WinKernelEmulator.run_module` | `entry_point` |
 | `Speakeasy.disasm`, `disasm`, `get_disasm` | `fast` |
 | `Win32Emulator(...)`, `WinKernelEmulator(...)` | `debug`, `exit_event`, `gdb_port`, `gdb_host` |
 | `file_open` | `create`, `truncate`, `disposition`, `access` |
@@ -252,6 +251,8 @@ The boolean parameters of the public methods of `Speakeasy`, `Win32Emulator` and
 | `mem_reserve` | `shared` |
 
 The `Hook` classes take `native_hook` only as a keyword.
+
+`run_module` has no `all_entrypoints` or `emulate_children` parameter. Set `runs.exports` and `runs.children` in the config.
 
 Before:
 
@@ -269,29 +270,116 @@ After:
 import speakeasy
 from speakeasy.windows.common import _PeParser
 
+config["runs"] = {"exports": True, "children": False}
 se = speakeasy.Speakeasy(config, argv, debug=True)
-se.run_module(module, all_entrypoints=True, emulate_children=False)
+se.run_module(module)
 ```
+
+## Config file
+
+A config file of 2.0 has `config_version` `"2.0"`, and the options are in groups. `SpeakeasyConfig` rejects unknown keys, so a 1.x config file or a config file of a 2.0 pre-release gives a `ConfigError`. This table gives the 2.0 path of each key. A key that is not in the table, such as `emu_engine`, `user.name`, `filesystem`, `registry`, `network` or `processes`, does not change.
+
+| 1.x | 2.0 pre-release | 2.0 |
+|---|---|---|
+| `config_version` `0.2` | `config_version` `"2.0"` | `config_version` `"2.0"` |
+| `description` | none | none, remove it |
+| `system` (`"windows"`) | none | none, remove it. `system` is now a group |
+| `timeout` | `max_run_time` | `limits.per_run_time` |
+| none | `max_total_time` | `limits.total_time` |
+| `max_api_count` | `max_api_calls` | `limits.api_calls` |
+| none | `max_api_loop_calls` | `limits.api_loop_calls` |
+| none | `max_instructions` | `limits.instructions` |
+| none | `stack_size` | `runs.stack_size` |
+| `run_module(all_entrypoints=...)` | `run_module(all_entrypoints=...)` | `runs.exports` |
+| `run_module(emulate_children=...)` | `run_module(emulate_children=...)` | `runs.children` |
+| `analysis.memory_tracing` | `analysis.memory_tracing` | `memory.accesses` |
+| `analysis.strings` | `analysis.strings` | `memory.strings` |
+| none | `snapshot_memory_regions` | `memory.final_contents` |
+| none | `analysis.dynamic_code_snapshots` | `memory.dynamic_code_contents.enabled` |
+| none | `analysis.dynamic_code_snapshot_limit` | `memory.dynamic_code_contents.limit` |
+| `keep_memory_on_free` | `keep_memory_on_free` | `memory.freed_regions` |
+| `analysis.coverage` | `analysis.coverage` | `code.coverage` |
+| `modules.functions_always_exist` | `modules.functions_always_exist` | `apis.stubs` |
+| `api_hammering` | `api_hammering` | none, remove it |
+| `modules.modules_always_exist` | `modules.modules_always_exist` | `modules.stubs` |
+| `modules.module_directory_x86`, `_x64` | `modules.module_directory_x86`, `_x64` | `modules.directory_x86`, `modules.directory_x64` |
+| `modules.user_modules`, `modules.system_modules` | `modules.user_modules`, `modules.system_modules` | `modules.user`, `modules.system` |
+| `exceptions.dispatch_handlers` | `exceptions.dispatch_handlers` | `exceptions.dispatch` |
+| `os_ver` | `os_ver` | `system.os_ver` |
+| `hostname`, `domain` | `hostname`, `domain` | `system.hostname`, `system.domain` |
+| none | `start_time`, `random_seed` | `system.start_time`, `system.random_seed` |
+| `drives`, `symlinks` | `drives`, `symlinks` | `system.drives`, `system.symlinks` |
+| `user.is_admin` | `user.is_admin` | `user.admin` |
+| `command_line`, `current_dir`, `env` | `command_line`, `current_dir`, `env` | `process.command_line`, `process.current_dir`, `process.env` |
+
+For each key of `limits`, 0 means "no limit", and a negative value gives a `ConfigError`. In 1.x and the 2.0 pre-releases, `max_api_count` and `max_api_calls` had no value for "no limit", and `max_instructions` used -1 for "no limit". Change a `max_instructions` of -1 to a `limits.instructions` of 0.
+
+2.0 does not patch call sites that call an API many times, so `api_hammering` has no 2.0 key. `limits.api_loop_calls` (default 5000) ends a run that makes this number of API calls with no call from a new call site, with an `api_loop` error.
+
+No group accepts `null`. The 2.0 pre-releases accepted `null` for `registry`, `network.dns`, `network.http` and `network.winsock`. Replace each `null` with the value that turns the feature off:
+
+| 2.0 pre-release | 2.0 |
+|---|---|
+| `"registry": null` | `"registry": {"keys": []}` |
+| `"network": {"dns": null}` | `"network": {"dns": {"names": {}, "txt": []}}` |
+| `"network": {"http": null}` | `"network": {"http": {"responses": []}}` |
+| `"network": {"winsock": null}` | `"network": {"winsock": {"responses": []}}` |
+
+`system.domain`, `system.os_ver.major`, `.minor` and `.build`, and `modules.directory_x86` and `_x64` still accept `null`.
+
+Before, a 1.x config file:
+
+```json
+{
+  "config_version": 0.2,
+  "description": "triage profile",
+  "system": "windows",
+  "timeout": 20,
+  "max_api_count": 5000,
+  "analysis": {"memory_tracing": false, "strings": true, "coverage": false},
+  "keep_memory_on_free": false,
+  "hostname": "WIN7-LAB",
+  "env": {"temp": "C:\\Windows\\temp"},
+  "user": {"name": "analyst", "is_admin": false},
+  "modules": {"modules_always_exist": false, "functions_always_exist": false}
+}
+```
+
+After:
+
+```json
+{
+  "config_version": "2.0",
+  "limits": {"per_run_time": 20, "api_calls": 5000},
+  "memory": {"accesses": false, "strings": true, "freed_regions": false},
+  "code": {"coverage": false},
+  "system": {"hostname": "WIN7-LAB"},
+  "process": {"env": {"temp": "C:\\Windows\\temp"}},
+  "user": {"name": "analyst", "admin": false},
+  "apis": {"stubs": false},
+  "modules": {"stubs": false}
+}
+```
+
+A 2.0 group that the file gives keeps the defaults of the keys that the file leaves out, so this file keeps `memory.final_contents` and the other features on. [Configuration walkthrough](configuration.md) describes each key.
 
 ## Defaults
 
 In 2.0, the features that collect analysis data or emulate more of the sample are on by default. In 1.x they were off or did not exist. A run is slower and its report is larger than in 1.x. To get the 1.x behavior, turn the features off:
 
-| Feature | Config field or parameter | CLI flag to turn it off |
+| Feature | Config field | CLI flag to turn it off |
 |---|---|---|
-| Memory tracing | `analysis.memory_tracing` | `--no-analysis-memory-tracing` |
-| Coverage | `analysis.coverage` | `--no-analysis-coverage` |
-| Dynamic code snapshots | `analysis.dynamic_code_snapshots` | `--no-analysis-dynamic-code-snapshots` |
-| Memory region snapshots | `snapshot_memory_regions` | `--no-snapshot-memory-regions` |
-| Freed memory stays mapped | `keep_memory_on_free` | `--no-keep-memory-on-free` |
-| Unknown modules load | `modules.modules_always_exist` | `--no-modules-always-exist` |
-| Unknown functions resolve | `modules.functions_always_exist` | `--no-modules-functions-always-exist` |
-| Child processes run | `run_module(emulate_children=...)` | `--no-emulate-children` |
-| Exports run | `run_module(all_entrypoints=...)` | `--no-all-entrypoints` |
+| Memory access counts | `memory.accesses` | `--no-memory-accesses` |
+| Coverage | `code.coverage` | `--no-code-coverage` |
+| Dynamic code contents | `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` |
+| Final memory contents | `memory.final_contents` | `--no-memory-final-contents` |
+| Freed memory stays mapped | `memory.freed_regions` | `--no-memory-freed-regions` |
+| Unknown modules load | `modules.stubs` | `--no-modules-stubs` |
+| Unknown functions resolve | `apis.stubs` | `--no-apis-stubs` |
+| Child processes run | `runs.children` | `--no-runs-children` |
+| Exports run | `runs.exports` | `--no-runs-exports` |
 
-A config file that sets a field keeps its value. In the library, `Speakeasy.run_module`, `Win32Emulator.run_module` and `WinKernelEmulator.run_module` default to `all_entrypoints=True`, and the user mode `run_module` methods default to `emulate_children=True`. In 1.x both were `False`. The CLI always ran the exports, and `--no-all-entrypoints` is new.
-
-The `api_hammering` key is removed, and 2.0 does not patch call sites that call an API many times. A config that has `api_hammering` fails validation, because the config models reject unknown keys. The new `max_api_loop_calls` key (default 5000) ends a run that makes this number of API calls with no call from a new call site, with an `api_loop` error. 0 disables it.
+A config file that sets a field keeps its value. In 1.x, `run_module` took the `all_entrypoints` and `emulate_children` parameters, and both defaulted to `False`. In 2.0, `run_module` reads `runs.exports` and `runs.children` from the config, and both default to `true`. The 1.x CLI always ran the exports, and `--no-runs-exports` is new.
 
 ## Debug output
 
@@ -299,7 +387,7 @@ The `api_hammering` key is removed, and 2.0 does not patch call sites that call 
 
 ## Environment variables
 
-`env` names in a config are not case-sensitive. `SpeakeasyConfig` stores each name in lower case, so read `config.env["temp"]`, not `config.env["TEMP"]`. In 1.x, the API handlers looked up the lower-case name, so the emulated process did not see a config `env` name with upper-case letters.
+`process.env` names in a config are not case-sensitive. `SpeakeasyConfig` stores each name in lower case, so read `config.process.env["temp"]`, not `config.process.env["TEMP"]`. In 1.x, the API handlers looked up the lower-case name, so the emulated process did not see a config `env` name with upper-case letters.
 
 ## Command line
 
@@ -308,24 +396,47 @@ Many flags have new names, and some short flags are removed. The CLI rejects the
 | 1.x | 2.0 |
 |---|---|
 | `-p`, `--params` with one argument for each parameter | `--argv` with one quoted string, for example `--argv="-log -path out.txt"` |
-| `-m`, `--mem-tracing` | `--analysis-memory-tracing` |
+| `-m`, `--mem-tracing` | `--memory-accesses` |
 | `-r`, `--raw` | `--raw` |
 | `--raw_offset` | `--raw-offset` |
 | `-a`, `--arch` | `--arch` |
-| `-q`, `--timeout` | `--max-run-time` |
+| `-q`, `--timeout` | `--limits-per-run-time` |
 | `-z`, `--dropped-files` | `--dropped-files-path` |
-| `-l`, `--module-dir` | `--module-directory-x86` and `--module-directory-x64` |
+| `-l`, `--module-dir` | `--modules-directory-x86` and `--modules-directory-x64` |
 | `-d`, `--dump` | none, use `Speakeasy.get_memory_dumps()` |
 
-`-t`, `-o`, `-c` and `--no-mp` do not change. `-k` stays, but it is the default now, and `--no-emulate-children` turns it off. The 2.0 pre-releases had other names for some flags:
+`-t`, `-o`, `-c` and `--no-mp` do not change. `-k` stays as the short form of `--runs-children`, but it is the default now, and `--no-runs-children` turns it off.
+
+The 2.0 pre-releases had other names for many flags. The `--no-` form of each boolean flag changes in the same way, for example `--no-analysis-coverage` to `--no-code-coverage`:
 
 | 2.0 pre-release | 2.0 |
 |---|---|
-| `--timeout` | `--max-run-time` |
-| `--max-api-count` | `--max-api-calls` |
-| `--modules-module-directory-x86`, `--modules-module-directory-x64` | `--module-directory-x86`, `--module-directory-x64` |
-| `--modules-modules-always-exist`, `--no-modules-modules-always-exist` | `--modules-always-exist`, `--no-modules-always-exist` |
+| `--timeout`, `--max-run-time` | `--limits-per-run-time` |
+| `--max-total-time` | `--limits-total-time` |
+| `--max-api-count`, `--max-api-calls` | `--limits-api-calls` |
+| `--max-api-loop-calls` | `--limits-api-loop-calls` |
+| `--max-instructions` | `--limits-instructions` |
+| `--stack-size` | `--runs-stack-size` |
+| `-k`, `--emulate-children` | `-k`, `--runs-children` |
+| `--all-entrypoints` | `--runs-exports` |
+| `--analysis-memory-tracing` | `--memory-accesses` |
+| `--analysis-strings` | `--memory-strings` |
+| `--analysis-coverage` | `--code-coverage` |
+| `--analysis-dynamic-code-snapshots` | `--memory-dynamic-code-contents` |
+| `--analysis-dynamic-code-snapshot-limit` | `--memory-dynamic-code-contents-limit` |
+| `--snapshot-memory-regions` | `--memory-final-contents` |
+| `--keep-memory-on-free` | `--memory-freed-regions` |
+| `--exceptions-dispatch-handlers` | `--exceptions-dispatch` |
+| `--modules-always-exist`, `--modules-modules-always-exist` | `--modules-stubs` |
+| `--modules-functions-always-exist` | `--apis-stubs` |
+| `--module-directory-x86`, `--modules-module-directory-x86` | `--modules-directory-x86` |
+| `--module-directory-x64`, `--modules-module-directory-x64` | `--modules-directory-x64` |
+| `--os-ver-major`, `--os-ver-minor`, `--os-ver-build` | `--system-os-ver-major`, `--system-os-ver-minor`, `--system-os-ver-build` |
 | `--os-ver-release` | none |
+| `--hostname`, `--domain` | `--system-hostname`, `--system-domain` |
+| `--start-time`, `--random-seed` | `--system-start-time`, `--system-random-seed` |
+| `--user-is-admin` | `--user-admin` |
+| `--current-dir`, `--command-line`, `--env` | `--process-current-dir`, `--process-command-line`, `--process-env` |
 
 `--raw-offset` takes a decimal number, like `--entry-point`. Write `0x` before a hex offset. In 1.x, `--raw_offset` was always hex, so `--raw_offset 10` started at offset 0x10.
 
@@ -345,6 +456,6 @@ These changes can also break a script:
 
 - `--raw` without `--arch` is an argument error, and the CLI exits 2. `--arch` takes only `x86`, `x64` or `amd64`.
 - Without `-o`, the CLI writes the report JSON to stdout. In 1.x it wrote no report.
-- The CLI stops the emulation process after `--max-total-time`. `--max-run-time` applies to each run, so it does not stop the process. In 1.x, `--timeout 0` did not stop the process.
+- The CLI stops the emulation process after `--limits-total-time`. `--limits-per-run-time` applies to each run, so it does not stop the process. In 1.x, `--timeout 0` did not stop the process.
 
 [CLI reference](cli-reference.md#output-and-exit-status) gives the exit status of each result.

@@ -166,7 +166,7 @@ class BinaryEmulator(MemoryManager, ABC):
         self.config: SpeakeasyConfig = config
         self.hooks: dict[int, Any] = {}
 
-        self.profiler: Profiler = Profiler(config.analysis)
+        self.profiler: Profiler = Profiler(config.memory, config.code)
         self._dyn_code_watches = _DynCodeWatches()
 
         self.runtime: float = 0
@@ -200,7 +200,7 @@ class BinaryEmulator(MemoryManager, ABC):
         else:
             raise CpuError(f"Unsupported emulation engine: {_eng}")
 
-        self.env: dict[str, str] = dict(config.env)
+        self.env: dict[str, str] = dict(config.process.env)
 
     def get_emu_version(self):
         """Get the version of the emulator."""
@@ -208,7 +208,7 @@ class BinaryEmulator(MemoryManager, ABC):
 
     def get_osver_string(self):
         """Get the human readable OS version string."""
-        osver = self.config.os_ver
+        osver = self.config.system.os_ver
         if osver:
             os_name = osver.name
             major = osver.major
@@ -978,7 +978,7 @@ class BinaryEmulator(MemoryManager, ABC):
         if profiler and mm.base not in run.dyn_code["base_addrs"]:
             # After an API returns into the region, the pc is still at the API, so use the address in the region.
             pos = self.get_trace_position().model_copy(update={"pc": addr})
-            data = self.mem_read(mm.base, mm.size) if self.config.analysis.dynamic_code_snapshots else None
+            data = self.mem_read(mm.base, mm.size) if self.config.memory.dynamic_code_contents.enabled else None
             profiler.record_dyn_code_event(run, pos, mm.tag, mm.base, mm.size, data)
             if data is not None:
                 self._watch_dyn_code(_DynCodeWatch(mm.base, mm.size))
@@ -1019,7 +1019,7 @@ class BinaryEmulator(MemoryManager, ABC):
         if mm is None or (mm.base, mm.size) != (watch.base, watch.size):
             return
         run = self.get_current_run()
-        if watch.snapshots >= self.config.analysis.dynamic_code_snapshot_limit:
+        if watch.snapshots >= self.config.memory.dynamic_code_contents.limit:
             self.profiler.record_dyn_code_limit(run, watch.base)
             return
         pos = self.get_trace_position().model_copy(update={"pc": addr})

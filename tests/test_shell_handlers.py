@@ -167,7 +167,7 @@ def test_x64_environment_names_the_x86_program_files(dll64_emu: Speakeasy) -> No
 def test_shell_folders_are_in_the_configured_profile(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> None:
-    config["env"]["userprofile"] = "D:\\Profiles\\analyst"
+    config["process"]["env"]["userprofile"] = "D:\\Profiles\\analyst"
     for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
         rfid = alloc(se, uuid.UUID("5cd7aee2-2219-4a67-b85d-6c9ce15660cb").bytes_le)
         out = alloc(se, b"\xcc" * 4)
@@ -802,7 +802,7 @@ def test_nt_terminate_process_leaves_the_caller_running_for_another_process(dll_
 def test_dll_get_version_uses_the_emulated_os_build(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], dll: str, major: int, minor: int
 ) -> None:
-    config["os_ver"].update(major=10, minor=0, build=19045)
+    config["system"]["os_ver"].update(major=10, minor=0, build=19045)
     for se in load_emu(config, load_test_bin("dll_test_x64.dll.xz")):
         info = alloc(se, struct.pack("<I", 20) + b"\x00" * 16)
         assert call(se, dll, "DllGetVersion", [info])[0] == windefs.S_OK

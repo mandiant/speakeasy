@@ -41,7 +41,7 @@ When the loop handles `RunReturn` or `RunEnd`, or when the run reaches a limit, 
 
 ### Driver runs
 
-`WinKernelEmulator.run_module` adds a run for DriverEntry. If `all_entrypoints` is true, `_queue_driver_routines` adds the other runs when DriverEntry ends, in this order:
+`WinKernelEmulator.run_module` adds a run for DriverEntry. If `runs.exports` is true, `_queue_driver_routines` adds the other runs when DriverEntry ends, in this order:
 
 1. The exports of the driver.
 2. The IRP handlers that DriverEntry registered: `IRP_MJ_CREATE`, `IRP_MJ_DEVICE_CONTROL`, `IRP_MJ_READ`, `IRP_MJ_WRITE`, `IRP_MJ_CLOSE` and `IRP_MJ_CLEANUP`. Each handler gets one IRP for the first device of the driver. The `IRP_MJ_DEVICE_CONTROL` IRP has the IOCTL code `0x5D5D5D5D`.
@@ -58,7 +58,7 @@ Each export of an emulated DLL has 32 bytes of code in the DLL image. The code j
 1. `HandlerImplementation`: the handler for the name, or for a related name. User hooks for the API run first, and they can call the handler.
 2. `UserHookImplementation`: a user hook without a handler. The emulator runs the hook that the caller added last.
 3. `SignatureImplementation`: a function from the signature database. It logs the arguments and returns a success value.
-4. `StubImplementation`: with `functions_always_exist`, a stub that returns 1.
+4. `StubImplementation`: with `apis.stubs`, a stub that returns 1.
 5. `UnsupportedImplementation`: the run ends with an `unsupported_api` error.
 
 `get_handler_candidates(dll, name)` gives the related names, in order: for example, the name without the `A` or `W` suffix, the `Zw` name for an `Nt` name, or the modules that implement an API set (`get_dll_hosts`). `get_api_handler` uses the first related name that has a handler. `get_proc` asks `get_import_host` for the module of an import. When more than one module implements an API set, `get_import_host` returns the first module that has a handler for the name.
@@ -91,7 +91,7 @@ A loader (`PeLoader`, `ShellcodeLoader` or `ApiModuleLoader`) returns a `LoadedI
 
 The emulator runs DllMain and TLS callbacks in two ways. For the DLLs that the input imports, `_queue_startup_initializers` adds a run for each callback before the first run in the queue. For `LoadLibrary`, `load_library` calls them as guest callbacks.
 
-Usually there are few runs before the entry point. Only a DLL with a real PE image has a DllMain or TLS callbacks: a DLL from the module directory (`module_directory_x86` or `module_directory_x64`, not set by default), or a DLL that the guest loads with `LoadLibrary` from the emulated file system. The other DLLs, such as kernel32, are synthetic API modules without initializers. The loader never loads imports from the emulated file system. All processes share one set of modules.
+Usually there are few runs before the entry point. Only a DLL with a real PE image has a DllMain or TLS callbacks: a DLL from the module directory (`modules.directory_x86` or `modules.directory_x64`, not set by default), or a DLL that the guest loads with `LoadLibrary` from the emulated file system. The other DLLs, such as kernel32, are synthetic API modules without initializers. The loader never loads imports from the emulated file system. All processes share one set of modules.
 
 Both ways use the same data. `Process.peb_modules` has the modules in the loader lists of a process. `RuntimeModule.load_states` has the state of the module in each process, with names from the Windows `LDR_DDAG_STATE` values: `INITIALIZING` while its DllMain and TLS callbacks run, then `READY_TO_RUN` or `INIT_ERROR`. `ModuleLoader.collect_initializers` returns an `InitRoutine` for each DllMain and TLS callback to run. `InitRoutine.args` has the arguments of the call for `DLL_PROCESS_ATTACH`.
 
@@ -107,10 +107,10 @@ If the emulator cancels the runs in the queue, for example when emulation reache
 
 - `_hook_mem_unmapped` for unmapped and protected memory. This hook also finds API calls and returns to the reserved range.
 - Hooks for interrupts, invalid instructions, `in` and `out`.
-- `_hook_block_call_site`, a block hook that keeps the start and size of the last block. When a block jumps to an API, the last instruction of that block is the call site, and the API event gives it as `pc`. If Unicorn started again between the two blocks, or the block does not decode to its end, the event has no `pc`. With `analysis.dynamic_code_snapshots`, this hook also adds a later snapshot of a dynamic code region. After each snapshot, `BinaryEmulator` adds a write hook on the region, and `BinaryEmulator.mem_write` covers the writes of the API handlers. The first write marks the region changed. When a block starts in a changed region and the block before it is not in the region, the hook takes the snapshot.
-- `_hook_code_tracing`, `_hook_mem_read` and `_hook_mem_write` when `analysis.memory_tracing` is set. They count reads, writes and executes for each symbol, section and memory map.
-- `_hook_code_coverage` when `analysis.coverage` is set.
-- A code hook that counts each instruction of the run when `analysis.dynamic_code_snapshots` is set and no instruction limit or memory tracing counts them, so that `pos.tick` is the instruction count.
+- `_hook_block_call_site`, a block hook that keeps the start and size of the last block. When a block jumps to an API, the last instruction of that block is the call site, and the API event gives it as `pc`. If Unicorn started again between the two blocks, or the block does not decode to its end, the event has no `pc`. With `memory.dynamic_code_contents`, this hook also adds a later snapshot of a dynamic code region. After each snapshot, `BinaryEmulator` adds a write hook on the region, and `BinaryEmulator.mem_write` covers the writes of the API handlers. The first write marks the region changed. When a block starts in a changed region and the block before it is not in the region, the hook takes the snapshot.
+- `_hook_code_tracing`, `_hook_mem_read` and `_hook_mem_write` when `memory.accesses` is set. They count reads, writes and executes for each symbol, section and memory map.
+- `_hook_code_coverage` when `code.coverage` is set.
+- A code hook that counts each instruction of the run when `memory.dynamic_code_contents` is set and no instruction limit or memory access hook counts them, so that `pos.tick` is the instruction count.
 - `_hook_code_deferred_work`, which runs at the next instruction after an API call, a fault or a request to end the run. When it has no more work, it removes its Unicorn hook, so that Unicorn does not call Python for each instruction. Unicorn does not add a hook to code that it translated before the hook, so `enable_deferred_work_hook` drops the translation at the address where the guest continues. A read or a write in the reserved range maps it until this hook runs, so the hook also records the exit at a return address in that range.
 
 If a hook raises a Python exception, the hook catches it and calls `_end_run_on_hook_error`, which saves the error on the run and calls `stop()`.

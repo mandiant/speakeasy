@@ -1,11 +1,11 @@
-"""A run that makes max_api_loop_calls API calls with no call from a new call site ends with ``api_loop``."""
+"""A run that makes limits.api_loop_calls API calls with no call from a new call site ends with ``api_loop``."""
 
 import pytest
 
 from speakeasy.profiler import ApiLoopTracker
 from speakeasy.profiler_events import TracePosition
 from speakeasy.report import ApiLoopSite
-from tests.test_run_lifecycle import RETURN_2, queue, ran
+from tests.test_run_lifecycle import RETURN_2, queue, ran, update_config
 
 LIMIT = 20
 
@@ -70,9 +70,10 @@ def test_the_loop_has_at_most_16_sites_with_the_most_calls_first():
 @pytest.fixture
 def emu(dll_emu):
     """An x86 user mode emulator with a process, an empty run queue and an API loop limit of 20."""
-    dll_emu.emu.prepare_module_for_emulation(dll_emu.emu.modules[0], all_entrypoints=False)
+    update_config(dll_emu.emu, "runs", exports=False)
+    dll_emu.emu.prepare_module_for_emulation(dll_emu.emu.modules[0])
     dll_emu.emu.run_queue.clear()
-    dll_emu.emu.config = dll_emu.emu.config.model_copy(update={"max_api_loop_calls": LIMIT})
+    update_config(dll_emu.emu, "limits", api_loop_calls=LIMIT)
     return dll_emu
 
 
@@ -128,7 +129,7 @@ def test_a_loop_of_two_apis_ends_with_api_loop_and_names_both_sites(emu):
 
 
 def test_a_loop_limit_of_0_leaves_the_loop_to_the_api_call_limit(emu):
-    emu.emu.config = emu.emu.config.model_copy(update={"max_api_loop_calls": 0, "max_api_calls": 3 * LIMIT})
+    update_config(emu.emu, "limits", api_loop_calls=0, api_calls=3 * LIMIT)
     tick = emu.emu.get_proc("kernel32", "GetTickCount")
     queue(emu.emu, loop_forever(call_api(tick)), "a")
 

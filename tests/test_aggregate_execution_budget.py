@@ -1,4 +1,4 @@
-"""The max_total_time cap on active execution across one public invocation."""
+"""The limits.total_time cap on active execution across one public invocation."""
 
 import json
 import subprocess
@@ -19,14 +19,14 @@ def last_error(se):
     return error.type if error is not None else None
 
 
-def test_max_total_time_config_rejects_invalid_values(config):
+def test_limits_total_time_rejects_invalid_values(config):
     for invalid in (-1, float("inf"), float("nan")):
         with pytest.raises(ValidationError):
-            SpeakeasyConfig.model_validate({**config, "max_total_time": invalid})
+            SpeakeasyConfig.model_validate({**config, "limits": {"total_time": invalid}})
 
 
 def test_spinning_call_stops_without_per_run_timeout(config):
-    config.update(max_run_time=0, max_total_time=0.05)
+    config["limits"].update(per_run_time=0, total_time=0.05)
     # A child process turns a missed native stop into a failure instead of a hung suite.
     script = """
 import json
@@ -52,8 +52,8 @@ se.shutdown()
 
 
 def test_self_respawning_threads_stop_at_cap(config, caplog):
-    max_total_time, delay = 0.25, 0.05
-    config.update(max_run_time=5, max_total_time=max_total_time)
+    total_time, delay = 0.25, 0.05
+    config["limits"].update(per_run_time=5, total_time=total_time)
     se = Speakeasy(config=config)
     try:
         # CreateThread(NULL, 0, this_function, NULL, 0, NULL); RET
@@ -75,15 +75,15 @@ def test_self_respawning_threads_stop_at_cap(config, caplog):
         # The last run is complete if the cap is reached while its thread is prepared.
         assert errors[-1] in (None, "max_total_time")
         # Each run that starts a thread uses at least delay, so no run starts after the cap.
-        assert len(errors) <= max_total_time / delay + 1
+        assert len(errors) <= total_time / delay + 1
         assert sum("Total execution time" in record.message for record in caplog.records) == 1
     finally:
         se.shutdown()
 
 
 def test_runtime_dll_main_stopped_by_cap_is_unloaded(config, tmp_path):
-    config.update(max_run_time=5, max_total_time=0.05)
-    config["modules"]["module_directory_x86"] = str(tmp_path)
+    config["limits"].update(per_run_time=5, total_time=0.05)
+    config["modules"]["directory_x86"] = str(tmp_path)
     se = Speakeasy(config=config)
     try:
         base = se.load_shellcode(data=b"\xc3", arch="x86")
@@ -106,7 +106,7 @@ def test_runtime_dll_main_stopped_by_cap_is_unloaded(config, tmp_path):
 
 
 def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
-    config.update(max_run_time=5, max_total_time=0.05)
+    config["limits"].update(per_run_time=5, total_time=0.05)
     with Speakeasy(config=config) as se:
         # PUSH 0; MOV EAX,ExitProcess; CALL EAX; RET
         base = se.load_shellcode(data=b"\x6a\x00\xb8\0\0\0\0\xff\xd0\xc3", arch="x86")
@@ -125,7 +125,7 @@ def test_exit_process_after_the_cap_ends_the_run_at_the_cap(config):
 
 
 def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog):
-    config.update(max_run_time=5, max_total_time=0.05, max_api_calls=1)
+    config["limits"].update(per_run_time=5, total_time=0.05, api_calls=1)
     with Speakeasy(config=config) as se:
         # CreateThread(NULL, 0, thread, NULL, 0, NULL); MOV EAX,GetTickCount; CALL EAX; RET; thread: RET
         code = b"\x6a\0\x6a\0\x6a\0\x68" + b"\0" * 4 + b"\x6a\0\x6a\0\xb8" + b"\0" * 4 + b"\xff\xd0"
@@ -141,8 +141,8 @@ def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog)
             time.sleep(0.1)
             return 1
 
-        # The second API call reaches max_api_calls, so the run ends and the thread's run
-        # is prepared. The time of the slow call then uses up max_total_time.
+        # The second API call reaches limits.api_calls, so the run ends and the thread's run
+        # is prepared. The time of the slow call then uses up limits.total_time.
         se.add_api_hook(slow_tick_count, "kernel32", "GetTickCount", argc=0)
         se.run_shellcode(base)
 
@@ -154,12 +154,12 @@ def test_run_that_the_cap_prevents_from_starting_is_not_reported(config, caplog)
 def run_parent_with_child(se, load_test_bin):
     module = se.load_module(data=load_test_bin(PARENT))
     se.emu.fileman.add_existing_file(CHILD_PATH, load_test_bin(CHILD))
-    se.run_module(module, emulate_children=True)
+    se.run_module(module)
     return module
 
 
 def test_children_do_not_load_after_the_cap(config, load_test_bin):
-    config.update(max_run_time=5, max_total_time=0.25)
+    config["limits"].update(per_run_time=5, total_time=0.25)
     with Speakeasy(config=config) as se:
 
         def slow_create_process(e, api, original, args):
@@ -179,7 +179,7 @@ def test_children_do_not_load_after_the_cap(config, load_test_bin):
 
 
 def test_load_of_a_child_counts_against_the_cap(config, load_test_bin):
-    config.update(max_run_time=5, max_total_time=0.25)
+    config["limits"].update(per_run_time=5, total_time=0.25)
     with Speakeasy(config=config) as se:
 
         def slow_child_image_map(e, base, size, tag, perms, flags):

@@ -6,6 +6,7 @@ import unicorn as uc
 from speakeasy import Speakeasy, common
 from speakeasy.profiler import Run
 from speakeasy.report import EntryPointType
+from tests.test_run_lifecycle import update_config
 
 
 @pytest.fixture(params=["dll_emu", "dll64_emu"])
@@ -13,7 +14,8 @@ def api_emu(request):
     se = request.getfixturevalue(request.param)
     # The handler fixture loads an image; queued execution also needs its
     # normal DLL container process, without running the fixture's DllMain.
-    se.emu.prepare_module_for_emulation(se.emu.modules[0], all_entrypoints=False)
+    update_config(se.emu, "runs", exports=False)
+    se.emu.prepare_module_for_emulation(se.emu.modules[0])
     se.emu.run_queue.clear()
     return se
 
@@ -102,7 +104,7 @@ def guest_call(emu, target):
 def test_sp_changing_exit_hook_ends_run_and_successor_owns_its_events(api_emu):
     se = api_emu
     emu = se.emu
-    emu.config = emu.config.model_copy(update={"max_instructions": 100})
+    update_config(emu, "limits", instructions=100)
 
     def exit_thread(e, api, original, args):
         width = e.get_ptr_size()

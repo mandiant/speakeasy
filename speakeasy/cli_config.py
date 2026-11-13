@@ -17,12 +17,12 @@ from speakeasy.volumes import apply_volumes
 EXCLUDED_CLI_PATHS = {
     "config_version",
     "emu_engine",
-    "os_ver.name",
+    "system.os_ver.name",
 }
 
 EXCLUDED_CLI_PREFIXES = (
-    "symlinks",
-    "drives",
+    "system.symlinks",
+    "system.drives",
     "filesystem.files",
     "registry.keys",
     "network.dns.txt",
@@ -30,15 +30,20 @@ EXCLUDED_CLI_PREFIXES = (
     "network.winsock.responses",
     "network.adapters",
     "processes",
-    "modules.user_modules",
-    "modules.system_modules",
+    "modules.user",
+    "modules.system",
 )
+
+CLI_SHORT_OPTIONS = {
+    "runs.children": "-k",
+}
 
 
 @dataclass(frozen=True)
 class ConfigCliFieldSpec:
     path: str
     option: str
+    short_option: str | None
     dest: str
     kind: Literal["bool", "int", "float", "str", "list_str", "dict_str_str"]
     description: str
@@ -80,8 +85,9 @@ def add_config_cli_arguments(parser: argparse.ArgumentParser, specs: list[Config
     for spec in specs:
         help_text = f"{spec.description} (default: {render_cli_default(spec.default)})"
         if spec.kind == "bool":
+            option_strings = [spec.short_option, spec.option] if spec.short_option else [spec.option]
             parser.add_argument(
-                spec.option,
+                *option_strings,
                 dest=spec.dest,
                 action=argparse.BooleanOptionalAction,
                 default=argparse.SUPPRESS,
@@ -177,6 +183,7 @@ def get_config_cli_field_specs(default_config: dict[str, Any] | None = None) -> 
             ConfigCliFieldSpec(
                 path=leaf.path,
                 option=get_option_name_for_path(leaf.path),
+                short_option=CLI_SHORT_OPTIONS.get(leaf.path),
                 dest=get_dest_name_for_path(leaf.path),
                 kind=kind,
                 description=leaf.description,
@@ -208,22 +215,15 @@ def output_active_config(model: SpeakeasyConfig, logger) -> None:
 
 def get_option_name_for_path(path: str) -> str:
     """
-    Get the flag of a config path, such as --analysis-coverage for analysis.coverage.
+    Get the flag of a config path, such as --code-coverage for code.coverage.
 
-    A path part is left out when the next part starts with the same word, so that
-    modules.modules_always_exist gives --modules-always-exist.
+    The enabled key of a group gives the flag of the group, so that memory.dynamic_code_contents.enabled
+    gives --memory-dynamic-code-contents.
     """
     parts = path.split(".")
-    kept = [
-        part
-        for part, following in zip(parts, parts[1:] + [""])
-        if get_singular_word(following.split("_")[0]) != get_singular_word(part)
-    ]
-    return "--" + "-".join(kept).replace("_", "-")
-
-
-def get_singular_word(word: str) -> str:
-    return word.removesuffix("s")
+    if len(parts) > 1 and parts[-1] == "enabled":
+        parts = parts[:-1]
+    return "--" + "-".join(parts).replace("_", "-")
 
 
 def get_dest_name_for_path(path: str) -> str:

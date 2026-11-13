@@ -8,14 +8,14 @@ REG_PATH_1102 = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVer
 
 
 def ensure_user_module(cfg: dict[str, Any], name: str, base_addr: str, path: str) -> None:
-    user_modules = cfg.setdefault("modules", {}).setdefault("user_modules", [])
+    user_modules = cfg.setdefault("modules", {}).setdefault("user", [])
     if any((module.get("name") or "").lower() == name.lower() for module in user_modules):
         return
     user_modules.append({"name": name, "base_addr": base_addr, "path": path})
 
 
 def set_main_command_line(cfg: dict[str, Any], command_line: str) -> None:
-    cfg["command_line"] = command_line
+    cfg["process"]["command_line"] = command_line
     for process in cfg.get("processes", []):
         if process.get("is_main_exe"):
             process["command_line"] = command_line
@@ -23,14 +23,14 @@ def set_main_command_line(cfg: dict[str, Any], command_line: str) -> None:
 
 
 def profile_pma_0102(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 2
-    cfg["max_api_calls"] = 250
+    cfg["limits"]["per_run_time"] = 2
+    cfg["limits"]["api_calls"] = 250
     return CaseRuntime()
 
 
 def profile_pma_0104(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 2
-    cfg["max_api_calls"] = 250
+    cfg["limits"]["per_run_time"] = 2
+    cfg["limits"]["api_calls"] = 250
     ensure_user_module(cfg, "psapi", "0x71000000", "C:\\Windows\\system32\\psapi.dll")
     return CaseRuntime()
 
@@ -98,8 +98,8 @@ def profile_pma_1102_deep(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
 
 
 def profile_pma_1103_dll(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 20
-    cfg["max_api_calls"] = 500
+    cfg["limits"]["per_run_time"] = 20
+    cfg["limits"]["api_calls"] = 500
     return CaseRuntime()
 
 
@@ -123,13 +123,13 @@ def profile_pma_1201_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def profile_pma_1202_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 2
+    cfg["limits"]["per_run_time"] = 2
     set_main_command_line(cfg, "svchost.exe")
     return CaseRuntime()
 
 
 def profile_pma_1203_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 2
+    cfg["limits"]["per_run_time"] = 2
     set_main_command_line(cfg, "svchost.exe")
     return CaseRuntime()
 
@@ -141,28 +141,28 @@ def profile_pma_1204_deep(cfg: dict[str, Any], _: Path) -> CaseRuntime:
 
 
 def profile_pma_1402(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 6
-    cfg["max_api_calls"] = 800
+    cfg["limits"]["per_run_time"] = 6
+    cfg["limits"]["api_calls"] = 800
     return CaseRuntime()
 
 
 def profile_pma_1603(cfg: dict[str, Any], _: Path) -> CaseRuntime:
     cfg.setdefault("exceptions", {})
-    cfg["exceptions"]["dispatch_handlers"] = True
+    cfg["exceptions"]["dispatch"] = True
     return CaseRuntime()
 
 
 def profile_pma_1702(cfg: dict[str, Any], _: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 4
-    cfg["max_api_calls"] = 600
+    cfg["limits"]["per_run_time"] = 4
+    cfg["limits"]["api_calls"] = 600
     return CaseRuntime()
 
 
 def profile_pma_0101_staged(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
-    cfg["max_run_time"] = 20
-    cfg["max_api_calls"] = 200
+    cfg["limits"]["per_run_time"] = 20
+    cfg["limits"]["api_calls"] = 200
     cfg.setdefault("exceptions", {})
-    cfg["exceptions"]["dispatch_handlers"] = True
+    cfg["exceptions"]["dispatch"] = True
 
     source = TESTS_DIR / "capa-testfiles"
     sample_path = tmp_path / "sample.exe"
@@ -181,7 +181,7 @@ def profile_pma_1803_ocl(cfg: dict[str, Any], tmp_path: Path) -> CaseRuntime:
     # The unpacked payload checks its own basename before starting the reverse shell.
     sample_path = tmp_path / "ocl.exe"
     shutil.copy2(TESTS_DIR / "capa-testfiles" / "Practical Malware Analysis Lab 18-03.exe_", sample_path)
-    cfg["max_run_time"] = 2
-    cfg["max_api_calls"] = 200
+    cfg["limits"]["per_run_time"] = 2
+    cfg["limits"]["api_calls"] = 200
     set_main_command_line(cfg, "ocl.exe")
     return CaseRuntime(sample_path=sample_path)

@@ -55,7 +55,7 @@ class Ndis(api.ApiHandler):
         """
         ndis_major = 5
         ndis_minor = 0
-        osver = self.emu.config.os_ver
+        osver = self.emu.config.system.os_ver
         major, minor = osver.major or 0, osver.minor or 0
 
         if major >= 6:

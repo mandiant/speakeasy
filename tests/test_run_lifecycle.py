@@ -14,10 +14,16 @@ LOOP = b"\xeb\xfe"
 READ_NULL = b"\xa1\x00\x00\x00\x00\xc3"
 
 
+def update_config(emu, group: str, **values) -> None:
+    """Replace values in one group of the config of ``emu``, such as ``limits``."""
+    emu.config = emu.config.model_copy(update={group: getattr(emu.config, group).model_copy(update=values)})
+
+
 @pytest.fixture
 def emu(dll_emu):
     """An x86 user mode emulator with a process and an empty run queue."""
-    dll_emu.emu.prepare_module_for_emulation(dll_emu.emu.modules[0], all_entrypoints=False)
+    update_config(dll_emu.emu, "runs", exports=False)
+    dll_emu.emu.prepare_module_for_emulation(dll_emu.emu.modules[0])
     dll_emu.emu.run_queue.clear()
     return dll_emu
 
@@ -81,7 +87,7 @@ def test_a_fault_ends_the_run_and_the_next_run_starts(emu):
 
 
 def test_the_api_limit_ends_the_run_and_the_next_run_starts(emu):
-    emu.emu.config = emu.emu.config.model_copy(update={"max_api_calls": 2})
+    update_config(emu.emu, "limits", api_calls=2)
     tick = emu.emu.get_proc("kernel32", "GetTickCount")
     queue(emu.emu, (b"\xb8" + tick.to_bytes(4, "little") + b"\xff\xd0") * 4 + RETURN_2, "a")
     queue(emu.emu, RETURN_2, "b")
@@ -93,7 +99,7 @@ def test_the_api_limit_ends_the_run_and_the_next_run_starts(emu):
 
 
 def test_the_instruction_limit_ends_the_run_and_the_next_run_starts(emu):
-    emu.emu.config = emu.emu.config.model_copy(update={"max_instructions": 1000})
+    update_config(emu.emu, "limits", instructions=1000)
     queue(emu.emu, LOOP, "a")
     queue(emu.emu, RETURN_2, "b")
 
@@ -155,7 +161,7 @@ def test_stop_in_a_code_hook_in_kernel_mode_ends_the_emulation(config, load_test
         module = se.load_module(data=load_test_bin("wdm_test_x86.sys.xz"))
         entry = module.base + module.ep
         se.add_code_hook(lambda e, address, size: se.stop(), begin=entry, end=entry)
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         eps = se.get_report().entry_points
 
     assert [(ep.type, ep.error.type if ep.error else None) for ep in eps] == [("driver_entry", None)]

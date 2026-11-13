@@ -288,40 +288,6 @@ _Address = Annotated[int, BeforeValidator(_parse_config_int), PlainSerializer(he
 _Size = Annotated[int, BeforeValidator(_parse_config_int)]
 
 
-class AnalysisConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    memory_tracing: bool = Field(
-        default=True,
-        description="Count the reads, writes and executes of each symbol, section and memory map for the report.",
-    )
-    strings: bool = Field(
-        default=True, description="Add the strings of the input and of emulated memory to the report."
-    )
-    coverage: bool = Field(default=True, description="Record the address of each instruction that a run executes.")
-    dynamic_code_snapshots: bool = Field(
-        default=True,
-        description="Add the contents of each dynamic code region to the report, at the first time that code runs"
-        " in it, and again each time that code runs in it after the region changes. The emulator then counts each"
-        " instruction, so that the position of each snapshot has the instruction count.",
-    )
-    dynamic_code_snapshot_limit: int = Field(
-        default=8,
-        ge=1,
-        description="Maximum number of snapshots of each dynamic code region in one run, with the first snapshot."
-        " Only with dynamic_code_snapshots.",
-    )
-
-
-class ExceptionsConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    dispatch_handlers: bool = Field(
-        default=True,
-        description="Send CPU exceptions to the VEH and SEH handlers of the guest. If false, a fault ends the run.",
-    )
-
-
 class OsVersionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -335,7 +301,7 @@ class UserConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: str = Field(default="speakeasy_user", description="User name, for example for GetUserName.")
-    is_admin: bool = Field(default=True, description="If true, the token of the user is elevated.")
+    admin: bool = Field(default=True, description="If true, the token of the user is elevated.")
     sid: str = Field(default="S-1-5-21-1111111111-2222222222-3333333333-1001", description="SID of the emulated user.")
 
 
@@ -506,9 +472,9 @@ class NetworkAdapterConfig(BaseModel):
 class NetworkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    dns: DnsConfig | None = Field(default_factory=DnsConfig, description="DNS emulation settings.")
-    http: HttpConfig | None = Field(default_factory=HttpConfig, description="HTTP emulation settings.")
-    winsock: WinsockConfig | None = Field(default_factory=WinsockConfig, description="Winsock emulation settings.")
+    dns: DnsConfig = Field(default_factory=DnsConfig, description="DNS emulation settings.")
+    http: HttpConfig = Field(default_factory=HttpConfig, description="HTTP emulation settings.")
+    winsock: WinsockConfig = Field(default_factory=WinsockConfig, description="Winsock emulation settings.")
     adapters: list[NetworkAdapterConfig] = Field(
         default_factory=lambda: [NetworkAdapterConfig.model_validate(item) for item in _DEFAULT_ADAPTERS],
         description="Network adapters that APIs such as GetAdaptersInfo give.",
@@ -563,31 +529,145 @@ class SystemModuleConfig(BaseModel):
 class ModulesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    modules_always_exist: bool = Field(
+    stubs: bool = Field(
         default=True,
         description="If true, the emulator loads an unknown module as an empty API module.",
     )
-    functions_always_exist: bool = Field(
-        default=True,
-        description="If true, an API without a handler or a declaration resolves to a stub that returns 1.",
-    )
-    module_directory_x86: str | None = Field(
+    directory_x86: str | None = Field(
         default=None, description="Directory of x86 DLLs that the emulator loads in place of the synthetic API modules."
     )
-    module_directory_x64: str | None = Field(
+    directory_x64: str | None = Field(
         default=None, description="Directory of x64 DLLs that the emulator loads in place of the synthetic API modules."
     )
-    user_modules: list[UserModuleConfig] = Field(
+    user: list[UserModuleConfig] = Field(
         default_factory=lambda: [UserModuleConfig.model_validate(item) for item in _DEFAULT_USER_MODULES],
         description="User-mode modules that the emulator loads at their base addresses.",
     )
-    system_modules: list[SystemModuleConfig] = Field(
+    system: list[SystemModuleConfig] = Field(
         default_factory=lambda: [SystemModuleConfig.model_validate(item) for item in _DEFAULT_SYSTEM_MODULES],
         description="Kernel-mode modules.",
     )
 
 
-class SpeakeasyConfig(BaseModel):
+class LimitsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    per_run_time: float = Field(
+        default=60,
+        ge=0,
+        allow_inf_nan=False,
+        description="Limit of the execution time of each run, in seconds. 0 disables the limit.",
+    )
+    total_time: float = Field(
+        default=0,
+        ge=0,
+        allow_inf_nan=False,
+        description="Limit of the execution time of all runs in one call of run_module, run_shellcode, call or resume,"
+        " in seconds. 0 disables the limit.",
+    )
+    api_calls: int = Field(default=10000, ge=0, description="Limit of the API calls of each run. 0 disables the limit.")
+    api_loop_calls: int = Field(
+        default=5000,
+        ge=0,
+        description="Limit of the API calls of a run with no call from a new call site (API and return address)."
+        " The run then ends with an api_loop error. 0 disables the limit.",
+    )
+    instructions: int = Field(
+        default=0, ge=0, description="Limit of the instructions of each run. 0 disables the limit."
+    )
+
+
+class RunsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    exports: bool = Field(
+        default=True,
+        description="Also run the exports of the PE input. For a driver, also send IRPs to its dispatch functions"
+        " and run its unload routine.",
+    )
+    children: bool = Field(
+        default=True,
+        description="After the PE input finishes, run the processes that it creates. Not in kernel mode.",
+    )
+    stack_size: _Size = Field(
+        default=0,
+        description="Size of the stack of the input in bytes. 0 uses max(SizeOfStackReserve, 0x12000) for a PE,"
+        " and the stack_commit argument of run_shellcode (default 0x4000) for shellcode.",
+    )
+
+
+class DynamicCodeContentsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = Field(
+        default=True,
+        description="Add the contents of each dynamic code region to the report, at the first time that code runs"
+        " in it, and again each time that code runs in it after the region changes. Dynamic code is memory that"
+        " the guest allocated and then ran. If memory.accesses is off, the emulator then counts each instruction,"
+        " so that the position of each snapshot has the instruction count.",
+    )
+    limit: int = Field(
+        default=8,
+        ge=1,
+        description="Maximum number of snapshots of each dynamic code region in one run, with the first snapshot.",
+    )
+
+
+class MemoryConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    accesses: bool = Field(
+        default=True,
+        description="Add to the report the count of reads, writes and executes of each symbol and memory region."
+        " The emulator then hooks each instruction and each memory access.",
+    )
+    strings: bool = Field(
+        default=True,
+        description="Add to the report the strings of the input file, and the strings that the guest decoded in"
+        " memory.",
+    )
+    final_contents: bool = Field(
+        default=True,
+        description="Add to the report the contents of each memory region at the end of each run, except the stacks."
+        " User mode only.",
+    )
+    dynamic_code_contents: DynamicCodeContentsConfig = Field(
+        default_factory=DynamicCodeContentsConfig,
+        description="Snapshots of dynamic code regions.",
+    )
+    freed_regions: bool = Field(
+        default=True,
+        description="If true, a region that the guest frees stays mapped, so that its data can be read.",
+    )
+
+
+class CodeConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    coverage: bool = Field(
+        default=True, description="Add to the report the address of each instruction that a run executes."
+    )
+
+
+class ApisConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stubs: bool = Field(
+        default=True,
+        description="If true, an API without a handler or a declaration resolves to a stub that returns 1.",
+    )
+
+
+class ExceptionsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dispatch: bool = Field(
+        default=True,
+        description="Send CPU exceptions to the VEH and SEH handlers of the guest. If false, a fault ends the run.",
+    )
+
+
+class SystemConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     @field_validator("start_time")
@@ -596,6 +676,34 @@ class SpeakeasyConfig(BaseModel):
         parse_start_time(v)
         return v
 
+    os_ver: OsVersionConfig = Field(
+        default_factory=OsVersionConfig,
+        description="Windows version that the PEB and the version APIs give.",
+    )
+    hostname: str = Field(default="speakeasy_host", description="Host name, for example for GetComputerName.")
+    domain: str | None = Field(default="speakeasy_domain", description="Domain or workgroup of the user.")
+    start_time: str = Field(
+        default="2026-10-31T15:15:00Z",
+        description="System time when emulation starts, in ISO 8601 with a time zone."
+        " The emulated clock counts from it. The default is fixed so that runs repeat.",
+    )
+    random_seed: int = Field(
+        default=0,
+        description="Seed of the random number generator that gives random bytes and GUIDs to the guest.",
+    )
+    drives: list[DriveConfig] = Field(
+        default_factory=lambda: [DriveConfig.model_validate(item) for item in _DEFAULT_DRIVES],
+        description="Drives that the drive APIs, such as GetLogicalDrives, give.",
+    )
+    symlinks: list[SymlinkConfig] = Field(
+        default_factory=lambda: [SymlinkConfig.model_validate(item) for item in _DEFAULT_SYMLINKS],
+        description="Object manager symbolic links.",
+    )
+
+
+class ProcessEnvironmentConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
     @field_validator("env")
     @classmethod
     def lowercase_env_names(cls, v: dict[str, str]) -> dict[str, str]:
@@ -603,110 +711,70 @@ class SpeakeasyConfig(BaseModel):
         # A later name wins over an earlier name that differs only in case.
         return {name.lower(): value for name, value in v.items()}
 
-    config_version: Literal["2.0"] = Field(default="2.0", description="Configuration schema version.")
-    emu_engine: Literal["unicorn"] = Field(
-        default="unicorn", description="Emulation engine. The only value is unicorn."
-    )
-    max_run_time: float = Field(
-        default=60,
-        description="Limit of the execution time of each run, in seconds. 0 disables the limit.",
-    )
-    max_total_time: float = Field(
-        default=0,
-        ge=0,
-        allow_inf_nan=False,
-        description="Limit of the execution time of all runs in one call of run_module, run_shellcode, call or resume,"
-        " in seconds. 0 disables the limit.",
-    )
-    max_api_calls: int = Field(default=10000, description="Limit of the API calls of each run.")
-    max_api_loop_calls: int = Field(
-        default=5000,
-        ge=0,
-        description="Limit of the API calls of a run with no call from a new call site (API and return address)."
-        " The run then ends with an api_loop error. 0 disables the limit.",
-    )
-    max_instructions: int = Field(
-        default=-1, description="Limit of the instructions of each run. 0 or less disables the limit."
-    )
-    stack_size: _Size = Field(
-        default=0,
-        description="Size of the stack of the input in bytes. 0 uses max(SizeOfStackReserve, 0x12000) for a PE,"
-        " and the stack_commit argument of run_shellcode (default 0x4000) for shellcode.",
-    )
-    random_seed: int = Field(
-        default=0,
-        description="Seed of the random number generator that gives random bytes and GUIDs to the guest.",
-    )
-    start_time: str = Field(
-        default="2026-10-31T15:15:00Z",
-        description="System time when emulation starts, in ISO 8601 with a time zone."
-        " The emulated clock counts from it. The default is fixed so that runs repeat.",
-    )
-    analysis: AnalysisConfig = Field(
-        default_factory=AnalysisConfig,
-        description="Data that the report collects.",
-    )
-    keep_memory_on_free: bool = Field(
-        default=True,
-        description="If true, the memory manager keeps a freed region mapped, so that its data can be read.",
-    )
-    snapshot_memory_regions: bool = Field(
-        default=True,
-        description="If true, the report has the contents of the memory regions at the end of each run.",
-    )
-    exceptions: ExceptionsConfig = Field(
-        default_factory=ExceptionsConfig,
-        description="Exception dispatch settings.",
-    )
-    os_ver: OsVersionConfig = Field(
-        default_factory=OsVersionConfig,
-        description="Windows version that the PEB and the version APIs give.",
+    command_line: str = Field(
+        default="svchost.exe myarg1 myarg2",
+        description="Command line of the process, for example for GetCommandLine.",
     )
     current_dir: str = Field(
         default="C:\\Windows\\system32",
         description="Current directory of the process.",
     )
-    command_line: str = Field(
-        default="svchost.exe myarg1 myarg2",
-        description="Command line of the process, for example for GetCommandLine.",
-    )
     env: dict[str, str] = Field(
         default_factory=lambda: dict(_DEFAULT_ENV),
         description="Environment variables of the process. Names are not case-sensitive.",
     )
-    domain: str | None = Field(default="speakeasy_domain", description="Domain or workgroup of the user.")
-    hostname: str = Field(default="speakeasy_host", description="Host name, for example for GetComputerName.")
+
+
+class SpeakeasyConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    config_version: Literal["2.0"] = Field(default="2.0", description="Configuration schema version.")
+    emu_engine: Literal["unicorn"] = Field(
+        default="unicorn", description="Emulation engine. The only value is unicorn."
+    )
+    limits: LimitsConfig = Field(default_factory=LimitsConfig, description="Limits of the runs.")
+    runs: RunsConfig = Field(default_factory=RunsConfig, description="The runs that the emulator starts.")
+    memory: MemoryConfig = Field(
+        default_factory=MemoryConfig,
+        description="Memory data that the report collects, and the handling of freed memory.",
+    )
+    code: CodeConfig = Field(default_factory=CodeConfig, description="Code data that the report collects.")
+    apis: ApisConfig = Field(default_factory=ApisConfig, description="Resolution and handling of API calls.")
+    modules: ModulesConfig = Field(
+        default_factory=ModulesConfig,
+        description="Module loading settings and module lists.",
+    )
+    exceptions: ExceptionsConfig = Field(
+        default_factory=ExceptionsConfig,
+        description="Exception dispatch settings.",
+    )
+    system: SystemConfig = Field(
+        default_factory=SystemConfig,
+        description="Emulated system: OS version, host, clock, random numbers, drives and symbolic links.",
+    )
     user: UserConfig = Field(
         default_factory=UserConfig,
         description="User account of the process.",
     )
-    symlinks: list[SymlinkConfig] = Field(
-        default_factory=lambda: [SymlinkConfig.model_validate(item) for item in _DEFAULT_SYMLINKS],
-        description="Object manager symbolic links.",
+    process: ProcessEnvironmentConfig = Field(
+        default_factory=ProcessEnvironmentConfig,
+        description="Command line, current directory and environment of the process.",
     )
-    drives: list[DriveConfig] = Field(
-        default_factory=lambda: [DriveConfig.model_validate(item) for item in _DEFAULT_DRIVES],
-        description="Drives that the drive APIs, such as GetLogicalDrives, give.",
+    processes: list[ProcessConfig] = Field(
+        default_factory=lambda: [ProcessConfig.model_validate(item) for item in _DEFAULT_PROCESSES],
+        description="Processes that the process enumeration APIs give, and the container process.",
     )
     filesystem: FilesystemConfig = Field(
         default_factory=FilesystemConfig,
         description="Content of the files in the emulated file system.",
     )
-    registry: RegistryConfig | None = Field(
+    registry: RegistryConfig = Field(
         default_factory=RegistryConfig,
         description="Registry keys and values that exist when emulation starts.",
     )
     network: NetworkConfig = Field(
         default_factory=NetworkConfig,
         description="Network emulation settings.",
-    )
-    processes: list[ProcessConfig] = Field(
-        default_factory=lambda: [ProcessConfig.model_validate(item) for item in _DEFAULT_PROCESSES],
-        description="Processes that the process enumeration APIs give, and the container process.",
-    )
-    modules: ModulesConfig = Field(
-        default_factory=ModulesConfig,
-        description="Module loading settings and module lists.",
     )
 
 

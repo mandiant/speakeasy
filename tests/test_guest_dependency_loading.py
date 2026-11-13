@@ -75,8 +75,8 @@ def image_base(path):
 
 
 def native_config(config, tmp_path):
-    config["modules"]["module_directory_x86"] = str(tmp_path)
-    config["modules"]["module_directory_x64"] = str(tmp_path)
+    config["modules"]["directory_x86"] = str(tmp_path)
+    config["modules"]["directory_x64"] = str(tmp_path)
     return config
 
 
@@ -124,7 +124,7 @@ def test_runtime_load_of_a_dll_that_the_program_wrote(config, load_test_bin):
     CreateFileW and WriteFile, then loads it from that path with LoadLibraryExW. The third letter of
     the temp folder name comes from GetTickCount.
     """
-    config["max_api_calls"] = 300000  # NSIS calls CharNextW for each path character
+    config["limits"]["api_calls"] = 300000  # NSIS calls CharNextW for each path character
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(NSIS_INSTALLER))
         loaded = []
@@ -291,7 +291,7 @@ def test_startup_initializer_failure_continues_startup(config, tmp_path, result,
         second = make_native_dll(builder.emu, tmp_path / "second.dll")
     finally:
         builder.shutdown()
-    config["modules"]["user_modules"] += [
+    config["modules"]["user"] += [
         {"name": name, "base_addr": hex(image_base(tmp_path / f"{name}.dll")), "path": f"C:\\Windows\\{name}.dll"}
         for name in ("first", "second")
     ]
@@ -360,6 +360,7 @@ def jump_to(ptr_size, target):
 @pytest.mark.parametrize("module_type", ["dll", "exe"])
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
 def test_entry_point_sees_tls_slots_that_the_tls_callback_set(config, tmp_path, arch, module_type):
+    config["runs"] = {"exports": False}
     path = tmp_path / "guest_dependency.dll"
     se = Speakeasy(config=config)
     try:
@@ -387,7 +388,7 @@ def test_entry_point_sees_tls_slots_that_the_tls_callback_set(config, tmp_path, 
         se.mem_write(exports["TlsCallback"], jump_to(ptr, callback))
         se.mem_write(exports["Initializer"], jump_to(ptr, entry))
 
-        se.run_module(module, all_entrypoints=False)
+        se.run_module(module)
 
         assert [ep.error for ep in se.get_report().entry_points] == [None, None]
         assert read_pointer(se, result) == 0x1234
@@ -395,6 +396,7 @@ def test_entry_point_sees_tls_slots_that_the_tls_callback_set(config, tmp_path, 
 
 @pytest.mark.parametrize("arch", ["x86", "amd64"])
 def test_entry_point_sees_static_tls_data_that_the_tls_callback_wrote(config, tmp_path, arch):
+    config["runs"] = {"exports": False}
     path = tmp_path / "guest_dependency.dll"
     se = Speakeasy(config=config)
     try:
@@ -419,13 +421,13 @@ def test_entry_point_sees_static_tls_data_that_the_tls_callback_wrote(config, tm
         se.mem_write(exports["TlsCallback"], jump_to(se.get_ptr_size(), result + 0x40))
         se.mem_write(exports["Initializer"], jump_to(se.get_ptr_size(), result + 0x80))
 
-        se.run_module(module, all_entrypoints=False)
+        se.run_module(module)
 
         assert [ep.error for ep in se.get_report().entry_points] == [None, None]
         assert int.from_bytes(se.mem_read(result, 4), "little") == 0x1234
 
 
-def test_all_entrypoints_skips_data_and_forwarded_exports(config, tmp_path):
+def test_export_runs_skip_data_and_forwarded_exports(config, tmp_path):
     se = Speakeasy(config=config)
     try:
         se.load_shellcode(data=b"\xc3", arch="x86")
@@ -435,7 +437,7 @@ def test_all_entrypoints_skips_data_and_forwarded_exports(config, tmp_path):
 
     with Speakeasy(config=config) as se:
         module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         runs = [(ep.type, ep.name) for ep in se.get_report().entry_points]
 
     assert ("export", "GetTickCount") in runs
@@ -453,7 +455,7 @@ def test_dll_without_an_entry_point_runs_only_its_exports(config, tmp_path):
 
     with Speakeasy(config=config) as se:
         module = se.load_module(path=str(tmp_path / "guest_dependency.dll"))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         entries = se.get_report().entry_points
 
     assert [(ep.type, ep.name) for ep in entries if ep.type != "export"] == [("tls_callback", "0")]

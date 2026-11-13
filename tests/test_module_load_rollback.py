@@ -9,7 +9,7 @@ from speakeasy.windows.loaders import ExportEntry, LoadedImage, MemoryRegion
 
 @pytest.fixture
 def warm_emu(config):
-    config["max_instructions"] = 1
+    config["limits"]["instructions"] = 1
     se = Speakeasy(config=config)
     try:
         address = se.load_shellcode(data=b"\x90\x90", arch="x86")

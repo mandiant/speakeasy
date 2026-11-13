@@ -1,4 +1,4 @@
-"""The max_instructions cap through the public execution and report interfaces."""
+"""The limits.instructions cap through the public execution and report interfaces."""
 
 import struct
 
@@ -9,12 +9,12 @@ from speakeasy import Speakeasy
 
 @pytest.fixture
 def capped_session(config):
-    config["max_run_time"] = 3
+    config["limits"]["per_run_time"] = 3
     sessions = []
 
-    def create(budget, memory_tracing=False):
-        config["max_instructions"] = budget
-        config["analysis"]["memory_tracing"] = memory_tracing
+    def create(budget, accesses=False):
+        config["limits"]["instructions"] = budget
+        config["memory"]["accesses"] = accesses
         se = Speakeasy(config=config)
         sessions.append(se)
         return se
@@ -30,10 +30,10 @@ def assert_limit(run, budget):
     assert run.instruction_count == budget
 
 
-@pytest.mark.parametrize("memory_tracing", [False, True])
+@pytest.mark.parametrize("accesses", [False, True])
 @pytest.mark.parametrize("budget", [8, 17])
-def test_cap_stops_loop_at_exact_instruction(capped_session, budget, memory_tracing):
-    se = capped_session(budget, memory_tracing)
+def test_cap_stops_loop_at_exact_instruction(capped_session, budget, accesses):
+    se = capped_session(budget, accesses)
     # Seven NOPs then a jump to the first NOP: eight instructions per cycle.
     base = se.load_shellcode(data=b"\x90" * 7 + b"\xeb\xf7", arch="x86")
     se.run_shellcode(base)

@@ -698,7 +698,7 @@ def test_rtl_time_to_time_fields_splits_the_time(driver_emu: Speakeasy) -> None:
 
 
 def test_ps_get_version_writes_zero_for_a_null_build(config: dict[str, Any], load_test_bin: Any) -> None:
-    config["os_ver"] = {"major": 6, "minor": 1, "build": None}
+    config["system"]["os_ver"] = {"major": 6, "minor": 1, "build": None}
     for se in load_emu(config, load_test_bin("wdm_test_x86.sys.xz")):
         out = alloc(se, b"\xcc" * 12)
         rv, _ = call(se, "ntoskrnl", "PsGetVersion", [out, out + 4, out + 8, 0])

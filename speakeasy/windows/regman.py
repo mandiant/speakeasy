@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import speakeasy.winenv.defs.registry.reg as regdefs
+from speakeasy.config import RegistryConfig
 from speakeasy.errors import RegistryEmuError
 from speakeasy.profiler_events import EventType
 from speakeasy.windows.handles import HandleTable
@@ -15,7 +16,6 @@ from speakeasy.winenv.codepage import encode_ansi
 from speakeasy.winenv.defs.enums import HKEY, REG_VALUE_TYPE
 
 if TYPE_CHECKING:
-    from speakeasy.config import RegistryConfig
     from speakeasy.windows.winemu import WindowsEmulator
 
 CURRENT_VERSION_KEY = "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
@@ -172,7 +172,7 @@ class RegistryManager:
         self.predefined_keys: dict[int, RegKey] = {}
         self.keys: list[RegKey] = []
         self.deleted_paths: set[str] = set()
-        self.config: RegistryConfig | None = config
+        self.config: RegistryConfig = config if config is not None else RegistryConfig()
         self.emu: WindowsEmulator | None = emu
 
         for hk in HKEY:
@@ -239,8 +239,7 @@ class RegistryManager:
     def get_key_paths(self):
         """Get the paths of the known keys and of the config keys that the guest did not delete."""
         paths = [key.get_path() for key in self.keys]
-        if self.config:
-            paths += [key.path for key in self.config.keys if key.path.lower() not in self.deleted_paths]
+        paths += [key.path for key in self.config.keys if key.path.lower() not in self.deleted_paths]
         return paths
 
     def is_key_a_parent_key(self, path):
@@ -267,7 +266,7 @@ class RegistryManager:
 
     def get_key_from_config(self, path):
         """Get a new key from the config entry of a path, or None if no entry has the path or the key is deleted."""
-        if not self.config or path.lower() in self.deleted_paths:
+        if path.lower() in self.deleted_paths:
             return None
         for key in self.config.keys:
             if key.path.lower() == path.lower():

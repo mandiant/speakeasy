@@ -19,7 +19,7 @@ TICK = {"kernel32.dll": ["GetTickCount"]}
 
 def configured(**overrides):
     config = get_default_config_dict()
-    config.update(max_run_time=3, max_instructions=1000, max_api_calls=10)
+    config["limits"].update(per_run_time=3, instructions=1000, api_calls=10)
     for key, value in overrides.items():
         node = config
         *parents, leaf = key.split(".")
@@ -56,7 +56,7 @@ def api_names(entry):
 def test_timeout_budget_public_pe_iat_calls_are_independent():
     marker = b"\xb8\x37\x13\0\0"
     data, _ = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")], suffix=marker), imports=TICK)
-    with Speakeasy(config=configured(max_run_time=0.5)) as se:
+    with Speakeasy(config=configured(**{"limits.per_run_time": 0.5})) as se:
 
         def tick(emu, name, original, args):
             time.sleep(0.3)
@@ -161,7 +161,7 @@ def test_public_unknown_iat_call_uses_four_argument_stub(architecture, always_ex
         text=calls(architecture, [("kernel32.dll", unknown), ("kernel32.dll", "GetTickCount")], prefix=prefix),
         imports=imports,
     )
-    with Speakeasy(config=configured(**{"modules.functions_always_exist": always_exist})) as se:
+    with Speakeasy(config=configured(**{"apis.stubs": always_exist})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
         entry = se.get_report().entry_points[0]
@@ -207,7 +207,7 @@ def test_icmp_iat_call_runs_from_the_iphlpapi_prototype():
 
 def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bin):
     unknown = "SpeakeasyNoSuchExport"
-    with Speakeasy(config=configured(**{"modules.functions_always_exist": False})) as se:
+    with Speakeasy(config=configured(**{"apis.stubs": False})) as se:
         module = se.load_module(data=load_test_bin("unknown_import_x86.exe.xz"))
         se.run_module(module)
         error = se.get_report().entry_points[0].error
@@ -226,7 +226,7 @@ def test_public_catalogued_unsafe_iat_call_cannot_use_unknown_fallback():
         text=calls(64, [("kernel32.dll", name), ("kernel32.dll", "GetTickCount")]),
         imports={"kernel32.dll": [name, "GetTickCount"]},
     )
-    with Speakeasy(config=configured(**{"modules.functions_always_exist": True})) as se:
+    with Speakeasy(config=configured(**{"apis.stubs": True})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
         entry = se.get_report().entry_points[0]
@@ -291,10 +291,10 @@ def test_public_sp_changing_hook_stops_once_without_redispatch():
 
 
 @pytest.mark.parametrize("architecture", [32, 64])
-@pytest.mark.parametrize("memory_tracing", [False, True])
-def test_api_event_pc_is_the_call_site(architecture, memory_tracing):
+@pytest.mark.parametrize("accesses", [False, True])
+def test_api_event_pc_is_the_call_site(architecture, accesses):
     data, _ = build_pe(architecture, text=calls(architecture, [("kernel32.dll", "GetTickCount")]), imports=TICK)
-    with Speakeasy(config=configured(**{"analysis.memory_tracing": memory_tracing})) as se:
+    with Speakeasy(config=configured(**{"memory.accesses": accesses})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
         (event,) = [event for event in se.get_report().entry_points[0].events if event.event == "api"]
@@ -339,6 +339,7 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
     &params), and the callback (RVA 0xCB30) loads each named registry script with FindResourceW. The
     module has one WINE_REGISTRY resource, with a string name.
     """
+    config["runs"] = {"exports": False}
     callbacks = []
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(HHCTRL))
@@ -348,7 +349,7 @@ def test_enum_resource_names_calls_the_callback_for_each_name(config, load_test_
             callbacks.append((module_base, se.read_mem_string(kind, width=2), se.read_mem_string(name, width=2), param))
 
         se.add_code_hook(callback, begin=module.base + 0xCB30, end=module.base + 0xCB30)
-        se.run_module(module, entry_point=0xC200, all_entrypoints=False)
+        se.run_module(module, entry_point=0xC200)
         entry = se.get_report().entry_points[0]
 
     enum, find = [event for event in entry.events if event.event == "api"][:2]

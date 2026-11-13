@@ -615,7 +615,7 @@ def test_socket_calls_reject_an_unknown_socket(dll_emu: Speakeasy, name: str, ar
 
 
 def test_gethostname_fills_an_exact_buffer(dll_emu: Speakeasy) -> None:
-    host = dll_emu.emu.config.hostname.encode()
+    host = dll_emu.emu.config.system.hostname.encode()
     buf = alloc(dll_emu, b"\xcc" * 64)
     assert call(dll_emu, "ws2_32", "gethostname", [buf, len(host) + 1])[0] == 0
     assert dll_emu.mem_read(buf, len(host) + 2) == host + b"\x00\xcc"

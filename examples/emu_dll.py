@@ -57,14 +57,13 @@ def hook_mem_write(emu, access, address, size, value):
 
 
 def main(args):
-    # Init the speakeasy object
-    se = speakeasy.Speakeasy()
+    # Init the speakeasy object. If runs.exports is true, all exports will be emulated sequentially.
+    # In this example, lets just run the main entry point and call exports manually.
+    se = speakeasy.Speakeasy(config={"runs": {"exports": False}})
     module = se.load_module(args.file)
 
     # Begin emulating the DLL at its defined entry point.
-    # If all_entrypoints is set to True, all exports will be emulated sequentially.
-    # In this example, lets just run the main entry point and call exports manually.
-    se.run_module(module, all_entrypoints=False)
+    se.run_module(module)
 
     # Hook user32!MessageBoxA/W and call our function; wild cards are supported here so we can
     # hook both versions with a single hook

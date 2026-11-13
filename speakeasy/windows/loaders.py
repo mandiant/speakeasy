@@ -247,7 +247,7 @@ class RuntimeModule:
         self.visible_in_peb: bool = image.visible_in_peb
         self.name: str = image.name
         self.sections: list[SectionEntry] = image.sections
-        # The bytes of a guest image after the load, only if analysis.strings is on.
+        # The bytes of a guest image after the load, only if memory.strings is on.
         # get_mem_strings compares them with memory to find the strings that the guest writes in its image.
         self.loaded_data: bytes | None = None
 

@@ -1338,8 +1338,8 @@ def test_get_file_attributes_knows_directories(strict_fs_emu: Speakeasy, cw: str
 def test_get_file_attributes_knows_the_environment_directories(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> None:
-    config["env"]["temp"] = "C:\\Users\\user\\AppData\\Local\\Temp\\"
-    config["env"]["path"] = "C:\\Tools\\bin;C:\\Python"
+    config["process"]["env"]["temp"] = "C:\\Users\\user\\AppData\\Local\\Temp\\"
+    config["process"]["env"]["path"] = "C:\\Tools\\bin;C:\\Python"
     for se in load_strict_fs_emu(config, load_test_bin("dll_test_x86.dll.xz")):
         for path in ("C:\\Users\\user\\AppData", "C:\\Tools\\bin\\", "C:\\Python"):
             name = alloc(se, path.encode() + b"\x00")
@@ -1612,7 +1612,7 @@ def test_get_exit_code_thread_gives_the_exit_code_of_each_thread(
 def test_find_volume_skips_a_drive_without_a_volume_guid_path(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> None:
-    config["drives"] = [
+    config["system"]["drives"] = [
         {"root_path": "C:\\", "drive_type": "DRIVE_FIXED", "volume_guid_path": "\\\\?\\Volume{1}\\"},
         {"root_path": "D:\\", "drive_type": "DRIVE_CDROM"},
         {"root_path": "E:\\", "drive_type": "DRIVE_FIXED", "volume_guid_path": "\\\\?\\Volume{3}\\"},
@@ -1631,7 +1631,7 @@ def test_find_volume_skips_a_drive_without_a_volume_guid_path(
 def test_find_first_volume_fails_without_a_volume_guid_path(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes]
 ) -> None:
-    config["drives"] = [{"root_path": "D:\\", "drive_type": "DRIVE_CDROM"}]
+    config["system"]["drives"] = [{"root_path": "D:\\", "drive_type": "DRIVE_CDROM"}]
     for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
         start_process(se)
         buf = alloc(se, b"\x00" * 64)

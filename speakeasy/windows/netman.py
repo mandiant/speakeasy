@@ -194,10 +194,7 @@ class WininetRequest(WininetComponent):
         if self.response:
             return self.response
 
-        http = cfg.http if cfg else None
-        if not http:
-            raise NetworkEmuError("No HTTP configuration supplied")
-        resps = http.responses
+        resps = cfg.http.responses
         if not resps:
             raise NetworkEmuError("No HTTP responses supplied")
 
@@ -257,7 +254,7 @@ class WininetSession(WininetComponent):
 class WininetInstance(WininetComponent):
     def __init__(self, handles, config, user_agent, access, proxy, bypass, flags):
         super().__init__(handles)
-        self.config: NetworkConfig | None = config
+        self.config: NetworkConfig = config
         self.user_agent: str | int = user_agent
         self.access: int = access
         self.proxy: str | int = proxy
@@ -286,19 +283,15 @@ class NetworkManager:
         self.sockets: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.wininets: HandleTable = HandleTable(allocator, release=lambda obj: None)
         self.config: NetworkConfig = config
-        self.dns: DnsConfig | None = None
+        self.dns: DnsConfig = config.dns
         self.emu: WindowsEmulator | None = emu
-
-        if config:
-            self.dns = config.dns
 
     def new_socket(self, family, stype, protocol, flags):
         sock = Socket(family, stype, protocol, flags)
 
-        if self.config and self.config.winsock:
-            responses = self.config.winsock.responses
-            if responses:
-                sock.fill_recv_queue(responses)
+        responses = self.config.winsock.responses
+        if responses:
+            sock.fill_recv_queue(responses)
 
         sock.fd = self.sockets.new_handle(sock)
         return sock
@@ -312,9 +305,6 @@ class NetworkManager:
 
     def get_address(self, domain):
         """Get the IP address of a domain name, or the default address of the config, or None."""
-        if not self.dns:
-            return None
-
         names = self.dns.names
 
         if domain.lower() not in names.keys():
@@ -332,10 +322,7 @@ class NetworkManager:
                 with open(path, "rb") as f:
                     return f.read()
 
-        if not self.dns:
-            return None
-
-        txts = self.dns.txt or []
+        txts = self.dns.txt
         txt = [t for t in txts if (t.name or "") == domain]
         if txt:
             return _read_txt_data(txt[0])

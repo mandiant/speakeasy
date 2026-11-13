@@ -18,7 +18,7 @@ The call has no real side effects. Speakeasy writes zeros to each `Out`-only poi
 
 ### Unknown APIs
 
-An API can have no handler and no signature. Examples are a C runtime function without a handler, a function of a third-party DLL or a native function that neither win32metadata nor phnt declares. By default, `modules.functions_always_exist` is on, and Speakeasy emulates a call to such an API as a stdcall function with 4 arguments that returns 1. The emulator does not know the argument count or the calling convention of an unknown API, so on x86 the stack is wrong when the real argument count is different, and the report can have incorrect data.
+An API can have no handler and no signature. Examples are a C runtime function without a handler, a function of a third-party DLL or a native function that neither win32metadata nor phnt declares. By default, `apis.stubs` is on, and Speakeasy emulates a call to such an API as a stdcall function with 4 arguments that returns 1. The emulator does not know the argument count or the calling convention of an unknown API, so on x86 the stack is wrong when the real argument count is different, and the report can have incorrect data.
 
 With `--no-modules-functions-always-exist`, a call to such an API stops the current run with an error. A call to an API with a signature that the emulator cannot call, for example a variadic function, always stops the run. The log shows:
 
@@ -28,7 +28,7 @@ The runs in the queue, for example other entry points, still run.
 
 ## Threads
 
-Threads do not run at the same time. Each thread is a run in the run queue, and a run executes until it ends, so a thread cannot block and wait for another thread. A wait on an event that is not set times out when its timeout is finite and no run is queued. Otherwise the wait returns as if the event is set. `WaitOnAddress` returns at once when the value at the address differs from the compare value. If the values are equal, a finite wait times out at once, and an INFINITE wait ends the run of the thread. `WakeByAddressSingle` and `WakeByAddressAll` do nothing, because no thread can be in a wait. A sample that polls a value that only a queued thread changes loops until `max_api_loop_calls` or `max_api_calls` ends the run. A message that `PostMessage` or `PostThreadMessage` sends to another thread stays in the queue of that thread until that thread runs. `GetMessage` does not wait for a message. When no message is pending, it returns 0, so the message loop ends.
+Threads do not run at the same time. Each thread is a run in the run queue, and a run executes until it ends, so a thread cannot block and wait for another thread. A wait on an event that is not set times out when its timeout is finite and no run is queued. Otherwise the wait returns as if the event is set. `WaitOnAddress` returns at once when the value at the address differs from the compare value. If the values are equal, a finite wait times out at once, and an INFINITE wait ends the run of the thread. `WakeByAddressSingle` and `WakeByAddressAll` do nothing, because no thread can be in a wait. A sample that polls a value that only a queued thread changes loops until `limits.api_loop_calls` or `limits.api_calls` ends the run. A message that `PostMessage` or `PostThreadMessage` sends to another thread stays in the queue of that thread until that thread runs. `GetMessage` does not wait for a message. When no message is pending, it returns 0, so the message loop ends.
 
 ## Processes
 
@@ -44,7 +44,7 @@ The ANSI code page is 1252 and the OEM code page is 437. Speakeasy reads and wri
 
 ## CryptoAPI keys
 
-The `HCRYPTKEY` functions support RC4 keys, and AES keys of 128, 192 and 256 bits. `CryptImportKey` accepts a `PLAINTEXTKEYBLOB` and the `PUBLICKEYBLOB` of an RSA key. `CryptEncrypt` with an RSA public key uses PKCS#1 v1.5 padding. No key has a private part, so `CryptImportKey` fails a `SIMPLEBLOB` with `NTE_BAD_PUBLIC_KEY`, and `CryptDecrypt` fails with an RSA key. `CryptExportKey` gives only a `PLAINTEXTKEYBLOB`. `CryptDeriveKey` derives only RC4 keys. An AES key supports the CBC, ECB and CFB modes and PKCS#5 padding. `CryptSetKeyParam` sets `KP_IV`, `KP_MODE` and `KP_PADDING`, and returns `TRUE` for other parameters without a change to the key. `CryptGenKey` gets the key bytes from the random source of the emulator, so the key is the same in each run with the same `random_seed`.
+The `HCRYPTKEY` functions support RC4 keys, and AES keys of 128, 192 and 256 bits. `CryptImportKey` accepts a `PLAINTEXTKEYBLOB` and the `PUBLICKEYBLOB` of an RSA key. `CryptEncrypt` with an RSA public key uses PKCS#1 v1.5 padding. No key has a private part, so `CryptImportKey` fails a `SIMPLEBLOB` with `NTE_BAD_PUBLIC_KEY`, and `CryptDecrypt` fails with an RSA key. `CryptExportKey` gives only a `PLAINTEXTKEYBLOB`. `CryptDeriveKey` derives only RC4 keys. An AES key supports the CBC, ECB and CFB modes and PKCS#5 padding. `CryptSetKeyParam` sets `KP_IV`, `KP_MODE` and `KP_PADDING`, and returns `TRUE` for other parameters without a change to the key. `CryptGenKey` gets the key bytes from the random source of the emulator, so the key is the same in each run with the same `system.random_seed`.
 
 ## CPU features
 
@@ -58,11 +58,11 @@ The `cpuid` instruction gives the values of the Unicorn CPU model, except that l
 
 ## Repeatable runs
 
-Two runs of the same sample with the same config give the same random bytes, GUIDs and times to the sample. The `random_seed` and `start_time` options in the [configuration](configuration.md) set these values.
+Two runs of the same sample with the same config give the same random bytes, GUIDs and times to the sample. The `system.random_seed` and `system.start_time` options in the [configuration](configuration.md) set these values.
 
 The `rdtsc` and `rdtscp` instructions are an exception. They read the time stamp counter of Unicorn, which counts host time at 1 GHz. Unicorn 2.1.4 has no hook for `rdtsc`, so Speakeasy cannot give a fixed value. `Sleep` and the wait APIs add the waited time to the counter, so the difference across a `Sleep` call is correct. A sample that uses `rdtsc` as a seed, or that measures how long its code takes, can take a different path in each run.
 
-A wall-clock limit (`--max-run-time`, `--max-total-time`) stops a run at a point that depends on the speed of the host. See [CLI execution controls](cli-execution-controls.md#stopping-conditions).
+A wall-clock limit (`--limits-per-run-time`, `--limits-total-time`) stops a run at a point that depends on the speed of the host. See [CLI execution controls](cli-execution-controls.md#stopping-conditions).
 
 The report fields `emulation_total_runtime` and `timestamp` are host times, so they are different in each report.
 

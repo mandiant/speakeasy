@@ -14,7 +14,7 @@ RTL_OSVERSIONINFOEXW_SIZE = 284
 
 @pytest.fixture
 def win10_config(config: dict[str, Any]) -> dict[str, Any]:
-    config["os_ver"] = {"major": 10, "minor": 0, "build": 19045}
+    config["system"]["os_ver"] = {"major": 10, "minor": 0, "build": 19045}
     return config
 
 
@@ -71,7 +71,7 @@ def test_user_shared_data_reads_the_config(
 def test_user_shared_data_has_the_system_root(
     config: dict[str, Any], load_test_bin: Callable[[str], bytes], bin_name: str, base: int
 ) -> None:
-    config["env"]["systemroot"] = "D:\\WINNT"
+    config["process"]["env"]["systemroot"] = "D:\\WINNT"
     for se in load_emu(config, load_test_bin(bin_name)):
         # KUSER_SHARED_DATA: WCHAR NtSystemRoot[260] at 0x30
         assert se.mem_read(base + 0x30, 18) == "D:\\WINNT\x00".encode("utf-16le")

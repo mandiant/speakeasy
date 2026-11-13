@@ -59,8 +59,8 @@ def normalize_value(value: str) -> str:
 
 def build_case_config(base_config: dict[str, Any], case: PmaCase) -> dict[str, Any]:
     cfg = copy.deepcopy(base_config)
-    cfg["max_run_time"] = 4
-    cfg["max_api_calls"] = 600
+    cfg["limits"]["per_run_time"] = 4
+    cfg["limits"]["api_calls"] = 600
     merge_config_patch(cfg, case.config_patch)
     return cfg
 
@@ -96,7 +96,7 @@ def run_case(base_config: dict[str, Any], case: PmaCase, tmp_path: Path):
     se = Speakeasy(**kwargs)
     try:
         module = se.load_module(str(sample_path))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         return se.get_report()
     finally:
         se.shutdown()

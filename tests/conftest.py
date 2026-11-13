@@ -42,7 +42,7 @@ def run_test():
         se = Speakeasy(config=cfg, argv=argv or [])
         try:
             module = se.load_module(data=target)
-            se.run_module(module, all_entrypoints=True)
+            se.run_module(module)
             return se.get_report()
         finally:
             se.shutdown()

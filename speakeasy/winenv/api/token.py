@@ -34,7 +34,7 @@ def query_token_information(
             return ddk.STATUS_INFO_LENGTH_MISMATCH, 4
         if not buf:
             return ddk.STATUS_ACCESS_VIOLATION, 4
-        handler.write_dword(buf, int(emu.config.user.is_admin))
+        handler.write_dword(buf, int(emu.config.user.admin))
         return ddk.STATUS_SUCCESS, 4
 
     if info_class in (TOKEN_INFORMATION_CLASS.TokenUser, TOKEN_INFORMATION_CLASS.TokenIntegrityLevel):
@@ -43,7 +43,7 @@ def query_token_information(
             str_sid = emu.config.user.sid
             attributes = 0
         else:
-            str_sid = "S-1-16-12288" if emu.config.user.is_admin else "S-1-16-8192"
+            str_sid = "S-1-16-12288" if emu.config.user.admin else "S-1-16-8192"
             attributes = windefs.SE_GROUP_INTEGRITY
         sid = handler.get_bytes(windefs.convert_sid_str_to_struct(ptr_size, str_sid))
         size = 2 * ptr_size + len(sid)

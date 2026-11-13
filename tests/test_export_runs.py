@@ -15,6 +15,14 @@ def taef_common_exports(base_config, load_test_bin) -> set[str]:
         return {exp.name for exp in module.get_exports()}
 
 
+@pytest.mark.parametrize(("exports", "types"), [(True, ["dll_entry", "export", "export"]), (False, ["dll_entry"])])
+def test_exports_run_only_if_runs_exports_is_true(config, load_test_bin, exports, types):
+    config["runs"] = {"exports": exports}
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=load_test_bin("dll_test_x86.dll.xz")))
+        assert [ep.type for ep in se.get_report().entry_points] == types
+
+
 def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
     """
     0e718f95 is an x86 C++ DLL whose first ten exports are TestDataArray<T> constructors.
@@ -24,7 +32,7 @@ def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
     """
     with Speakeasy(config=config) as se:
         module = se.load_module(data=load_test_bin(TAEF_COMMON))
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         runs = [ep for ep in se.get_report().entry_points if ep.type == "export"]
 
     assert len(runs) == 10

@@ -18,7 +18,7 @@ def wdm_report(request, base_config, load_test_bin):
     se = Speakeasy(config=copy.deepcopy(base_config))
     try:
         module = se.load_module(data=data)
-        se.run_module(module, all_entrypoints=True)
+        se.run_module(module)
         return se.get_report()
     finally:
         se.shutdown()

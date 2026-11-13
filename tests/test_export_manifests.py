@@ -23,8 +23,8 @@ ORDINAL_NAMES_PATHS = sorted(ORDINAL_NAMES_ROOT.glob("*/*.json"))
 
 @pytest.fixture(params=["x86", "amd64"])
 def started(request, config):
-    config["max_run_time"] = 3
-    config["modules"]["functions_always_exist"] = False
+    config["limits"]["per_run_time"] = 3
+    config["apis"]["stubs"] = False
     with Speakeasy(config=config) as se:
         se.run_shellcode(se.load_shellcode(data=b"\xc3", arch=request.param))
         yield se
@@ -187,7 +187,7 @@ def test_get_proc_address_resolves_declared_names_missing_from_the_manifest(conf
 
 @pytest.mark.parametrize("architecture", ["x86", "amd64"])
 def test_get_proc_address_reports_unknown_names(config, architecture):
-    config["modules"]["functions_always_exist"] = False
+    config["apis"]["stubs"] = False
     assert call_get_proc_address(config, architecture, "kernel32", "SpeakeasyNoSuchExport")[:2] == (0, 127)
 
 

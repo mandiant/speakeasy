@@ -1489,7 +1489,7 @@ class AdvApi32(api.ApiHandler):
         cbsid = int.from_bytes(cbsid, "little")
         ctx.args["cbSid"].display = hex(cbsid)
 
-        domain = emu.config.domain or ""
+        domain = emu.config.system.domain or ""
         cchdomname = self.mem_read(cchReferencedDomainName, 4)
         cbcchdomname = int.from_bytes(cchdomname, "little")
         ctx.args["cchReferencedDomainName"].display = hex(cbcchdomname)

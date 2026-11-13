@@ -214,7 +214,7 @@ R = TypeVar("R")
 
 def execution_scope(func: Callable[Concatenate[S, P], R]) -> Callable[Concatenate[S, P], R]:
     """
-    Apply one ``max_total_time`` limit to all emulation in a call of the decorated method.
+    Apply one ``limits.total_time`` limit to all emulation in a call of the decorated method.
 
     A nested call of a decorated method uses the limit of the outer call.
     """
@@ -224,7 +224,7 @@ def execution_scope(func: Callable[Concatenate[S, P], R]) -> Callable[Concatenat
         emu = self if isinstance(self, WindowsEmulator) else self.emu
         if emu is None or emu._execution_budget is not None:
             return func(self, *args, **kwargs)
-        emu._execution_budget = _ExecutionBudget(emu.config.max_total_time)
+        emu._execution_budget = _ExecutionBudget(emu.config.limits.total_time)
         try:
             return func(self, *args, **kwargs)
         finally:
@@ -474,21 +474,21 @@ class WindowsEmulator(BinaryEmulator):
         # The handles of the kernel, and of a user-mode emulator before a process exists
         self.handles: HandleTable = HandleTable(self.handle_allocator, self.dec_ref, self.get_pseudo_handle_object)
         self.regman: RegistryManager = RegistryManager(
-            self.get_handle_table, self.config.registry, os_ver=self.config.os_ver, emu=self
+            self.get_handle_table, self.config.registry, os_ver=self.config.system.os_ver, emu=self
         )
         self.fileman: FileManager = FileManager(config, self)
         self.netman: NetworkManager = NetworkManager(self.handle_allocator, config=self.config.network, emu=self)
-        self.driveman: DriveManager = DriveManager(config=self.config.drives)
+        self.driveman: DriveManager = DriveManager(config=self.config.system.drives)
         self.cryptman: CryptoManager = CryptoManager(self.handle_allocator)
-        self.rng: random.Random = random.Random(self.config.random_seed)
-        self.start_time: int = winemu.get_filetime(parse_start_time(self.config.start_time))
+        self.rng: random.Random = random.Random(self.config.system.random_seed)
+        self.start_time: int = winemu.get_filetime(parse_start_time(self.config.system.start_time))
         self._user_shared_data_bases: list[int] = []
         self._io_manager: Any | None = None
 
     def _parse_config(self, config):
         super()._parse_config(config)
-        self.cd = self.config.current_dir
-        self.command_line: str = self.config.command_line
+        self.cd = self.config.process.current_dir
+        self.command_line: str = self.config.process.command_line
 
     def init_machine(self, arch):
         """
@@ -621,7 +621,7 @@ class WindowsEmulator(BinaryEmulator):
             self.deferred_work_hook = None
 
     def set_mem_tracing_hooks(self):
-        if not self.config.analysis.memory_tracing:
+        if not self.config.memory.accesses:
             return
 
         if len(self.mem_trace_hooks) > 0:
@@ -640,7 +640,7 @@ class WindowsEmulator(BinaryEmulator):
         self.call_site_hook = self.add_block_hook(cb=self._hook_block_call_site)
 
     def set_coverage_hooks(self):
-        if not self.config.analysis.coverage:
+        if not self.config.code.coverage:
             return
 
         if self.coverage_hook:
@@ -1116,11 +1116,11 @@ class WindowsEmulator(BinaryEmulator):
         root = self.get_system_root().rstrip("\\")[:259].encode("utf-16le")
         data[0x030 : 0x030 + len(root)] = root
         # NtBuildNumber (offset 0x260), a reserved field before Windows 10
-        struct.pack_into("<I", data, 0x260, self.config.os_ver.build or 0)
+        struct.pack_into("<I", data, 0x260, self.config.system.os_ver.build or 0)
         # NtProductType (offset 0x264): NtProductWinNt, and ProductTypeIsValid (offset 0x268): TRUE
         struct.pack_into("<IB", data, 0x264, 1, 1)
         # NtMajorVersion (offset 0x26C), NtMinorVersion (offset 0x270)
-        struct.pack_into("<II", data, 0x26C, self.config.os_ver.major or 0, self.config.os_ver.minor or 0)
+        struct.pack_into("<II", data, 0x26C, self.config.system.os_ver.major or 0, self.config.system.os_ver.minor or 0)
         # QpcFrequency (offset 0x3B8)
         struct.pack_into("<q", data, 0x3B8, 10_000_000)
 
@@ -1136,11 +1136,11 @@ class WindowsEmulator(BinaryEmulator):
         address = self._drop_stale_exit(address)
         origin_run = self.curr_run
         assert origin_run is not None
-        budget = self.config.max_instructions if debugger is not None else count
+        budget = self.config.limits.instructions if debugger is not None else count
         limits = RunLimits.from_run(origin_run, timeout, budget, self._execution_budget)
         if limits.budget > 0:
             hook = self._add_accounting_hook(limits, origin_run, debugger)
-        elif self.config.analysis.dynamic_code_snapshots and not self.config.analysis.memory_tracing:
+        elif self.config.memory.dynamic_code_contents.enabled and not self.config.memory.accesses:
             # The positions of the snapshots need the instruction count, and no other hook counts.
             hook = self._add_counting_hook(debugger)
         else:
@@ -1268,7 +1268,7 @@ class WindowsEmulator(BinaryEmulator):
             limits.remaining -= 1
             limits.last_executed = address
             origin_run.budget_instructions += 1
-            if not self.config.analysis.memory_tracing:
+            if not self.config.memory.accesses:
                 run = self.curr_run
                 if run is not None:
                     run.instr_cnt += 1
@@ -1486,7 +1486,7 @@ class WindowsEmulator(BinaryEmulator):
         self._run_completed = False
         if self.end_requested:
             self._native_exit = None
-        timeout = 0 if self.gdb_port is not None else self.config.max_run_time
+        timeout = 0 if self.gdb_port is not None else self.config.limits.per_run_time
         self._execute_current_run(addr, timeout=timeout, count=count)
 
     @execution_scope
@@ -1565,11 +1565,11 @@ class WindowsEmulator(BinaryEmulator):
                         raise WindowsEmuError("the run has no start address")
                     resume_addr = start_addr
                     detached_resume_addr = None
-                instruction_count = 1 if debugger is not None and debug_action.step else self.config.max_instructions
+                instruction_count = 1 if debugger is not None and debug_action.step else self.config.limits.instructions
                 should_execute = debugger is None or debugger.begin_run(debug_action)
                 if should_execute:
                     self._execute_current_run(
-                        resume_addr, timeout=self.config.max_run_time, count=instruction_count, debugger=debugger
+                        resume_addr, timeout=self.config.limits.per_run_time, count=instruction_count, debugger=debugger
                     )
                 if debugger is None and total_budget.exhausted:
                     self._end_at_total_budget()
@@ -2130,7 +2130,7 @@ class WindowsEmulator(BinaryEmulator):
             self.modules.append(mod)
         self.api_registry.register_module(mod)
         if is_input and image.source == "guest_pe" and not self.stack_base and image.stack_size:
-            self.stack_base, _stack_addr = self.alloc_stack(self.config.stack_size or image.stack_size)
+            self.stack_base, _stack_addr = self.alloc_stack(self.config.runs.stack_size or image.stack_size)
 
         ptr_size = self.get_ptr_size()
         for imp in image.imports:
@@ -2173,7 +2173,7 @@ class WindowsEmulator(BinaryEmulator):
             for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
                 self.mem_protect(start, length, perms)
 
-        if image.source in ("guest_pe", "guest_shellcode") and self.profiler and self.config.analysis.strings:
+        if image.source in ("guest_pe", "guest_shellcode") and self.profiler and self.config.memory.strings:
             mod.loaded_data = bytes(self.mem_read(mod.base, mod.image_size))
             if image.regions:
                 raw = image.regions[0].data
@@ -2453,7 +2453,7 @@ class WindowsEmulator(BinaryEmulator):
             if strict:
                 return 0
             hooks = self.get_api_hooks(module.name, str(reference))
-            eligible = allow_dynamic or self.config.modules.functions_always_exist or hooks
+            eligible = allow_dynamic or self.config.apis.stubs or hooks
             # A function in the signature database resolves even if the module does not
             # export it, because other Windows builds export it.
             eligible = eligible or (isinstance(reference, str) and self.has_api_signature(module.name, reference))
@@ -2590,13 +2590,13 @@ class WindowsEmulator(BinaryEmulator):
             pc=exception.pc,
             interrupt_num=raised.interrupt_num,
         )
-        dispatch = self.config.exceptions.dispatch_handlers
+        dispatch = self.config.exceptions.dispatch
         if dispatch and self.dispatch_seh(faulting_address, exception, error):
             return
         guest_callbacks.fail(self, error)
 
     def _can_raise_api_fault(self):
-        return not self.is_kernel_mode and self.config.exceptions.dispatch_handlers
+        return not self.is_kernel_mode and self.config.exceptions.dispatch
 
     def _raise_api_fault(self, frame, access_type, address):
         """
@@ -2663,7 +2663,7 @@ class WindowsEmulator(BinaryEmulator):
         ``syscall``, ``sysenter`` and ``cpuid``. ``hlt`` raises no interrupt, and a code hook on each instruction
         makes all emulation slower.
         """
-        if self.is_kernel_mode or not self.config.exceptions.dispatch_handlers:
+        if self.is_kernel_mode or not self.config.exceptions.dispatch:
             return False
         if self._native_exit is not None:
             return False
@@ -2683,7 +2683,7 @@ class WindowsEmulator(BinaryEmulator):
             return False
 
     def _hook_invalid_instruction(self, emu):
-        if not self.config.exceptions.dispatch_handlers:
+        if not self.config.exceptions.dispatch:
             return False
         pc = self.get_pc()
         exception = cpu_exceptions.from_invalid_instruction(pc, self.mem_read(pc, 1))
@@ -3012,7 +3012,7 @@ class WindowsEmulator(BinaryEmulator):
     def _can_stub_unknown_api(self, dll: str, name: str) -> bool:
         # A function with a declaration that the emulator cannot use is not
         # unknown, so it does not get a stub.
-        return self.config.modules.functions_always_exist and self._lookup_api_declaration(dll, name) is None
+        return self.config.apis.stubs and self._lookup_api_declaration(dll, name) is None
 
     def has_api_signature(self, dll: str, name: str) -> bool:
         return self.lookup_api_signature(dll, name) is not None
@@ -3423,18 +3423,19 @@ class WindowsEmulator(BinaryEmulator):
         run = self.get_current_run()
         if run is not origin_run or not run or self.end_requested:
             return
-        if run.get_api_count() > self.config.max_api_calls:
+        limit = self.config.limits.api_calls
+        if limit > 0 and run.get_api_count() > limit:
             logger.info("* Maximum number of API calls reached. Stopping current run.")
             self.end_run(
                 ErrorInfo(
                     type=ErrorType.MAX_API_COUNT,
                     pc=self.get_pc(),
-                    count=self.config.max_api_calls,
+                    count=limit,
                     last_api=imp_api,
                 )
             )
             return
-        limit = self.config.max_api_loop_calls
+        limit = self.config.limits.api_loop_calls
         if limit and run.api_loop.calls >= limit:
             logger.info("* %d API calls with no new call site. Stopping current run.", limit)
             self.end_run(
@@ -3544,7 +3545,7 @@ class WindowsEmulator(BinaryEmulator):
             # Unicorn drops a store that a protection hook handles, so do the store here.
             self.mem_write(address, (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little"))
             return True
-        if not self.is_kernel_mode and (guarded or self.config.exceptions.dispatch_handlers):
+        if not self.is_kernel_mode and (guarded or self.config.exceptions.dispatch):
             return self._raise_protection_fault(address, "write")
 
         error = self.get_error_info(ErrorType.INVALID_PROTECT_WRITE, address, access_type="write")
@@ -3856,8 +3857,9 @@ class WindowsEmulator(BinaryEmulator):
 
     def get_native_module_path(self, mod_name=""):
         """Get the path of a DLL with this name in the configured module directory."""
-        attr = "module_directory_x64" if self.get_arch() == _arch.ARCH_AMD64 else "module_directory_x86"
-        path = common.normalize_package_path(getattr(self.config.modules, attr) or "")
+        modules = self.config.modules
+        directory = modules.directory_x64 if self.get_arch() == _arch.ARCH_AMD64 else modules.directory_x86
+        path = common.normalize_package_path(directory or "")
         if not os.path.isdir(path):
             return None
         mod_name = mod_name.lower()
@@ -3893,7 +3895,7 @@ class WindowsEmulator(BinaryEmulator):
         elif module is None:
             known = self.get_native_module_path(name) or self.api.load_api_handler(name)
             known = known or self.get_signature_db().get_functions(name, self._get_signature_arch())
-            if not known and not self.config.modules.modules_always_exist:
+            if not known and not self.config.modules.stubs:
                 return 0
             try:
                 module = self.load_module_by_name(name)
@@ -3932,7 +3934,7 @@ class WindowsEmulator(BinaryEmulator):
             self._add_module_to_current_peb(existing)
             return existing
         if not emu_path:
-            emu_path = (self.config.current_dir or r"C:\Windows\system32") + "\\" + name + ".dll"
+            emu_path = (self.config.process.current_dir or r"C:\Windows\system32") + "\\" + name + ".dll"
         native_path = native_path or self.get_native_module_path(mod_name=name)
         if base is None and not native_path and data is None:
             base = 0x6F000000
@@ -4135,7 +4137,7 @@ class WindowsEmulator(BinaryEmulator):
         self.emu_eng.clear_exception_state()
         if (
             not self.is_kernel_mode
-            and self.config.exceptions.dispatch_handlers
+            and self.config.exceptions.dispatch
             and intnum not in cpu_exceptions.SYSTEM_GATES[self.get_arch()]
         ):
             pc = self.get_pc()

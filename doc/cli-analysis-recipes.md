@@ -1,20 +1,20 @@
 # CLI analysis recipes
 
-Each recipe gives the flags for one kind of analysis output and a command that checks the output. Memory snapshots, coverage, memory tracing and string extraction are on by default, so `speakeasy -t sample.exe -o report.json` gives all of them. The `--no-` form of each flag turns its output off.
+Each recipe gives the flags for one kind of analysis output and a command that checks the output. The final memory contents, the coverage, the memory access counts and the strings are on by default, so `speakeasy -t sample.exe -o report.json` gives all of them. The `--no-` form of each flag turns its output off.
 
 <a id="recipe-memory-snapshots"></a>
-## In-report memory snapshots (`--snapshot-memory-regions`)
+## Final memory contents (`--memory-final-contents`)
 
-The memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
+At the end of each run, the memory regions in `entry_points[*].memory.layout` get a `data_ref`, the SHA-256 of their bytes. Stack regions do not get one. Kernel mode has no memory layout, so it has no contents. The top-level `data` object maps each SHA-256 to the bytes, compressed with zlib and encoded with base64. To list the regions that have data:
 
 ```bash
 jq '.entry_points[].memory.layout[] | select(.data_ref != null) | .tag' report.json
 ```
 
-The report gets larger. Regions with the same bytes share one entry in `data`, also across runs. `--no-snapshot-memory-regions` removes the data from the report.
+The report gets larger. Regions with the same bytes share one entry in `data`, also across runs. `--no-memory-final-contents` removes the data from the report.
 
-<a id="recipe-analysis-coverage"></a>
-## Coverage collection (`--analysis-coverage`)
+<a id="recipe-code-coverage"></a>
+## Coverage collection (`--code-coverage`)
 
 `entry_points[*].coverage` has the addresses of the instructions that each run executed. To count them:
 
@@ -22,10 +22,10 @@ The report gets larger. Regions with the same bytes share one entry in `data`, a
 jq '.entry_points[] | {start_address, coverage_count: (.coverage // [] | length)}' report.json
 ```
 
-The emulator runs a hook for each instruction, so emulation is slower. `--no-analysis-coverage` removes this cost.
+The emulator runs a hook for each instruction, so emulation is slower. `--no-code-coverage` removes this cost.
 
-<a id="recipe-memory-tracing"></a>
-## Memory tracing (`--analysis-memory-tracing`)
+<a id="recipe-memory-accesses"></a>
+## Memory access counts (`--memory-accesses`)
 
 The regions in `entry_points[*].memory.layout` that the run accessed get `accesses`, with the counts of reads, writes and executes. `entry_points[*].symbol_accesses` has the counts for each symbol. To count the symbols that each run accessed:
 
@@ -33,21 +33,21 @@ The regions in `entry_points[*].memory.layout` that the run accessed get `access
 jq '.entry_points[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
 ```
 
-The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower. `--no-analysis-memory-tracing` removes this cost.
+The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower. `--no-memory-accesses` removes this cost.
 
-<a id="recipe-analysis-strings"></a>
-## String extraction controls (`--analysis-strings` / `--no-analysis-strings`)
+<a id="recipe-memory-strings"></a>
+## String extraction controls (`--memory-strings` / `--no-memory-strings`)
 
-String extraction is on by default, so `--analysis-strings` has an effect only when a `--config` file turns it off:
+String extraction is on by default, so `--memory-strings` has an effect only when a `--config` file turns it off:
 
 ```bash
-speakeasy -t sample.exe --analysis-strings -o report.json
+speakeasy -t sample.exe --memory-strings -o report.json
 ```
 
-`--no-analysis-strings` turns it off:
+`--no-memory-strings` turns it off:
 
 ```bash
-speakeasy -t sample.exe --no-analysis-strings -o report.json
+speakeasy -t sample.exe --no-memory-strings -o report.json
 ```
 
 The strings are in the top-level `strings` object. Without string extraction, the report has no `strings`:
@@ -74,11 +74,11 @@ unzip -l dropped.zip
 <a id="recipe-combined-triage"></a>
 ## Combined triage profile
 
-This command collects all the outputs of this page in one run, because they are on by default. `--max-run-time 30` limits each run to 30 seconds:
+This command collects all the outputs of this page in one run, because they are on by default. `--limits-per-run-time 30` limits each run to 30 seconds:
 
 ```bash
 speakeasy -t sample.exe \
-  --max-run-time 30 \
+  --limits-per-run-time 30 \
   --dropped-files-path dropped.zip \
   -o report.json
 ```

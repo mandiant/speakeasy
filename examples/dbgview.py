@@ -37,7 +37,7 @@ def main(args):
     dbg.add_api_hook(dbg.debug_printex_hook, "ntoskrnl", "DbgPrintEx")
 
     # Emulate the module
-    dbg.run_module(module, all_entrypoints=True)
+    dbg.run_module(module)
 
 
 if __name__ == "__main__":

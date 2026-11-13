@@ -177,8 +177,8 @@ class ApiTarget:
 
 @contextmanager
 def _api_target(tmp_path, config, architecture, mode):
-    config["max_run_time"] = 0.5 if mode == "timeout" else 10
-    config["max_instructions"] = 17 if mode == "budget" else 1000
+    config["limits"]["per_run_time"] = 0.5 if mode == "timeout" else 10
+    config["limits"]["instructions"] = 17 if mode == "budget" else 1000
     tmp_path.mkdir(parents=True, exist_ok=True)
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(config))

@@ -1,55 +1,62 @@
 {
     "config_version": "2.0",
     "emu_engine": "unicorn",
-    "max_run_time": 60,
 
-    "analysis": {
-        "memory_tracing": false,
-        "strings": false,
-        "coverage": false,
-        "dynamic_code_snapshots": false
+    "limits": {
+        "per_run_time": 60
     },
 
-    "keep_memory_on_free": false,
-    "snapshot_memory_regions": false,
+    "memory": {
+        "accesses": false,
+        "strings": false,
+        "final_contents": false,
+        "dynamic_code_contents": {
+            "enabled": false
+        },
+        "freed_regions": false
+    },
+
+    "code": {
+        "coverage": false
+    },
 
     "exceptions": {
-        "dispatch_handlers": true
+        "dispatch": true
     },
 
-    "os_ver": {
+    "system": {
+        "os_ver": {
             "name": "windows",
             "major": 6,
             "minor": 1,
             "build": 7601
+        },
+        "hostname": "mybox",
+        "symlinks": [
+            {
+                "name": "\\??\\C:",
+                "target": "\\Device\\HarddiskVolume1"
+            },
+            {
+                "name": "\\??\\PhysicalDrive0",
+                "target": "\\Device\\Harddisk0\\DR0"
+            }
+        ]
     },
 
-    "current_dir": "C:\\Windows\\system32",
-
-    "command_line": "svchost.exe myarg1 myarg2",
-
-    "env": {
-        "comspec": "C:\\Windows\\system32\\cmd.exe",
-        "systemroot": "C:\\Windows",
-        "windir": "C:\\Windows"
+    "process": {
+        "current_dir": "C:\\Windows\\system32",
+        "command_line": "svchost.exe myarg1 myarg2",
+        "env": {
+            "comspec": "C:\\Windows\\system32\\cmd.exe",
+            "systemroot": "C:\\Windows",
+            "windir": "C:\\Windows"
+        }
     },
-
-    "hostname": "mybox",
 
     "user": {
         "name": "user"
     },
-
-    "symlinks": [
-        {
-            "name": "\\??\\C:",
-            "target": "\\Device\\HarddiskVolume1"
-        },
-        {
-            "name": "\\??\\PhysicalDrive0",
-            "target": "\\Device\\Harddisk0\\DR0"
-        }
-    ],
 
     "filesystem": {
         "files": [
@@ -212,11 +219,14 @@
         }
     ],
 
-    "modules": {
-        "modules_always_exist": false,
-        "functions_always_exist": false,
+    "apis": {
+        "stubs": false
+    },
 
-        "system_modules": [
+    "modules": {
+        "stubs": false,
+
+        "system": [
             {
                 "name": "ntoskrnl",
                 "base_addr": "0x803d0000",
@@ -297,7 +307,7 @@
             }
         ],
 
-        "user_modules": [
+        "user": [
                 {
                     "name": "ntdll",
                     "base_addr": "0x7C000000",

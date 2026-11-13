@@ -9,8 +9,8 @@ from speakeasy import Speakeasy
 
 @pytest.fixture(params=["x86", "amd64"])
 def crt_session(request, config):
-    config["max_run_time"] = 2
-    config["max_api_calls"] = 200
+    config["limits"]["per_run_time"] = 2
+    config["limits"]["api_calls"] = 200
     se = Speakeasy(config=config)
     try:
         base = se.load_shellcode(data=b"\xc3", arch=request.param)

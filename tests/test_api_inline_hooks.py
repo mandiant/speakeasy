@@ -7,9 +7,9 @@ import pytest
 from speakeasy import Speakeasy, common
 
 
-@pytest.mark.parametrize("memory_tracing", [False, True], ids=["plain", "traced"])
-def test_x86_guest_five_byte_hook_calls_original_trampoline(config, memory_tracing):
-    config["analysis"]["memory_tracing"] = memory_tracing
+@pytest.mark.parametrize("accesses", [False, True], ids=["plain", "traced"])
+def test_x86_guest_five_byte_hook_calls_original_trampoline(config, accesses):
+    config["memory"]["accesses"] = accesses
     with Speakeasy(config=config) as se:
         caller = se.load_shellcode(data=b"\xcc" * 0x1000, arch="x86")
         address = se.emu.get_proc("kernel32", "GetTickCount")

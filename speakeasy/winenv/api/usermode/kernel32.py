@@ -467,7 +467,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD ProcessId
         );
         """
-        ver = self.emu.config.os_ver
+        ver = self.emu.config.system.os_ver
         major = ver.major or 0
         minor = ver.minor or 0
 
@@ -1801,7 +1801,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         DWORD GetVersion();
         """
-        ver = self.emu.config.os_ver
+        ver = self.emu.config.system.os_ver
         build = ver.build or 0
         major = ver.major or 0
         minor = ver.minor or 0
@@ -5653,7 +5653,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         lpBuffer, nSize = argv
         cw = self.get_char_width(ctx)
 
-        host = emu.config.hostname
+        host = emu.config.system.hostname
         size = self.read_dword(nSize)
         if not lpBuffer or size <= len(host):
             self.write_dword(nSize, len(host) + 1)
@@ -5680,7 +5680,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             osver = self.k32types.OSVERSIONINFO(emu.get_ptr_size(), cw)
         osver = self.mem_cast(osver, lpVersionInformation)
 
-        ver = emu.config.os_ver
+        ver = emu.config.system.os_ver
         osver.dwMajorVersion = ver.major or 0
         osver.dwMinorVersion = ver.minor or 0
         osver.dwBuildNumber = ver.build or 0
@@ -6414,7 +6414,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         dwExceptionCode, dwExceptionFlags, nNumberOfArguments, lpArguments = argv
-        if not emu.config.exceptions.dispatch_handlers:
+        if not emu.config.exceptions.dispatch:
             return None
 
         count = min(nNumberOfArguments, 15) if lpArguments else 0
@@ -6475,7 +6475,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         cw = self.get_char_width(ctx)
         major, minor, build, platform = struct.unpack("<4I", self.mem_read(vinfo + 4, 16))
         sp_major, sp_minor, _, product = struct.unpack("<HHHB", self.mem_read(vinfo + 20 + 128 * cw, 7))
-        ver = emu.config.os_ver
+        ver = emu.config.system.os_ver
         cur_major, cur_minor, cur_build = ver.major or 0, ver.minor or 0, ver.build or 0
         cur_sp = SERVICE_PACK_BUILDS.get(cur_build, 0)
 
@@ -7445,7 +7445,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         ctx.args["NameType"].display = decode(COMPUTER_NAME_FORMAT, NameType)
 
-        hostname = emu.config.hostname
+        hostname = emu.config.system.hostname
         size = self.read_dword(nSize)
         if not lpBuffer or size <= len(hostname):
             self.write_dword(nSize, len(hostname) + 1)
