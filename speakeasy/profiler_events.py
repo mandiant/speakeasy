@@ -221,7 +221,10 @@ class MemWriteEvent(Event):
     size: int = Field(description="Number of bytes written.")
     data_ref: str | None = Field(
         default=None,
-        description=("Key in the top-level ``data`` of the bytes of the write. Absent when there are no bytes."),
+        description=(
+            "Key in the top-level ``data`` of the bytes of the write. Absent for a write with no bytes and for a write"
+            " above ``MAX_EMBEDDED_FILE_SIZE`` (10 MiB)."
+        ),
     )
     pid: int | None = Field(
         default=None,
@@ -238,7 +241,10 @@ class MemReadEvent(Event):
     size: int = Field(description="Number of bytes read.")
     data_ref: str | None = Field(
         default=None,
-        description=("Key in the top-level ``data`` of the bytes of the read. Absent when there are no bytes."),
+        description=(
+            "Key in the top-level ``data`` of the bytes of the read. Absent for a read with no bytes and for a read"
+            " above ``MAX_EMBEDDED_FILE_SIZE`` (10 MiB)."
+        ),
     )
     pid: int | None = Field(
         default=None,

@@ -303,6 +303,25 @@ def test_each_contiguous_memory_call_gets_its_own_event_with_all_bytes(event_typ
     assert [profiler.artifact_store.get_bytes(e.data_ref) for e in events] == [headers, text]
 
 
+@pytest.mark.parametrize("event_type", [EventType.MEM_WRITE, EventType.MEM_READ])
+def test_memory_event_skips_large_embedded_payload(event_type: EventType) -> None:
+    profiler = Profiler()
+    run = Run()
+    pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
+    svchost = TargetProcess(id=10, path="C:\\Windows\\system32\\svchost.exe")
+    payload = b"A" * ((10 * 1024 * 1024) + 1)
+
+    profiler.record_process_event(
+        run, pos, svchost, event_type, {"base": 0x400000, "size": len(payload), "data": payload}
+    )
+    report = build_report(profiler, run)
+
+    event = report.runs[0].events[0]
+    assert event.size == len(payload)
+    assert event.data_ref is None
+    assert not report.data
+
+
 def test_json_report_is_compact():
     profiler = Profiler()
     run = Run()

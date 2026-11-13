@@ -543,7 +543,8 @@ class Profiler:
         process. The ``pid`` of the event is the target process ID, or ``None`` when the target is
         the process of the actor.
 
-        Each memory read or write gets its own event, with all the bytes of the call.
+        Each memory read or write gets its own event, with all the bytes of the call. Above
+        ``MAX_EMBEDDED_FILE_SIZE``, the event has no ``data_ref``.
 
         Raises:
             ValueError: if ``event_type`` is not a process, memory or thread event type.
@@ -594,12 +595,16 @@ class Profiler:
 
         elif event_type in (EventType.MEM_WRITE, EventType.MEM_READ):
             event_cls = MemWriteEvent if event_type == EventType.MEM_WRITE else MemReadEvent
+            data = kwargs["data"]
+            data_ref = None
+            if len(data) <= MAX_EMBEDDED_FILE_SIZE:
+                data_ref = self.put_binary_data(data)
             event = event_cls(
                 pos=pos,
                 path=path,
                 base=kwargs["base"],
                 size=kwargs["size"],
-                data_ref=self.put_binary_data(kwargs["data"]),
+                data_ref=data_ref,
                 pid=pid,
             )
 
