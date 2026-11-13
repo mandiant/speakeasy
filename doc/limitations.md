@@ -20,7 +20,7 @@ The call has no real side effects. Speakeasy writes zeros to each `Out`-only poi
 
 An API can have no handler and no signature. Examples are a C runtime function without a handler, a function of a third-party DLL or a native function that neither win32metadata nor phnt declares. By default, `apis.stubs` is on, and Speakeasy emulates a call to such an API as a stdcall function with 4 arguments that returns 1. The emulator does not know the argument count or the calling convention of an unknown API, so on x86 the stack is wrong when the real argument count is different, and the report can have incorrect data.
 
-With `--no-modules-functions-always-exist`, a call to such an API stops the current run with an error. A call to an API with a signature that the emulator cannot call, for example a variadic function, always stops the run. The log shows:
+With `--no-apis-stubs`, a call to such an API stops the current run with an error. A call to an API with a signature that the emulator cannot call, for example a variadic function, always stops the run. The log shows:
 
 - `Unsupported API: <module_name>.<api_name>`
 

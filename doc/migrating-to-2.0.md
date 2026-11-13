@@ -2,7 +2,6 @@
 
 This page tells you how to move code, config files and scripts from Speakeasy 1.x to 2.0. It covers the Python library, the config file and the command line. Each section names a change to the interface and tells you what to change in your code or command.
 
-<a id="report-schema-600"></a>
 ## Report from 1.x
 
 The report of 2.0 has `report_version` `7.0.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict. The 2.0 pre-releases wrote report 6.x. For the changes from 6.x, see [Report schema 7.0.0](#report-schema-700).
