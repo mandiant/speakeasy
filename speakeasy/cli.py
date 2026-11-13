@@ -34,7 +34,6 @@ def setup_logging(verbose: bool) -> None:
 
 
 def emulate_binary(
-    q,
     exit_event,
     fpath,
     cfg,
@@ -44,12 +43,9 @@ def emulate_binary(
     dropped_files_path="",
     raw_offset=0x0,
     entry_point=None,
-    verbose=False,
     gdb_port=None,
     gdb_host="127.0.0.1",
-):
-    setup_logging(verbose)
-
+) -> ChildResult:
     report = None
     error = None
     se = None
@@ -77,16 +73,50 @@ def emulate_binary(
             except Exception as err:
                 logger.debug("report generation failed", exc_info=True)
                 error = error or f"failed to build the report: {err or type(err).__name__}"
-        q.put((report, error))
 
         if dropped_files_path and se is not None and se.has_emulator:
-            data = se.create_file_archive()
-            if data:
-                logger.info("* Saving dropped files archive to %s", dropped_files_path)
-                with open(dropped_files_path, "wb") as f:
-                    f.write(data)
-            else:
-                logger.info("* No dropped files found")
+            try:
+                save_dropped_files(se, dropped_files_path)
+            except Exception as err:
+                logger.debug("dropped files archive failed", exc_info=True)
+                error = add_error(error, f"failed to write the dropped files archive: {err or type(err).__name__}")
+
+    return report, error
+
+
+def emulate_binary_in_child(q: mp.Queue[ChildResult], verbose: bool, *args, **kwargs) -> None:
+    setup_logging(verbose)
+    q.put(emulate_binary(*args, **kwargs))
+
+
+def save_dropped_files(se: Speakeasy, path: str) -> None:
+    data = se.create_file_archive()
+    if data:
+        logger.info("* Saving dropped files archive to %s", path)
+        with open(path, "wb") as f:
+            f.write(data)
+    else:
+        logger.info("* No dropped files found")
+
+
+def add_error(error: str | None, message: str) -> str:
+    return f"{error}; {message}" if error else message
+
+
+def validate_output_path(path: str) -> None:
+    """
+    Check that the CLI can create or replace the file at ``path``, so that a bad path fails before the emulation.
+
+    Raises:
+        ValueError: ``path`` is a directory, or its directory does not exist or is not writable.
+    """
+    if os.path.isdir(path):
+        raise ValueError("path is a directory")
+    directory = os.path.dirname(os.path.abspath(path))
+    if not os.path.isdir(directory):
+        raise ValueError(f"directory does not exist: {directory}")
+    if not os.access(directory, os.W_OK) or (os.path.exists(path) and not os.access(path, os.W_OK)):
+        raise ValueError("permission denied")
 
 
 def get_child_result(q: mp.Queue[ChildResult], p: mp.Process, wait: float) -> ChildResult | None:
@@ -185,12 +215,17 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
     if not target:
         parser.error("No target file supplied")
 
-    q: mp.Queue[ChildResult] = mp.Queue()
+    for flag, path in (("--output", output), ("--dropped-files-path", dropped_files_path)):
+        if path:
+            try:
+                validate_output_path(path)
+            except ValueError as err:
+                parser.error(f"cannot write {flag} {path}: {err}")
+
     evt = mp.Event()
 
     if args.no_mp:
-        emulate_binary(
-            q,
+        result = emulate_binary(
             evt,
             target,
             active_cfg,
@@ -200,16 +235,16 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             dropped_files_path,
             raw_offset=raw_offset,
             entry_point=entry_point,
-            verbose=verbose,
             gdb_port=gdb_port,
             gdb_host=gdb_host,
         )
-        result = q.get()
     else:
+        q: mp.Queue[ChildResult] = mp.Queue()
         p = mp.Process(
-            target=emulate_binary,
+            target=emulate_binary_in_child,
             args=(
                 q,
+                verbose,
                 evt,
                 target,
                 active_cfg,
@@ -221,7 +256,6 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             kwargs={
                 "raw_offset": raw_offset,
                 "entry_point": entry_point,
-                "verbose": verbose,
                 "gdb_port": gdb_port,
                 "gdb_host": gdb_host,
             },
@@ -234,8 +268,12 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
 
     if report and output:
         logger.info("* Saving emulation report to %s", output)
-        with open(output, "w") as f:
-            f.write(report)
+        try:
+            with open(output, "w") as f:
+                f.write(report)
+        except OSError as err:
+            logger.debug("report write failed", exc_info=True)
+            error = add_error(error, f"failed to write the report: {err}")
     elif report:
         print(report)  # noqa: T201
         # A short write stays in the buffer, so flush here to raise inside the try block of main.
