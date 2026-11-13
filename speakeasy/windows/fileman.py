@@ -13,7 +13,7 @@ import shlex
 from typing import TYPE_CHECKING, Any
 
 import speakeasy.winenv.defs.windows.windows as windefs
-from speakeasy.config import FileEntry, FileEntryFullPath, FilesystemConfig, SpeakeasyConfig
+from speakeasy.config import ByteFillConfig, FileEntry, FileEntryFullPath, FilesystemConfig, SpeakeasyConfig
 from speakeasy.errors import FileSystemEmuError
 from speakeasy.profiler_events import EventType
 from speakeasy.windows.handles import HandleTable
@@ -544,7 +544,7 @@ class FileManager:
 
         # Configured modules exist on disk, without content.
         if any(get_path_key(p) == key for p in self.get_module_paths()):
-            return FileEntryFullPath(mode="full_path", emu_path=path)
+            return FileEntryFullPath(mode="full_path", emu_path=path, byte_fill=ByteFillConfig(byte="0x00", size=0))
 
         for f in self.file_config.files:
             path_ext = ntpath.splitext(path)[-1:][0].strip(".")
