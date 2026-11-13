@@ -55,7 +55,7 @@ class RegionInfo(BaseModel):
 
     base: HexInt = Field(description="Base address of the region.")
     size: int = Field(description="Size of the region in bytes.")
-    perms: str = Field(
+    permissions: str = Field(
         description=(
             "Permissions, such as ``r-x`` or ``rw-``. For a part of a module image, the permissions from the "
             "section header, and ``r--`` for the headers."

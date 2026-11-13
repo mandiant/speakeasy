@@ -115,6 +115,8 @@ The code of an API can add other events, such as `file_create`, `reg_open_key`, 
 
 The events about a process, its memory or its threads (`mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `mem_free`, `thread_create`, `thread_inject` and `process_create`) also have the `pid` of the target process. If the target is the process of that thread, the event has no `pid`. So a `pid` in these events means that the operation crossed a process boundary. `thread_create` and `thread_inject` have the `tid` of the new thread, also when the thread is in the same process.
 
+`mem_alloc` and `mem_protect` events have `permissions` in the format of the [memory regions](#memory-regions), such as `r-x`, so you can compare an event with `memory.layout`. This format cannot show `PAGE_GUARD`, `PAGE_NOCACHE` or `PAGE_WRITECOMBINE`, so use the protection argument of the `api` event of the call, which shows the flag names.
+
 The `data_ref` of a file, registry or network event refers to the first bytes of the operation, and the `data_ref` of a `mem_write` or `mem_read` event refers to all the bytes of the API call. A `data_ref` is absent when there are no bytes. A memory write or read above `MAX_EMBEDDED_FILE_SIZE` (10 MiB, `speakeasy/artifacts.py`) also has no `data_ref`. The profiler merges the reads of one path in a run into one `file_read` event, and the writes into one `file_write` event. It does not merge `mem_write` and `mem_read` events: each call of an API such as `WriteProcessMemory` or `ReadProcessMemory` gets its own event. The report keeps one copy of a payload that repeats.
 
 An `api` event records its arguments in `args`, a list of objects with `name`, `type`, `value` and `display`. If the signature database declares the function, and its prototype uses the same argument slots as the call, `args` has an entry per parameter. Then `name` is the parameter name, and Speakeasy renders `display` from the declared type. It decodes the parameters of a string type, such as `LPCSTR`, `LPWSTR` or `PUNICODE_STRING`, shows enum and flag values as names and expands struct pointers. Without a usable signature, `args` has one entry for each argument slot, with no `name`, and `display` is the hex value. `type` tells you how to read `display`.
@@ -142,7 +144,7 @@ A handle value refers to one object for the whole emulation. Speakeasy gives out
 
 All emulated processes share one address space, so `memory` of a run also has the regions and the modules of the other processes. `memory.modules` has the kernel modules too, such as `ntoskrnl.exe` and `hal.dll`. The regions and the modules have no `pid`. Only the tag of a `VirtualAllocEx` region has the pid of the target process, for example `api.VirtualAllocEx.svchost_exe.1444`. So you cannot make one memory map for each process from the report. [Processes](limitations.md#processes) describes how `VirtualAllocEx` into another process can give a different address than on Windows.
 
-`memory.layout` has the memory regions at the end of a run, in the order of `base`. Each region has `base`, `size` and `perms`. `perms` has three characters, `r`, `w` and `x`, with `-` for a permission that the region does not have, such as `r-x`. `tag` is the tag that the memory manager gave to the region, such as `api.VirtualAlloc`, `api.heap.HeapAlloc`, `emu.stack` or `emu.struct.PEB`. The tag does not include the address of the region, so use `base` to identify a region. A region with no tag, such as a small allocation of an API handler, has no `tag`. [Memory management](memory.md#memory-tags) describes the tags.
+`memory.layout` has the memory regions at the end of a run, in the order of `base`. Each region has `base`, `size` and `permissions`. `permissions` has three characters, `r`, `w` and `x`, with `-` for a permission that the region does not have, such as `r-x`. `tag` is the tag that the memory manager gave to the region, such as `api.VirtualAlloc`, `api.heap.HeapAlloc`, `emu.stack` or `emu.struct.PEB`. The tag does not include the address of the region, so use `base` to identify a region. A region with no tag, such as a small allocation of an API handler, has no `tag`. [Memory management](memory.md#memory-tags) describes the tags.
 
 The emulator splits the image of a module into one region for the PE headers and one region for each section. Each of these regions has the tag `emu.module`, `module` with the file name of the module, such as `sample.exe` or `kernel32.dll`, and `section` with the section name, such as `.text`, or `headers`. `module` is the same as `name` in `memory.modules`. The image of shellcode input is one region with `section` `shellcode`, and its `module` is the SHA-256 of the input. An address in a module image that is outside the headers and the sections belongs to the full image. In `address_region` of an error, such an address has a region with the base and the size of the image, `module`, and no `section`.
 
@@ -295,7 +297,7 @@ This example shows each field. It is not the output of one run, and the values d
         "pc_module": "sample.exe",
         "pc_offset": 4660,
         "nearby_regions": [
-          {"base": "0x10000", "size": 4096, "perms": "rw-", "tag": "emu.struct.EPROCESS"}
+          {"base": "0x10000", "size": 4096, "permissions": "rw-", "tag": "emu.struct.EPROCESS"}
         ],
         "tid": 2000,
         "pid": 1337,
@@ -342,7 +344,7 @@ This example shows each field. It is not the output of one run, and the values d
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
           "size": 4096,
-          "protect": ["PAGE_EXECUTE_READWRITE"],
+          "permissions": "rwx",
           "pid": 4242
         },
         {
@@ -370,7 +372,7 @@ This example shows each field. It is not the output of one run, and the values d
           "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x401000",
           "size": 4096,
-          "protect": ["PAGE_EXECUTE_READ"]
+          "permissions": "r-x"
         },
         {
           "pos": {"tick": 70, "tid": 2000, "pid": 1337, "pc": "0x40103c"},
@@ -602,7 +604,7 @@ This example shows each field. It is not the output of one run, and the values d
             // A section of the input image.
             "base": "0x401000",
             "size": 8192,
-            "perms": "r-x",
+            "permissions": "r-x",
             "tag": "emu.module",
             "module": "sample.exe",
             "section": ".text",
@@ -615,7 +617,7 @@ This example shows each field. It is not the output of one run, and the values d
             // A section of a stub system module: no data_ref.
             "base": "0x77001000",
             "size": 57344,
-            "perms": "r-x",
+            "permissions": "r-x",
             "tag": "emu.module",
             "module": "kernel32.dll",
             "section": ".text",
@@ -625,7 +627,7 @@ This example shows each field. It is not the output of one run, and the values d
             // An allocation that the guest freed. The tag has no address.
             "base": "0x10000000",
             "size": 4096,
-            "perms": "rwx",
+            "permissions": "rwx",
             "tag": "api.VirtualAlloc",
             "freed": true,
             "data_ref": "data-dyn-code-stage2"
@@ -634,7 +636,7 @@ This example shows each field. It is not the output of one run, and the values d
             // The stack: no data_ref.
             "base": "0x1200000",
             "size": 1048576,
-            "perms": "rw-",
+            "permissions": "rw-",
             "tag": "emu.stack",
             "freed": false
           }
@@ -712,7 +714,7 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
           {
             "base": "0x10140",
             "size": 3,
-            "perms": "rwx",
+            "permissions": "rwx",
             "tag": "emu.module",
             "module": "251447ee91a9067dcd6ab96703133f617565974cd6c4819021760c4688c91abf",
             "section": "shellcode"
@@ -720,7 +722,7 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
           {
             "base": "0x1200000",
             "size": 16384,
-            "perms": "rw-",
+            "permissions": "rw-",
             "tag": "emu.stack"
           }
         ],

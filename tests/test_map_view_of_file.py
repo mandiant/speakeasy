@@ -36,7 +36,7 @@ def test_map_view_of_file_uses_readable_protections(base_config, tmp_path):
     assert len(map_views) >= 2
 
     for region in map_views:
-        assert region.perms in {"r--", "rw-", "r-x", "rwx"}
+        assert region.permissions in {"r--", "rw-", "r-x", "rwx"}
 
     if ep.error is not None:
         assert ep.error.type != "internal_error"

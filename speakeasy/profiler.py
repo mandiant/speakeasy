@@ -570,7 +570,7 @@ class Profiler:
                 path=path,
                 base=kwargs.get("base", 0),
                 size=kwargs.get("size", 0),
-                protect=kwargs.get("protect"),
+                permissions=kwargs["permissions"],
                 pid=pid,
             )
 
@@ -580,7 +580,7 @@ class Profiler:
                 path=path,
                 base=kwargs.get("base", 0),
                 size=kwargs.get("size", 0),
-                protect=kwargs.get("protect"),
+                permissions=kwargs["permissions"],
                 pid=pid,
             )
 
@@ -809,7 +809,7 @@ class Profiler:
                         MemoryRegion(
                             base=reg["base"],
                             size=reg["size"],
-                            perms=reg["perms"],
+                            permissions=reg["permissions"],
                             tag=reg.get("tag"),
                             module=reg.get("module"),
                             section=reg.get("section"),

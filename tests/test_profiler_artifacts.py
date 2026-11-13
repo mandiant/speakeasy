@@ -170,7 +170,9 @@ def test_local_memory_event_omits_target_pid():
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
     actor = TargetProcess(id=3, path="C:\\sample.exe")
 
-    profiler.record_process_event(run, pos, actor, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
+    profiler.record_process_event(
+        run, pos, actor, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000, "permissions": "rw-"}
+    )
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.runs[0].events if isinstance(evt, MemAllocEvent))
@@ -184,7 +186,9 @@ def test_remote_memory_event_carries_target_pid():
     pos = TracePosition(tick=1, tid=2, pid=3, pc=0x401000)
     target = TargetProcess(id=9, path="C:\\victim.exe")
 
-    profiler.record_process_event(run, pos, target, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
+    profiler.record_process_event(
+        run, pos, target, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000, "permissions": "rw-"}
+    )
     report = build_report(profiler, run)
 
     event = next(evt for evt in report.runs[0].events if isinstance(evt, MemAllocEvent))
@@ -345,7 +349,9 @@ def test_report_lists_the_processes_of_the_runs_and_of_the_event_targets():
 
     main = Run()
     main.process_context = sample
-    profiler.record_process_event(main, pos, explorer, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000})
+    profiler.record_process_event(
+        main, pos, explorer, EventType.MEM_ALLOC, {"base": 0x500000, "size": 0x1000, "permissions": "rw-"}
+    )
     profiler.record_process_event(main, pos, child, EventType.PROCESS_CREATE, {})
     injected = Run()
     injected.process_context = explorer

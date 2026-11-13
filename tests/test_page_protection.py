@@ -8,7 +8,7 @@ from speakeasy.windows.winemu import get_page_protection_runs
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import windows as windefs
-from tests.guest_harness import Deref, get_api, guest_call
+from tests.guest_harness import Deref, get_api, guest_call, read_pointer
 from tests.handler_harness import alloc, call, start_process
 
 PAGE = 0x1000
@@ -148,7 +148,7 @@ def test_commit_changes_the_perms_of_the_region_in_the_memory_layout(config) -> 
     run = report.runs[0]
     assert run.memory is not None
     [region] = [r for r in run.memory.layout if r.tag == "api.VirtualAlloc"]
-    assert (region.base, region.size, region.perms) == (base, 4 * PAGE, "rw-")
+    assert (region.base, region.size, region.permissions) == (base, 4 * PAGE, "rw-")
 
 
 @pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"])
@@ -185,7 +185,7 @@ def test_ntdll_protect_virtual_memory_records_a_mem_protect_event(dll64_emu: Spe
 
     protect(se, page + 0x10, 0x10, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
     events = [e for e in se.emu.get_current_run().events if e.event == EventType.MEM_PROTECT]
-    assert [(e.base, e.size, e.protect, e.pid) for e in events] == [(page + 0x10, 0x10, ["PAGE_READWRITE"], None)]
+    assert [(e.base, e.size, e.permissions, e.pid) for e in events] == [(page + 0x10, 0x10, "rw-", None)]
 
 
 def test_ntdll_protect_virtual_memory_fails_for_an_empty_or_unmapped_range(dll64_emu: Speakeasy) -> None:
@@ -231,4 +231,30 @@ def test_protect_changes_the_perms_of_the_region_in_the_memory_layout(config, dl
     assert protect_call.return_value == success
     assert run.memory is not None
     [region] = [r for r in run.memory.layout if r.tag == "api.VirtualAlloc"]
-    assert (region.size, region.perms) == (PAGE, "r-x")
+    assert (region.size, region.permissions) == (PAGE, "r-x")
+
+
+def test_memory_events_have_the_permissions_of_the_layout_region(config) -> None:
+    with Speakeasy(config=config) as se:
+        code = se.load_shellcode(data=b"\xcc" * 0x1000, arch="amd64")
+        data = se.mem_alloc(0x1000)
+        p_rw, p_rx, p_old = data, data + 8, data + 0x10
+        call_api = lambda name, *args, **kw: guest_call(8, get_api(se, "kernel32", name), *args, **kw)  # noqa: E731
+        current_process = 0xFFFFFFFFFFFFFFFF
+        commit = 0x3000
+        body = call_api("VirtualAlloc", 0, PAGE, commit, PAGE_PROTECTION_FLAGS.PAGE_READWRITE, store=p_rw)
+        body += call_api("VirtualAlloc", 0, PAGE, commit, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READWRITE, store=p_rx)
+        body += call_api(
+            "VirtualProtectEx", current_process, Deref(p_rx), PAGE, PAGE_PROTECTION_FLAGS.PAGE_EXECUTE_READ, p_old
+        )
+        se.mem_write(code, body + b"\xc3")
+        se.run_shellcode(code)
+        run = se.get_report().runs[0]
+        rw, rx = read_pointer(se, p_rw), read_pointer(se, p_rx)
+
+    assert run.error is None
+    memory_events = (EventType.MEM_ALLOC, EventType.MEM_PROTECT)
+    last_events = {e.base: (e.event, e.permissions) for e in run.events if e.event in memory_events}
+    assert last_events == {rw: (EventType.MEM_ALLOC, "rw-"), rx: (EventType.MEM_PROTECT, "r-x")}
+    regions = {region.base: region.permissions for region in run.memory.layout}
+    assert {base: regions[base] for base in last_events} == {rw: "rw-", rx: "r-x"}

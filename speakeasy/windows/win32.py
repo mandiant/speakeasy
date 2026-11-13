@@ -779,7 +779,7 @@ class Win32Emulator(WindowsEmulator):
                 region: dict[str, Any] = {
                     "base": part.base,
                     "size": part.size,
-                    "perms": get_prot_string(part.perms),
+                    "permissions": get_prot_string(part.perms),
                     "tag": part.tag,
                     "module": part.module,
                     "section": part.section,

@@ -71,7 +71,7 @@ speakeasy -t sample.exe --no-memory-final-contents -o report.json
 
 The memory layout of a run has one region for the headers of a module and one region for each section, in place of one region for the whole module. With `memory.final_contents`, Speakeasy captures each region of guest memory, also when no write was counted. This includes memory that an API handler wrote, because the memory hooks do not count these writes.
 
-This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config. The module also has `.gfids`, `.rsrc` and `.reloc` regions, which the excerpt leaves out. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own protection and size, and `runs[0].accesses.regions` has its own counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stacks.
+This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config. The module also has `.gfids`, `.rsrc` and `.reloc` regions, which the excerpt leaves out. In `runs[0].memory.layout`, the module has separate `headers`, `.text`, `.rdata` and `.data` regions. Each region has its own permissions and size, and `runs[0].accesses.regions` has its own counters. In this run, code in `.text` executed, the sample read `.rdata` and it read and wrote `.data`. The stack region has counters but no `data_ref`, because Speakeasy does not capture the stacks.
 
 ```json
 {
@@ -82,7 +82,7 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
           {
             "base": "0x10000000",
             "size": 4096,
-            "perms": "r--",
+            "permissions": "r--",
             "tag": "emu.module",
             "module": "dll_test_x86.dll",
             "section": "headers",
@@ -92,7 +92,7 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
           {
             "base": "0x10001000",
             "size": 3584,
-            "perms": "r-x",
+            "permissions": "r-x",
             "tag": "emu.module",
             "module": "dll_test_x86.dll",
             "section": ".text",
@@ -102,7 +102,7 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
           {
             "base": "0x10002000",
             "size": 2560,
-            "perms": "r--",
+            "permissions": "r--",
             "tag": "emu.module",
             "module": "dll_test_x86.dll",
             "section": ".rdata",
@@ -112,7 +112,7 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
           {
             "base": "0x10003000",
             "size": 904,
-            "perms": "rw-",
+            "permissions": "rw-",
             "tag": "emu.module",
             "module": "dll_test_x86.dll",
             "section": ".data",
@@ -122,7 +122,7 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
           {
             "base": "0x1200000",
             "size": 1048576,
-            "perms": "rw-",
+            "permissions": "rw-",
             "tag": "emu.stack",
             "freed": false
           }
@@ -145,15 +145,15 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
 
 `LoadedImage` and `RuntimeModule` have the sections of the image. When `load_image` loads a PE, it sets the protection of each section from the section characteristics with `mem_protect`. A section can have any combination of read, write and execute access, or no access. If two sections share a page, the page gets the protections of both.
 
-You do not need a config setting for this. The report always has one region for each section in `memory.layout`, with the `module` and `section` fields. This excerpt of `runs[0].memory` from a run of `dll_test_x86.dll` shows the section protections. It leaves out `freed`, `data_ref` and the other regions and modules:
+You do not need a config setting for this. The report always has one region for each section in `memory.layout`, with the `module` and `section` fields. This excerpt of `runs[0].memory` from a run of `dll_test_x86.dll` shows the section permissions. It leaves out `freed`, `data_ref` and the other regions and modules:
 
 ```json
 {
   "layout": [
-    {"base": "0x10000000", "size": 4096, "perms": "r--", "tag": "emu.module", "module": "dll_test_x86.dll", "section": "headers"},
-    {"base": "0x10001000", "size": 3584, "perms": "r-x", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".text"},
-    {"base": "0x10002000", "size": 2560, "perms": "r--", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".rdata"},
-    {"base": "0x10003000", "size": 904, "perms": "rw-", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".data"}
+    {"base": "0x10000000", "size": 4096, "permissions": "r--", "tag": "emu.module", "module": "dll_test_x86.dll", "section": "headers"},
+    {"base": "0x10001000", "size": 3584, "permissions": "r-x", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".text"},
+    {"base": "0x10002000", "size": 2560, "permissions": "r--", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".rdata"},
+    {"base": "0x10003000", "size": 904, "permissions": "rw-", "tag": "emu.module", "module": "dll_test_x86.dll", "section": ".data"}
   ],
   "modules": [
     {"name": "dll_test_x86.dll", "path": "C:\\Windows\\system32\\dll_test_x86.dll", "base": "0x10000000", "size": 28672}

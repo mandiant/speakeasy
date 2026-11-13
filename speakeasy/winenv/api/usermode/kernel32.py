@@ -20,6 +20,7 @@ from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
 from speakeasy.windows.guest_callbacks import GuestCall, get_first_unmapped
 from speakeasy.windows.handles import HandleTable
+from speakeasy.windows.loaders import get_prot_string
 from speakeasy.winenv import codepage
 from speakeasy.winenv.defs.enums import (
     COMPUTER_NAME_FORMAT,
@@ -1190,7 +1191,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                     base=buf,
                     size=dwSize,
                     type=flAllocationType,
-                    protect=prot_def or None,
+                    permissions=get_prot_string(emu_perms),
                 )
 
             emu._set_dyn_code_hook(buf, size)
@@ -1280,7 +1281,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             mm = emu.get_address_map(buf)
 
             self.record_process_event(
-                obj, EventType.MEM_ALLOC, base=buf, size=dwSize, type=flAllocationType, protect=prot_def or None
+                obj,
+                EventType.MEM_ALLOC,
+                base=buf,
+                size=dwSize,
+                type=flAllocationType,
+                permissions=get_prot_string(emu_perms),
             )
 
             emu._set_dyn_code_hook(buf, size)
@@ -1752,9 +1758,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flNewProtect)
         ctx.args["flNewProtect"].display = "|".join(prot_def)
 
-        self.record_process_event(
-            proc_obj, EventType.MEM_PROTECT, base=lpAddress, size=dwSize, protect=prot_def or None
-        )
+        permissions = get_prot_string(self.win_perms_to_emu_perms(flNewProtect))
+        self.record_process_event(proc_obj, EventType.MEM_PROTECT, base=lpAddress, size=dwSize, permissions=permissions)
 
         return rv
 
