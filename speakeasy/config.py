@@ -628,8 +628,8 @@ class MemoryConfig(BaseModel):
     )
     final_contents: bool = Field(
         default=True,
-        description="Add to the report the contents of each memory region at the end of each run, except the stacks."
-        " User mode only.",
+        description="Add to the report the contents of each region of guest memory at the end of each run. The stacks"
+        " and the memory of the emulator get no contents. User mode only.",
     )
     dynamic_code_contents: DynamicCodeContentsConfig = Field(
         default_factory=DynamicCodeContentsConfig,
@@ -637,7 +637,8 @@ class MemoryConfig(BaseModel):
     )
     freed_regions: bool = Field(
         default=True,
-        description="If true, a region that the guest frees stays mapped, so that its data can be read.",
+        description="If true, a region that the guest frees stays mapped, so that its data can be read, and each"
+        " region in the report has freed. If false, the report leaves out the freed regions.",
     )
 
 

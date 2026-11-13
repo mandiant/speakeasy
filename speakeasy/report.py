@@ -504,7 +504,10 @@ class RunReport(BaseModel):
     )
     instruction_count: int = Field(
         default=0,
-        description="Number of instructions that the run executed.",
+        description=(
+            "Number of instructions that the run executed. The emulator counts them only with ``memory.accesses``, "
+            "``memory.dynamic_code_contents`` or a ``limits.instructions`` above 0, else the count is 0."
+        ),
     )
     api_call_count: int = Field(
         default=0,
