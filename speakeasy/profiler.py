@@ -769,9 +769,9 @@ class Profiler:
         run.events.append(event)
 
     def get_json_report(self) -> str:
-        """Get the report as JSON. Fields with a ``None`` value are left out."""
+        """Get the report as compact JSON, with no indentation. Fields with a ``None`` value are left out."""
         report = self.get_report()
-        return report.model_dump_json(indent=4, exclude_none=True)
+        return report.model_dump_json(exclude_none=True)
 
     def get_report(self) -> Report:
         """Build the report from the runs, the strings and the artifacts."""
