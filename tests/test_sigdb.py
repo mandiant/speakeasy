@@ -50,6 +50,8 @@ def _write_db(
         ("f32", 4, 1),
         ("p", 4, 1),
         ("p", 8, 1),
+        ("up", 4, 1),
+        ("ip", 8, 1),
         ("S", 4, 1),
         ("ps:FILETIME", 8, 1),
         ("g", 4, 4),
@@ -260,6 +262,41 @@ def test_out_buffer_size_from_count_params() -> None:
     # NULL count pointer
     values[6] = 0
     assert _size(sig, 5, values, 4, memory) is None
+
+
+def test_pointer_sized_integers() -> None:
+    """SIZE_T and ULONG_PTR are ``up``, SSIZE_T, LONG_PTR and LPARAM are ``ip``: integers of pointer size."""
+    size_t = sigdb.ParamSig("dwSize", "up", "i")
+    assert size_t.size(4) == 4 and size_t.size(8) == 8
+    assert size_t.value_mask(4) is None and size_t.value_mask(8) is None
+    assert size_t.pointee is None
+    assert sigdb.ParamSig("nIndex", "ip:WINDOW_LONG_PTR_INDEX").enum == "WINDOW_LONG_PTR_INDEX"
+
+    virtual_alloc = _out_sig(
+        sigdb.ParamSig("lpAddress", "p", "i?"),
+        sigdb.ParamSig("dwSize", "up", "i"),
+        sigdb.ParamSig("flAllocationType", "u32:VIRTUAL_ALLOCATION_TYPE", "i"),
+        sigdb.ParamSig("flProtect", "u32:PAGE_PROTECTION_FLAGS", "i"),
+    )
+    assert virtual_alloc.supports_emulation(4) and virtual_alloc.supports_emulation(8)
+    assert virtual_alloc.slot_count(4) == 4
+    assert virtual_alloc.values_from_slots([0, 0x1234567890, 0x3000, 0x40], 8)[1] == 0x1234567890
+    send_message = sigdb.FuncSig(
+        name="SendMessageA",
+        dll="user32",
+        ret="ip",
+        params=(
+            sigdb.ParamSig("hWnd", "h"),
+            sigdb.ParamSig("Msg", "u32"),
+            sigdb.ParamSig("wParam", "up"),
+            sigdb.ParamSig("lParam", "ip"),
+        ),
+    )
+    assert send_message.supports_emulation(8)
+
+    # a SIZE_T parameter gives the byte count of a buffer
+    write = _out_sig(sigdb.ParamSig("lpBuffer", "a:u8", "o", ("n", 1)), sigdb.ParamSig("nSize", "up", "i"))
+    assert _size(write, 0, [0x1000, 0x30], 8) == 0x30
 
 
 # -- Win32MetadataSource ----------------------------------------------------

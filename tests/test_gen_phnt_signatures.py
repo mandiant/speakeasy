@@ -189,7 +189,7 @@ def test_generate_prototypes(gen: ModuleType, mini_phnt: Path) -> None:
         ["KeyInformation", "p", "o?", {"n": 3}],
         ["Length", "u32", "i"],
         ["ResultLength", "p:u32", "o"],
-        ["Affinity", "p:p", "io"],
+        ["Affinity", "p:up", "io"],
         ["Handles", "p:h", "i", {"c": 7}],
         ["Count", "u32", "i"],
         ["Flags", "i32:FLAGGY", "i"],
@@ -252,8 +252,18 @@ def test_type_resolution(gen: ModuleType, mini_phnt: Path) -> None:
     assert types.resolve("PCUNICODE_STRING") == "ps:UNICODE_STRING"
     assert types.resolve("const UNICODE_STRING *") == "ps:UNICODE_STRING"
     assert types.resolve("UNICODE_STRING **") == "p:ps:UNICODE_STRING"
-    assert types.resolve("KAFFINITY") == "p"
-    assert types.resolve("PKAFFINITY") == "p:p"
+    assert types.resolve("KAFFINITY") == "up"
+    assert types.resolve("PKAFFINITY") == "p:up"
+    assert types.resolve("SIZE_T") == "up"
+    assert types.resolve("PSIZE_T") == "p:up"
+    assert types.resolve("ULONG_PTR") == "up"
+    assert types.resolve("SSIZE_T") == "ip"
+    assert types.resolve("LONG_PTR") == "ip"
+    assert types.resolve("WPARAM") == "up"
+    assert types.resolve("LPARAM") == "ip"
+    assert types.resolve("LRESULT") == "ip"
+    assert types.resolve("HANDLE_PTR") == "h"
+    assert types.resolve("PVOID") == "p"
     assert types.resolve("PTEB") == "ps:TEB"
     assert types.resolve("PIO_APC_ROUTINE") == "p"
     assert types.resolve("PCALLBACK") == "p"
