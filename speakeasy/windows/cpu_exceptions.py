@@ -84,7 +84,7 @@ def get_interrupt_instruction(intno: int, pc: int, code_bytes: bytes) -> int:
 
     After ``int n``, ``int3`` and ``into``, Unicorn gives the pc of the next instruction. After a
     fault, pc is at the faulting instruction, and after a single step, pc is the next instruction
-    to run. code_bytes are the two bytes before pc.
+    to run. code_bytes are the two bytes before pc, or one byte at the start of a region.
     """
     if code_bytes[-2:] == bytes((0xCD, intno)):
         return pc - 2

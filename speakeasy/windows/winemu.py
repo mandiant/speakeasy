@@ -4266,7 +4266,11 @@ class WindowsEmulator(BinaryEmulator):
         try:
             code_bytes = self.mem_read(pc - 2, 2)
         except uc.UcError:
-            code_bytes = b""
+            # an `int3` or `into` at the start of a region has nothing mapped before it
+            try:
+                code_bytes = self.mem_read(pc - 1, 1)
+            except uc.UcError:
+                code_bytes = b""
         if (
             not self.is_kernel_mode
             and self.config.exceptions.dispatch
