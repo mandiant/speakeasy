@@ -29,6 +29,7 @@ FILE_MAP_ALL_ACCESS = 0xF001F
 GENERIC_READ = 0x80000000
 OPEN_EXISTING = 3
 SEC_IMAGE = 0x1000000
+EXPLORER_PATH = "C:\\Windows\\explorer.exe"
 
 
 @pytest.fixture
@@ -44,6 +45,13 @@ def pe_file_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes], t
     host = tmp_path / "image.dll"
     host.write_bytes(load_test_bin("dll_test_x64.dll.xz"))
     config["filesystem"]["files"].insert(0, {"mode": "full_path", "emu_path": "c:\\image.dll", "path": str(host)})
+    yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
+
+
+@pytest.fixture
+def explorer_cmdline_emu(config: dict[str, Any], load_test_bin: Callable[[str], bytes]) -> Iterator[Speakeasy]:
+    entry = next(p for p in config["processes"] if p["path"] == EXPLORER_PATH)
+    entry["command_line"] = "explorer.exe /factory"
     yield from load_emu(config, load_test_bin("dll_test_x86.dll.xz"))
 
 
@@ -153,6 +161,17 @@ def test_virtual_alloc_ex_fails_only_at_memory_of_the_target(dll_emu: Speakeasy)
     moved = alloc_at(hproc, image)
     assert moved not in (0, image)
     assert alloc_at(hproc, moved) == 0
+
+
+def test_virtual_alloc_ex_into_a_configured_process_reports_its_command_line(explorer_cmdline_emu: Speakeasy) -> None:
+    se = explorer_cmdline_emu
+    start_process(se)
+    pid = next(p.pid for p in se.emu.get_processes() if p.path == EXPLORER_PATH)
+    hproc = call(se, "kernel32", "OpenProcess", [0x1F0FFF, 0, pid])[0]
+    assert call(se, "kernel32", "VirtualAllocEx", [hproc, 0, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])[0]
+
+    processes = se.get_report().processes
+    assert [(p.path, p.command_line) for p in processes if p.pid == pid] == [(EXPLORER_PATH, "explorer.exe /factory")]
 
 
 def test_map_view_of_file_starts_at_the_offset(file_emu: Speakeasy) -> None:

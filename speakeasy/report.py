@@ -589,9 +589,9 @@ class ProcessInfo(BaseModel):
     command_line: str | None = Field(
         default=None,
         description=(
-            "Command line of the process. Absent when the emulator has no command line for the process: for a "
-            "process that existed before the emulation, and for a process that the guest created with no command "
-            "line, such as ``CreateProcess`` with a NULL ``lpCommandLine``."
+            "Command line of the process. Absent for a process from the config with no ``command_line``, and for "
+            "a process that the guest created with no command line, such as ``CreateProcess`` with a NULL "
+            "``lpCommandLine``."
         ),
     )
     runs: list[int] = Field(
