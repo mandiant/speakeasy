@@ -34,7 +34,7 @@ The report writes each machine word as a hex string with a `0x` prefix and lower
 | `pid` | The process ID, the same as `pid` of the runs and of the events. |
 | `parent_pid` | The ID of the process that created this process, the `pos.pid` of its `process_create` event. Absent for the first process and for a process that existed before the emulation. |
 | `path` | The emulated path of the process image, for example `C:\Windows\system32\svchost.exe`. Absent when the process has no image path. |
-| `command_line` | The command line of the process. Absent for a process from the config with no `command_line`, and for a process that the guest created with no command line, for example `CreateProcess` with a NULL `lpCommandLine`. |
+| `command_line` | The command line of the process. Absent for a process from the config with no `command_line`. For `CreateProcess` with a NULL `lpCommandLine`, it is the application name. |
 | `runs` | The indexes in `runs` of the runs of the process. Empty when no run executed in the process, for example a child process with `runs.children=false`. |
 
 For the input EXE, the first process has the emulated path of the input and the process command line: `process.command_line` of the config, or the quoted path and the `--argv` arguments. For a DLL or shellcode, the first process is the container process of the config (the entry with `is_main_exe`). In kernel mode, the runs have no process, so the list has only the targets of memory events.

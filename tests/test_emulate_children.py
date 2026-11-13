@@ -63,12 +63,12 @@ def test_report_lists_the_parent_and_the_child_with_their_runs(config, load_test
         "parent.exe -x",
         [0],
     )
-    # parent.c gives CreateProcessA no command line.
+    # parent.c gives CreateProcessA no command line, so the application name is the command line.
     assert (child.pid, child.parent_pid, child.path, child.command_line, child.runs) == (
         report.runs[1].pid,
         parent.pid,
         CHILD_PATH,
-        None,
+        CHILD_PATH,
         [1],
     )
 
