@@ -57,6 +57,7 @@ from speakeasy.report import (
     MemoryAccesses,
     MemoryLayout,
     MemoryRegion,
+    ProcessInfo,
     RegionAccesses,
     Report,
     RunReport,
@@ -249,6 +250,10 @@ class Profiler:
         self.meta: dict[str, Any] = {}
         self.runs: list[Run] = []
         self.artifact_store: ArtifactStore = ArtifactStore()
+        # The processes that are targets of process, memory and thread events, by process ID.
+        self.target_processes: dict[int, Process] = {}
+        # The ID of the creator of each process that the guest created, by process ID.
+        self.parent_pids: dict[int, int] = {}
 
     def add_input_metadata(self, meta):
         """Set the metadata of the input, such as the path and the SHA-256, for the report."""
@@ -547,9 +552,12 @@ class Profiler:
         """
         pid = None if proc.id == pos.pid else proc.id
         path = proc.path
+        self.target_processes.setdefault(proc.id, proc)
 
         event: AnyEvent
         if event_type == EventType.PROCESS_CREATE:
+            if pos.pid:
+                self.parent_pids[proc.id] = pos.pid
             event = ProcessCreateEvent(
                 pos=pos,
                 path=path,
@@ -769,8 +777,10 @@ class Profiler:
         Without ``instructions_counted``, no hook counted the instructions, and the runs have no ``instruction_count``.
         """
         run_reports = []
+        processes = dict(self.target_processes)
+        process_runs: dict[int, list[int]] = {}
 
-        for r in self.runs:
+        for index, r in enumerate(self.runs):
             error_info = r.error
 
             accesses = None
@@ -829,11 +839,12 @@ class Profiler:
                 memory_layout = MemoryLayout(layout=regions, modules=modules)
 
             ep_tid = r.thread.tid if r.thread else None
+            run_process = r.process_context or (r.thread.process if r.thread else None)
             ep_pid = None
-            if r.process_context:
-                ep_pid = r.process_context.id
-            elif r.thread and r.thread.process:
-                ep_pid = r.thread.process.id
+            if run_process:
+                ep_pid = run_process.id
+                processes.setdefault(ep_pid, run_process)
+                process_runs.setdefault(ep_pid, []).append(index)
 
             if r.start_addr is None:
                 raise SpeakeasyError("run has no start address")
@@ -887,5 +898,15 @@ class Profiler:
             errors=errors,
             strings=strings_report,
             data=self.artifact_store.to_report_data(get_data_refs(run_reports)),
+            processes=[
+                ProcessInfo(
+                    pid=pid,
+                    parent_pid=self.parent_pids.get(pid),
+                    path=proc.path or None,
+                    command_line=proc.cmdline or None,
+                    runs=process_runs.get(pid, []),
+                )
+                for pid, proc in sorted(processes.items())
+            ],
             runs=run_reports,
         )
