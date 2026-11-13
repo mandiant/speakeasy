@@ -731,11 +731,6 @@ class Win32Emulator(WindowsEmulator):
                 except Exception:
                     data = None
             for part in self.get_region_parts(mm):
-                # The accesses outside every section of an image are the accesses of the headers.
-                if part.section is None or part.section == "headers":
-                    access = run.mem_access.get(mm)
-                else:
-                    access = run.section_access.get((mm.base, part.base - mm.base))
                 region: dict[str, Any] = {
                     "base": part.base,
                     "size": part.size,
@@ -744,9 +739,6 @@ class Win32Emulator(WindowsEmulator):
                     "module": part.module,
                     "section": part.section,
                     "is_free": mm.free,
-                    "accesses": (
-                        {"reads": access.reads, "writes": access.writes, "execs": access.execs} if access else None
-                    ),
                 }
                 if data is not None and self.profiler is not None:
                     offset = part.base - mm.base

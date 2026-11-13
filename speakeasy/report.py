@@ -248,15 +248,49 @@ class ErrorInfo(BaseModel):
     )
 
 
-class SymAccessReport(BaseModel):
-    """Read, write and execute counts of one symbol address, from memory tracing."""
+class RegionAccesses(BaseModel):
+    """Read, write and execute counts of one memory region in one run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    region: HexInt = Field(
+        description=(
+            "Base of the region, as in ``memory.layout``: for a module image, the base of its headers or section. "
+            "An access in a module image outside the headers and the sections counts for the headers."
+        )
+    )
+    reads: int = Field(description="Number of reads in the region.")
+    writes: int = Field(description="Number of writes in the region.")
+    execs: int = Field(description="Number of instructions that ran in the region.")
+
+
+class SymbolAccesses(BaseModel):
+    """Read, write and execute counts of one symbol address in one run."""
 
     model_config = ConfigDict(extra="forbid")
 
     symbol: str = Field(description="Symbol name in ``module.symbol`` form.")
-    reads: int = Field(description="Number of reads of the symbol address.")
-    writes: int = Field(description="Number of writes to the symbol address.")
-    execs: int = Field(description="Number of times that the guest ran code at the symbol address.")
+    reads: int = Field(description="Number of reads that start at the symbol address.")
+    writes: int = Field(description="Number of writes that start at the symbol address.")
+    execs: int = Field(description="Number of instructions that ran at the symbol address.")
+
+
+class MemoryAccesses(BaseModel):
+    """Read, write and execute counts of the memory regions and the symbols that a run used."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    regions: list[RegionAccesses] = Field(
+        default_factory=list,
+        description="Counts of each region that the run read, wrote or ran code in, in the order of ``region``.",
+    )
+    symbols: list[SymbolAccesses] = Field(
+        default_factory=list,
+        description=(
+            "Counts of each symbol address that the run read, wrote or ran code at, in the order of the address. "
+            "Only an access at the exact address of the symbol counts."
+        ),
+    )
 
 
 class DynamicCodeSegment(BaseModel):
@@ -341,16 +375,6 @@ class DroppedFile(BaseModel):
     )
 
 
-class MemoryAccesses(BaseModel):
-    """Read, write and execute counts of one memory region, from memory tracing."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    reads: int = Field(description="Number of reads in the region.")
-    writes: int = Field(description="Number of writes in the region.")
-    execs: int = Field(description="Number of instructions that ran in the region.")
-
-
 class MemoryRegion(RegionInfo):
     """
     One memory region at the end of a run.
@@ -363,12 +387,6 @@ class MemoryRegion(RegionInfo):
     is_free: bool = Field(
         default=False,
         description="If true, the guest freed the region. Only ``memory.freed_regions`` keeps a freed region.",
-    )
-    accesses: MemoryAccesses | None = Field(
-        default=None,
-        description=(
-            "Access counts of the region. Absent when ``memory.accesses`` is off or the run did not use the region."
-        ),
     )
     data_ref: str | None = Field(
         default=None,
@@ -482,9 +500,9 @@ class RunReport(BaseModel):
         default_factory=list,
         description="Events of the run, in order.",
     )
-    symbol_accesses: list[SymAccessReport] | None = Field(
+    accesses: MemoryAccesses | None = Field(
         default=None,
-        description="Access counts of each API symbol. Only with ``memory.accesses``.",
+        description="Read, write and execute counts of the regions and the symbols. Only with ``memory.accesses``.",
     )
     dynamic_code_segments: list[DynamicCodeSegment] = Field(
         default_factory=list,

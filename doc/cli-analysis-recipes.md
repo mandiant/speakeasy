@@ -27,10 +27,10 @@ The emulator runs a hook for each instruction, so emulation is slower. `--no-cod
 <a id="recipe-memory-accesses"></a>
 ## Memory access counts (`--memory-accesses`)
 
-The regions in `runs[*].memory.layout` that the run accessed get `accesses`, with the counts of reads, writes and executes. `runs[*].symbol_accesses` has the counts for each symbol. To count the symbols that each run accessed:
+`runs[*].accesses.regions` has the counts of reads, writes and executes of each region that the run used. `region` is the base of the region in `runs[*].memory.layout`. `runs[*].accesses.symbols` has the counts for each symbol. To count the symbols that each run accessed:
 
 ```bash
-jq '.runs[] | {start_address, symbol_accesses: (.symbol_accesses // [] | length)}' report.json
+jq '.runs[] | {start_address, symbols: (.accesses.symbols // [] | length)}' report.json
 ```
 
 The emulator runs a hook for each instruction, memory read and memory write. A sample that accesses much memory runs much slower. `--no-memory-accesses` removes this cost.

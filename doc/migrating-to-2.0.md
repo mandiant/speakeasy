@@ -6,7 +6,7 @@ This page tells you how to move code, config files and scripts from Speakeasy 1.
 
 The report of 2.0 has `report_version` `6.1.0`. The report of 1.x has `1.1.0`. `Speakeasy.get_report` returns a `Report`, a pydantic model from `speakeasy.report`. In 1.x it returned a plain dict.
 
-In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` moves to `memory`, and `sym_accesses` has a new name. Each entry of `dynamic_code_segments` has the new `pos`, and with `memory.dynamic_code_contents` a `data_ref`, one more entry for each later snapshot of the region, and `snapshot_limit_reached` on the last entry of a region that got to the limit. `dropped_files` does not change.
+In 1.x, each entry point had one list for each kind of event: `apis`, `file_access`, `registry_access`, `network_events` (with `dns` and `traffic`), `process_events` and `handled_exceptions`. It also had `mem_access`, `sym_accesses`, `dynamic_code_segments` and `dropped_files`. In 2.0, an entry point has one `events` list in execution order in place of the event lists. The `event` key of each event gives its kind, and `pos` gives the tick, thread, process and `pc` of the event. `mem_access` and `sym_accesses` move to `accesses`. Each entry of `dynamic_code_segments` has the new `pos`, and with `memory.dynamic_code_contents` a `data_ref`, one more entry for each later snapshot of the region, and `snapshot_limit_reached` on the last entry of a region that got to the limit. `dropped_files` does not change.
 
 Before:
 
@@ -42,7 +42,7 @@ This table gives the `events` that hold the data of each 1.x list:
 | `registry_access[]`, `event` `open_key`, `create_key`, `read_value`, `list_subkeys` | `reg_open_key`, `reg_create_key`, `reg_read_value`, `reg_list_subkeys` events |
 | `process_events[]`, `event` `create` | `process_create` events |
 | `process_events[]`, `event` `mem_alloc`, `mem_write`, `mem_read`, `mem_protect`, `thread_create`, `thread_inject` | events with the same `event` value |
-| `mem_access[]` | `memory.layout[]`, with the counts in `accesses` |
+| `mem_access[]` | `accesses.regions[]`, with the base of a region of `memory.layout[]` in `region` |
 
 These keys have new names:
 
@@ -54,7 +54,7 @@ These keys have new names:
 | `entry_points[].ep_args` | `args` |
 | `entry_points[].instr_count` | `instruction_count` |
 | `entry_points[].apihash` | `api_hash` |
-| `entry_points[].sym_accesses` | `symbol_accesses` |
+| `entry_points[].sym_accesses` | `accesses.symbols` |
 | `entry_points[].error.regs` | `error.registers` |
 | `entry_points[].error.instr`, `handled_exceptions[].instr` | `error.instruction`, `instruction` of the event |
 | `entry_points[].ret_val`, `apis[].ret_val` | `return_value` |
