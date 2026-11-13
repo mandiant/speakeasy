@@ -392,10 +392,11 @@ class MemoryRegion(RegionInfo):
         default=None,
         description=(
             "Key in the top-level ``data`` of the region data. Only with ``memory.final_contents``, and only for "
-            "guest memory: the images of the modules that load from a file, such as the input, and the allocations "
-            "and heaps of the guest (``api.*`` tags). Absent for the stub images of system modules, the structures "
-            "and stacks of the emulator, and other regions with no tag or an ``emu.*`` tag. Also absent when the "
-            "emulator cannot read the region."
+            "guest memory: the images of the modules that load from a file, such as the input, the allocations "
+            "and heaps of the guest (``api.*`` tags), the regions with no tag that API handlers allocate for the "
+            "guest, and the static TLS data (``emu.tls.*`` tags). Absent for the stub images of system modules, "
+            "the other structures of the emulator (``emu.*`` tags) and the stacks. Also absent when the emulator "
+            "cannot read the region."
         ),
     )
 

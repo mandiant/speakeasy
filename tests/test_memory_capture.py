@@ -7,6 +7,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from tests.pe_builder import build_pe
+from tests.test_static_tls import TEMPLATE, build_tls_pe
 
 
 @pytest.fixture(scope="module")
@@ -24,6 +25,10 @@ def report_with_dumps(base_config, load_test_bin):
         return se.get_report()
     finally:
         se.shutdown()
+
+
+def get_region_contents(report, region) -> bytes:
+    return zlib.decompress(base64.b64decode(report.data[region.data_ref].data))
 
 
 def test_captured_data_refs_resolve(report_with_dumps):
@@ -53,11 +58,13 @@ def test_only_guest_memory_has_contents(report_with_dumps):
     assert all(region.data_ref for region in layout if region.module == image)
     assert any(region.module == "kernel32.dll" for region in layout)
     assert not [region for region in layout if region.module not in (None, image) and region.data_ref]
-    assert not [region for region in layout if region.module is None and not region.tag and region.data_ref]
     assert not [
         region
         for region in layout
-        if (region.tag or "").startswith("emu.") and region.module is None and region.data_ref
+        if (region.tag or "").startswith("emu.")
+        and not (region.tag or "").startswith("emu.tls.")
+        and region.module is None
+        and region.data_ref
     ]
     assert any(region.tag == "emu.struct.PEB" for region in layout)
 
@@ -86,8 +93,43 @@ def test_heap_block_captured(config):
     heap_blocks = [r for r in report.runs[0].memory.layout if r.tag == "api.heap.HeapAlloc"]
     assert heap_blocks
     assert all(r.data_ref for r in heap_blocks)
-    contents = [zlib.decompress(base64.b64decode(report.data[r.data_ref].data)) for r in heap_blocks]
+    contents = [get_region_contents(report, r) for r in heap_blocks]
     assert any(c.startswith(payload) for c in contents)
+
+
+def test_untagged_api_allocation_captured(config):
+    text_value = "allocated by an API handler".encode("utf-16le")
+
+    def text(base, iat):
+        code = b"\x68" + struct.pack("<I", len(text_value) // 2)  # push length
+        code += b"\x68" + struct.pack("<I", base + 0x2000)  # push .data
+        code += b"\xff\x15" + struct.pack("<I", base + iat["oleaut32.dll", "SysAllocStringLen"])
+        return code + b"\xc3"
+
+    data, _ = build_pe(32, text=text, data=text_value, imports={"oleaut32.dll": ["SysAllocStringLen"]})
+    config["memory"]["final_contents"] = True
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=data))
+        report = se.get_report()
+
+    untagged = [r for r in report.runs[0].memory.layout if r.tag is None and r.module is None]
+    assert untagged
+    assert all(r.data_ref for r in untagged)
+    assert any(text_value in get_region_contents(report, r) for r in untagged)
+
+
+def test_static_tls_data_captured(config):
+    image, *_ = build_tls_pe(32)
+    config["memory"]["final_contents"] = True
+    with Speakeasy(config=config) as se:
+        se.run_module(se.load_module(data=image))
+        report = se.get_report()
+
+    tls = [r for r in report.runs[0].memory.layout if (r.tag or "").startswith("emu.tls.")]
+    assert {r.tag.endswith(".data") for r in tls} == {True, False}
+    assert all(r.data_ref for r in tls)
+    data_block = next(r for r in tls if r.tag.endswith(".data"))
+    assert TEMPLATE[4:] in get_region_contents(report, data_block)
 
 
 def test_report_data_deduplicates_repeated_regions(report_with_dumps):
