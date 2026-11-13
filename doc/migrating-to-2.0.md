@@ -114,7 +114,7 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 | `dll_entry.DLL_PROCESS_ATTACH` | `dll_entry` | `DLL_PROCESS_ATTACH` |
 | `tls_callback_<index>` | `tls_callback` | `<index>` |
 | `export.<export>` | `export` | `<export>` |
-| `export.no_name` | `export` | none |
+| `export.no_name` | `export` | `#<ordinal>`, for example `#3` |
 | `shellcode` | `shellcode` | none |
 | `call_0x<address>` | `call` | none, the address is in `start_address` |
 | `thread`, `system_thread` | `thread` | none |

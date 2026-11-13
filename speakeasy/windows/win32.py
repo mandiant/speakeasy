@@ -261,7 +261,7 @@ class Win32Emulator(WindowsEmulator):
                         continue
                     run = Run()
                     run.type = RunType.EXPORT
-                    run.name = exp.name or None
+                    run.name = exp.name or f"#{exp.ordinal}"
                     run.start_addr = exp.address
                     if exp.name and exp.name.startswith("ServiceMain"):
                         char_width = self.get_service_main_char_width(module, exp.name)

@@ -88,7 +88,7 @@ If the kind of run has no detail (`None` in Python), the JSON report leaves out 
 | `module_entry` | none |
 | `dll_entry` | `DLL_PROCESS_ATTACH` |
 | `tls_callback` | index of the callback in the TLS callback array, for example `0` |
-| `export` | export name, or none for an export without a name |
+| `export` | export name, or `#` and the ordinal for an export without a name, for example `#3` |
 | `shellcode` | none |
 | `thread` | none for a thread in the same process; the file name of the process image, for example `svchost.exe`, for a thread in another process; `apc` for a `QueueUserAPC` routine |
 | `service_main` | service name from `StartServiceCtrlDispatcher` |
