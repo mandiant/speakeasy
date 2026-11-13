@@ -204,7 +204,7 @@ Some keys follow a new rule for absent, empty and zero values. A key is absent w
 
 With `memory.final_contents`, only the regions of guest memory have a `data_ref`: the images of the modules that load from a file, the allocations and heaps of the guest, the regions with no tag and the static TLS data. In 6.2.0, each region except the stacks had one, also the stub images of the system modules and the structures of the emulator. An empty dropped file has no `data_ref`, and the top-level `data` has only the payloads that a `data_ref` refers to. The [report walkthrough](reporting.md#memory-regions) lists the regions.
 
-The 7.0.0 models read each 7.x report. They ignore unknown keys, an event of a new type becomes an `UnknownEvent`, and the `type` of an error of a new type is a plain `str`. The 6.2.0 models rejected each of these. See [Report versions](reporting.md#report-versions).
+The 7.0.0 models read each 7.x report. They ignore unknown keys, read an event of a new type as an `UnknownEvent`, and read the `type` of an error of a new type as a plain `str`. The 6.2.0 models rejected each of these. See [Report versions](reporting.md#report-versions).
 
 7.0.0 adds `api_call_count` to each run, and `return_address` and `calls` to each `api` event. `calls` is the number of calls that the event stands for, also the repeats that the profiler leaves out. In user mode, a limit error of a run has the `pid` and `tid` of the thread that ran when the limit stopped the run. A handler event, such as `file_create`, comes just before the `api` event of its call, with the same `tick` and `pc`.
 
