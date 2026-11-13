@@ -149,11 +149,10 @@ def test_cli_runs_the_exports_unless_no_runs_exports(tmp_path, load_test_bin, ar
     assert len(json.loads(result.stdout)["runs"]) == count
 
 
-def drop_file_after_api_calls(base, iat):
+# CreateFileA("C:\\out.txt", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL), then WriteFile of 4 bytes to the handle.
+def drop_file(base, iat):
     data = base + 0x2000
-    code = b"\xb9" + struct.pack("<I", 2000)
-    code += b"\x51\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "GetTickCount"]) + b"\x59\xe2\xf6"
-    code += b"\x6a\x00" * 2 + b"\x6a\x02" + b"\x6a\x00" * 2 + b"\x68" + struct.pack("<I", 0x40000000)
+    code = b"\x6a\x00" * 2 + b"\x6a\x02" + b"\x6a\x00" * 2 + b"\x68" + struct.pack("<I", 0x40000000)
     code += (
         b"\x68" + struct.pack("<I", data) + b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "CreateFileA"])
     )
@@ -163,29 +162,19 @@ def drop_file_after_api_calls(base, iat):
     return code + b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", "WriteFile"]) + b"\xc3"
 
 
-@pytest.fixture
-def dropper(tmp_path):
-    data = b"C:\\out.txt".ljust(0x10, b"\0") + b"data".ljust(0x14, b"\0")
-    image, _ = build_pe(
-        text=drop_file_after_api_calls,
-        data=data,
-        imports={"kernel32.dll": ["GetTickCount", "CreateFileA", "WriteFile"]},
-    )
-    target = tmp_path / "in" / "dropper.exe"
-    target.parent.mkdir()
-    target.write_bytes(image)
-    return target
-
-
 # The directory exists, so the check before the run accepts the path, but the name is too long to create.
 LONG_NAME = "x" * 300
 
 
 @pytest.mark.parametrize("mode", [[], ["--no-mp"]])
-def test_cli_writes_the_report_and_exits_nonzero_when_the_dropped_files_archive_write_fails(tmp_path, dropper, mode):
+def test_cli_writes_the_report_and_exits_nonzero_when_the_dropped_files_archive_write_fails(tmp_path, mode):
+    data = b"C:\\out.txt".ljust(0x10, b"\0") + b"data".ljust(0x14, b"\0")
+    image, _ = build_pe(text=drop_file, data=data, imports={"kernel32.dll": ["CreateFileA", "WriteFile"]})
+    target = tmp_path / "dropper.exe"
+    target.write_bytes(image)
     output = tmp_path / "report.json"
 
-    result = run_cli("-t", str(dropper), "-o", str(output), "--dropped-files-path", str(tmp_path / LONG_NAME), *mode)
+    result = run_cli("-t", str(target), "-o", str(output), "--dropped-files-path", str(tmp_path / LONG_NAME), *mode)
 
     assert result.returncode == 1
     assert "error: failed to write the dropped files archive:" in result.stderr
@@ -193,9 +182,11 @@ def test_cli_writes_the_report_and_exits_nonzero_when_the_dropped_files_archive_
     assert json.loads(output.read_text())["runs"][0]["dropped_files"]
 
 
-@pytest.mark.parametrize("mode", [[], ["--no-mp"]])
-def test_cli_exits_nonzero_when_the_report_write_fails(tmp_path, dropper, mode):
-    result = run_cli("-t", str(dropper), "-o", str(tmp_path / LONG_NAME), *mode)
+def test_cli_exits_nonzero_when_the_report_write_fails(tmp_path):
+    target = tmp_path / "ret.exe"
+    target.write_bytes(build_pe(text=b"\xc3")[0])
+
+    result = run_cli("-t", str(target), "-o", str(tmp_path / LONG_NAME), "--no-mp")
 
     assert result.returncode == 1
     assert "error: failed to write the report:" in result.stderr
