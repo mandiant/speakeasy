@@ -1374,7 +1374,7 @@
       "type": "object"
     },
     "MemProtectEvent": {
-      "description": "A change of page permissions with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``.",
+      "description": "A change of page permissions with ``VirtualProtect``, ``VirtualProtectEx`` or ``NtProtectVirtualMemory``.",
       "properties": {
         "pos": {
           "$ref": "#/$defs/TracePosition",

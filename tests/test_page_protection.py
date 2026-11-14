@@ -183,9 +183,26 @@ def test_ntdll_protect_virtual_memory_records_a_mem_protect_event(dll64_emu: Spe
     start_process(se)
     page = get_rx_page(se)
 
-    protect(se, page + 0x10, 0x10, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+    protect(se, page + 0xFF0, 0x20, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
+    protect(se, 0, PAGE, PAGE_PROTECTION_FLAGS.PAGE_READWRITE)
     events = [e for e in se.emu.get_current_run().events if e.event == EventType.MEM_PROTECT]
-    assert [(e.base, e.size, e.permissions, e.pid) for e in events] == [(page + 0x10, 0x10, "rw-", None)]
+    assert [(e.base, e.size, e.permissions, e.pid) for e in events] == [(page, 2 * PAGE, "rw-", None)]
+
+
+@pytest.mark.parametrize("api", ["VirtualProtect", "VirtualProtectEx"])
+def test_virtual_protect_records_one_mem_protect_event_for_the_changed_pages(dll64_emu: Speakeasy, api: str) -> None:
+    se = dll64_emu
+    start_process(se)
+    page = get_rx_page(se)
+    p_old = alloc(se, b"\xff" * 4)
+    rw = PAGE_PROTECTION_FLAGS.PAGE_READWRITE
+    process = [(1 << 8 * se.get_ptr_size()) - 1] if api == "VirtualProtectEx" else []
+
+    assert call(se, "kernel32", api, [*process, page + 0xFF0, 0x20, rw, p_old])[0] == 1
+    assert call(se, "kernel32", api, [*process, page, 0, rw, p_old])[0] == 0
+    assert call(se, "kernel32", api, [*process, 0, PAGE, rw, p_old])[0] == 0
+    events = [e for e in se.emu.get_current_run().events if e.event == EventType.MEM_PROTECT]
+    assert [(e.base, e.size, e.permissions, e.pid) for e in events] == [(page, 2 * PAGE, "rw-", None)]
 
 
 def test_ntdll_protect_virtual_memory_fails_for_an_empty_or_unmapped_range(dll64_emu: Speakeasy) -> None:

@@ -1677,11 +1677,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             PDWORD lpflOldProtect
         );
         """
+        return self._virtual_protect(emu, emu.get_current_process(), *argv)
+
+    def _virtual_protect(self, emu, proc, lpAddress, dwSize, flNewProtect, lpflOldProtect):
         rv = 0
         mm = None
         new = 0
-
-        lpAddress, dwSize, flNewProtect, lpflOldProtect = argv
 
         # NtProtectVirtualMemory rejects a size of 0 before it looks for the memory at the address.
         if not dwSize:
@@ -1696,14 +1697,12 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         # convert the mem flags
         if mm and lpflOldProtect:
-            # Check for page alignment
-            addr = lpAddress & 0xFFFFFFFFFFFFF000
-            size = dwSize & 0xFFFFFFFFFFFFF000
+            # Windows changes every page that the range touches.
+            page_mask = emu.page_size - 1
+            addr = lpAddress & ~page_mask
+            size = ((lpAddress + dwSize + page_mask) & ~page_mask) - addr
             new = self.win_perms_to_emu_perms(flNewProtect)
 
-            remainder = dwSize & 0xFFF
-            if remainder:
-                size += 0x1000
             if get_first_unmapped(emu, addr, size) != addr:
                 emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
                 return 0
@@ -1712,6 +1711,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             old_prot = self.get_page_protection(addr)
             emu.protect_pages(addr, size, new, guard=bool(flNewProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD))
             self.write_dword(lpflOldProtect, old_prot)
+            if proc:
+                self.record_process_event(
+                    proc, EventType.MEM_PROTECT, base=addr, size=size, permissions=get_prot_string(new)
+                )
             return 1
 
         return rv
@@ -1735,15 +1738,10 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return False
 
-        rv = self.VirtualProtect(emu, argv[1:], ctx)
-
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flNewProtect)
         ctx.args["flNewProtect"].display = "|".join(prot_def)
 
-        permissions = get_prot_string(self.win_perms_to_emu_perms(flNewProtect))
-        self.record_process_event(proc_obj, EventType.MEM_PROTECT, base=lpAddress, size=dwSize, permissions=permissions)
-
-        return rv
+        return self._virtual_protect(emu, proc_obj, lpAddress, dwSize, flNewProtect, lpflOldProtect)
 
     @apihook("VirtualFree", argc=3)
     def VirtualFree(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
