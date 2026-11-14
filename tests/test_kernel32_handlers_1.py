@@ -466,6 +466,22 @@ def test_create_process_of_a_directory_fails(
     assert dll_emu.emu.child_processes == []
 
 
+def test_create_process_of_a_file_whose_host_file_is_missing_fails(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], tmp_path: Path
+) -> None:
+    missing = str(tmp_path / "missing.exe")
+    config["filesystem"]["files"].insert(0, {"mode": "full_path", "emu_path": "c:\\child.exe", "path": missing})
+    for se in load_emu(config, load_test_bin("dll_test_x86.dll.xz")):
+        start_process(se)
+        app = alloc(se, b"c:\\child.exe\x00")
+        si = alloc(se, b"\x00" * 0x44)
+        pi = alloc(se, b"\x00" * 0x10)
+        ok, _ = call(se, "kernel32", "CreateProcessA", [app, 0, 0, 0, 0, 0, 0, 0, si, pi])
+        assert ok == 0
+        assert se.emu.get_last_error() == windefs.ERROR_FILE_NOT_FOUND
+        assert se.emu.child_processes == []
+
+
 def test_win_exec_without_program_name_fails(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     cmd = alloc(dll_emu, b'"" arg\x00')
@@ -535,7 +551,7 @@ def test_resume_thread_runs_code_written_at_the_entry_of_the_child(dll_emu: Spea
 
 
 def test_resume_thread_does_not_run_the_headers_of_a_program_without_code(dll_emu: Speakeasy) -> None:
-    # cmd.exe is not in the emulated file system, so its image has headers and no code
+    # cmd.exe has no PE image in the emulated file system, so its image has headers and no code
     hproc, hthread = create_suspended_child(dll_emu)
     data = alloc(dll_emu, b"\x90" * 4)
     ok, _ = call(dll_emu, "kernel32", "WriteProcessMemory", [hproc, data + 0x100, data, 4, 0])
@@ -1275,6 +1291,21 @@ def test_map_view_of_image_section_keeps_the_input_metadata(pe_file_emu: Speakea
     view, _ = call(pe_file_emu, "kernel32", "MapViewOfFile", [hmap, FILE_MAP_READ, 0, 0, 0])
     assert pe_file_emu.mem_read(view, 2) == b"MZ"
     assert emu.profiler.meta == before
+
+
+def test_load_library_loads_a_dll_that_the_config_maps_from_the_host(
+    config: dict[str, Any], load_test_bin: Callable[[str], bytes], tmp_path: Path
+) -> None:
+    data = load_test_bin("dll_test_x86.dll.xz")
+    host = tmp_path / "image.dll"
+    host.write_bytes(data)
+    config["filesystem"]["files"].insert(0, {"mode": "full_path", "emu_path": "c:\\image.dll", "path": str(host)})
+    for se in load_emu(config, data):
+        start_process(se)
+        rv, _ = call(se, "kernel32", "LoadLibraryA", [alloc(se, b"c:\\image.dll\x00")])
+        module = se.emu.get_mod_from_addr(rv)
+        assert (module.base, module.emu_path) == (rv, "c:\\image.dll")
+        assert se.mem_read(rv, 0x40) == data[:0x40]
 
 
 @pytest.mark.parametrize("path", [b"c:\\data.bin", b"c:\\windows\\system32\\kernel32.dll"])

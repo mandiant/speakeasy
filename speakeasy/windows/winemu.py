@@ -2322,7 +2322,8 @@ class WindowsEmulator(BinaryEmulator):
 
         Raises:
             IsADirectoryError: if the program path is a directory.
-            FileSystemEmuError: if there is no program name, or the path ends in a separator.
+            FileSystemEmuError: if there is no program name, if the path ends in a separator, or if the configuration
+                names a host file that does not exist.
         """
         om = self.get_object_manager("process creation")
 
@@ -2342,12 +2343,14 @@ class WindowsEmulator(BinaryEmulator):
         if file_path.endswith(("\\", "/")):
             raise FileSystemEmuError(f"process creation needs a file name: {file_path}")
 
+        mod_data = self.get_module_data_from_emu_file(file_path)
+
         # Give the values to the constructor, because it writes them into the PEB ProcessParameters.
         p = om.add_object(objman.Process(self, path=file_path, cmdline=cmdline or "", cd=cd))
 
-        mod_data = self.get_module_data_from_emu_file(file_path)
-
-        if mod_data:
+        # A program such as cmd.exe has placeholder data in the default config. It gets a synthetic module, so that
+        # the guest sees an image base, for example to hollow the process.
+        if mod_data and mod_data.startswith(b"MZ"):
             p.pe_data = mod_data
         else:
             new_mod = self.load_module_by_name(file_path, emu_path=file_path)
@@ -4092,12 +4095,13 @@ class WindowsEmulator(BinaryEmulator):
         return module
 
     def get_module_data_from_emu_file(self, file_path):
-        """Get the contents of the file at file_path in the emulated file system, or None if there is no file."""
-        if not self.does_file_exist(file_path):
-            return None
+        """
+        Get the contents of the file at file_path in the emulated file system, or None if there is no file.
 
-        mod_file = self.fileman.get_file_from_path(file_path)
-
+        Raises:
+            FileSystemEmuError: if the configuration names a host file that does not exist.
+        """
+        mod_file = self.fileman.get_file_by_path(file_path)
         if not mod_file:
             return None
 

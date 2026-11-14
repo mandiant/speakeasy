@@ -97,6 +97,7 @@ def test_child_without_relocations_whose_base_is_in_use_is_skipped(config, load_
     assert [(ep.type, ep.error) for ep in report.runs] == [("module_entry", None)]
     assert f"skipping child process {CHILD_PATH}" in caplog.text
     assert "Cannot rebase a guest PE without valid relocation data" in caplog.text
+    assert [(e.type, e.pid) for e in report.errors] == [("child_process_skipped", report.processes[1].pid)]
 
 
 def test_child_finds_its_own_image_first_in_its_loader_list(config, load_test_bin):
@@ -290,7 +291,25 @@ def test_child_that_is_not_a_pe_is_skipped(config, load_test_bin):
         se.run_module(module)
         report = se.get_report()
 
+    child = report.processes[1]
     assert [(ep.type, ep.error) for ep in report.runs] == [("module_entry", None)]
+    assert (child.path, child.runs) == (CHILD_PATH, [])
+    assert [(e.type, e.pid, e.context_summary) for e in report.errors] == [
+        ("child_process_skipped", child.pid, f"{CHILD_PATH}: no PE image in the emulated file system")
+    ]
+
+
+def test_child_from_a_volume_runs(config, load_test_bin, tmp_path):
+    (tmp_path / "child.exe").write_bytes(load_test_bin(CHILD))
+    with Speakeasy(config=config, volumes=[f"{tmp_path}:c:\\"]) as se:
+        module = se.load_module(data=load_test_bin(PARENT))
+        se.run_module(module)
+        report = se.get_report()
+
+    assert [(ep.type, ep.error) for ep in report.runs] == [("module_entry", None), ("module_entry", None)]
+    assert report.runs[1].return_value == module.base
+    assert [(p.path, p.runs) for p in report.processes][1:] == [(CHILD_PATH, [1])]
+    assert report.errors == []
 
 
 def build_command_line_child():

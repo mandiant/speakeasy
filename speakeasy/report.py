@@ -91,6 +91,7 @@ class ErrorType(str, Enum):
     INTERNAL_ERROR = "internal_error"
     ENGINE_STOPPED = "engine_stopped"
     INVALID_IMAGE = "invalid_image"
+    CHILD_PROCESS_SKIPPED = "child_process_skipped"
     DLL_INITIALIZATION_FAILED = "dll_initialization_failed"
     API_HANDLER_DID_NOT_RETURN = "api_handler_did_not_return"
     INVALID_READ = "invalid_read"
@@ -201,7 +202,10 @@ class ErrorInfo(BaseModel):
         description="The memory regions nearest to ``address`` when ``address`` is not mapped.",
     )
     tid: int | None = Field(default=None, description="Thread ID at the time of the error.")
-    pid: int | None = Field(default=None, description="Process ID at the time of the error.")
+    pid: int | None = Field(
+        default=None,
+        description="Process ID at the time of the error. For ``child_process_skipped``, the ID of the child process.",
+    )
     context_summary: str | None = Field(
         default=None,
         description="One line of text that tells what went wrong.",

@@ -337,7 +337,7 @@ class Win32Emulator(WindowsEmulator):
             started = time.monotonic()
             try:
                 if not child.pe_data:
-                    logger.warning("skipping child process %s: no image in the emulated file system", child.path)
+                    self._skip_child_process(child, "no PE image in the emulated file system")
                     continue
 
                 # All processes share one address space. The process that ran
@@ -360,7 +360,7 @@ class Win32Emulator(WindowsEmulator):
                     image.emu_path = child.path
                     child.pe = self.load_image(image)
                 except (WindowsEmuError, ValueError, pefile.PEFormatError) as error:
-                    logger.warning("skipping child process %s: %s", child.path, error)
+                    self._skip_child_process(child, str(error))
                     continue
 
                 child.base = child.pe.base
@@ -387,6 +387,16 @@ class Win32Emulator(WindowsEmulator):
             noun = "process" if not_run == 1 else "processes"
             self.profiler.record_error_event(
                 ErrorInfo(type=ErrorType.TOTAL_TIME_LIMIT, context_summary=f"{not_run} child {noun} did not run")
+            )
+
+    def _skip_child_process(self, child, reason):
+        """Log a warning and add a child_process_skipped error for a child process that does not run."""
+        logger.warning("skipping child process %s: %s", child.path, reason)
+        if self.profiler:
+            self.profiler.record_error_event(
+                ErrorInfo(
+                    type=ErrorType.CHILD_PROCESS_SKIPPED, pid=child.pid, context_summary=f"{child.path}: {reason}"
+                )
             )
 
     def _free_process_memory(self, process):
