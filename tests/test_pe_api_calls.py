@@ -213,7 +213,8 @@ def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bi
         error = se.get_report().runs[0].error
         name = module.get_base_name()
     assert error.type == "unsupported_api"
-    assert error.instruction == f"api_trap kernel32.{unknown}"
+    assert (error.pc_module, error.pc_offset, error.address) == (name, 0x1000, module.base + 0x1006)
+    assert error.instruction.startswith("call")
     assert error.context_summary == f"unsupported_api kernel32.{unknown} called from {name}+0x1006"
     assert error.nearby_regions is None
     assert "Invalid memory read" not in caplog.text

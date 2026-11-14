@@ -44,7 +44,6 @@ def test_unsupported_ordinal_import_shows_the_export_name(config: dict, dll: str
     module = dll.removesuffix(".dll")
     assert error.type == "unsupported_api"
     assert error.api_name == f"{module}.{name}"
-    assert error.instruction == f"api_trap {module}.{name}"
 
 
 def test_afx_get_module_state_returns_one_state_with_the_instance_handle(config: dict) -> None:

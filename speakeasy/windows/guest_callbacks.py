@@ -146,7 +146,9 @@ def fail(emu, e: CallbackError) -> None:
     run = emu.get_current_run()
     if e.pc is not None:
         emu.set_pc(e.pc)
-    run.error = emu.get_error_info(e.kind, e.address, access_type=e.access_type, message=e.details.get("message"))
+    run.error = emu.get_error_info(
+        e.kind, e.address, access_type=e.access_type, message=e.details.get("message"), pc=e.pc
+    )
     for name, value in e.details.items():
         setattr(run.error, name, value)
     emu.end_run_on_fault()

@@ -470,7 +470,7 @@
             }
           ],
           "default": null,
-          "description": "Address of the instruction where the run stopped. For ``api_call_limit`` and ``api_loop_limit``, the address of the API call, the same as ``pos.pc`` of its ``api`` event.",
+          "description": "Address of the instruction where the run stopped. For an error of an API call, such as ``unsupported_api`` or ``api_loop_limit``, the address of the call, the same as ``pos.pc`` of its ``api`` event.",
           "title": "Pc"
         },
         "instruction": {
@@ -497,7 +497,7 @@
             }
           ],
           "default": null,
-          "description": "Memory address that the faulting access used.",
+          "description": "Memory address that the faulting access used. For ``unsupported_api``, the return address of the API call.",
           "title": "Address"
         },
         "access_type": {

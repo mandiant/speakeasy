@@ -2940,22 +2940,24 @@ class WindowsEmulator(BinaryEmulator):
             )
         return "; ".join(parts)
 
-    def _get_limit_error_info(
-        self,
-        error_type: ErrorType,
-        limit: int | None = None,
-        last_api: str | None = None,
-        loop: ApiLoop | None = None,
-        call: _ApiCallState | None = None,
-    ) -> ErrorInfo:
+    def _get_error_pc(self) -> int:
         """
-        Get the error of a limit that stopped the run of the current thread.
+        Get the pc of an error at the current position.
 
-        For a limit that the API call ``call`` reached, pc is the address of the call, the same as in its API event.
+        While the code of an API call runs, the pc is the address of the call, the same as in its API event.
         """
+        frame = self._active_api_frame
+        if frame is not None and frame.call_pc is not None:
+            return frame.call_pc
+        return self.get_pc()
+
+    def _get_limit_error_info(
+        self, error_type: ErrorType, limit: int | None = None, last_api: str | None = None, loop: ApiLoop | None = None
+    ) -> ErrorInfo:
+        """Get the error of a limit that stopped the run of the current thread."""
         return ErrorInfo(
             type=error_type,
-            pc=call.call_pc if call is not None else self.get_pc(),
+            pc=self._get_error_pc(),
             tid=self.curr_thread.tid if self.curr_thread else None,
             pid=self.curr_process.id if self.curr_process else None,
             limit=limit,
@@ -2976,23 +2978,20 @@ class WindowsEmulator(BinaryEmulator):
         """
         Get the state of the emulator for an error.
 
-        For an error at an API call, give the API name, and the return address
-        as address, because the token has no instruction to show.
+        For an error at an API call, give the API name, and the return address as address.
         For an ``internal_error``, give the text of the Python exception as message.
-        Give pc when the error is at an instruction other than the current pc.
+        Give pc when the error is at an instruction other than the current pc. While the code of an API call runs, the
+        current pc is the address of the call.
         """
         run = self.get_current_run()
         if pc is None:
-            pc = self.get_pc()
+            pc = self._get_error_pc()
 
-        if api_name:
-            instr = f"api_trap {api_name}"
-        else:
-            try:
-                mnem, op, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
-            except Exception:
-                logger.debug("cannot disassemble 0x%x", pc, exc_info=True)
-                instr = None
+        try:
+            mnem, op, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
+        except Exception:
+            logger.debug("cannot disassemble 0x%x", pc, exc_info=True)
+            instr = None
 
         registers = self.get_register_state()
         stack = self.get_stack_trace()
@@ -3403,7 +3402,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._handle_api_stub(call)
             case api_resolution.UnsupportedImplementation():
                 self._handle_unsupported_api(call)
-        self._check_api_limit(call, api_name)
+        self._check_api_limit(call.run, api_name)
 
     def _handle_api_with_handler(self, call: _ApiCallState, impl: api_resolution.HandlerImplementation) -> bool:
         """
@@ -3564,9 +3563,9 @@ class WindowsEmulator(BinaryEmulator):
         error.api_name = call.api_name
         self.end_run(error)
 
-    def _check_api_limit(self, call: _ApiCallState, imp_api: str) -> None:
+    def _check_api_limit(self, origin_run, imp_api):
         run = self.get_current_run()
-        if run is not call.run or not run or self.end_requested:
+        if run is not origin_run or not run or self.end_requested:
             return
         limit = self.config.limits.api_calls
         if limit > 0 and run.get_api_count() > limit:
@@ -3576,7 +3575,6 @@ class WindowsEmulator(BinaryEmulator):
                     ErrorType.API_CALL_LIMIT,
                     limit=limit,
                     last_api=imp_api,
-                    call=call,
                 )
             )
             return
@@ -3589,7 +3587,6 @@ class WindowsEmulator(BinaryEmulator):
                     limit=limit,
                     last_api=imp_api,
                     loop=run.api_loop.get_loop(),
-                    call=call,
                 )
             )
 
@@ -4168,24 +4165,20 @@ class WindowsEmulator(BinaryEmulator):
             self.reg_write(_arch.X86_REG_EFLAGS, ctx.EFlags & ~hardware_breakpoints.RESUME_FLAG)
             self.hardware_breakpoints.resume_at(thread_context.instruction_pointer(ctx))
 
-    def record_exception(self, code, address, handler, registers, faulting_address=None):
+    def record_exception(self, code, pc, handler, registers, faulting_address=None):
         """
-        Log an exception at address that is offered to a guest handler, and record it in the report.
+        Log an exception at pc that is offered to a guest handler, and record it in the report.
 
-        An exception that the code of an API raises has the position of the API call, so its pc is the address of the
-        call, not address.
+        pc is None for an exception that an API raises when the emulator does not know the address of the call.
         """
-        pos = self.get_trace_position()
-        if self._active_api_frame is None:
-            pos.pc = address
-        pc = pos.pc
         instr = None
+        pc_module = pc_offset = None
         if pc is not None:
             try:
                 _, _, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
             except Exception:
                 logger.debug("cannot disassemble 0x%x", pc, exc_info=True)
-        pc_module, pc_offset = (self._resolve_module_offset(pc) if pc is not None else None) or (None, None)
+            pc_module, pc_offset = self._resolve_module_offset(pc) or (None, None)
         handler_desc = f"0x{handler:x}"
         if self._resolve_module_offset(handler):
             handler_desc += f" ({self._format_module_offset(handler)})"
@@ -4199,6 +4192,8 @@ class WindowsEmulator(BinaryEmulator):
             "  ".join(f"{k}={v:#x}" for k, v in registers.items()),
         )
         if self.profiler:
+            pos = self.get_trace_position()
+            pos.pc = pc
             self.profiler.record_exception_event(
                 self.get_current_run(),
                 pos,
