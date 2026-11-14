@@ -50,13 +50,14 @@ Dispatcher = Callable[..., GeneratorHandler]
 
 
 class UnhandledException(guest_callbacks.CallbackError):
-    def __init__(self, code: int, address: int, information=()):
+    def __init__(self, code: int, address: int, information=(), pc: int | None = None):
+        pc = address if pc is None else pc
         if code == ddk.STATUS_ACCESS_VIOLATION and len(information) >= 2 and information[0] in ACCESS_TYPES:
             # Use the error of the fault, the same as when no handler gets the exception
             access_type = ACCESS_TYPES[information[0]]
-            super().__init__(ErrorType(f"invalid_{access_type}"), information[1], access_type, pc=address)
+            super().__init__(ErrorType(f"invalid_{access_type}"), information[1], access_type, pc=pc)
         else:
-            super().__init__(ErrorType.UNHANDLED_EXCEPTION, address, pc=address)
+            super().__init__(ErrorType.UNHANDLED_EXCEPTION, address, pc=pc)
         self.code: int = code
 
 
@@ -109,6 +110,9 @@ class Dispatch:
         self.flags = fields.ExceptionFlags
         self.address = fields.ExceptionAddress
         self.information = list(fields.ExceptionInformation)
+        # An exception that the code of an API raises has the pc of the API call, the same as the api event.
+        frame = emu.active_api_frame
+        self.pc: int | None = self.address if frame is None else frame.call_pc
         pack = "<QQ" if emu.get_ptr_size() == 8 else "<II"
         self.pointers: int = guest_callbacks.alloca(emu, struct.pack(pack, record, context))
         self.reported: bool = False
@@ -119,7 +123,7 @@ class Dispatch:
             return
         faulting_address = self.information[1] if self.code in MEMORY_FAULTS else None
         registers = thread_context.register_state(read_context(self.emu, self.context))
-        self.emu.record_exception(self.code, self.address, handler, registers, faulting_address)
+        self.emu.record_exception(self.code, self.pc, handler, registers, faulting_address)
         self.reported = True
 
     def vectored(self) -> GeneratorHandler:
@@ -139,7 +143,7 @@ class Dispatch:
             UnhandledException: if the exception is not continuable.
         """
         if self.flags & EXCEPTION_NONCONTINUABLE:
-            raise UnhandledException(STATUS_NONCONTINUABLE_EXCEPTION, self.address)
+            raise UnhandledException(STATUS_NONCONTINUABLE_EXCEPTION, self.address, pc=self.pc)
         return resume_at(self.emu, read_context(self.emu, self.context))
 
     def unhandled(self) -> GeneratorHandler:
@@ -158,7 +162,7 @@ class Dispatch:
             verdict = as_long((yield GuestCall(top_level_filter, (self.pointers,))))
             if verdict == windefs.EXCEPTION_CONTINUE_EXECUTION:
                 return self.resume()
-        raise UnhandledException(self.code, self.address, self.information)
+        raise UnhandledException(self.code, self.address, self.information, pc=self.pc)
 
 
 def dispatch_fault(

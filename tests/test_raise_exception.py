@@ -45,6 +45,12 @@ def load_guest(se, *, register=True, flags=0):
     return code, data
 
 
+def assert_error_is_at_the_call(run):
+    call = next(e for e in run.events if e.event == "api" and e.api_name == "kernel32.RaiseException")
+    assert run.error.pc == call.pos.pc
+    assert run.error.instruction == "call eax"
+
+
 def test_raise_exception_calls_the_seh_handler_and_continues(session):
     code, data = load_guest(session)
 
@@ -66,6 +72,7 @@ def test_handler_cannot_continue_a_noncontinuable_exception(session):
     assert run.error is not None
     assert run.error.type == "unhandled_exception"
     assert run.return_value != 42
+    assert_error_is_at_the_call(run)
 
 
 def test_continuable_exception_without_a_handler_returns(session):
@@ -88,6 +95,7 @@ def test_noncontinuable_exception_without_a_handler_ends_the_run(session):
     assert run.error is not None
     assert run.error.type == "unhandled_exception"
     assert run.return_value != 42
+    assert_error_is_at_the_call(run)
 
 
 def test_seh_handler_reads_its_arguments_through_the_dispatcher_frame(session):

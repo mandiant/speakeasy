@@ -158,8 +158,9 @@ class ErrorInfo(BaseModel):
     pc: HexIntOptional = Field(
         default=None,
         description=(
-            "Address of the instruction where the run stopped. For ``api_call_limit`` and ``api_loop_limit``, the"
-            " address of the API call, the same as ``pos.pc`` of its ``api`` event."
+            "Address of the instruction where the run stopped. For an error of an API call, such as"
+            " ``unsupported_api`` or ``api_loop_limit``, the address of the call, the same as ``pos.pc`` of its"
+            " ``api`` event."
         ),
     )
     instruction: str | None = Field(
@@ -171,7 +172,9 @@ class ErrorInfo(BaseModel):
     )
     address: HexIntOptional = Field(
         default=None,
-        description="Memory address that the faulting access used.",
+        description=(
+            "Memory address that the faulting access used. For ``unsupported_api``, the return address of the API call."
+        ),
     )
     access_type: AccessType | None = Field(
         default=None,

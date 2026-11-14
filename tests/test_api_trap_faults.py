@@ -97,6 +97,7 @@ def test_handler_access_of_an_unmapped_guest_pointer_is_typed_fault(config, api,
         assert error.type == f"invalid_{access}"
         assert error.access_type == access
         assert error.address == bad
+        assert (error.pc, error.instruction) == (code + len(stub) - 3, "call eax")
         assert error.traceback
 
 
