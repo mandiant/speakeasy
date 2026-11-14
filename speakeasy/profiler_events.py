@@ -76,7 +76,8 @@ class TracePosition(BaseModel):
             "that goes to the API, such as a ``call``, or the ``jmp`` of an import thunk. "
             "For an event that the code of an API makes, such as a file, registry, memory, process, thread or "
             "network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. "
-            "Such an event comes just before the ``api`` event of its call, with the same ``tick``."
+            "Such an event comes just before the ``api`` event of its call, with the same ``tick``. "
+            "An exception that the code of an API raises also has the ``pos`` of the ``api`` event of the call."
         ),
     )
 
@@ -639,7 +640,7 @@ class ExceptionEvent(Event):
     instruction: str | None = Field(
         default=None,
         description=(
-            "Disassembly of the instruction at the exception address. Absent when Speakeasy cannot disassemble it,"
+            "Disassembly of the instruction at ``pos.pc``. Absent when Speakeasy cannot disassemble it,"
             " for example when the address is not mapped."
         ),
     )
@@ -651,9 +652,9 @@ class ExceptionEvent(Event):
     )
     pc_module: str | None = Field(
         default=None,
-        description="File name of the module that contains the faulting PC. The same as ``memory.modules[].name``.",
+        description="File name of the module that contains ``pos.pc``. The same as ``memory.modules[].name``.",
     )
-    pc_offset: int | None = Field(default=None, description="Offset of the faulting PC from the base of ``pc_module``.")
+    pc_offset: int | None = Field(default=None, description="Offset of ``pos.pc`` from the base of ``pc_module``.")
     stack: list[StackEntry] | None = Field(default=None, description="Stack slots at the time of the exception.")
 
 
