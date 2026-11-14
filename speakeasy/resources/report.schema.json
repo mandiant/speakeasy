@@ -622,7 +622,7 @@
             }
           ],
           "default": null,
-          "description": "Process ID at the time of the error.",
+          "description": "Process ID at the time of the error. For ``child_process_skipped``, the ID of the child process.",
           "title": "Pid"
         },
         "context_summary": {
@@ -747,6 +747,7 @@
         "internal_error",
         "engine_stopped",
         "invalid_image",
+        "child_process_skipped",
         "dll_initialization_failed",
         "api_handler_did_not_return",
         "invalid_read",
