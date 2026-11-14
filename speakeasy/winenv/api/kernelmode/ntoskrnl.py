@@ -1414,7 +1414,9 @@ class Ntoskrnl(api.ApiHandler):
         if OldProtection:
             self.write_dword(OldProtection, old)
 
-        self.record_process_event(proc, EventType.MEM_PROTECT, base=addr, size=size, permissions=get_prot_string(new))
+        self.record_process_event(
+            proc, EventType.MEM_PROTECT, base=base, size=region_size, permissions=get_prot_string(new)
+        )
         return ddk.STATUS_SUCCESS
 
     @apihook("ZwWriteVirtualMemory", argc=5)

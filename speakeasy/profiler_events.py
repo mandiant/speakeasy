@@ -244,7 +244,7 @@ class MemReadEvent(Event):
 
 
 class MemProtectEvent(Event):
-    """A change of page permissions with ``VirtualProtectEx`` or ``NtProtectVirtualMemory``."""
+    """A change of page permissions with ``VirtualProtect``, ``VirtualProtectEx`` or ``NtProtectVirtualMemory``."""
 
     event: Literal[EventType.MEM_PROTECT] = Field(
         default=EventType.MEM_PROTECT,
