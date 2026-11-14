@@ -1680,9 +1680,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         return self._virtual_protect(emu, emu.get_current_process(), *argv)
 
     def _virtual_protect(self, emu, proc, lpAddress, dwSize, flNewProtect, lpflOldProtect):
-        rv = 0
         mm = None
-        new = 0
 
         # NtProtectVirtualMemory rejects a size of 0 before it looks for the memory at the address.
         if not dwSize:
@@ -1717,7 +1715,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
                 )
             return 1
 
-        return rv
+        return 0
 
     @apihook("VirtualProtectEx", argc=5)
     def VirtualProtectEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

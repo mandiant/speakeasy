@@ -212,7 +212,7 @@ The 7.0.0 models read each 7.x report. They ignore unknown keys, read an event o
 
 Each API call that writes or reads process memory, such as `WriteProcessMemory`, gets its own `mem_write` or `mem_read` event, and its `data_ref` has all the bytes of the call. A write or a read above `MAX_EMBEDDED_FILE_SIZE` (10 MiB) has no `data_ref`. In 6.2.0 and 1.x, the profiler merged a write or a read into the last one when its range started at the end of the last range, and it kept only the first 1024 bytes.
 
-`VirtualProtect` and `NtProtectVirtualMemory` also add a `mem_protect` event. Each `mem_protect` event has the range of the pages that changed, from the start of the first page to the end of the last page, and a failed call adds no event. In 6.2.0, only `VirtualProtectEx` added one, with the address and size of the call, also when the call failed.
+`VirtualProtect`, `VirtualProtectEx` and `NtProtectVirtualMemory` add a `mem_protect` event when they change the pages. The event has the range of the pages that changed, from the start of the first page to the end of the last page. A failed call adds no event. In 6.2.0, only `VirtualProtectEx` added one, with the address and size of the call, also when the call failed.
 
 `get_json_report()` and the CLI write compact JSON. 6.2.0 was indented. To indent a report, use `jq . report.json`.
 

@@ -199,6 +199,7 @@ def test_virtual_protect_records_one_mem_protect_event_for_the_changed_pages(dll
     process = [(1 << 8 * se.get_ptr_size()) - 1] if api == "VirtualProtectEx" else []
 
     assert call(se, "kernel32", api, [*process, page + 0xFF0, 0x20, rw, p_old])[0] == 1
+    assert get_perms(se, page + PAGE) == se.emu.emu_eng.perms[RW]
     assert call(se, "kernel32", api, [*process, page, 0, rw, p_old])[0] == 0
     assert call(se, "kernel32", api, [*process, 0, PAGE, rw, p_old])[0] == 0
     events = [e for e in se.emu.get_current_run().events if e.event == EventType.MEM_PROTECT]
