@@ -140,15 +140,17 @@ def test_exceptions_caught_by_unwinding_can_repeat_from_one_call_site(session):
     assert struct.unpack("<I", session.mem_read(data, 4))[0] == 8
 
 
-def test_exception_event_records_the_return_address_of_the_call(session):
+def test_exception_event_has_the_pos_of_the_api_call(session):
     code, _ = load_guest(session)
     setup_size, call_size = 11, 21
-    return_address = code + setup_size + call_size
+    call_site = code + setup_size + call_size - 2
 
     session.run_shellcode(code)
 
     run = session.get_report().runs[0]
-    events = [e for e in run.events if e.event == "exception"]
-    assert len(events) == 1
-    assert events[0].pos.pc == return_address
-    assert events[0].instruction.startswith("mov dword ptr fs:[0]")
+    exception, call = (e for e in run.events if e.event in ("exception", "api"))
+    assert exception.event == "exception"
+    assert call.api_name == "kernel32.RaiseException"
+    assert exception.pos == call.pos
+    assert exception.pos.pc == call_site
+    assert exception.instruction == "call eax"

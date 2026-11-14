@@ -2941,12 +2941,21 @@ class WindowsEmulator(BinaryEmulator):
         return "; ".join(parts)
 
     def _get_limit_error_info(
-        self, error_type: ErrorType, limit: int | None = None, last_api: str | None = None, loop: ApiLoop | None = None
+        self,
+        error_type: ErrorType,
+        limit: int | None = None,
+        last_api: str | None = None,
+        loop: ApiLoop | None = None,
+        call: _ApiCallState | None = None,
     ) -> ErrorInfo:
-        """Get the error of a limit that stopped the run of the current thread."""
+        """
+        Get the error of a limit that stopped the run of the current thread.
+
+        For a limit that the API call ``call`` reached, pc is the address of the call, the same as in its API event.
+        """
         return ErrorInfo(
             type=error_type,
-            pc=self.get_pc(),
+            pc=call.call_pc if call is not None else self.get_pc(),
             tid=self.curr_thread.tid if self.curr_thread else None,
             pid=self.curr_process.id if self.curr_process else None,
             limit=limit,
@@ -3394,7 +3403,7 @@ class WindowsEmulator(BinaryEmulator):
                 self._handle_api_stub(call)
             case api_resolution.UnsupportedImplementation():
                 self._handle_unsupported_api(call)
-        self._check_api_limit(call.run, api_name)
+        self._check_api_limit(call, api_name)
 
     def _handle_api_with_handler(self, call: _ApiCallState, impl: api_resolution.HandlerImplementation) -> bool:
         """
@@ -3555,9 +3564,9 @@ class WindowsEmulator(BinaryEmulator):
         error.api_name = call.api_name
         self.end_run(error)
 
-    def _check_api_limit(self, origin_run, imp_api):
+    def _check_api_limit(self, call: _ApiCallState, imp_api: str) -> None:
         run = self.get_current_run()
-        if run is not origin_run or not run or self.end_requested:
+        if run is not call.run or not run or self.end_requested:
             return
         limit = self.config.limits.api_calls
         if limit > 0 and run.get_api_count() > limit:
@@ -3567,6 +3576,7 @@ class WindowsEmulator(BinaryEmulator):
                     ErrorType.API_CALL_LIMIT,
                     limit=limit,
                     last_api=imp_api,
+                    call=call,
                 )
             )
             return
@@ -3579,6 +3589,7 @@ class WindowsEmulator(BinaryEmulator):
                     limit=limit,
                     last_api=imp_api,
                     loop=run.api_loop.get_loop(),
+                    call=call,
                 )
             )
 
@@ -4158,33 +4169,39 @@ class WindowsEmulator(BinaryEmulator):
             self.hardware_breakpoints.resume_at(thread_context.instruction_pointer(ctx))
 
     def record_exception(self, code, address, handler, registers, faulting_address=None):
-        """Log an exception at address that is offered to a guest handler, and record it in the report."""
-        try:
-            _, _, instr = self.get_disasm(address, _arch.DISASM_SIZE)
-        except Exception:
-            logger.debug("cannot disassemble 0x%x", address, exc_info=True)
-            instr = None
-        pc_module, pc_offset = self._resolve_module_offset(address) or (None, None)
+        """
+        Log an exception at address that is offered to a guest handler, and record it in the report.
+
+        An exception that the code of an API raises has the position of the API call, so its pc is the address of the
+        call, not address.
+        """
+        pos = self.get_trace_position()
+        if self._active_api_frame is None:
+            pos.pc = address
+        pc = pos.pc
+        instr = None
+        if pc is not None:
+            try:
+                _, _, instr = self.get_disasm(pc, _arch.DISASM_SIZE)
+            except Exception:
+                logger.debug("cannot disassemble 0x%x", pc, exc_info=True)
+        pc_module, pc_offset = (self._resolve_module_offset(pc) if pc is not None else None) or (None, None)
         handler_desc = f"0x{handler:x}"
         if self._resolve_module_offset(handler):
             handler_desc += f" ({self._format_module_offset(handler)})"
         logger.info(
-            '0x%x: Exception caught: code=0x%x handler=%s instr="%s"\n  pc: %s\n  regs: %s',
-            address,
+            '%s: Exception caught: code=0x%x handler=%s instr="%s"\n  pc: %s\n  regs: %s',
+            hex(pc) if pc is not None else "?",
             code,
             handler_desc,
             instr,
-            self._format_module_offset(address),
+            self._format_module_offset(pc) if pc is not None else "?",
             "  ".join(f"{k}={v:#x}" for k, v in registers.items()),
         )
         if self.profiler:
-            run = self.get_current_run()
-            tick = self.get_tick(run)
-            tid = self.curr_thread.tid if self.curr_thread else 0
-            pid = self.curr_process.id if self.curr_process else 0
             self.profiler.record_exception_event(
-                run,
-                TracePosition(tick=tick, tid=tid, pid=pid, pc=address),
+                self.get_current_run(),
+                pos,
                 instr,
                 code,
                 handler,

@@ -103,3 +103,29 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
         (0xC0000005, 0x1300000),
         (0xC0000005, 0x0),
     ] + ([(0xC0000005, 0x0)] if arch == "x86" else [])
+
+
+@pytest.mark.parametrize("arch", ["x64", "x86"])
+def test_an_exception_that_an_api_raises_has_the_pos_of_the_api_call(config, load_test_bin, run_test, arch):
+    cfg = copy.deepcopy(config)
+    cfg["limits"]["instructions"] = 10_000_000
+    report = run_test(cfg, load_test_bin(f"seh_cases_{arch}.exe.xz"))
+
+    events = report.runs[0].events
+    raised = [
+        (exception, call)
+        for exception, call in zip(events, events[1:])
+        if exception.event == "exception" and call.event == "api" and call.api_name == "kernel32.RaiseException"
+    ]
+    # The access violation of an API handler comes after the api event of its call.
+    faulted = [
+        (exception, call)
+        for call, exception in zip(events, events[1:])
+        if exception.event == "exception" and call.event == "api" and call.api_name == "kernel32.RtlMoveMemory"
+    ]
+    assert len(raised) == 5
+    assert len(faulted) == 1
+    for exception, call in raised + faulted:
+        assert call.pos.tick is not None
+        assert exception.pos == call.pos
+        assert exception.instruction.startswith(("call", "jmp"))

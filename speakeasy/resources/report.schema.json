@@ -470,7 +470,7 @@
             }
           ],
           "default": null,
-          "description": "Address of the instruction that caused the error. For ``unsupported_api``, the return address.",
+          "description": "Address of the instruction where the run stopped. For ``api_call_limit`` and ``api_loop_limit``, the address of the API call, the same as ``pos.pc`` of its ``api`` event.",
           "title": "Pc"
         },
         "instruction": {
@@ -792,7 +792,7 @@
             }
           ],
           "default": null,
-          "description": "Disassembly of the instruction at the exception address. Absent when Speakeasy cannot disassemble it, for example when the address is not mapped.",
+          "description": "Disassembly of the instruction at ``pos.pc``. Absent when Speakeasy cannot disassemble it, for example when the address is not mapped.",
           "title": "Instruction"
         },
         "exception_code": {
@@ -840,7 +840,7 @@
             }
           ],
           "default": null,
-          "description": "File name of the module that contains the faulting PC. The same as ``memory.modules[].name``.",
+          "description": "File name of the module that contains ``pos.pc``. The same as ``memory.modules[].name``.",
           "title": "Pc Module"
         },
         "pc_offset": {
@@ -853,7 +853,7 @@
             }
           ],
           "default": null,
-          "description": "Offset of the faulting PC from the base of ``pc_module``.",
+          "description": "Offset of ``pos.pc`` from the base of ``pc_module``.",
           "title": "Pc Offset"
         },
         "stack": {
@@ -3249,7 +3249,7 @@
             }
           ],
           "default": null,
-          "description": "Address of the instruction that did the operation. For an API event, the address of the instruction that goes to the API, such as a ``call``, or the ``jmp`` of an import thunk. For an event that the code of an API makes, such as a file, registry, memory, process, thread or network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. Such an event comes just before the ``api`` event of its call, with the same ``tick``.",
+          "description": "Address of the instruction that did the operation. For an API event, the address of the instruction that goes to the API, such as a ``call``, or the ``jmp`` of an import thunk. For an event that the code of an API makes, such as a file, registry, memory, process, thread or network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. Such an event comes just before the ``api`` event of its call, with the same ``tick``. An exception that the code of an API raises also has the ``pos`` of the ``api`` event of the call.",
           "title": "Pc"
         }
       },

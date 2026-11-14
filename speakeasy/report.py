@@ -157,7 +157,10 @@ class ErrorInfo(BaseModel):
     )
     pc: HexIntOptional = Field(
         default=None,
-        description="Address of the instruction that caused the error. For ``unsupported_api``, the return address.",
+        description=(
+            "Address of the instruction where the run stopped. For ``api_call_limit`` and ``api_loop_limit``, the"
+            " address of the API call, the same as ``pos.pc`` of its ``api`` event."
+        ),
     )
     instruction: str | None = Field(
         default=None,
