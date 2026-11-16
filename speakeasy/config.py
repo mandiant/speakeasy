@@ -123,6 +123,7 @@ _DEFAULT_REGISTRY_KEYS: list[dict[str, Any]] = [
             {"name": "LocalService", "type": "REG_MULTI_SZ", "data": "nsi\x00W32Time\x00WinHttpAutoProxySvc"},
         ],
     },
+    {"path": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes", "values": []},
     {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
     {"path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", "values": []},
     {"path": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "values": []},
