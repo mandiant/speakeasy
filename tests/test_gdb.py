@@ -16,6 +16,7 @@ import pytest
 
 from speakeasy import Speakeasy
 from tests.guest_harness import get_api, guest_call
+from tests.pe_builder import build_pe
 
 TESTS_DIR = os.path.dirname(__file__)
 
@@ -1405,3 +1406,45 @@ def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
             assert client.continue_() == "W00"
         (run,) = se.get_report().runs
         assert run.error is not None and run.error.type == "total_time_limit"
+
+
+HEADER_CODE_OFFSET = 0x300
+
+
+def _call_header_and_data(base, iat):
+    code = b"\xb8" + struct.pack("<I", base + HEADER_CODE_OFFSET) + b"\xff\xd0"  # mov eax, header code; call eax
+    code += b"\x89\xc3"  # mov ebx, eax
+    code += b"\xb8" + struct.pack("<I", base + 0x2000) + b"\xff\xd0"  # mov eax, .data; call eax
+    code += b"\x01\xd8"  # add eax, ebx
+    return code + b"\xc3"
+
+
+@pytest.mark.parametrize("nxcompat", [False, True])
+def test_gdb_runs_code_in_the_header_and_a_data_section_only_without_dep(config, nxcompat):
+    data, _ = build_pe(32, text=_call_header_and_data, data=b"\xb8\x2a\0\0\0\xc3", nxcompat=nxcompat)  # mov eax, 42
+    header_code = b"\xb8\x07\0\0\0\xc3"  # mov eax, 7; ret
+    data = data[:HEADER_CODE_OFFSET] + header_code + data[HEADER_CODE_OFFSET + len(header_code) :]
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        module = se.load_module(data=data)
+        server = threading.Thread(target=se.run_module, args=(module,))
+        server.start()
+        client = GdbRspClient(port)
+        try:
+            assert client.query_halt_reason().startswith(("S05", "T05"))
+            if nxcompat:
+                assert client.continue_().startswith("T0b")
+                assert client.read_x86_registers().eip == module.base + HEADER_CODE_OFFSET
+                assert client.continue_() == "X0b"
+            else:
+                assert client.continue_().startswith("T05")
+                assert client.continue_() == "W00"
+        finally:
+            client.close()
+            server.join(timeout=10)
+        assert not server.is_alive()
+        (run,) = se.get_report().runs
+        if nxcompat:
+            assert run.error is not None and run.error.type == "invalid_protect_fetch"
+        else:
+            assert (run.error, run.return_value) == (None, 49)
