@@ -14,6 +14,7 @@ import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.windows import seh32
 from speakeasy.windows.common import FILETIME_UNIX_EPOCH
 from speakeasy.windows.guest_callbacks import GuestCall
+from speakeasy.windows.seh import EXCEPTION_NONCONTINUABLE
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 
 from .. import api, exception_apis
@@ -38,6 +39,9 @@ CND_SIZE = 0x48
 # multibyte data, each with room for the full UCRT struct on x64
 C_LOCALE_LOCINFO = 0x10
 C_LOCALE_MBCINFO = 0x400
+# The exception code and first parameter of a C++ throw, from ehdata.h of the MSVC runtime
+EH_EXCEPTION_NUMBER = 0xE06D7363
+EH_MAGIC_NUMBER1 = 0x19930520
 C_LOCALE_SIZE = 0x1000
 O_APPEND = 0x8
 O_CREAT = 0x100
@@ -1202,8 +1206,18 @@ class Msvcrt(api.ApiHandler):
             void *pExceptionObject,
             _ThrowInfo *pThrowInfo
         );
+
+        Raise the non-continuable C++ exception. On x64, the ThrowInfo has RVAs, so the fourth
+        parameter is the image base of the module that contains it.
         """
-        return
+        pExceptionObject, pThrowInfo = argv
+        if not emu.config.exceptions.dispatch:
+            return None
+        params = [EH_MAGIC_NUMBER1, pExceptionObject, pThrowInfo]
+        if emu.get_arch() == e_arch.ARCH_AMD64:
+            mod = emu.get_mod_from_addr(pThrowInfo)
+            params.append(mod.base if mod else 0)
+        return emu.exception_dispatcher().raise_exception(emu, EH_EXCEPTION_NUMBER, EXCEPTION_NONCONTINUABLE, params)
 
     @apihook("__acrt_iob_func", argc=1, conv=e_arch.CALL_CONV_CDECL)
     def __acrt_iob_func(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

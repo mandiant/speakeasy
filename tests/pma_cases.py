@@ -65,7 +65,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             registry_keys=("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Svchost",),
             domains=("practicalmalwareanalysis.com",),
         ),
-        allowed_entrypoint_errors=("api_call_limit",),
+        allowed_entrypoint_errors=("api_call_limit", "unhandled_exception"),
     ),
     PmaCase(
         name="pma-03-03-exe",
@@ -111,7 +111,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 05-01.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("api_call_limit", "invalid_read", "privileged_instruction"),
+        allowed_entrypoint_errors=("api_call_limit", "unhandled_exception"),
     ),
     PmaCase(
         name="pma-06-03-exe",
@@ -246,7 +246,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\system32\\Practical Malware Analysis Lab 17-02.dll_",),
             registry_keys=("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\Irmon",),
         ),
-        allowed_entrypoint_errors=("api_call_limit", "invalid_read"),
+        allowed_entrypoint_errors=("api_call_limit", "unhandled_exception"),
         profile=profile_pma_1702,
     ),
     PmaCase(
