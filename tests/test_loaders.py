@@ -447,6 +447,27 @@ def test_section_raw_data_past_end_of_file_keeps_file_bytes(load_test_bin):
     assert image[0x2C000:0x2CA20] == raw[0x2C000:0x2CA20]
 
 
+def test_section_raw_data_in_the_header_keeps_header_bytes():
+    """
+    Upack puts the raw data of a section at file offset 0x17d, inside the header.
+
+    The offset rounds down to 0, so pefile ``PE.header`` stops at the end of the section table. Windows maps
+    the first SizeOfHeaders bytes of the file, and the Upack stub reads its copy parameters from the bytes
+    after the section table.
+    """
+    pe = pefile.PE(data=build_pe()[0])
+    pe.sections[0].PointerToRawData = 0x17D
+    raw = bytearray(pe.write())
+    table_end = pe.sections[-1].get_file_offset() + 40
+    size_of_headers = pe.OPTIONAL_HEADER.SizeOfHeaders
+    raw[table_end:size_of_headers] = b"\xab" * (size_of_headers - table_end)
+    assert len(pefile.PE(data=bytes(raw)).header) == table_end
+
+    image = PeLoader(data=bytes(raw)).make_image().regions[0].data
+
+    assert image[:size_of_headers] == raw[:size_of_headers]
+
+
 def test_last_section_raw_data_past_end_of_file_stays_inside_the_image(load_test_bin):
     raw = bytearray(load_test_bin("child_x86.exe.xz")) + b"y" * 0x8000
     pe = pefile.PE(data=bytes(raw))

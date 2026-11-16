@@ -266,11 +266,15 @@ class _PeParser(pefile.PE):
         pefile ``get_memory_mapped_image`` leaves out a section whose raw data goes past the end of the
         file. Windows maps the bytes that the file has and fills the rest with zeros, so this method
         keeps the bytes that the file has.
+
+        pefile ``PE.header`` stops at the end of the section table when the raw data of a section starts
+        in the header. Windows maps the first SizeOfHeaders bytes of the file, so this method starts the
+        image with these bytes.
         """
         data = self.__data__
         alignment = self.OPTIONAL_HEADER.SectionAlignment
         file_alignment = self.OPTIONAL_HEADER.FileAlignment
-        mapped = bytearray(self.header)
+        mapped = bytearray(data[: self.OPTIONAL_HEADER.SizeOfHeaders])
         for section in self.sections:
             if section.Misc_VirtualSize == 0 and section.SizeOfRawData == 0:
                 continue
