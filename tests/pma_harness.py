@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from speakeasy import Speakeasy
+from speakeasy.config import RegistryConfig
 
 TESTS_DIR = Path(__file__).resolve().parent
 PMA_DIR = TESTS_DIR / "capa-testfiles"
@@ -60,6 +61,7 @@ def normalize_value(value: str) -> str:
 
 def build_case_config(base_config: dict[str, Any], case: PmaCase) -> dict[str, Any]:
     cfg = copy.deepcopy(base_config)
+    cfg["registry"] = RegistryConfig().model_dump(mode="json")
     cfg["limits"]["per_run_time"] = 4
     cfg["limits"]["api_calls"] = 600
     merge_config_patch(cfg, case.config_patch)

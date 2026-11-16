@@ -20,6 +20,8 @@ an `exception` event for each exception that the emulator sends to a handler.
   sets them with `SetThreadContext`, or a handler sets them in its context
   record.
 - `RaiseException` and `RtlRaiseException`.
+- `_CxxThrowException` of msvcrt, with the record that the MSVC runtime raises
+  for a C++ `throw`.
 - An API handler that accesses a guest pointer that is not valid. The emulator
   raises the access violation in the caller of the API, at the same point as
   the fault of the real API code.
@@ -78,8 +80,10 @@ not loop until the time limit.
 - On x64, a fault in the epilogue of a function unwinds as a fault in the body.
 - The emulator does not check the security cookies of SEH4 frames, or check
   x86 registrations against the stack or SafeSEH.
-- The emulator does not support C++ exceptions. `_CxxThrowException` returns, and the C++
-  frame handlers do not run catch blocks.
+- C++ catch blocks do not run. The C++ frame handlers continue the search,
+  so a C++ exception that no other handler takes ends the run with
+  `unhandled_exception` at the `throw`. If `exceptions.dispatch` is not set,
+  `_CxxThrowException` returns to its caller.
 - If a handler continues a non-continuable exception, the run ends with
   `STATUS_NONCONTINUABLE_EXCEPTION`. Windows raises a new exception in this
   case.
