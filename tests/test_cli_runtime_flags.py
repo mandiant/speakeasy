@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from speakeasy.cli import wait_for_child
+from speakeasy.cli import get_thread_exit_event, wait_for_child
 from speakeasy.version import __version__
 from tests.pe_builder import build_pe
 
@@ -195,6 +195,16 @@ def test_the_result_of_a_child_is_returned():
     p.start()
 
     assert wait_for_child(q, p, mp.Event(), wall_limit=0) == ("{}", None)
+
+
+def test_the_thread_exit_event_is_set_after_the_process_exit_event():
+    process_event = mp.Event()
+    thread_event = get_thread_exit_event(process_event)
+    assert not thread_event.wait(0.1)
+
+    process_event.set()
+
+    assert thread_event.wait(5)
 
 
 @pytest.mark.parametrize(("args", "count"), [([], 3), (["--no-runs-exports"], 1)])

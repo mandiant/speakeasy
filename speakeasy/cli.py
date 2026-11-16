@@ -6,9 +6,11 @@ import argparse
 import json
 import logging
 import multiprocessing as mp
+import multiprocessing.synchronize
 import os
 import shlex
 import sys
+import threading
 import time
 
 from rich.console import Console
@@ -95,9 +97,29 @@ def emulate_binary(
     return report, error
 
 
-def emulate_binary_in_child(q: mp.Queue[ChildResult], verbose: bool, *args, **kwargs) -> None:
+def get_thread_exit_event(exit_event: multiprocessing.synchronize.Event) -> threading.Event:
+    """
+    Get a ``threading.Event`` that a daemon thread sets when ``exit_event`` is set.
+
+    The code and memory hooks check the exit event for each call. ``is_set`` of a multiprocessing event
+    takes and releases a semaphore, which makes a run with these hooks several times slower. ``is_set``
+    of a threading event only reads a flag.
+    """
+    thread_event = threading.Event()
+
+    def forward() -> None:
+        exit_event.wait()
+        thread_event.set()
+
+    threading.Thread(target=forward, name="speakeasy-exit-event", daemon=True).start()
+    return thread_event
+
+
+def emulate_binary_in_child(
+    q: mp.Queue[ChildResult], verbose: bool, exit_event: multiprocessing.synchronize.Event, *args, **kwargs
+) -> None:
     setup_logging(verbose)
-    q.put(emulate_binary(*args, **kwargs))
+    q.put(emulate_binary(get_thread_exit_event(exit_event), *args, **kwargs))
 
 
 def save_dropped_files(se: Speakeasy, path: str) -> None:
@@ -248,7 +270,9 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             except ValueError as err:
                 parser.error(f"cannot write {flag} {path}: {err}")
 
-    evt = mp.Event()
+    # The parent sets the event to stop a child process. In the CLI process, a threading event is enough and
+    # is faster to check. See get_thread_exit_event.
+    evt = threading.Event() if args.no_mp else mp.Event()
 
     if args.no_mp:
         result = emulate_binary(
