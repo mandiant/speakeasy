@@ -2152,7 +2152,8 @@ class WindowsEmulator(BinaryEmulator):
             if base != requested_base:
                 logger.debug("module %s: base %#x is in use, loading at %#x", image.name, requested_base, base)
             image = relocate_image(image, base)
-        # The input EXE decides the DEP state of the process. Set it before the first map of guest memory.
+        # The emulator maps an image before its process exists, so the input EXE decides the DEP state for all
+        # processes. Set it before the map of the input image.
         if is_input and image.source == "guest_pe" and image.module_type == "exe" and not self.is_kernel_mode:
             self.dep_enabled = is_dep_enabled(image)
         # A synthetic module keeps the protection of its sections, so that a jump into its data faults.
