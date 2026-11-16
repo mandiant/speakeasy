@@ -176,8 +176,10 @@ class _PeParser(pefile.PE):
         self.base: int = self.OPTIONAL_HEADER.ImageBase
         self.hash: str = self._hash_pe(path=path, data=data)
         self.imports: dict[int, tuple[str, str]] = self._get_pe_imports()
+        # Windows rounds SizeOfImage up to SectionAlignment, and a section can end in the rounded part.
+        alignment = self.OPTIONAL_HEADER.SectionAlignment or 1
+        self.image_size: int = -(-self.OPTIONAL_HEADER.SizeOfImage // alignment) * alignment
         self.mapped_image: bytes = self.get_mapped_image()
-        self.image_size: int = self.OPTIONAL_HEADER.SizeOfImage
         self.ep: int = self.OPTIONAL_HEADER.AddressOfEntryPoint
         self.stack_commit: int = self.OPTIONAL_HEADER.SizeOfStackCommit
         self.path: str = ""
@@ -287,7 +289,7 @@ class _PeParser(pefile.PE):
             else:
                 del mapped[address:]
             mapped += section.get_data()
-        return bytes(mapped[: self.OPTIONAL_HEADER.SizeOfImage])
+        return bytes(mapped[: self.image_size])
 
     def rebase(self, to):
         self.relocate_image(to)
