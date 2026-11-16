@@ -1,10 +1,17 @@
 """Test that imports from API sets, aliases and C runtime DLLs reach a handler."""
 
+import struct
+
 import pytest
 
 from speakeasy import Speakeasy
+from speakeasy.config import get_default_config_dict
 from speakeasy.windows.api_resolution import HandlerImplementation
 from tests.handler_harness import alloc, call
+from tests.pe_builder import build_pe
+
+APP_MODEL_RUNTIME = "api-ms-win-appmodel-runtime-l1-1-2.dll"
+APP_POLICY_PROCESS_TERMINATION_METHOD_EXIT_PROCESS = 0
 
 
 def has_handler(se: Speakeasy, dll: str, name: str) -> bool:
@@ -62,3 +69,31 @@ def test_ntoskrnl_sprintf_s_formats_in_a_driver(driver_emu: Speakeasy) -> None:
     rv, _ = call(driver_emu, "ntoskrnl", "sprintf_s", [buf, 32, alloc(driver_emu, b"pid=%d\0"), 42])
     assert rv == 6
     assert driver_emu.mem_read(buf, 7) == b"pid=42\0"
+
+
+def app_policy_program(base: int, iat: dict[tuple[str, str | int], int]) -> bytes:
+    """Call AppPolicyGetProcessTerminationMethod and save ESP before and after the call, the policy and EAX."""
+    data = base + 0x2000
+    code = b"\x89\x25" + struct.pack("<I", data)
+    code += b"\x68" + struct.pack("<I", data + 8)
+    code += b"\x6a\xfa"
+    code += b"\xff\x15" + struct.pack("<I", base + iat[APP_MODEL_RUNTIME, "AppPolicyGetProcessTerminationMethod"])
+    code += b"\x89\x25" + struct.pack("<I", data + 4)
+    code += b"\xa3" + struct.pack("<I", data + 12)
+    return code + b"\xc3"
+
+
+def test_app_policy_from_an_api_set_removes_its_two_arguments() -> None:
+    imports = {APP_MODEL_RUNTIME: ["AppPolicyGetProcessTerminationMethod"]}
+    data, _ = build_pe(32, text=app_policy_program, data=b"\xcc" * 16, imports=imports)
+    with Speakeasy(config=get_default_config_dict()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        report = se.get_report()
+        assert [entry.error for entry in report.runs] == [None]
+        [event] = [event for event in report.runs[0].events if event.event == "api"]
+        assert event.api_name == "kernel32.AppPolicyGetProcessTerminationMethod"
+        assert [arg.name for arg in event.args] == ["processToken", "policy"]
+        esp_before, esp_after, policy, rv = struct.unpack("<4I", se.mem_read(module.base + 0x2000, 16))
+        assert esp_after == esp_before
+        assert (policy, rv) == (APP_POLICY_PROCESS_TERMINATION_METHOD_EXIT_PROCESS, 0)
