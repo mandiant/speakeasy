@@ -61,6 +61,7 @@ def normalize_value(value: str) -> str:
 
 def build_case_config(base_config: dict[str, Any], case: PmaCase) -> dict[str, Any]:
     cfg = copy.deepcopy(base_config)
+    # The keys of tests/test.json replace the default keys, and the samples read default keys such as Svchost
     cfg["registry"] = RegistryConfig().model_dump(mode="json")
     cfg["limits"]["per_run_time"] = 4
     cfg["limits"]["api_calls"] = 600

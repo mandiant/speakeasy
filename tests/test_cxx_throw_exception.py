@@ -46,7 +46,7 @@ def test_cxx_throw_raises_the_msvc_exception_and_does_not_return(config, arch):
         handler = code + 0x1000
         se.mem_write(handler, copy_record_handler(arch, data))
         throw = get_api(se, "msvcrt", "_CxxThrowException")
-        throw_info = get_api(se, "kernel32", "GetLastError")  # any address in a module
+        throw_info = get_api(se, "kernel32", "GetLastError")  # an address in kernel32
         setup = guest_call(ptr_size, get_api(se, "kernel32", "AddVectoredExceptionHandler"), 1, handler)
         se.mem_write(code, setup + guest_call(ptr_size, throw, EXCEPTION_OBJECT, throw_info) + RETURN_42)
 
@@ -59,5 +59,5 @@ def test_cxx_throw_raises_the_msvc_exception_and_does_not_return(config, arch):
         assert run.error.pc == call.pos.pc
         params = [EH_MAGIC_NUMBER1, EXCEPTION_OBJECT, throw_info]
         if arch == "amd64":
-            params.append(se.emu.get_mod_from_addr(throw_info).base)
+            params.append(se.emu.get_mod_by_name("kernel32").base)
         assert read_record(se, arch, data) == (EH_EXCEPTION_NUMBER, EXCEPTION_NONCONTINUABLE, params)

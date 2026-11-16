@@ -39,10 +39,10 @@ CND_SIZE = 0x48
 # multibyte data, each with room for the full UCRT struct on x64
 C_LOCALE_LOCINFO = 0x10
 C_LOCALE_MBCINFO = 0x400
+C_LOCALE_SIZE = 0x1000
 # The exception code and first parameter of a C++ throw, from ehdata.h of the MSVC runtime
 EH_EXCEPTION_NUMBER = 0xE06D7363
 EH_MAGIC_NUMBER1 = 0x19930520
-C_LOCALE_SIZE = 0x1000
 O_APPEND = 0x8
 O_CREAT = 0x100
 O_TRUNC = 0x200
