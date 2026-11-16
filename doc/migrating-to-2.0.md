@@ -191,9 +191,7 @@ These values have a new format:
 | `type` of an argument of an `api` event, for a pointer-sized integer such as `SIZE_T`, `ULONG_PTR`, `LPARAM` or `WPARAM` | `ptr` | `int` |
 | `type` of an argument of an `api` event, for a handle that win32metadata gives as a pointer-sized integer, such as `HCRYPTPROV`, `SCARDCONTEXT` or `HTHEME` | `ptr` | `handle` |
 
-The report no longer has the run type `callback` and the `open_flags` of a `reg_open_key` event. Speakeasy did not set them.
-
-The runs no longer have `apihash`. Speakeasy does not use it, and a consumer can compute it from the `api` events of the run.
+The report no longer has the run type `callback`, the `open_flags` of a `reg_open_key` event and `entry_points[].api_hash`. Speakeasy did not set `callback` and `open_flags`. To get the `api_hash` of a run, compute the SHA-256 of the lowercase names of its `api` events, each name once, in the order of the first call.
 
 Some keys follow a new rule for absent, empty and zero values. A key is absent when Speakeasy did not collect its data, an empty list or object means that it collected the data and found nothing, and a counter or a boolean is present when Speakeasy collects it, also when it is 0 or false. So:
 
