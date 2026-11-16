@@ -60,7 +60,14 @@ from speakeasy.windows.handles import (
     HandleTable,
 )
 from speakeasy.windows.ioman import IoManager
-from speakeasy.windows.loaders import LoadState, PeLoader, RuntimeModule, get_prot_string, relocate_image
+from speakeasy.windows.loaders import (
+    LoadState,
+    PeLoader,
+    RuntimeModule,
+    get_prot_string,
+    is_dep_enabled,
+    relocate_image,
+)
 from speakeasy.windows.module_loader import ModuleLoader
 from speakeasy.windows.netman import NetworkManager
 from speakeasy.windows.objman import HandleAllocator
@@ -2145,11 +2152,17 @@ class WindowsEmulator(BinaryEmulator):
             if base != requested_base:
                 logger.debug("module %s: base %#x is in use, loading at %#x", image.name, requested_base, base)
             image = relocate_image(image, base)
+        # The input EXE decides the DEP state of the process. Set it before the first map of guest memory.
+        if is_input and image.source == "guest_pe" and image.module_type == "exe" and not self.is_kernel_mode:
+            self.dep_enabled = is_dep_enabled(image)
+        # A synthetic module keeps the protection of its sections, so that a jump into its data faults.
+        dep = image.source != "synthetic"
         base = self.mem_map(
             image.image_size,
             base=base or None,
             tag=f"emu.module.{image.name}",
             process=self.get_current_process() if self.is_kernel_mode else None,
+            dep=dep,
         )
         if not requested_base:
             image = relocate_image(image, base)
@@ -2190,7 +2203,7 @@ class WindowsEmulator(BinaryEmulator):
             first_rva = min(section.virtual_address for section in image.sections)
             if first_rva:
                 self.mem_protect(
-                    mod.base, (first_rva + self.page_size - 1) & ~(self.page_size - 1), common.PERM_MEM_READ
+                    mod.base, (first_rva + self.page_size - 1) & ~(self.page_size - 1), common.PERM_MEM_READ, dep=dep
                 )
             page_perms: dict[int, int] = {}
             for section in image.sections:
@@ -2206,7 +2219,7 @@ class WindowsEmulator(BinaryEmulator):
             # Each mem_protect call of Unicorn splits a region, and the cost of a call grows with the
             # number of regions. So protect each range of adjacent pages with equal perms in one call.
             for start, length, perms in get_page_protection_runs(page_perms, self.page_size):
-                self.mem_protect(start, length, perms)
+                self.mem_protect(start, length, perms, dep=dep)
 
         if image.source in ("guest_pe", "guest_shellcode") and self.profiler and self.config.memory.strings:
             mod.loaded_data = bytes(self.mem_read(mod.base, mod.image_size))

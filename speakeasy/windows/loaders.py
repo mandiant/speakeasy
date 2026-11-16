@@ -58,6 +58,7 @@ class PeMetadata:
     machine: int
     magic: int
     resources: list[ResourceEntry] = field(default_factory=list)
+    dll_characteristics: int = 0
 
 
 @dataclass
@@ -155,6 +156,26 @@ class LoadedImage:
     source: str = "guest_pe"
     relocations: list[BaseRelocation] | None = None
     problems: list[str] = field(default_factory=list)
+
+
+IMAGE_DLLCHARACTERISTICS_NX_COMPAT = 0x0100
+
+
+def is_dep_enabled(image: LoadedImage) -> bool:
+    """
+    Get whether a process for ``image`` runs with Data Execution Prevention (DEP).
+
+    The emulator models the OptIn system policy, the default of client versions of Windows: a 32-bit process runs
+    with DEP only if its image has ``IMAGE_DLLCHARACTERISTICS_NX_COMPAT`` (the ``/NXCOMPAT`` linker option). A
+    64-bit process always runs with DEP.
+
+    References:
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getsystemdeppolicy
+        https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#dll-characteristics
+    """
+    if image.arch != _arch.ARCH_X86 or image.pe_metadata is None:
+        return True
+    return bool(image.pe_metadata.dll_characteristics & IMAGE_DLLCHARACTERISTICS_NX_COMPAT)
 
 
 def _write_image_base(image: LoadedImage, data: bytearray, base: int) -> None:
@@ -776,6 +797,7 @@ class PeLoader:
             timestamp=pe.FILE_HEADER.TimeDateStamp,
             machine=pe.FILE_HEADER.Machine,
             magic=pe.OPTIONAL_HEADER.Magic,
+            dll_characteristics=pe.OPTIONAL_HEADER.DllCharacteristics,
         )
 
         if hasattr(pe, "DIRECTORY_ENTRY_RESOURCE"):

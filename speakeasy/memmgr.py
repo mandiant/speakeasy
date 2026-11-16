@@ -95,6 +95,9 @@ class MemoryManager:
         self.block_offset: int = 0
         self.page_size: int = 0x1000
         self.alloc_base: int = ALLOCATION_GRANULARITY
+        # Data Execution Prevention (DEP) of the emulated process. When it is off, code can run from every
+        # readable page. See get_native_perms.
+        self.dep_enabled: bool = True
 
     @contextmanager
     def allocations_from(self, base: int) -> Iterator[None]:
@@ -119,6 +122,19 @@ class MemoryManager:
                     if not mem_map_hook.end or mem_map_hook.end > mm.base:
                         mem_map_hook.cb(mem_map_hook.emu, mm.base, mm.size, mm.tag, mm.prot, mm.flags)
 
+    def get_native_perms(self, perms: int, *, dep: bool = True) -> int:
+        """
+        Get the permissions that the engine gives to memory that has the protection ``perms``.
+
+        With DEP off, the processor does not apply the no-execute bit to the pages of the process, so code can run
+        from every readable page, for example a ``PAGE_READWRITE`` section or heap block, or the ``PAGE_READONLY``
+        PE header. The engine gets execute permission on these pages. ``dep=False`` keeps ``perms`` for memory
+        that the guest cannot change and must not run, such as the synthetic modules.
+        """
+        if dep and not self.dep_enabled and perms & common.PERM_MEM_READ:
+            return perms | common.PERM_MEM_EXEC
+        return perms
+
     def mem_map(
         self,
         size: int,
@@ -129,13 +145,14 @@ class MemoryManager:
         *,
         shared: bool = False,
         process: Any = None,
+        dep: bool = True,
     ) -> int:
         """
         Map memory and return its address.
 
         If ``base`` is ``None`` and ``size`` is smaller than a page, the allocation goes into the shared page
         block, which the emulator maps RWX. Otherwise the emulator maps a page-aligned range at or after
-        ``base``.
+        ``base``. ``perms`` is the protection that the guest asked for. ``dep`` is for ``get_native_perms``.
 
         Raises:
             OutOfMemoryError: if no free range fits below the address limit.
@@ -172,7 +189,7 @@ class MemoryManager:
         if size > self.block_size:
             block_size = size
         mm = MemMap(base, size, tag, perms, flags, base, block_size, shared, process)
-        self.emu_eng.mem_map(base, size, perms=perms)
+        self.emu_eng.mem_map(base, size, perms=self.get_native_perms(perms, dep=dep))
         self.maps.append(mm)
         self._hook_mem_map_dispatch(mm)
         return base
@@ -209,9 +226,9 @@ class MemoryManager:
         """Read bytes from the emulated address space."""
         return bytes(self.emu_eng.mem_read(addr, size))
 
-    def mem_protect(self, addr, size, perms):
-        """Change the protection of a range."""
-        self.emu_eng.mem_protect(addr, size, perms)
+    def mem_protect(self, addr, size, perms, *, dep: bool = True):
+        """Change the protection of a range. ``dep`` is for ``get_native_perms``."""
+        self.emu_eng.mem_protect(addr, size, self.get_native_perms(perms, dep=dep))
 
     def _mem_unmap_region(self, base, size):
         """Unmap a range in the engine, also a range that has no allocations."""
