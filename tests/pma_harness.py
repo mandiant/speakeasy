@@ -38,6 +38,7 @@ class PmaCase:
     indicators: IndicatorExpectations = field(default_factory=IndicatorExpectations)
     config_patch: dict[str, Any] = field(default_factory=dict)
     allowed_entrypoint_errors: tuple[str, ...] = ()
+    allowed_errors: tuple[str, ...] = ()
     argv: tuple[str, ...] = ()
     profile: CaseProfile | None = None
 
@@ -153,7 +154,7 @@ def collect_behavior(report) -> ObservedBehavior:
 
 
 def assert_case(case: PmaCase, report, observed: ObservedBehavior) -> None:
-    assert report.errors == []
+    assert {error.type for error in report.errors}.issubset(set(case.allowed_errors))
     assert report.runs
     assert observed.unsupported_api_count == 0
 

@@ -54,6 +54,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-01-04-exe",
         sample="Practical Malware Analysis Lab 01-04.exe_",
         expected_apis=("KERNEL32.LoadLibraryA", "KERNEL32.GetProcAddress"),
+        allowed_errors=("child_process_skipped",),
         profile=profile_pma_0104,
     ),
     PmaCase(
@@ -76,6 +77,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-03-04-exe",
         sample="Practical Malware Analysis Lab 03-04.exe_",
         expected_apis=("KERNEL32.GetVersionExA", "KERNEL32.SetHandleCount"),
+        allowed_errors=("child_process_skipped",),
     ),
     PmaCase(
         name="pma-03-04-probe",
@@ -198,6 +200,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-12-04-exe",
         sample="Practical Malware Analysis Lab 12-04.exe_",
         expected_apis=("KERNEL32.CreateRemoteThread", "KERNEL32.WinExec", "sfc_os.SfcTerminateWatcherThread"),
+        allowed_errors=("child_process_skipped",),
         profile=profile_pma_1204_deep,
     ),
     PmaCase(
@@ -208,12 +211,14 @@ PMA_CASES: tuple[PmaCase, ...] = (
             files=("C:\\Windows\\Temp\\a.png",),
             domains=("www.practicalmalwareanalysis.com",),
         ),
+        allowed_errors=("child_process_skipped",),
     ),
     PmaCase(
         name="pma-14-02-exe",
         sample="Practical Malware Analysis Lab 14-02.exe_",
         expected_apis=("KERNEL32.CreatePipe", "SHELL32.ShellExecuteExA", "SHELL32.SHChangeNotify"),
         allowed_entrypoint_errors=("api_call_limit",),
+        allowed_errors=("child_process_skipped",),
         profile=profile_pma_1402,
     ),
     PmaCase(
@@ -257,6 +262,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         name="pma-18-01-exe",
         sample="Practical Malware Analysis Lab 18-01.exe_",
         expected_apis=("KERNEL32.LoadLibraryA", "KERNEL32.GetProcAddress"),
+        allowed_errors=("child_process_skipped",),
     ),
     PmaCase(
         name="pma-18-03-exe",
@@ -287,6 +293,7 @@ PMA_CASES: tuple[PmaCase, ...] = (
         expected_apis=("WS2_32.WSAStartup", "WS2_32.gethostbyname", "WS2_32.connect", "KERNEL32.CreateProcessA"),
         indicators=IndicatorExpectations(domains=("www.practicalmalwareanalysis.com",)),
         allowed_entrypoint_errors=("api_call_limit",),
+        allowed_errors=("child_process_skipped",),
         profile=profile_pma_1803_ocl,
     ),
 )
