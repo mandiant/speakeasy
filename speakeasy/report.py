@@ -499,13 +499,6 @@ class RunReport(BaseModel):
             "``limits.api_calls`` limits this count."
         ),
     )
-    api_hash: str = Field(
-        default="",
-        description=(
-            "SHA-256 of the lowercase names of the APIs that the run called, each name once, "
-            "in the order of the first call."
-        ),
-    )
     return_value: HexIntOptional = Field(
         default=None,
         description="Value of the return register when the run completed.",

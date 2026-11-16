@@ -2705,12 +2705,6 @@
           "title": "Api Call Count",
           "type": "integer"
         },
-        "api_hash": {
-          "default": "",
-          "description": "SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call.",
-          "title": "Api Hash",
-          "type": "string"
-        },
         "return_value": {
           "anyOf": [
             {
