@@ -35,3 +35,9 @@ def test_config_values_have_type_codes(config: dict[str, Any]) -> None:
 )
 def test_value_bytes(val_type: int, data: str | int | bytes, width: int, expected: bytes) -> None:
     assert RegValue("v", val_type, data).get_bytes(width) == expected
+
+
+def test_default_registry_has_hklm_software_classes() -> None:
+    table = HandleTable(HandleAllocator(), release=lambda obj: None)
+    regman = RegistryManager(lambda: table, SpeakeasyConfig().registry)
+    assert regman.open_key("HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes")
