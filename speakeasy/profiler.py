@@ -1,6 +1,5 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
-import hashlib
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -188,8 +187,6 @@ class Run:
         self.dynamic_code: dict[int, DynamicCode] = {}
         self.process_context: Process | None = None
         self.thread: Thread | None = None
-        self.unique_apis: list[str] = []
-        self.api_hash: hashlib._Hash = hashlib.sha256()
         self.stack: MemAccess | None = None
         self.guest_callbacks: list[GuestCallbackFrame] = []
         # The address range [start, end) and the access counts of the regions of the last accesses.
@@ -336,10 +333,6 @@ class Profiler:
         """
         run.num_apis += 1
         run.api_loop.record((name, return_address), pos)
-
-        if name not in run.unique_apis:
-            run.api_hash.update(name.lower().encode("utf-8"))
-            run.unique_apis.append(name)
 
         event = ApiEvent(pos=pos, api_name=name, args=args, return_value=ret, return_address=return_address)
 
@@ -844,7 +837,6 @@ class Profiler:
                 tid=ep_tid,
                 instruction_count=r.instr_cnt if instructions_counted else None,
                 api_call_count=r.num_apis,
-                api_hash=r.api_hash.hexdigest(),
                 return_value=r.return_value,
                 error=error_info,
                 events=list(r.events),

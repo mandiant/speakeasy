@@ -69,7 +69,6 @@ A run starts at one address, such as the module entry point, an export, a TLS ca
 | `pid`, `tid` | The process and the thread of the run. Absent in kernel mode. |
 | `instruction_count` | The number of instructions that the run executed. See the note on the instruction count below. |
 | `api_call_count` | The number of API calls of the run. It also counts the calls that `events` leaves out as repeats. `limits.api_calls` limits this count. |
-| `api_hash` | The SHA-256 of the lowercase names of the APIs that the run called, each name once, in the order of the first call. |
 | `return_value` | The value of the return register when the run returned. |
 | `error` | The error that ended the run. Absent when the run completed. |
 | `events` | The events of the run, in order. The `record_*_event` methods of `Profiler` add them. |
@@ -290,9 +289,6 @@ This example shows each field. It is not the output of one run, and the values d
 
       // API calls of the run, also the calls that events leaves out as repeats.
       "api_call_count": 31,
-
-      // SHA-256 of the names of the APIs that the run called, each name once.
-      "api_hash": "2222222222222222222222222222222222222222222222222222222222222222",
 
       // The run has no return_value, because an error ended it.
       "error": {
@@ -716,7 +712,6 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
       "pid": 1240,
       "tid": 1444,
       "api_call_count": 0,
-      "api_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "return_value": "0x0",
       "events": [],
       "dynamic_code": [],
@@ -752,7 +747,7 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
 }
 ```
 
-The report has no `strings`, `accesses`, `coverage` or `instruction_count`, because their options are off. The regions have no `freed` and no `data_ref` for the same reason. `errors`, `data`, `events`, `dynamic_code` and `dropped_files` are empty: Speakeasy collected them and found nothing. The shellcode called no API, so `api_call_count` is 0 and `api_hash` is the SHA-256 of no bytes. `return_value` is the value of `eax` after `xor eax, eax`.
+The report has no `strings`, `accesses`, `coverage` or `instruction_count`, because their options are off. The regions have no `freed` and no `data_ref` for the same reason. `errors`, `data`, `events`, `dynamic_code` and `dropped_files` are empty: Speakeasy collected them and found nothing. The shellcode called no API, so `api_call_count` is 0. `return_value` is the value of `eax` after `xor eax, eax`.
 
 ## Related docs
 

@@ -54,7 +54,6 @@ These keys have new names:
 | `entry_points[].start_addr` | `start_address` |
 | `entry_points[].ep_args` | `args` |
 | `entry_points[].instr_count` | `instruction_count` |
-| `entry_points[].apihash` | `api_hash` |
 | `entry_points[].sym_accesses` | `accesses.symbols` |
 | `entry_points[].dynamic_code_segments` | `dynamic_code`, one entry for each region |
 | `dynamic_code_segments[].base` | `dynamic_code[].region` |
@@ -69,7 +68,7 @@ These keys have new names:
 
 The `data` mapping stores each payload one time, compressed with zlib and encoded with base64. In 1.x, `data` held the bytes encoded with base64 in the entry itself.
 
-The report does not have the 1.x keys `emu_version`, `os_run` and `mem_tag`, or the `type` (allocation type) of a `mem_alloc` event.
+The report does not have the 1.x keys `emu_version`, `os_run`, `mem_tag` and `entry_points[].apihash`, or the `type` (allocation type) of a `mem_alloc` event. To get the `apihash` of a run, compute the SHA-256 of the lowercase names of its `api` events, each name once, in the order of the first call.
 
 The report writes each machine word as a hex string with a `0x` prefix and lowercase digits: addresses, pointers, handles, raw argument values, return values, register values, exception codes and coverage. A 64-bit word can be above 2\*\*53 or 2\*\*63. JavaScript, Go `interface{}`, jq and int64 stores such as SQLite lose such a value as a JSON number, and they give no error. In Python, `int(value, 16)` reads the string. The report writes each quantity, such as a size, a count, an offset, a tick or an ID, as a JSON number. The schema gives the pattern `^0x[0-9a-f]+$` for each hex string.
 
@@ -193,6 +192,8 @@ These values have a new format:
 | `type` of an argument of an `api` event, for a handle that win32metadata gives as a pointer-sized integer, such as `HCRYPTPROV`, `SCARDCONTEXT` or `HTHEME` | `ptr` | `handle` |
 
 The report no longer has the run type `callback` and the `open_flags` of a `reg_open_key` event. Speakeasy did not set them.
+
+The runs no longer have `apihash`. Speakeasy does not use it, and a consumer can compute it from the `api` events of the run.
 
 Some keys follow a new rule for absent, empty and zero values. A key is absent when Speakeasy did not collect its data, an empty list or object means that it collected the data and found nothing, and a counter or a boolean is present when Speakeasy collects it, also when it is 0 or false. So:
 
