@@ -95,7 +95,7 @@ class MemoryManager:
         self.block_offset: int = 0
         self.page_size: int = 0x1000
         self.alloc_base: int = ALLOCATION_GRANULARITY
-        # Data Execution Prevention (DEP) of the emulated process. When it is off, code can run from every
+        # The Data Execution Prevention (DEP) state of the emulation. Without DEP, code can run from every
         # readable page. See get_native_perms.
         self.dep_enabled: bool = True
 
@@ -128,8 +128,8 @@ class MemoryManager:
 
         With DEP off, the processor does not apply the no-execute bit to the pages of the process, so code can run
         from every readable page, for example a ``PAGE_READWRITE`` section or heap block, or the ``PAGE_READONLY``
-        PE header. The engine gets execute permission on these pages. ``dep=False`` keeps ``perms`` for memory
-        that the guest cannot change and must not run, such as the synthetic modules.
+        PE header. The engine gets execute permission on these pages. ``dep=False`` gives ``perms`` without a
+        change, for memory that must keep its protection, such as the synthetic modules.
         """
         if dep and not self.dep_enabled and perms & common.PERM_MEM_READ:
             return perms | common.PERM_MEM_EXEC
@@ -152,7 +152,7 @@ class MemoryManager:
 
         If ``base`` is ``None`` and ``size`` is smaller than a page, the allocation goes into the shared page
         block, which the emulator maps RWX. Otherwise the emulator maps a page-aligned range at or after
-        ``base``. ``perms`` is the protection that the guest asked for. ``dep`` is for ``get_native_perms``.
+        ``base``. ``perms`` is the protection that the guest asked for. See ``get_native_perms`` for ``dep``.
 
         Raises:
             OutOfMemoryError: if no free range fits below the address limit.
@@ -227,7 +227,7 @@ class MemoryManager:
         return bytes(self.emu_eng.mem_read(addr, size))
 
     def mem_protect(self, addr, size, perms, *, dep: bool = True):
-        """Change the protection of a range. ``dep`` is for ``get_native_perms``."""
+        """Change the protection of a range. See ``get_native_perms`` for ``dep``."""
         self.emu_eng.mem_protect(addr, size, self.get_native_perms(perms, dep=dep))
 
     def _mem_unmap_region(self, base, size):
