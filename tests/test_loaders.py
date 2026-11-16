@@ -218,9 +218,9 @@ def test_native_raw_padding_outside_image_is_clipped():
     last.Misc_VirtualSize = 0
     pe.OPTIONAL_HEADER.SizeOfImage = last.VirtualAddress + 0x800
     raw = pe.write()
-    assert len(pefile.PE(data=raw).get_memory_mapped_image()) > pe.OPTIONAL_HEADER.SizeOfImage
+    assert len(pefile.PE(data=raw).get_memory_mapped_image()) > last.VirtualAddress + 0x1000
     image = PeLoader(data=raw).make_image()
-    assert image.sections[-1].virtual_size == 0x800
+    assert image.sections[-1].virtual_size == 0x1000
     assert all(s.virtual_address + s.virtual_size <= image.image_size for s in image.sections)
     assert image.regions[0].data == pefile.PE(data=raw).get_memory_mapped_image()[: image.image_size]
 
@@ -466,6 +466,23 @@ def test_section_raw_data_in_the_header_keeps_header_bytes():
     image = PeLoader(data=bytes(raw)).make_image().regions[0].data
 
     assert image[:size_of_headers] == raw[:size_of_headers]
+
+
+def test_size_of_image_rounds_up_to_the_section_alignment():
+    """
+    Expressor gives the last section RVA 0x17000 and virtual size 0x1000, and SizeOfImage 0x179f4.
+
+    Windows rounds SizeOfImage up to SectionAlignment, so the section is inside the image.
+    """
+    pe = pefile.PE(data=build_pe()[0])
+    last = pe.sections[-1]
+    last.Misc_VirtualSize = 0x1000
+    pe.OPTIONAL_HEADER.SizeOfImage = last.VirtualAddress + 0x9F4
+
+    image = PeLoader(data=pe.write()).make_image()
+
+    assert image.image_size == last.VirtualAddress + 0x1000
+    assert image.sections[-1].virtual_size == 0x1000
 
 
 def test_last_section_raw_data_past_end_of_file_stays_inside_the_image(load_test_bin):
