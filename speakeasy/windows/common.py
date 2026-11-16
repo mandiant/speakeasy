@@ -133,6 +133,7 @@ DLL_HOSTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("api-ms-win-core-string-l2",), ("user32",)),
     (("api-ms-win-mm-",), ("winmm",)),
     (("api-ms-win-core-version",), ("version",)),
+    (("api-ms-win-appmodel-",), ("kernel32",)),
     (("api-ms-win-core-processthreads",), ("kernel32", "advapi32")),
     (("api-ms-win-core-libraryloader", "api-ms-win-core-stringansi"), ("kernel32", "user32")),
     (("api-ms-win-core",), ("kernel32",)),
