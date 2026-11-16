@@ -105,7 +105,8 @@ class Speakeasy:
                 default configuration.
             argv: Command line arguments for the emulated program.
             debug: If true, log each instruction and the general-purpose registers at the DEBUG level.
-            exit_event: Event that stops the emulation when it is set.
+            exit_event: Event that stops the emulation when it is set. The code and memory hooks check it
+                for each call, so a ``threading.Event`` is much faster than a ``multiprocessing.Event``.
             gdb_port: Port on which to listen for a GDB client. The first run waits for the client.
                 ``None`` disables the GDB server.
             volumes: Host paths to mount into the emulated file system, in the ``--volume`` format.
