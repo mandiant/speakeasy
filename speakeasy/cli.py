@@ -270,13 +270,10 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             except ValueError as err:
                 parser.error(f"cannot write {flag} {path}: {err}")
 
-    # The parent sets the event to stop a child process. In the CLI process, a threading event is enough and
-    # is faster to check. See get_thread_exit_event.
-    evt = threading.Event() if args.no_mp else mp.Event()
-
     if args.no_mp:
+        # Only wait_for_child sets the exit event, to stop a child process.
         result = emulate_binary(
-            evt,
+            None,
             target,
             active_cfg,
             argv,
@@ -290,6 +287,7 @@ def run_main(parser: argparse.ArgumentParser, args: argparse.Namespace, config_s
             auto_mount=auto_mount,
         )
     else:
+        evt = mp.Event()
         q: mp.Queue[ChildResult] = mp.Queue()
         p = mp.Process(
             target=emulate_binary_in_child,
