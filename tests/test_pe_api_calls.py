@@ -205,6 +205,27 @@ def test_icmp_iat_call_runs_from_the_iphlpapi_prototype():
     assert api_names(entry) == ["iphlpapi.IcmpCreateFile"]
 
 
+def test_appmodel_api_set_iat_call_runs_from_the_kernel32_prototype():
+    appmodel = "api-ms-win-appmodel-runtime-l1-1-2.dll"
+
+    def text(base, iat):
+        # AppPolicyGetProcessTerminationMethod(GetCurrentThreadEffectiveToken(), &policy)
+        prefix = b"\x68" + struct.pack("<I", base + 0x2000) + b"\x6a\xfa"
+        return calls(32, [(appmodel, "AppPolicyGetProcessTerminationMethod")], prefix=prefix)(base, iat)
+
+    data, _ = build_pe(32, text=text, data=b"\xcc" * 4, imports={appmodel: ["AppPolicyGetProcessTerminationMethod"]})
+    with Speakeasy(config=configured()) as se:
+        module = se.load_module(data=data)
+        se.run_module(module)
+        entry = se.get_report().runs[0]
+        policy = se.mem_read(module.base + 0x2000, 4)
+    assert entry.error is None
+    assert api_names(entry) == ["kernel32.AppPolicyGetProcessTerminationMethod"]
+    # 0 is ERROR_SUCCESS, and the policy 0 is AppPolicyProcessTerminationMethod_ExitProcess.
+    assert entry.return_value == 0
+    assert policy == b"\0" * 4
+
+
 def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bin):
     unknown = "SpeakeasyNoSuchExport"
     with Speakeasy(config=configured(**{"apis.stubs": False})) as se:
