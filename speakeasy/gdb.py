@@ -561,6 +561,10 @@ class GdbServer:
             bp_type = int(bp_type_text, 16)
             address = int(address_text, 16)
             size = int(size_text.split(b";", 1)[0], 16)
+            if bp_type in (0, 1):
+                # For a breakpoint, the third field is a kind and not a length. IDA sends kind 0 for a breakpoint
+                # that it adds with size 0, and a length for a range breakpoint. Kind 0 stops at one instruction.
+                size = max(size, 1)
             if size <= 0:
                 raise ValueError
             if bp_type in (0, 1):
