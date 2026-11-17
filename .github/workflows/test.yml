@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
       - name: Lint with ruff
@@ -35,7 +35,7 @@ jobs:
         run: git submodule update --init --depth 1 deps/win32json deps/phnt
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -53,7 +53,7 @@ jobs:
         run: git submodule update --init --depth 1 deps/win32json deps/phnt
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Build the sdist
         run: |
           python -m pip install --upgrade pip build
@@ -76,16 +76,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.10"
+            resolution: lowest-direct
+          - python-version: "3.15"
+            resolution: highest
+    name: test (${{ matrix.python-version }}, ${{ matrix.resolution }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           submodules: recursive
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install '.[dev]'
+          uv pip install --system --resolution ${{ matrix.resolution }} .
+          uv pip install --system pytest
+      - name: Show the dependency versions
+        run: uv pip list --system
       - name: Run tests
         run: pytest tests/
