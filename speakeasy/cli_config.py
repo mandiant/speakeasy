@@ -393,7 +393,7 @@ def unwrap_annotated(annotation: Any) -> Any:
 
 
 def is_model_type(annotation: Any) -> bool:
-    return isinstance(annotation, type) and issubclass(annotation, BaseModel)
+    return isinstance(annotation, type) and get_origin(annotation) is None and issubclass(annotation, BaseModel)
 
 
 def get_cli_kind(annotation: Any) -> Literal["bool", "int", "float", "str", "list_str", "dict_str_str"] | None:
