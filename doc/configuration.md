@@ -78,11 +78,7 @@ Speakeasy checks the values of the config before the emulation starts. A value t
     "strings": true,
 
     // Add the contents of each region of guest memory at the end of each run
-    // to the report: the images of the modules that load from a file, the
-    // allocations and heaps of the guest, the memory that API handlers allocate
-    // for it, and its static TLS data. The stacks, the stub images of the system
-    // modules and the other memory of the emulator get no contents. Only in
-    // user mode.
+    // to the report (see reporting.md). Only in user mode.
     // The report keeps each content one time in its top-level data store.
     // The report is larger, but you do not need the emulator to examine the memory.
     "final_contents": true,
@@ -208,11 +204,8 @@ Speakeasy checks the values of the config before the emulation starts. A value t
     // System time when emulation starts, in ISO 8601 with a time zone.
     // The system time, the file times, the msvcrt time functions, timeGetTime,
     // KUSER_SHARED_DATA and the kernel-mode system time count from it.
-    // The emulated system booted one day before this time. In user mode, each
-    // time query and each Sleep or wait moves the clock forward. In kernel mode,
-    // only the system time queries move it. The time fields of KUSER_SHARED_DATA
-    // change only when an API moves the clock, so a loop that only reads them
-    // does not see time pass.
+    // The emulated system booted one day before this time. Each time query and
+    // each Sleep or wait moves the clock forward.
     // The default is fixed so that runs give the same times to the sample.
     "start_time": "2026-10-31T15:15:00Z",
 
@@ -279,10 +272,6 @@ Speakeasy checks the values of the config before the emulation starts. A value t
     // Environment variables of the process. Change them when a sample selects
     // paths or detects sandboxes from the environment.
     // Names are not case-sensitive, and the config stores them in lower case.
-    // programfiles and commonprogramfiles also give the ProgramFilesDir and CommonFilesDir
-    // values of HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion. A value for that
-    // key in registry.keys replaces the value of the environment.
-    // systemroot also gives NtSystemRoot in KUSER_SHARED_DATA.
     // The shell folder APIs, such as SHGetKnownFolderPath and SHGetFolderPath, give
     // paths under systemdrive, userprofile, appdata, localappdata, allusersprofile,
     // public, programfiles and windir. When env does not have one of these, the APIs
@@ -302,8 +291,6 @@ Speakeasy checks the values of the config before the emulation starts. A value t
   // ProcessParameters of the process.
   // The is_main_exe entry defines the container image, which is the main image
   // of the process when the input is a DLL or shellcode (see architecture.md).
-  // The emulator ignores the base_addr of this entry and loads the container image
-  // at the first free base above 0x7D000000.
   // The container process gets the session of the entry, but not its pid.
   // When process.command_line is null, the container process gets the
   // command_line of the entry. Speakeasy gives a ConfigError if you set it
@@ -511,10 +498,6 @@ The CLI builds the config in this order, and each step changes the result of the
 The CLI reads the `--config` file in the same way as `Speakeasy(config=...)` reads a dict. A key that the file gives replaces the default value, also when the value is a mapping such as `process.env` or a list. A key that the file leaves out gets its default, also in a nested object. For example, `{"user": {"name": "bob"}}` keeps `user.admin` at `true`.
 
 Speakeasy has no named config profiles. To make a config file, start from the output of `--dump-default-config`.
-
-## Operational notes
-
-`speakeasy/profiler.py` and `speakeasy/windows/win32.py` fill most of the report data that the feature options control.
 
 ## Related docs
 

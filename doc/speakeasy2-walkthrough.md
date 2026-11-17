@@ -8,9 +8,7 @@ Speakeasy 2 needs Python 3.10 or later and Unicorn 2.1.4 or later.
 
 ## Loader and module model
 
-Speakeasy loads PE files, shellcode and the synthetic API modules through one code path. A loader (`PeLoader`, `ShellcodeLoader` or `ApiModuleLoader`) reads its input and returns a `LoadedImage`. A `LoadedImage` holds only data: the architecture, the preferred base and size, the regions to map, the imports and exports, the sections and the TLS data. A loader does not change the state of the emulator.
-
-`load_image` puts the `LoadedImage` into the emulator. It maps and writes the regions, binds the IAT slots to the API addresses, registers the exports of the module, sets the section protections and adds the module to the PEB. It returns a `RuntimeModule`. The rest of Speakeasy, for example the `modules` list and the PEB code, uses the `RuntimeModule` and does not need to know the kind of image. See [Architecture](architecture.md#loader).
+Speakeasy loads PE files, shellcode and the synthetic API modules through one code path. See [Architecture](architecture.md#loader).
 
 ## Host mounts with --volume
 
@@ -49,7 +47,7 @@ When a sample writes a PE into a child process with `WriteProcessMemory`, the lo
 
 ## Final memory contents in the report
 
-The `memory.final_contents` config field (`--memory-final-contents` on the command line) adds the memory content at the end of each run to the report. It is on by default. At the end of each run, for example a module entry, a TLS callback or an export, Speakeasy records the memory layout. When this field is set, each region of guest memory gets a `data_ref`: the images of the modules that load from a file, such as the input, the allocations and heaps of the guest, the regions with no tag and the static TLS data. The stacks, the stub images of the system modules and the other memory of the emulator get no `data_ref`. The `data_ref` is a key of the top-level `data` mapping, which stores each payload one time, compressed with zlib and encoded with base64.
+The `memory.final_contents` config field (`--memory-final-contents` on the command line) adds the memory content at the end of each run to the report. It is on by default. At the end of each run, for example a module entry, a TLS callback or an export, Speakeasy records the memory layout. When this field is set, each region of guest memory gets a `data_ref` (see [Memory regions](reporting.md#memory-regions)). The `data_ref` is a key of the top-level `data` mapping, which stores each payload one time, compressed with zlib and encoded with base64.
 
 Speakeasy stores dropped files and other binary data in the same `data` mapping, so the report holds each payload one time, even when many runs or files contain it.
 
@@ -143,7 +141,7 @@ This excerpt comes from `speakeasy -t dll_test_x86.dll`, with the default config
 
 ## Sections and section protections
 
-`LoadedImage` and `RuntimeModule` have the sections of the image. When `load_image` loads a PE, it sets the protection of each section from the section characteristics with `mem_protect`. A section can have any combination of read, write and execute access, or no access. If two sections share a page, the page gets the protections of both.
+When `load_image` loads a PE, it sets the protection of each section from the section characteristics. A section can have any combination of read, write and execute access, or no access. If two sections share a page, the page gets the protections of both.
 
 You do not need a config setting for this. The report always has one region for each section in `memory.layout`, with the `module` and `section` fields. This excerpt of `runs[0].memory` from a run of `dll_test_x86.dll` shows the section permissions. It leaves out `freed`, `data_ref` and the other regions and modules:
 
