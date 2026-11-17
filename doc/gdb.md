@@ -165,6 +165,8 @@ The server implements the all-stop RSP subset that GDB and IDA use:
 | Execution | `c`, `s`, `C`, `S` (the server ignores the signal), `vCont`, asynchronous Ctrl-C, `?`, `swbreak`/`hwbreak`/watchpoint/`library` stop replies |
 | Lifecycle | `D`, `k`, `vKill`, a final `T05` stop before exit and `Wxx` exit replies |
 
+A `Z0` or `Z1` breakpoint of kind 0 stops at one instruction, as a breakpoint of kind 1 does. IDA sends kind 0 for a breakpoint that a script adds with size 0, for example `add_bpt(ea, 0, BPT_EXEC)`. A `Z1` breakpoint of a larger kind stops at each instruction in that range of addresses.
+
 The server sends an empty reply to an optional packet that it does not support, as RSP requires. The server does not implement non-stop mode, multiprocess mode, reverse execution or remote file I/O.
 
 ## Limitations

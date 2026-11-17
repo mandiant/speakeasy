@@ -406,3 +406,23 @@ def test_x87_operand_pointer_and_segments_come_from_the_cpu_state():
     for name, value in (("fiseg", 0x33), ("foseg", 0x53), ("fooff", 0x3000)):
         server._write_register_value(server._registers[index[name]], value.to_bytes(4, "little"))
         assert server._read_register_value(index[name]) == value.to_bytes(4, "little")
+
+
+def test_breakpoint_of_kind_zero_is_one_byte():
+    server = make_server()
+    reasons: list[StopReason] = []
+    server._request_stop = reasons.append
+    replies: list[bytes] = []
+    server._reply = replies.append
+    server._install_hooks()
+
+    server._change_breakpoint(b"Z1,401000,0")
+    assert server.emu.code_hook_ranges() == {(0x401000, 0x401000)}
+    server._on_code(None, 0x401000, 1)
+    server._change_breakpoint(b"z1,401000,0")
+    assert server.emu.code_hook_ranges() == set()
+    # A watchpoint of length 0 watches nothing.
+    server._change_breakpoint(b"Z2,401000,0")
+
+    assert [r.kind for r in reasons] == ["hwbreak"]
+    assert replies == [b"OK", b"OK", b"E01"]

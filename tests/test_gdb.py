@@ -887,6 +887,28 @@ def test_gdb_client_disconnect_while_running_detaches(gdb_shellcode_emulator):
     assert _read_server_result(proc)["error"] is None
 
 
+@pytest.mark.parametrize("gdb_shellcode_emulator", ["b82a00000090c3"], indirect=True)  # mov eax, 42; nop; ret
+@pytest.mark.parametrize("bp_type", ["0", "1"])
+def test_gdb_breakpoint_of_kind_zero_stops_at_one_instruction(gdb_shellcode_emulator, bp_type):
+    # IDA sends kind 0 for a breakpoint that a script adds with size 0, for example
+    # add_bpt(ea, 0, BPT_EXEC).
+    port, proc, address, _ = gdb_shellcode_emulator
+    client = GdbRspClient(port)
+    try:
+        client.query_halt_reason()
+        nop = address + 5
+        assert client.query(f"Z{bp_type},{nop:x},0") == "OK"
+        stop = client.continue_()
+        assert stop.startswith("T05") and ("swbreak:;" if bp_type == "0" else "hwbreak:;") in stop, stop
+        assert client.read_x86_registers().eip == nop
+        assert client.query(f"z{bp_type},{nop:x},0") == "OK"
+        assert client.continue_().startswith("T05")
+        assert client.continue_() == "W00"
+        assert proc.wait(timeout=10) == 0
+    finally:
+        client.close()
+
+
 def _seh_declines(fault: str) -> str:
     # push handler; push fs:[0]; mov fs:[0], esp; <fault>; ret
     code = "6811111111" + "64ff3500000000" + "64892500000000" + fault + "c3"
