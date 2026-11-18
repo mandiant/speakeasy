@@ -23,7 +23,7 @@ def report_dict(base_config, load_test_bin) -> dict[str, Any]:
 
 def test_a_report_of_a_newer_minor_version_validates(report_dict):
     r = copy.deepcopy(report_dict)
-    r["report_version"] = "7.1.0"
+    r["report_version"] = "7.2.0"
     r["analysis_host"] = "sandbox-1"
     events = r["runs"][0]["events"]
     events[0]["thread_name"] = "main"

@@ -57,6 +57,7 @@ def test_wdm_report_describes_the_input_driver(request, wdm_report):
     assert (wdm_report.file_type, wdm_report.arch) == ("driver", request.node.callspec.id)
     assert wdm_report.sha256 is not None
     assert wdm_report.image_base is not None
+    assert wdm_report.pid is None
 
 
 def test_wdm_entry_points_name_each_driver_routine(wdm_report):

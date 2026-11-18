@@ -128,7 +128,7 @@ In 1.x, `ep_type` was one string with the kind of run and a detail. In 2.0, `typ
 
 2.0 also adds data. The top-level `image_base` gives the address where Speakeasy loaded the input. Each run has `pid`, `tid`, `api_call_count` and `memory`, the memory layout and the modules at the end of the run, and `coverage` with `code.coverage`. Each region of `memory.layout` has `module` and `section` when it is a part of a module image. An `api` event has `return_address`. The `dependency_dll_entry` and `dependency_tls_callback` runs execute the initializers of a DLL that the input loads. The new events are `mem_free`, `module_load`, `file_delete`, `directory_create`, `directory_delete`, `reg_write_value`, `reg_delete_key` and `reg_delete_value`. An `api_loop_limit` error has `loop`, the call sites of the API loop that ended the run.
 
-The models reject a report of a different major version, so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of 7.0.0, and the [report walkthrough](reporting.md) describes each key.
+The models reject a report of a different major version, so `Report.model_validate_json` fails for a 1.x report. `speakeasy/resources/report.schema.json` is the JSON schema of the 7.x reports, and the [report walkthrough](reporting.md) describes each key.
 
 ## Report schema 7.0.0
 
