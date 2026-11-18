@@ -57,6 +57,8 @@ def test_report_lists_the_parent_and_the_child_with_their_runs(config, load_test
         report = se.get_report()
 
     parent, child = report.processes
+    # The child loads at the base of the parent, so the module at image_base does not identify the process of the input.
+    assert report.pid == parent.pid
     assert (parent.pid, parent.parent_pid, parent.path, parent.command_line, parent.runs) == (
         report.runs[0].pid,
         None,

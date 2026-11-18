@@ -305,6 +305,8 @@ class Win32Emulator(WindowsEmulator):
             mm = self.get_address_map(module.base)
             if mm:
                 mm.process = self.curr_process
+        if self.input is not None:
+            self.input["pid"] = self.curr_process.pid
 
         t = objman.Thread(self, stack_base=self.stack_base, stack_commit=module.stack_commit)
         t.process = self.curr_process
@@ -498,6 +500,8 @@ class Win32Emulator(WindowsEmulator):
             self.processes.append(p)
             self.curr_process = p
             self.init_crt_command_line()
+        if self.input is not None:
+            self.input["pid"] = self.curr_process.pid
 
         mm = self.get_address_map(sc_addr)
         if mm:

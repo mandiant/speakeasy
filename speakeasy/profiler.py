@@ -872,6 +872,7 @@ class Profiler:
             size=self.meta.get("size"),
             file_type=self.meta.get("file_type"),
             image_base=self.meta.get("image_base"),
+            pid=self.meta.get("pid"),
             errors=errors,
             strings=strings_report,
             data=self.artifact_store.to_report_data(get_data_refs(run_reports)),

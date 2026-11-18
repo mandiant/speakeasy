@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
 
-REPORT_VERSION = "7.0.0"
+REPORT_VERSION = "7.1.0"
 
 
 class StringCollection(BaseModel):
@@ -550,7 +550,7 @@ class ProcessInfo(BaseModel):
         default=None,
         description=(
             "ID of the process that created this process, the ``pos.pid`` of its ``process_create`` event. "
-            "Absent for the first process and for a process that existed before the emulation."
+            "Absent for the process of the input (``Report.pid``) and for a process that existed before the emulation."
         ),
     )
     path: str | None = Field(
@@ -647,6 +647,13 @@ class Report(BaseModel):
         description=(
             "Base address of the input image in the emulator. Rebase a disassembler database to this "
             "address to match the addresses of the report."
+        ),
+    )
+    pid: int | None = Field(
+        default=None,
+        description=(
+            "ID of the process that runs the input: the process of the input EXE, or the container process of a "
+            "DLL or shellcode. Absent in kernel mode."
         ),
     )
     errors: list[ErrorInfo] = Field(
