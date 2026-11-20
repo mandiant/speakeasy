@@ -516,7 +516,7 @@ def test_handler_events_have_the_pc_of_their_api_call():
         "advapi32.RegOpenKeyExA",
     ]
     assert [event.pos.pc for event, _ in pairs] == sites
-    assert all(event.pos == after.pos for event, after in pairs)
+    assert all(event.pos.model_dump(exclude={"seq"}) == after.pos.model_dump(exclude={"seq"}) for event, after in pairs)
 
 
 def test_handler_events_have_the_pos_of_their_api_call_in_a_thread_that_starts_at_the_api():
@@ -540,4 +540,4 @@ def test_handler_events_have_the_pos_of_their_api_call_in_a_thread_that_starts_a
     assert run.type == "thread"
     event, after = run.events[:2]
     assert (event.event, event.name, after.api_name) == ("module_load", "foo.dll", "kernel32.LoadLibraryA")
-    assert event.pos == after.pos
+    assert event.pos.model_dump(exclude={"seq"}) == after.pos.model_dump(exclude={"seq"})

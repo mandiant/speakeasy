@@ -680,8 +680,7 @@ class DynamicCodeContentsConfig(BaseModel):
         default=True,
         description="Add the contents of each dynamic code region to the report, at the first time that code runs"
         " in it, and again each time that code runs in it after the region changes. Dynamic code is memory that"
-        " the guest allocated and then ran. If memory.accesses is off, the emulator then counts each instruction,"
-        " so that the position of each snapshot has the instruction count.",
+        " the guest allocated and then ran.",
     )
     limit: int = Field(
         default=8,

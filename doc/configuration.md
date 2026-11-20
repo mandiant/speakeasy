@@ -88,9 +88,6 @@ Speakeasy checks the values of the config before the emulation starts. A value t
       // to the report at the first time that code runs in the region, and again
       // each time that code runs in it after the region changes.
       // Use it to keep the stages of an unpacker that overwrites its buffers.
-      // Each snapshot needs the instruction count. If memory.accesses is off and
-      // limits.instructions is 0, the emulator adds a hook that counts each
-      // instruction, which makes tight loops about two times slower.
       "enabled": true,
 
       // The maximum number of snapshots of each dynamic code region in one run,
@@ -471,7 +468,7 @@ Each feature option is a boolean, and each one is on by default. Some options ad
 | `memory.accesses` | `--no-memory-accesses` | Report data | Fills `accesses`. Hooks each instruction and each memory access, so it is the slowest option. |
 | `memory.strings` | `--no-memory-strings` | Report data | Fills the top-level `strings`. |
 | `memory.final_contents` | `--no-memory-final-contents` | Report data | Fills `memory.layout[].data_ref` of the regions of guest memory at the end of each run. User mode only. |
-| `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` | Report data | Fills `dynamic_code[].contents[].data_ref` and `dynamic_code[].limit_reached`. Adds an instruction counting hook when `memory.accesses` is off and `limits.instructions` is 0. |
+| `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` | Report data | Fills `dynamic_code[].contents[].data_ref` and `dynamic_code[].limit_reached`. |
 | `code.coverage` | `--no-code-coverage` | Report data | Fills `runs[].coverage`. Hooks each instruction. |
 | `memory.freed_regions` | `--no-memory-freed-regions` | Guest behavior | A freed region stays mapped, so a read after the free does not fault. Adds `freed` to each region in the report. Off: the report leaves out the freed regions. |
 | `runs.exports` | `--no-runs-exports` | Guest behavior | Runs the exports of a DLL, and the IRP dispatch functions and the unload routine of a driver. |

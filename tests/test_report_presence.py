@@ -42,7 +42,6 @@ def get_counting_config(counter: str | None) -> dict:
     """Get a config where only ``counter`` counts the instructions, or no option if it is None."""
     config = get_default_config_dict()
     config["memory"]["accesses"] = counter == "accesses"
-    config["memory"]["dynamic_code_contents"]["enabled"] = counter == "dynamic_code_contents"
     config["limits"]["instructions"] = 1_000_000 if counter == "instructions" else 0
     return config
 
@@ -61,7 +60,7 @@ def test_instruction_count_and_ticks_are_absent_when_no_option_counts_instructio
     assert all("tick" not in event["pos"] for event in run["events"])
 
 
-@pytest.mark.parametrize("counter", ["accesses", "dynamic_code_contents", "instructions"])
+@pytest.mark.parametrize("counter", ["accesses", "instructions"])
 def test_instruction_count_and_ticks_are_present_when_one_option_counts_instructions(counter):
     run = get_heap_test_run(get_counting_config(counter))
 
@@ -69,6 +68,17 @@ def test_instruction_count_and_ticks_are_present_when_one_option_counts_instruct
     assert len(ticks) >= 4
     assert ticks == sorted(ticks)
     assert 0 < ticks[-1] <= run["instruction_count"]
+
+
+def test_instruction_count_has_the_instructions_of_a_resume_with_no_count():
+    with Speakeasy(config=get_counting_config("instructions")) as se:
+        # ret; inc ecx (x4); xor eax, eax; jmp eax
+        address = se.load_shellcode(None, "x86", data=bytes.fromhex("c3" + "41414141" + "31c0" + "ffe0"))
+        se.run_shellcode(address)
+        se.resume(address + 1)
+        run = se.get_report().runs[0]
+
+    assert run.instruction_count == 1 + 6
 
 
 def test_freed_marks_each_region_with_freed_regions_on():

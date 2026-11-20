@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from speakeasy.profiler_events import AnyEvent, StackEntry, TracePosition
 from speakeasy.report_types import HexInt, HexIntOptional
 
-REPORT_VERSION = "7.1.0"
+REPORT_VERSION = "7.2.0"
 
 
 class StringCollection(BaseModel):
@@ -133,7 +133,12 @@ class ApiLoop(BaseModel):
     A call site is an API and a return address.
     """
 
-    start: TracePosition = Field(description="Position of the first API call of the loop.")
+    start: TracePosition = Field(
+        description=(
+            "Position of the first API call of the loop. ``seq`` is the number of that call, also when the "
+            "profiler leaves out the call as a repeat."
+        )
+    )
     calls: int = Field(description="Number of API calls in the loop.")
     sites: list[ApiLoopSite] = Field(
         description="Call sites of the loop, the site with the most calls first. At most 16 sites."
@@ -327,8 +332,9 @@ class DynamicCodeRegion(BaseModel):
     contents: list[DynamicCodeContents] = Field(
         description=(
             "With ``memory.dynamic_code_contents``, one snapshot for each time that code ran in the region with"
-            " new data, in the order of ``pos.tick``. With the option off, one entry with the ``pos`` of the first"
-            " time that code ran in the region."
+            " new data, in the order of ``pos.seq``. With the option off, one entry with the ``pos`` of the first"
+            " time that code ran in the region. The newest snapshot at an event is the last entry with a"
+            " ``pos.seq`` below the ``pos.seq`` of the event."
         )
     )
     limit_reached: bool | None = Field(
@@ -488,8 +494,8 @@ class RunReport(BaseModel):
     instruction_count: int | None = Field(
         default=None,
         description=(
-            "Number of instructions that the run executed. The emulator counts them only with ``memory.accesses``, "
-            "``memory.dynamic_code_contents`` or a ``limits.instructions`` above 0. Absent when no option counts them."
+            "Number of instructions that the run executed. The emulator counts them only with ``memory.accesses`` "
+            "or a ``limits.instructions`` above 0. Absent when no option counts them."
         ),
     )
     api_call_count: int = Field(

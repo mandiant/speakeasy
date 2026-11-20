@@ -79,7 +79,7 @@ A run starts at one address, such as the module entry point, an export, a TLS ca
 | `dropped_files` | In user mode, the files that the guest wrote completely, up to the end of the run. The list also has the files that the guest wrote and then deleted. Each file has `path`, `size`, `sha256` and `data_ref`. `data_ref` is equal to `sha256`. An empty file and a file above `MAX_EMBEDDED_FILE_SIZE` (10 MiB, `speakeasy/artifacts.py`) have no `data_ref`. |
 | `memory` | In user mode, the memory regions (`layout`) and the modules (`modules`) at the end of the run. |
 
-The emulator counts instructions only when a hook that counts them is active: with `memory.accesses`, with `memory.dynamic_code_contents`, or with `limits.instructions` above 0. Without these options, the runs have no `instruction_count` and the events have no `tick`. With one of them, each run has `instruction_count` and each event has `tick`, also when the value is 0.
+The emulator counts instructions only when a hook that counts them is active: with `memory.accesses` or with `limits.instructions` above 0. Without these options, the runs have no `instruction_count` and the events have no `tick`. With one of them, each run has `instruction_count` and each event has `tick`, also when the value is 0.
 
 If the kind of run has no detail (`None` in Python), the JSON report leaves out `name`.
 
@@ -109,19 +109,21 @@ The type of a limit error is the name of its key under `limits` in the singular,
 | `limits.api_loop_calls` | `--limits-api-loop-calls` | `api_loop_limit` |
 | `limits.instructions` | `--limits-instructions` | `instruction_limit` |
 
-In user mode, a limit error of a run has the `pid` and `tid` of the thread that ran when the limit stopped the run. The `total_time_limit` error in the top-level `errors` belongs to no run, so it has no `pid` or `tid`. For `api_call_limit`, `api_loop_limit` and `instruction_limit`, `limit` is the value of the config key that ended the run. For `api_call_limit` and `api_loop_limit`, `last_api` is the API of the last call. A run that makes `limits.api_loop_calls` API calls with no call from a new call site has `api_loop_limit`, and `error.loop` tells about the calls after the last new call site. In `error.loop`, `start` is the position of the first of these calls, `calls` is their number, and `sites` has up to 16 call sites (`api_name`, `return_address` and `calls`), the site with the most calls first.
+In user mode, a limit error of a run has the `pid` and `tid` of the thread that ran when the limit stopped the run. The `total_time_limit` error in the top-level `errors` belongs to no run, so it has no `pid` or `tid`. For `api_call_limit`, `api_loop_limit` and `instruction_limit`, `limit` is the value of the config key that ended the run. For `api_call_limit` and `api_loop_limit`, `last_api` is the API of the last call. A run that makes `limits.api_loop_calls` API calls with no call from a new call site has `api_loop_limit`, and `error.loop` tells about the calls after the last new call site. In `error.loop`, `start` is the position of the first of these calls, with the `seq` of that call, `calls` is their number, and `sites` has up to 16 call sites (`api_name`, `return_address` and `calls`), the site with the most calls first.
 
 An error of a fault has `pc`, `instruction`, `registers` and `stack`. `instruction` is absent when Speakeasy cannot disassemble the instruction at `pc`, for example when `pc` is not mapped. The same is true for `instruction` of an `exception` event. `pc_module` is the file name of the module that contains `pc`, the same as `name` in `memory.modules`, and `pc_offset` is the offset of `pc` from the base of that module. `address` is the memory address of the faulting access. `address_region` is the region that contains `address`. When `address` is not mapped, `nearby_regions` has the regions nearest to it. These regions have the fields of a region in `memory.layout` without `freed` and `data_ref`.
 
 ## Events
 
-Each event has `event`, its type, and `pos`, the position of the thread that did the operation, so the event is in the timeline of that thread. `pos` has the `tick` (the instruction count of the run), `tid`, `pid` and `pc`. Each `pid` in the report is the process ID that the guest gets, for example from `GetCurrentProcessId` or `Process32Next`.
+Each event has `event`, its type, and `pos`, the position of the thread that did the operation, so the event is in the timeline of that thread. `pos` has the `seq` (the number of the record in the run), the `tick` (the instruction count of the run), `tid`, `pid` and `pc`. Each `pid` in the report is the process ID that the guest gets, for example from `GetCurrentProcessId` or `Process32Next`.
+
+The profiler counts the records of a run from 0. When it records an event or an entry of `dynamic_code[].contents`, it gives the next number to the record as `pos.seq`. A `seq` is unique in a run, and a record with a lower `seq` is earlier. `events` is in the order of `seq`. Use `seq` to put the events and the dynamic code contents of a run in one order, because `tick` is present only when an option counts the instructions. The numbers have gaps: a repeat API call that the profiler leaves out also takes a number. So do not use `seq` as an index in `events`. A report before 7.2.0 has no `seq`.
 
 The `pc` of an API call is the address of the instruction that went to the API: a `call`, or the `jmp` of an import thunk. The `api` event of the call, each event that the code of the API adds, an `exception` event that the API raises (for example `RaiseException`, or an API that reads a bad pointer) and an error of the call have this `pc`. Each other event or error has the `pc` of the instruction where the operation occurred or where the run stopped.
 
-`return_address` of an `api` event is the address where the API returns to the caller. The profiler leaves out an `api` event that has the same API, `pc`, `return_address`, shown arguments and return value as one of the last 3 events of the run, and adds 1 to `calls` of that event. So `calls` is the number of calls that an `api` event stands for: 1 for a call with no repeats, 5000 for a loop that makes the same call 5000 times. The event keeps the `pos` and the raw `value` of each argument of the first call. `api_call_count` of the run is the sum of `calls` of its `api` events.
+`return_address` of an `api` event is the address where the API returns to the caller. The profiler leaves out an `api` event that has the same API, `pc`, `return_address`, shown arguments and return value as one of the last 3 events of the run, and adds 1 to `calls` of that event. So `calls` is the number of calls that an `api` event stands for: 1 for a call with no repeats, 5000 for a loop that makes the same call 5000 times. The event keeps the `pos` and the raw `value` of each argument of the first call. The profiler does not compare a call with the events before the last entry of `dynamic_code[].contents` of the run. So the calls of one `api` event are all before or all after each snapshot of dynamic code. `api_call_count` of the run is the sum of `calls` of its `api` events.
 
-The code of an API can add other events, such as `file_create`, `reg_open_key`, `mem_alloc`, `process_create`, `module_load` or `net_dns`. Such an event has the `pos` of the API call: the same `tick` and `pc` as the `api` event of the call. It comes in `events` just before that `api` event. If the profiler leaves out the `api` event as a repeat, no `api` event follows.
+The code of an API can add other events, such as `file_create`, `reg_open_key`, `mem_alloc`, `process_create`, `module_load` or `net_dns`. Such an event has the `tick`, `tid`, `pid` and `pc` of the `api` event of the call, and its own `seq`. An `exception` event that the API raises has them too. A handler event comes in `events` just before that `api` event. If the profiler leaves out the `api` event as a repeat, no `api` event follows.
 
 `VirtualFree` adds a `mem_free` event. `LoadLibrary`, `LoadLibraryEx` and `LdrLoadDll` add a `module_load` event for each module that the load maps, the dependencies of the module included. The `name` of a `module_load` event is the file name of the module, for example `urlmon.dll`, the same as `name` in `memory.modules` and `module` in `memory.layout`. A module that the config preloads, or that is already loaded, gets no event.
 
@@ -182,7 +184,7 @@ A region of guest memory also has no `data_ref` when the emulator cannot read it
 
 `dynamic_code` has the memory regions with dynamic code, for example from `VirtualAlloc`, where code ran. Each entry has `region` (the base), `size`, `tag` and `contents`. The first entry of `contents` has `pos`, the position when the emulator first found code that ran in the region. The emulator finds the code when it runs in the first 16 bytes of the region, or when an API returns into the region. If `memory.dynamic_code_contents.enabled=false`, `contents` has only that entry, with no `data_ref`, and the region has no `limit_reached`.
 
-If `memory.dynamic_code_contents.enabled=true`, each entry of `contents` also has a `data_ref` to the region contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry to `contents`, with its own `pos` and `data_ref`. `contents` is in the order of `pos.tick`, and with this option `pos.tick` is always the instruction count of the run. Each entry of `contents` has different data from the entry before it. `memory.dynamic_code_contents.limit` (default 8) is the maximum number of entries of `contents`, with the first one. `limit_reached` is true when the region changed and ran again after the last snapshot that the limit allows, and false if not. The report does not have a stage that the region decodes and runs before control leaves the region.
+If `memory.dynamic_code_contents.enabled=true`, each entry of `contents` also has a `data_ref` to the region contents at `pos`, so the report keeps a stage that the guest overwrites later. The emulator then also watches the region for writes. When the region changed and control comes into it from outside, for example with a call or an API return, the emulator adds one more entry to `contents`, with its own `pos` and `data_ref`. `contents` is in the order of `pos.seq`. Each entry of `contents` has different data from the entry before it. To find the newest snapshot of a region at an event, take the last entry of `contents` with a `pos.seq` below the `pos.seq` of the event. If `contents` has no such entry, the emulator found no code that ran in the region before the event. `memory.dynamic_code_contents.limit` (default 8) is the maximum number of entries of `contents`, with the first one. `limit_reached` is true when the region changed and ran again after the last snapshot that the limit allows, and false if not. The report does not have a stage that the region decodes and runs before control leaves the region.
 
 ## Report fields and CLI flags
 
@@ -194,7 +196,7 @@ The boolean flags in this table are on by default. The `--no-` form of each flag
 | `--code-coverage` | `runs[].coverage` ([recipe](cli-analysis-recipes.md#recipe-code-coverage)) |
 | `--memory-accesses` | `runs[].accesses` ([recipe](cli-analysis-recipes.md#recipe-memory-accesses)). It also counts the instructions for `instruction_count` and `pos.tick`. |
 | `--memory-final-contents` | `runs[].memory.layout[].data_ref` ([recipe](cli-analysis-recipes.md#recipe-memory-snapshots)) |
-| `--memory-dynamic-code-contents` | `runs[].dynamic_code[].contents[].data_ref`, `runs[].dynamic_code[].limit_reached`, and the entries of `contents` after the first. It also counts the instructions. |
+| `--memory-dynamic-code-contents` | `runs[].dynamic_code[].contents[].data_ref`, `runs[].dynamic_code[].limit_reached`, and the entries of `contents` after the first. |
 | `--memory-dynamic-code-contents-limit N` | the maximum number of entries of `contents` of each region (default 8) |
 | `--memory-freed-regions` | `runs[].memory.layout[].freed`, and the freed regions in the layout. This flag also changes what the guest sees. |
 | `--limits-per-run-time`, `--limits-total-time`, `--limits-api-calls`, `--limits-api-loop-calls`, `--limits-instructions` | the limit errors in `error` and in the top-level `errors` |
@@ -207,7 +209,7 @@ This example shows each field. It is not the output of one run, and the values d
 ```jsonc
 {
   // Report format version.
-  "report_version": "7.1.0",
+  "report_version": "7.2.0",
 
   // Wall-clock seconds from the first start of the run queue to the end.
   "emulation_total_runtime": 1.234,
@@ -286,8 +288,8 @@ This example shows each field. It is not the output of one run, and the values d
       "pid": 1337,
       "tid": 2000,
 
-      // Only with memory.accesses, memory.dynamic_code_contents or
-      // limits.instructions above 0: instructions that the run executed.
+      // Only with memory.accesses or limits.instructions above 0: instructions
+      // that the run executed.
       "instruction_count": 12345,
 
       // API calls of the run, also the calls that events leaves out as repeats.
@@ -318,9 +320,12 @@ This example shows each field. It is not the output of one run, and the values d
       // The events of the run, in order.
       "events": [
         {
-          // An event that the code of an API adds has the pos of the API call.
-          // It comes just before the api event of the call.
-          "pos": {"tick": 10, "tid": 2000, "pid": 1337, "pc": "0x401000"},
+          // seq is the number of the record in the run. tick is present only with
+          // memory.accesses or limits.instructions above 0.
+          // An event that the code of an API adds has the tick, tid, pid and pc of
+          // the API call, and its own seq. It comes just before the api event of
+          // the call.
+          "pos": {"seq": 0, "tick": 10, "tid": 2000, "pid": 1337, "pc": "0x401000"},
           "event": "module_load",
           "name": "ws2_32.dll",
           "path": "C:\\Windows\\system32\\ws2_32.dll",
@@ -330,7 +335,7 @@ This example shows each field. It is not the output of one run, and the values d
         {
           // pc is the call or the jmp of the import thunk, return_address the
           // address after the call.
-          "pos": {"tick": 10, "tid": 2000, "pid": 1337, "pc": "0x401000"},
+          "pos": {"seq": 1, "tick": 10, "tid": 2000, "pid": 1337, "pc": "0x401000"},
           "event": "api",
           "api_name": "kernel32.LoadLibraryA",
           // "name" is present when the API signature is known.
@@ -342,7 +347,7 @@ This example shows each field. It is not the output of one run, and the values d
         },
         // The example leaves out the api event of the calls below.
         {
-          "pos": {"tick": 20, "tid": 2000, "pid": 1337, "pc": "0x40100a"},
+          "pos": {"seq": 2, "tick": 20, "tid": 2000, "pid": 1337, "pc": "0x40100a"},
           "event": "process_create",
           "path": "C:\\Windows\\System32\\cmd.exe",
           "command_line": "cmd.exe /c whoami",
@@ -350,7 +355,7 @@ This example shows each field. It is not the output of one run, and the values d
         },
         {
           // The thread of pid 1337 allocates memory in pid 4242.
-          "pos": {"tick": 30, "tid": 2000, "pid": 1337, "pc": "0x401014"},
+          "pos": {"seq": 3, "tick": 30, "tid": 2000, "pid": 1337, "pc": "0x401014"},
           "event": "mem_alloc",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -359,7 +364,7 @@ This example shows each field. It is not the output of one run, and the values d
           "pid": 4242
         },
         {
-          "pos": {"tick": 40, "tid": 2000, "pid": 1337, "pc": "0x40101e"},
+          "pos": {"seq": 4, "tick": 40, "tid": 2000, "pid": 1337, "pc": "0x40101e"},
           "event": "mem_write",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -368,7 +373,7 @@ This example shows each field. It is not the output of one run, and the values d
           "pid": 4242
         },
         {
-          "pos": {"tick": 50, "tid": 2000, "pid": 1337, "pc": "0x401028"},
+          "pos": {"seq": 5, "tick": 50, "tid": 2000, "pid": 1337, "pc": "0x401028"},
           "event": "mem_read",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "base": "0x10000000",
@@ -378,7 +383,7 @@ This example shows each field. It is not the output of one run, and the values d
         },
         {
           // No pid: the target is the process in pos.
-          "pos": {"tick": 60, "tid": 2000, "pid": 1337, "pc": "0x401032"},
+          "pos": {"seq": 6, "tick": 60, "tid": 2000, "pid": 1337, "pc": "0x401032"},
           "event": "mem_protect",
           "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x401000",
@@ -386,7 +391,7 @@ This example shows each field. It is not the output of one run, and the values d
           "permissions": "r-x"
         },
         {
-          "pos": {"tick": 70, "tid": 2000, "pid": 1337, "pc": "0x40103c"},
+          "pos": {"seq": 7, "tick": 70, "tid": 2000, "pid": 1337, "pc": "0x40103c"},
           "event": "mem_free",
           "path": "C:\\Windows\\System32\\sample.exe",
           "base": "0x10000000",
@@ -394,7 +399,7 @@ This example shows each field. It is not the output of one run, and the values d
         },
         {
           // A thread in the same process has the new tid and no pid.
-          "pos": {"tick": 90, "tid": 2000, "pid": 1337, "pc": "0x401050"},
+          "pos": {"seq": 8, "tick": 90, "tid": 2000, "pid": 1337, "pc": "0x401050"},
           "event": "thread_create",
           "path": "C:\\Windows\\System32\\sample.exe",
           "start_address": "0x401500",
@@ -402,7 +407,7 @@ This example shows each field. It is not the output of one run, and the values d
           "tid": 2100
         },
         {
-          "pos": {"tick": 100, "tid": 2000, "pid": 1337, "pc": "0x40105a"},
+          "pos": {"seq": 10, "tick": 100, "tid": 2000, "pid": 1337, "pc": "0x40105a"},
           "event": "thread_inject",
           "path": "C:\\Windows\\System32\\notepad.exe",
           "start_address": "0x10000000",
@@ -411,7 +416,7 @@ This example shows each field. It is not the output of one run, and the values d
           "tid": 4300
         },
         {
-          "pos": {"tick": 110, "tid": 2000, "pid": 1337, "pc": "0x401064"},
+          "pos": {"seq": 11, "tick": 110, "tid": 2000, "pid": 1337, "pc": "0x401064"},
           "event": "file_create",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x80",
@@ -419,7 +424,7 @@ This example shows each field. It is not the output of one run, and the values d
           "access_flags": ["GENERIC_WRITE"]
         },
         {
-          "pos": {"tick": 120, "tid": 2000, "pid": 1337, "pc": "0x40106e"},
+          "pos": {"seq": 12, "tick": 120, "tid": 2000, "pid": 1337, "pc": "0x40106e"},
           "event": "file_open",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x84",
@@ -428,7 +433,7 @@ This example shows each field. It is not the output of one run, and the values d
         },
         {
           // All reads of one path in a run, merged into one event.
-          "pos": {"tick": 130, "tid": 2000, "pid": 1337, "pc": "0x401078"},
+          "pos": {"seq": 13, "tick": 130, "tid": 2000, "pid": 1337, "pc": "0x401078"},
           "event": "file_read",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x84",
@@ -437,7 +442,7 @@ This example shows each field. It is not the output of one run, and the values d
           "buffer": "0x120000"
         },
         {
-          "pos": {"tick": 140, "tid": 2000, "pid": 1337, "pc": "0x401082"},
+          "pos": {"seq": 14, "tick": 140, "tid": 2000, "pid": 1337, "pc": "0x401082"},
           "event": "file_write",
           "path": "C:\\ProgramData\\drop.bin",
           "handle": "0x80",
@@ -446,29 +451,29 @@ This example shows each field. It is not the output of one run, and the values d
           "buffer": "0x130000"
         },
         {
-          "pos": {"tick": 142, "tid": 2000, "pid": 1337, "pc": "0x401084"},
+          "pos": {"seq": 15, "tick": 142, "tid": 2000, "pid": 1337, "pc": "0x401084"},
           "event": "file_delete",
           "path": "C:\\ProgramData\\drop.bin"
         },
         {
-          "pos": {"tick": 145, "tid": 2000, "pid": 1337, "pc": "0x401087"},
+          "pos": {"seq": 16, "tick": 145, "tid": 2000, "pid": 1337, "pc": "0x401087"},
           "event": "directory_create",
           "path": "C:\\ProgramData\\stage"
         },
         {
-          "pos": {"tick": 147, "tid": 2000, "pid": 1337, "pc": "0x401089"},
+          "pos": {"seq": 17, "tick": 147, "tid": 2000, "pid": 1337, "pc": "0x401089"},
           "event": "directory_delete",
           "path": "C:\\ProgramData\\stage"
         },
         {
-          "pos": {"tick": 150, "tid": 2000, "pid": 1337, "pc": "0x40108c"},
+          "pos": {"seq": 18, "tick": 150, "tid": 2000, "pid": 1337, "pc": "0x40108c"},
           "event": "reg_open_key",
           "path": "HKEY_LOCAL_MACHINE\\Software\\Microsoft",
           "handle": "0x88",
           "access_flags": ["KEY_READ"]
         },
         {
-          "pos": {"tick": 160, "tid": 2000, "pid": 1337, "pc": "0x401096"},
+          "pos": {"seq": 19, "tick": 160, "tid": 2000, "pid": 1337, "pc": "0x401096"},
           "event": "reg_create_key",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
@@ -476,7 +481,7 @@ This example shows each field. It is not the output of one run, and the values d
           "access_flags": ["KEY_WRITE"]
         },
         {
-          "pos": {"tick": 170, "tid": 2000, "pid": 1337, "pc": "0x4010a0"},
+          "pos": {"seq": 20, "tick": 170, "tid": 2000, "pid": 1337, "pc": "0x4010a0"},
           "event": "reg_read_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
@@ -486,7 +491,7 @@ This example shows each field. It is not the output of one run, and the values d
           "buffer": "0x140000"
         },
         {
-          "pos": {"tick": 175, "tid": 2000, "pid": 1337, "pc": "0x4010a5"},
+          "pos": {"seq": 21, "tick": 175, "tid": 2000, "pid": 1337, "pc": "0x4010a5"},
           "event": "reg_write_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x8c",
@@ -496,32 +501,32 @@ This example shows each field. It is not the output of one run, and the values d
           "buffer": "0x140000"
         },
         {
-          "pos": {"tick": 180, "tid": 2000, "pid": 1337, "pc": "0x4010aa"},
+          "pos": {"seq": 22, "tick": 180, "tid": 2000, "pid": 1337, "pc": "0x4010aa"},
           "event": "reg_list_subkeys",
           "path": "HKEY_CURRENT_USER\\Software",
           "handle": "0x8c"
         },
         {
-          "pos": {"tick": 182, "tid": 2000, "pid": 1337, "pc": "0x4010ac"},
+          "pos": {"seq": 23, "tick": 182, "tid": 2000, "pid": 1337, "pc": "0x4010ac"},
           "event": "reg_delete_value",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x184",
           "value_name": "Config"
         },
         {
-          "pos": {"tick": 185, "tid": 2000, "pid": 1337, "pc": "0x4010af"},
+          "pos": {"seq": 24, "tick": 185, "tid": 2000, "pid": 1337, "pc": "0x4010af"},
           "event": "reg_delete_key",
           "path": "HKEY_CURRENT_USER\\Software\\Lab",
           "handle": "0x184"
         },
         {
-          "pos": {"tick": 190, "tid": 2000, "pid": 1337, "pc": "0x4010b4"},
+          "pos": {"seq": 25, "tick": 190, "tid": 2000, "pid": 1337, "pc": "0x4010b4"},
           "event": "net_dns",
           "query": "example.org",
           "response": "93.184.216.34"
         },
         {
-          "pos": {"tick": 200, "tid": 2000, "pid": 1337, "pc": "0x4010be"},
+          "pos": {"seq": 26, "tick": 200, "tid": 2000, "pid": 1337, "pc": "0x4010be"},
           "event": "net_traffic",
           "server": "93.184.216.34",
           "port": 443,
@@ -531,7 +536,7 @@ This example shows each field. It is not the output of one run, and the values d
           "method": "winsock.send"
         },
         {
-          "pos": {"tick": 210, "tid": 2000, "pid": 1337, "pc": "0x4010c8"},
+          "pos": {"seq": 27, "tick": 210, "tid": 2000, "pid": 1337, "pc": "0x4010c8"},
           "event": "net_http",
           "server": "example.org",
           "port": 443,
@@ -539,7 +544,7 @@ This example shows each field. It is not the output of one run, and the values d
           "headers": "GET /stage HTTP/1.1\nHost: example.org\n"
         },
         {
-          "pos": {"tick": 220, "tid": 2000, "pid": 1337, "pc": "0x4010d2"},
+          "pos": {"seq": 28, "tick": 220, "tid": 2000, "pid": 1337, "pc": "0x4010d2"},
           "event": "exception",
           "instruction": "int 3",
           "exception_code": "0x80000003",
@@ -576,15 +581,16 @@ This example shows each field. It is not the output of one run, and the values d
           "tag": "api.VirtualAlloc",
           "contents": [
             {
-              // Position when code first ran in the region.
-              "pos": {"tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
+              // Position when code first ran in the region. seq puts the entry
+              // between the events of the run.
+              "pos": {"seq": 9, "tick": 95, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
               // Only with memory.dynamic_code_contents: the region contents at pos.
               "data_ref": "data-dyn-code"
             },
             {
               // Only with memory.dynamic_code_contents: the region when code
               // ran in it again after the region changed.
-              "pos": {"tick": 310, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
+              "pos": {"seq": 29, "tick": 310, "tid": 2000, "pid": 1337, "pc": "0x10000000"},
               "data_ref": "data-dyn-code-stage2"
             }
           ],
@@ -681,7 +687,7 @@ This is the report. The real `memory.layout` has 355 regions and `memory.modules
 
 ```json
 {
-  "report_version": "7.1.0",
+  "report_version": "7.2.0",
   "emulation_total_runtime": 0.001,
   "timestamp": 1794582170,
   "arch": "x86",

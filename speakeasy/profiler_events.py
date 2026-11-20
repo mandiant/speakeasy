@@ -58,8 +58,18 @@ class StackEntry(BaseModel):
 
 
 class TracePosition(BaseModel):
-    """Position of an event: the instruction count, the thread, the process and the pc."""
+    """Position of a record of a run: its number, the instruction count, the thread, the process and the pc."""
 
+    seq: int | None = Field(
+        default=None,
+        description=(
+            "Number of the record in the run. The profiler counts from 0 in each run and gives the next number to "
+            "each event and to each entry of ``dynamic_code[].contents`` when it records it. A number is unique in "
+            "a run, and a record with a lower ``seq`` is earlier, so ``seq`` gives the order of the events and of "
+            "the dynamic code contents of a run. The numbers have gaps: a repeat API call that the profiler "
+            "leaves out also takes a number. A report before 7.2.0 has no ``seq``."
+        ),
+    )
     tick: int | None = Field(
         default=None,
         description=(
@@ -77,7 +87,7 @@ class TracePosition(BaseModel):
             "For an event that the code of an API makes, such as a file, registry, memory, process, thread or "
             "network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. "
             "Such an event comes just before the ``api`` event of its call, with the same ``tick``. "
-            "An exception that the code of an API raises also has the ``pos`` of the ``api`` event of the call."
+            "An exception that the code of an API raises also has the ``pc`` of the ``api`` event of the call."
         ),
     )
 

@@ -127,5 +127,5 @@ def test_an_exception_that_an_api_raises_has_the_pos_of_the_api_call(config, loa
     assert len(faulted) == 1
     for exception, call in raised + faulted:
         assert call.pos.tick is not None
-        assert exception.pos == call.pos
+        assert exception.pos.model_dump(exclude={"seq"}) == call.pos.model_dump(exclude={"seq"})
         assert exception.instruction.startswith(("call", "jmp"))
