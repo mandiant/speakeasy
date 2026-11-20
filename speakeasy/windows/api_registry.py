@@ -70,6 +70,8 @@ class ApiRegistry:
         self.names: dict[int, dict[str, ApiEntry]] = {}
         self.ordinals: dict[int, dict[int, ApiEntry]] = {}
         self.dynamic_offsets: dict[int, int] = {}
+        # The block hook on each synthetic module that records the call site, by module.
+        self._entry_hooks: dict[int, common.BlockHook] = {}
         self.trap_base: int | None = None
         self._addresses: list[int] = []
         self._trap_count: int = 0
@@ -95,6 +97,9 @@ class ApiRegistry:
             if entry.trap is not None:
                 self.traps.pop(entry.trap, None)
         self._addresses = sorted(self.entries)
+        hook = self._entry_hooks.pop(id(module), None)
+        if hook is not None:
+            self.emu.remove_hook(hook)
         self.names.pop(id(module), None)
         self.ordinals.pop(id(module), None)
         self.dynamic_offsets.pop(id(module), None)
@@ -110,6 +115,10 @@ class ApiRegistry:
         by_name = self.names.setdefault(id(module), {})
         by_ordinal = self.ordinals.setdefault(id(module), {})
         synthetic = module._image.source == "synthetic"
+        if synthetic and self.emu.config.memory.accesses and id(module) not in self._entry_hooks:
+            self._entry_hooks[id(module)] = self.emu.add_block_hook(
+                cb=self.emu._hook_block_api_entry, begin=module.base, end=module.base + module.image_size - 1
+            )
         for export in module.get_exports():
             if not export.address:
                 continue

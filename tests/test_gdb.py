@@ -1213,9 +1213,8 @@ def test_gdb_many_breakpoints_keep_execution_fast(gdb_shellcode_emulator):
 
 
 # mov ecx, 0x100000; loop: nop x16; dec ecx; jnz loop; ret
-# The emulator calls a Python hook on each block. The loop body has 18
-# instructions, so that a breakpoint hook on each instruction makes the run
-# much slower than the block hook alone does.
+# The test config counts no instructions, so the loop runs without a Python hook.
+# A breakpoint hook on each instruction makes the run much slower.
 _LONG_LOOP = "b900001000" + "90" * 16 + "4975edc3"
 _LONG_LOOP_RET = 24
 
@@ -1242,7 +1241,8 @@ def test_gdb_breakpoint_keeps_code_outside_it_fast():
     elapsed, stop, offset = _time_continue(_LONG_LOOP, _LONG_LOOP_RET)
     assert stop.startswith("T05") and "swbreak:;" in stop
     assert offset == _LONG_LOOP_RET
-    assert elapsed < 3 * baseline, (elapsed, baseline)
+    # The loop takes a few milliseconds, so the bound also has a fixed part for the time of the stop reply.
+    assert elapsed < 3 * baseline + 0.5, (elapsed, baseline)
 
 
 @contextmanager
@@ -1428,6 +1428,25 @@ def test_gdb_step_into_an_api_that_uses_up_the_total_time(config):
             assert client.continue_() == "W00"
         (run,) = se.get_report().runs
         assert run.error is not None and run.error.type == "total_time_limit"
+
+
+def test_gdb_step_into_an_api_keeps_the_pc_of_the_api_event(config):
+    # A jmp goes to the API, so the pc comes from the instruction before the API entry, which needs memory.accesses.
+    config["memory"]["accesses"] = True
+    port = _find_free_port()
+    with Speakeasy(config=config, gdb_port=port) as se:
+        # mov eax, GetTickCount; push after; jmp eax; after: ret
+        address = se.load_shellcode(data=b"\xb8\0\0\0\0\x68\0\0\0\0\xff\xe0\xc3", arch="x86")
+        se.mem_write(address + 1, se.emu.get_proc("kernel32", "GetTickCount").to_bytes(4, "little"))
+        se.mem_write(address + 6, (address + 12).to_bytes(4, "little"))
+        with _serve(se, port, address) as client:
+            # mov, push, jmp, then the API stub: mov edi, edi; push ebp; mov ebp, esp; pop ebp; jmp trap
+            for _ in range(8):
+                assert client.step().startswith("T05")
+            assert client.read_x86_registers().eip == address + 12
+            client.kill()
+        (run,) = se.get_report().runs
+    assert [event.pos.pc for event in run.events if event.event == "api"] == [address + 10]
 
 
 HEADER_CODE_OFFSET = 0x300

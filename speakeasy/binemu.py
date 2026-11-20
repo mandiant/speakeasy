@@ -107,10 +107,14 @@ class _DynCodeWatches:
     hooked: dict[int, _DynCodeWatch] = field(default_factory=dict)
     # The regions that changed after their last snapshot.
     changed: dict[int, _DynCodeWatch] = field(default_factory=dict)
-    # The block before the current block, while a region is changed. Unlike the call site block of the Windows
-    # emulator, it stays when Unicorn starts again, so that a debugger step in a loop does not look like a jump
-    # from outside the loop. The block before an API return is the API stub.
+    # The block before the current block, while a region is changed. It stays when Unicorn starts again, so that
+    # a debugger step in a loop does not look like a jump from outside the loop. The block before an API return
+    # is the API stub.
     prev_block: int = 0
+    # The block hook that takes the snapshots. The emulator adds it when a region changes.
+    block_hook: common.BlockHook | None = None
+    # Unicorn keeps code that it translated before the emulator added block_hook. That code does not call the hook.
+    stale_translations: bool = False
 
 
 class BinaryEmulator(MemoryManager, ABC):
@@ -155,6 +159,11 @@ class BinaryEmulator(MemoryManager, ABC):
     @abstractmethod
     def start(self) -> None:
         """Run the runs in the queue."""
+        ...
+
+    @abstractmethod
+    def _end_run_on_hook_error(self, description: str, exception: Exception) -> bool:
+        """Log the current exception, save it as the error of the run, and end the emulation."""
         ...
 
     def __init__(self, config):
@@ -1023,12 +1032,68 @@ class BinaryEmulator(MemoryManager, ABC):
         if watch.hook is not None:
             self.remove_hook(watch.hook)
             watch.hook = None
-        del self._dyn_code_watches.hooked[watch.base]
-        if not self._dyn_code_watches.changed:
+        watches = self._dyn_code_watches
+        del watches.hooked[watch.base]
+        if not watches.changed:
             # The block hook records the block before only while a region is changed, so start at the code that
             # writes. For a write by an API handler, the pc is at the API.
-            self._dyn_code_watches.prev_block = self.get_pc()
-        self._dyn_code_watches.changed[watch.base] = watch
+            watches.prev_block = self.get_pc()
+            if watches.block_hook is None:
+                watches.block_hook = self.add_block_hook(cb=self._hook_block_dyn_code)
+                watches.stale_translations = True
+        watches.changed[watch.base] = watch
+
+    def _hook_block_dyn_code(self, emu, addr, size):
+        """Take a snapshot of a changed dynamic code region when control comes into it from outside."""
+        watches = self._dyn_code_watches
+        if not watches.changed:
+            return True
+        if watches.stale_translations:
+            # Unicorn translated this block after the emulator added the hook. Drop the translations of the other
+            # code, so that each block calls the hook.
+            executable = self.emu_eng.perms[common.PERM_MEM_EXEC]
+            for begin, last, perms in self.emu_eng.mem_regions():
+                if perms & executable:
+                    self.emu_eng.invalidate_translations(begin, min(addr, last + 1))
+                    self.emu_eng.invalidate_translations(max(addr + size, begin), last + 1)
+            watches.stale_translations = False
+        # A decoder loop in the region writes the region on each pass, but each of its blocks comes after a block
+        # in the region.
+        prev = watches.prev_block
+        for watch in watches.changed.values():
+            end = watch.base + watch.size
+            if watch.base <= addr < end and not watch.base <= prev < end:
+                try:
+                    self._snapshot_changed_dyn_code(watch, addr)
+                except Exception as e:
+                    return self._end_run_on_hook_error("Exception during block hook (dynamic code)", e)
+                break
+        watches.prev_block = addr
+        return True
+
+    def _prepare_dyn_code_block_hook(self) -> None:
+        """
+        Make the block hook of the dynamic code watches ready for a start of Unicorn.
+
+        Remove the hook when no region is changed. Unicorn drops the translation of the block that runs when a
+        hook is removed, so the hook does not remove itself. If the hook did not run after the emulator added it,
+        drop all translations, so that each block calls the hook.
+        """
+        watches = self._dyn_code_watches
+        if watches.block_hook is None:
+            return
+        if not watches.changed:
+            self.remove_hook(watches.block_hook)
+            watches.block_hook = None
+        elif watches.stale_translations:
+            self.emu_eng.flush_translations()
+        watches.stale_translations = False
+
+    def _record_dyn_code_api_entry(self, addr: int) -> None:
+        """Record the API at ``addr`` as the block before, if its code did not call the block hook."""
+        watches = self._dyn_code_watches
+        if watches.stale_translations:
+            watches.prev_block = addr
 
     def _snapshot_changed_dyn_code(self, watch: _DynCodeWatch, addr: int) -> None:
         """Take a snapshot of a changed region where a block at ``addr`` runs, and watch the region again."""
@@ -1051,6 +1116,8 @@ class BinaryEmulator(MemoryManager, ABC):
         for watch in self._dyn_code_watches.hooked.values():
             if watch.hook is not None:
                 self.remove_hook(watch.hook)
+        if self._dyn_code_watches.block_hook is not None:
+            self.remove_hook(self._dyn_code_watches.block_hook)
         self._dyn_code_watches = _DynCodeWatches()
 
     def _set_dyn_code_hook(self, addr, size):

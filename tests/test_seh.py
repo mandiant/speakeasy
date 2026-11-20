@@ -105,10 +105,12 @@ def test_seh_cases(config, load_test_bin, run_test, arch):
     ] + ([(0xC0000005, 0x0)] if arch == "x86" else [])
 
 
+@pytest.mark.parametrize("accesses", [False, True])
 @pytest.mark.parametrize("arch", ["x64", "x86"])
-def test_an_exception_that_an_api_raises_has_the_pos_of_the_api_call(config, load_test_bin, run_test, arch):
+def test_an_exception_that_an_api_raises_has_the_pos_of_the_api_call(config, load_test_bin, run_test, arch, accesses):
     cfg = copy.deepcopy(config)
     cfg["limits"]["instructions"] = 10_000_000
+    cfg["memory"]["accesses"] = accesses
     report = run_test(cfg, load_test_bin(f"seh_cases_{arch}.exe.xz"))
 
     events = report.runs[0].events
@@ -128,4 +130,8 @@ def test_an_exception_that_an_api_raises_has_the_pos_of_the_api_call(config, loa
     for exception, call in raised + faulted:
         assert call.pos.tick is not None
         assert exception.pos.model_dump(exclude={"seq"}) == call.pos.model_dump(exclude={"seq"})
-        assert exception.instruction.startswith(("call", "jmp"))
+    instructions = [exception.instruction for exception, _ in raised + faulted]
+    # raise_uncaught of the x64 build ends with a jmp to RaiseException. Without memory.accesses, the emulator
+    # finds no call site for a jmp at the end of a function.
+    assert instructions.count(None) == (1 if arch == "x64" and not accesses else 0)
+    assert all(instruction.startswith(("call", "jmp")) for instruction in instructions if instruction is not None)

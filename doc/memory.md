@@ -20,7 +20,7 @@ An unpacker can run code in a buffer and then overwrite the buffer with the next
 
 ## Memory access counts
 
-By default, `memory.accesses` counts the reads, writes and executes of each region and of each symbol address, in `runs[].accesses`. It also counts the instructions for `instruction_count` and `pos.tick`. The counts make the run slower, mostly for samples that access much memory. `--no-memory-accesses` turns them off.
+By default, `memory.accesses` counts the reads, writes and executes of each region and of each symbol address, in `runs[].accesses`. It also counts the instructions for `instruction_count` and `pos.tick`, and gives the `pc` of an API call when the guest did not go to the API through a `call` instruction. The counts make the run slower, mostly for samples that access much memory. `--no-memory-accesses` turns them off.
 
 ## Related docs
 

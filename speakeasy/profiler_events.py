@@ -83,7 +83,9 @@ class TracePosition(BaseModel):
         default=None,
         description=(
             "Address of the instruction that did the operation. For an API event, the address of the instruction "
-            "that goes to the API, such as a ``call``, or the ``jmp`` of an import thunk. "
+            "that goes to the API, such as a ``call``, or the ``jmp`` of an import thunk. Absent when the emulator "
+            "does not find this instruction, for example without ``memory.accesses`` when a ``jmp`` at the end of a "
+            "function or a ``ret`` went to the API. "
             "For an event that the code of an API makes, such as a file, registry, memory, process, thread or "
             "network event, also the address of the call: the same ``pc`` as the ``api`` event of the call. "
             "Such an event comes just before the ``api`` event of its call, with the same ``tick``. "

@@ -465,7 +465,7 @@ Each feature option is a boolean, and each one is on by default. Some options ad
 
 | Option | Flag to turn it off | Effect | What it does |
 |---|---|---|---|
-| `memory.accesses` | `--no-memory-accesses` | Report data | Fills `accesses`. Hooks each instruction and each memory access, so it is the slowest option. |
+| `memory.accesses` | `--no-memory-accesses` | Report data | Fills `accesses`, and the `pc` of an API call when the guest did not go to the API through a `call` instruction. Hooks each instruction and each memory access, so it is the slowest option. |
 | `memory.strings` | `--no-memory-strings` | Report data | Fills the top-level `strings`. |
 | `memory.final_contents` | `--no-memory-final-contents` | Report data | Fills `memory.layout[].data_ref` of the regions of guest memory at the end of each run. User mode only. |
 | `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` | Report data | Fills `dynamic_code[].contents[].data_ref` and `dynamic_code[].limit_reached`. |
