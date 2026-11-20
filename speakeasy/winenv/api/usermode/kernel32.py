@@ -4926,6 +4926,19 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         return hnd
 
+    def _create_waitable_timer(self, emu, timer_name, manual_reset):
+        """
+        Create a waitable timer in the non-signaled state.
+
+        Event defaults to signaled=True (CreateEvent without an initial state). Waitable
+        timers start non-signaled until SetWaitableTimer arms them.
+        """
+        hnd, evt = emu.create_event(timer_name)
+        evt.signaled = False
+        evt.manual_reset = bool(manual_reset)
+        emu.set_last_error(windefs.ERROR_SUCCESS)
+        return hnd
+
     @apihook("CreateWaitableTimer", argc=3)
     def CreateWaitableTimer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -4949,8 +4962,35 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             hnd = emu.get_object_handle(obj)
             emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
         else:
-            hnd, _evt = emu.create_event(timer_name)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
+            hnd = self._create_waitable_timer(emu, timer_name, bManualReset)
+
+        return hnd
+
+    def _create_waitable_timer_ex(self, emu, argv, ctx, char_width: int):
+        """
+        Shared CreateWaitableTimerEx(A/W) body.
+
+        ``char_width`` is 1 (ANSI) or 2 (UTF-16LE). Callers pass it explicitly so A/W
+        hooks never share a string decoder by accident.
+        argv: [0]=lpTimerAttributes, [1]=lpTimerName, [2]=dwFlags, [3]=dwDesiredAccess
+        """
+        lpTimerAttributes, lpTimerName, dwFlags, dwDesiredAccess = argv
+
+        timer_name = None
+        obj = None
+        if lpTimerName:
+            timer_name = self.read_mem_string(lpTimerName, char_width)
+            ctx.args["lpTimerName"].display = timer_name
+            obj = self.get_object_from_name(timer_name)
+
+        # CREATE_WAITABLE_TIMER_MANUAL_RESET — must use dwFlags (argv[2]), not DesiredAccess
+        manual_reset = bool(dwFlags & 0x1)
+
+        if obj:
+            hnd = emu.get_object_handle(obj)
+            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
+        else:
+            hnd = self._create_waitable_timer(emu, timer_name, manual_reset)
 
         return hnd
 
@@ -4964,24 +5004,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwDesiredAccess
         );
         """
-        lpTimerAttributes, lpTimerName, dwFlags, dwDesiredAccess = argv
-
-        cw = self.get_char_width(ctx)
-        timer_name = None
-        obj = None
-        if lpTimerName:
-            timer_name = self.read_mem_string(lpTimerName, cw)
-            ctx.args["lpTimerName"].display = timer_name
-            obj = self.get_object_from_name(timer_name)
-
-        if obj:
-            hnd = emu.get_object_handle(obj)
-            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
-        else:
-            hnd, _evt = emu.create_event(timer_name)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-
-        return hnd
+        return self._create_waitable_timer_ex(emu, argv, ctx, self.get_char_width(ctx))
 
     @apihook("OpenWaitableTimer", argc=3)
     def OpenWaitableTimer(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -5029,6 +5052,25 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         if not obj:
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return False
+        # NULL pointer (not QuadPart==0). QuadPart 0 means signal immediately.
+        if not lpDueTime:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
+
+        # Relative due (QuadPart < 0) is treated as immediate; no timer scheduling yet.
+        # QuadPart == 0 also means signal immediately (MSDN). Absolute (positive) due
+        # times are left non-signaled until a scheduler exists. Periodic lPeriod > 0 and
+        # completion routines / APC are out of scope (Part of #576).
+        # lPeriod < 0 is invalid on Windows (ERROR_INVALID_PARAMETER); ignored here.
+        # TODO: bad lpDueTime pointer should map to ERROR_NOACCESS instead of raising.
+        try:
+            due = struct.unpack("<q", self.mem_read(lpDueTime, 8))[0]
+        except Exception:
+            emu.set_last_error(windefs.ERROR_NOACCESS)
+            return False
+        if due <= 0:
+            # wait_for_events polls evt.signaled (no Event.signal() notify path).
+            obj.signaled = True
 
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
@@ -5047,6 +5089,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return False
 
+        obj.signaled = False
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return True
 
@@ -8097,23 +8140,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             DWORD dwDesiredAccess
         );
         """
-        lpTimerAttributes, lpTimerName, dwFlags, dwDesiredAccess = argv
-
-        timer_name = None
-        obj = None
-        if lpTimerName:
-            timer_name = self.read_mem_string(lpTimerName, 2)
-            ctx.args["lpTimerName"].display = timer_name
-            obj = self.get_object_from_name(timer_name)
-
-        if obj:
-            hnd = emu.get_object_handle(obj)
-            emu.set_last_error(windefs.ERROR_ALREADY_EXISTS)
-        else:
-            hnd, _evt = emu.create_event(timer_name)
-            emu.set_last_error(windefs.ERROR_SUCCESS)
-
-        return hnd
+        # Explicit UTF-16 width — do not delegate to the A/TCHAR path for name decode.
+        return self._create_waitable_timer_ex(emu, argv, ctx, 2)
 
     @apihook("GetProcessAffinityMask", argc=3)
     def GetProcessAffinityMask(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
