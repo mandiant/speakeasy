@@ -1303,12 +1303,97 @@ class User32(api.ApiHandler):
         );
         """
         lpEnumFunc, lParam = argv
-        desktop = self.sessman.get_current_desktop().desktop_window.get_handle()
-        hwnds = [hnd for hnd, w in self.sessman.windows.items() if isinstance(hnd, int) and w.parent in (0, desktop)]
-        for hnd in hwnds:
-            if not (yield GuestCall(lpEnumFunc, (hnd, lParam))) & 0xFFFFFFFF:
+        for window in self._get_child_windows(self._get_desktop_window()):
+            if not (yield GuestCall(lpEnumFunc, (window.handle, lParam))) & 0xFFFFFFFF:
                 return 0
         return 1
+
+    def _get_desktop_window(self) -> sessman.Window:
+        desktop: sessman.Window = self.sessman.get_current_desktop().desktop_window
+        return desktop
+
+    def _get_parent_window(self, window: sessman.Window) -> sessman.Window | None:
+        """
+        Get the parent of a window, else None.
+
+        CreateWindowEx keeps hWndParent as the parent of a WS_CHILD window and as the owner of other windows. The
+        desktop window has no parent. A window whose hWndParent is not a window, such as a message-only window with
+        HWND_MESSAGE, gets None, so it is not a top-level window.
+        """
+        desktop = self._get_desktop_window()
+        if window is desktop:
+            return None
+        if not window.parent:
+            return desktop
+        parent = self.sessman.get_window(window.parent)
+        if window.style & WS_CHILD or not parent:
+            return parent
+        return desktop
+
+    def _get_child_windows(self, parent: sessman.Window) -> list[sessman.Window]:
+        """
+        Get the children of a window in the order of their creation, because Speakeasy keeps no z-order.
+        """
+        return [
+            w
+            for hnd, w in self.sessman.windows.items()
+            if isinstance(hnd, int) and self._get_parent_window(w) is parent
+        ]
+
+    def _get_related_window(self, emu: "Win32Emulator", hWnd: int, uCmd: int) -> int:
+        window = self.sessman.get_window(hWnd)
+        if not window:
+            emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
+            return 0
+        if uCmd == u32defs.GW_CHILD:
+            children = self._get_child_windows(window)
+            return children[0].handle if children else 0
+        if uCmd == u32defs.GW_OWNER:
+            owner = None if window.style & WS_CHILD else self.sessman.get_window(window.parent)
+            return owner.handle if owner and owner is not self._get_desktop_window() else 0
+        if uCmd == u32defs.GW_ENABLEDPOPUP:
+            return window.handle
+        if uCmd not in (u32defs.GW_HWNDFIRST, u32defs.GW_HWNDLAST, u32defs.GW_HWNDNEXT, u32defs.GW_HWNDPREV):
+            emu.set_last_error(windefs.ERROR_INVALID_GW_COMMAND)
+            return 0
+        parent = self._get_parent_window(window)
+        siblings = self._get_child_windows(parent) if parent else []
+        if window not in siblings:
+            return 0
+        if uCmd == u32defs.GW_HWNDFIRST:
+            return siblings[0].handle
+        if uCmd == u32defs.GW_HWNDLAST:
+            return siblings[-1].handle
+        index = siblings.index(window) + (1 if uCmd == u32defs.GW_HWNDNEXT else -1)
+        return siblings[index].handle if 0 <= index < len(siblings) else 0
+
+    @apihook("GetWindow", argc=2)
+    def GetWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HWND GetWindow(
+            HWND hWnd,
+            UINT uCmd
+        );
+
+        The windows that have the same parent are in the order of their creation, as in EnumWindows, because
+        Speakeasy keeps no z-order. GW_ENABLEDPOPUP gives hWnd, as for a window that has no enabled popup.
+        """
+        hWnd, uCmd = argv
+        return self._get_related_window(emu, hWnd, uCmd)
+
+    @apihook("GetTopWindow", argc=1)
+    def GetTopWindow(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        HWND GetTopWindow(
+            HWND hWnd
+        );
+
+        NULL hWnd gives the first window of EnumWindows.
+        """
+        (hWnd,) = argv
+        if not hWnd:
+            hWnd = self._get_desktop_window().handle
+        return self._get_related_window(emu, hWnd, u32defs.GW_CHILD)
 
     @apihook("GetSysColor", argc=1)
     def GetSysColor(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
