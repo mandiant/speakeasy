@@ -1927,6 +1927,67 @@ class Ntoskrnl(api.ApiHandler):
         except pefile.PEFormatError:
             return 0
 
+    def _get_nt_headers(self, emu: "WindowsEmulator", base: int) -> int:
+        """
+        Get the address of the NT headers of the image at ``base``.
+
+        Return 0 if ``base`` is not mapped, or if the memory at ``base`` has no MZ or PE signature.
+        """
+        mm = emu.get_address_map(base)
+        if not mm or base + 0x40 > mm.base + mm.size or self.mem_read(base, 2) != b"MZ":
+            return 0
+        nt = base + self.read_dword(base + 0x3C)
+        if nt + 4 > mm.base + mm.size or self.mem_read(nt, 4) != b"PE\0\0":
+            return 0
+        return nt
+
+    @apihook("RtlImageNtHeader", argc=1)
+    def RtlImageNtHeader(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        PIMAGE_NT_HEADERS RtlImageNtHeader(
+            PVOID BaseOfImage
+        );
+        """
+        (BaseOfImage,) = argv
+        return self._get_nt_headers(emu, BaseOfImage)
+
+    @apihook("RtlImageNtHeaderEx", argc=5)
+    def RtlImageNtHeaderEx(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS RtlImageNtHeaderEx(
+            ULONG Flags,
+            PVOID BaseOfImage,
+            ULONG64 Size,
+            PIMAGE_NT_HEADERS *OutHeaders
+        );
+
+        Size is a ULONG64 passed by value: two stack slots on x86, one
+        register on x64. argc=5 covers the x86 layout; on x64 the fifth slot
+        is unused.
+        """
+        if emu.get_ptr_size() == 4:
+            Flags, BaseOfImage, lo, hi, OutHeaders = argv
+            Size = (hi << 32) | lo
+        else:
+            Flags, BaseOfImage, Size, OutHeaders = argv[:4]
+
+        if not OutHeaders:
+            return ddk.STATUS_INVALID_PARAMETER
+        self.write_ptr(OutHeaders, 0)
+        if Flags & ~ddk.RTL_IMAGE_NT_HEADER_EX_FLAG_NO_RANGE_CHECK or not BaseOfImage:
+            return ddk.STATUS_INVALID_PARAMETER
+
+        nt = self._get_nt_headers(emu, BaseOfImage)
+        if not nt:
+            return ddk.STATUS_INVALID_IMAGE_FORMAT
+        # Size must hold the DOS header and must go past the end of the IMAGE_FILE_HEADER
+        if not Flags & ddk.RTL_IMAGE_NT_HEADER_EX_FLAG_NO_RANGE_CHECK and (
+            Size < 0x40 or nt - BaseOfImage + 0x18 >= Size
+        ):
+            return ddk.STATUS_INVALID_IMAGE_FORMAT
+        self.write_ptr(OutHeaders, nt)
+        return ddk.STATUS_SUCCESS
+
     @apihook("ZwOpenEvent", argc=3)
     def ZwOpenEvent(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """

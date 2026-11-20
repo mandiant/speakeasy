@@ -1,4 +1,4 @@
-"""ntoskrnl spinlock, pool allocation and current-pid APIs."""
+"""ntoskrnl spinlock, pool allocation, current-pid and image header APIs."""
 
 from collections.abc import Iterator
 from typing import Any
@@ -71,3 +71,26 @@ def test_rtl_image_directory_entry_to_data_finds_the_import_directory(any_driver
     offset = imports.VirtualAddress if mapped & 0xFF else pe.get_offset_from_rva(imports.VirtualAddress)
     assert rv == module.base + offset
     assert int.from_bytes(se.mem_read(size, 4), "little") == imports.Size
+
+
+@pytest.mark.parametrize(
+    ("flags", "size", "status"),
+    [
+        (0, 0x1000, ddk.STATUS_SUCCESS),
+        (0, 0x40, ddk.STATUS_INVALID_IMAGE_FORMAT),
+        (ddk.RTL_IMAGE_NT_HEADER_EX_FLAG_NO_RANGE_CHECK, 0, ddk.STATUS_SUCCESS),
+    ],
+    ids=["in-range", "out-of-range", "no-range-check"],
+)
+def test_rtl_image_nt_header_ex_checks_the_size(any_driver_emu: Speakeasy, flags: int, size: int, status: int) -> None:
+    se = any_driver_emu
+    module = get_kernel_emu(se).modules[0]
+    out = alloc(se, b"\xcc" * se.get_ptr_size())
+    # The x86 ULONG64 Size takes two stack slots
+    argv = [flags, module.base, size, 0, out] if se.get_ptr_size() == 4 else [flags, module.base, size, out, 0]
+
+    rv, _ = call(se, "ntoskrnl", "RtlImageNtHeaderEx", argv)
+
+    nt = module.base + pefile.PE(data=se.mem_read(module.base, 0x1000), fast_load=True).DOS_HEADER.e_lfanew
+    assert rv == status
+    assert int.from_bytes(se.mem_read(out, se.get_ptr_size()), "little") == (nt if status == ddk.STATUS_SUCCESS else 0)

@@ -226,6 +226,23 @@ def test_appmodel_api_set_iat_call_runs_from_the_kernel32_prototype():
     assert policy == b"\0" * 4
 
 
+def test_rtl_image_nt_header_finds_the_nt_headers_of_the_image():
+    # mov rcx, gs:[0x60]; mov rcx, [rcx+0x10]: PEB->ImageBaseAddress
+    prefix = b"\x65\x48\x8b\x0c\x25\x60\x00\x00\x00\x48\x8b\x49\x10"
+    # mov eax, [rax+0x28]: OptionalHeader.AddressOfEntryPoint
+    suffix = b"\x8b\x40\x28"
+    imports = {"ntdll.dll": ["RtlImageNtHeader"]}
+    data, _ = build_pe(
+        64, text=calls(64, [("ntdll.dll", "RtlImageNtHeader")], prefix=prefix, suffix=suffix), imports=imports
+    )
+    pe = pefile.PE(data=data, fast_load=True)
+    with Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        entry = se.get_report().runs[0]
+    assert entry.error is None
+    assert entry.return_value == pe.OPTIONAL_HEADER.AddressOfEntryPoint
+
+
 def test_unsupported_api_error_names_the_api_and_its_caller(caplog, load_test_bin):
     unknown = "SpeakeasyNoSuchExport"
     with Speakeasy(config=configured(**{"apis.stubs": False})) as se:
