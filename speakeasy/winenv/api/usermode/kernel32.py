@@ -5658,15 +5658,22 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             HANDLE hProcess,
             PBOOL pbDebuggerPresent
         );
+
+        Windows checks both arguments for NULL before it queries the process, so a NULL handle gives
+        ERROR_INVALID_PARAMETER and not ERROR_INVALID_HANDLE.
         """
         hProcess, pbDebuggerPresent = argv
-        rv = False
 
-        if pbDebuggerPresent:
-            self.write_dword(pbDebuggerPresent, 0)
-            rv = True
+        if not hProcess or not pbDebuggerPresent:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return False
 
-        return rv
+        if not emu.get_handle_table().get(hProcess, objman.Process):
+            emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
+            return False
+
+        self.write_dword(pbDebuggerPresent, 0)
+        return True
 
     @apihook("GetComputerName", argc=2)
     def GetComputerName(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

@@ -1513,6 +1513,16 @@ def test_get_process_times_gives_a_creation_time_before_now(emu: Speakeasy) -> N
     assert kernel < 0xCCCCCCCCCCCCCCCC and user < 0xCCCCCCCCCCCCCCCC
 
 
+def test_check_remote_debugger_present_fails_null_and_accepts_the_current_process(emu: Speakeasy) -> None:
+    present = alloc(emu, b"\xcc" * 4)
+    assert call(emu, "kernel32", "CheckRemoteDebuggerPresent", [0, present])[0] == 0
+    assert last_error(emu) == windefs.ERROR_INVALID_PARAMETER
+    assert emu.mem_read(present, 4) == b"\xcc" * 4
+
+    assert call(emu, "kernel32", "CheckRemoteDebuggerPresent", [0xFFFFFFFF, present])[0] == 1
+    assert emu.mem_read(present, 4) == b"\x00" * 4
+
+
 @pytest.mark.parametrize("name, width", [("IsBadStringPtrA", 1), ("IsBadStringPtrW", 2)])
 def test_is_bad_string_ptr_reads_up_to_the_nul(emu: Speakeasy, name: str, width: int) -> None:
     enc = "utf-8" if width == 1 else "utf-16le"

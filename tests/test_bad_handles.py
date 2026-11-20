@@ -56,6 +56,7 @@ USER_ROWS = [
     row("kernel32", "ReadProcessMemory", [BAD, 0, 0, 0, 0], 0, ERROR_INVALID_HANDLE),
     row("kernel32", "CreateRemoteThread", [BAD, 0, 0, 0, 0, 0, 0], 0, ERROR_INVALID_HANDLE),
     row("kernel32", "GetProcessId", [BAD], 0, ERROR_INVALID_HANDLE),
+    row("kernel32", "CheckRemoteDebuggerPresent", [BAD, buf], 0, ERROR_INVALID_HANDLE),
     row("kernel32", "VirtualQueryEx", [BAD, 0, buf, 0x1C], 0, ERROR_INVALID_HANDLE),
     row("kernel32", "VirtualProtectEx", [BAD, 0, 0x1000, 4, buf], 0, ERROR_INVALID_HANDLE),
     row("kernel32", "GetModuleFileNameExA", [BAD, 0, buf, 0x100], 0, ERROR_INVALID_HANDLE),
