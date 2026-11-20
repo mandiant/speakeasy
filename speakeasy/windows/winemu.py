@@ -1189,8 +1189,9 @@ class WindowsEmulator(BinaryEmulator):
         if limits.budget > 0:
             hook = self._add_accounting_hook(limits, origin_run, debugger)
         elif self.counts_instructions() and not self.config.memory.accesses:
-            # The report positions need the instruction count, and no other hook counts.
-            hook = self._add_counting_hook(debugger)
+            # Only a ``resume`` with no count gets here. ``limits.instructions`` is above 0, so the report has the
+            # instruction count, and no other hook counts.
+            hook = self._add_counting_hook()
         else:
             hook = None
         stepping = debugger is not None and count == 1
@@ -1323,7 +1324,7 @@ class WindowsEmulator(BinaryEmulator):
 
         return self.add_code_hook(account_instruction)
 
-    def _add_counting_hook(self, debugger: GdbServer | None):
+    def _add_counting_hook(self):
         """
         Add a code hook that counts each instruction of the current run.
 
@@ -1332,8 +1333,6 @@ class WindowsEmulator(BinaryEmulator):
         """
 
         def count_instruction(_emu, _address, _size):
-            if debugger is not None and debugger.has_pending_stop():
-                return
             run = self.curr_run
             if run is not None:
                 run.instr_cnt += 1

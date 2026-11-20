@@ -179,10 +179,9 @@ class BinaryEmulator(MemoryManager, ABC):
         """
         Get whether a hook counts the instructions of each run, for ``instruction_count`` and ``pos.tick``.
 
-        ``memory.accesses``, ``memory.dynamic_code_contents`` and an instruction limit each add such a hook.
+        ``memory.accesses`` and an instruction limit each add such a hook.
         """
-        memory = self.config.memory
-        return memory.accesses or memory.dynamic_code_contents.enabled or self.config.limits.instructions > 0
+        return self.config.memory.accesses or self.config.limits.instructions > 0
 
     def get_tick(self, run: Run | None) -> int | None:
         """Get the instruction count of ``run`` for a report position, or None if no hook counts instructions."""

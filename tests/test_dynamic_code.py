@@ -2,7 +2,6 @@ import struct
 import zlib
 from base64 import b64decode
 from collections.abc import Callable
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -51,8 +50,6 @@ def _run(
 
 
 def test_dynamic_code_region_has_position_of_first_run(config):
-    # Without snapshots, the run counts ticks only with an instruction budget or memory tracing.
-    config["limits"]["instructions"] = 1000
     report, _ = _run(config, snapshot=False)
 
     entry = report.runs[0]
@@ -61,7 +58,7 @@ def test_dynamic_code_region_has_position_of_first_run(config):
     [contents] = region.contents
     assert region.tag == "api.VirtualAlloc"
     assert contents.pos.pc == region.region
-    assert contents.pos.tick > virtual_alloc.pos.tick
+    assert contents.pos.seq > virtual_alloc.pos.seq
     assert (contents.pos.pid, contents.pos.tid) == (virtual_alloc.pos.pid, virtual_alloc.pos.tid)
     assert contents.data_ref is None
     assert region.limit_reached is None
@@ -138,24 +135,61 @@ def test_region_that_changes_between_calls_has_a_snapshot_of_each_stage(config):
     report, _ = _run(config, snapshot=True, get_code=lambda se: _get_stage_loop_code(se, passes=2))
 
     [region] = report.runs[0].dynamic_code
-    first, later = region.contents
+    _, later = region.contents
     assert _get_snapshots(report) == [b"\xc3\x02" + bytes(0xFFE), b"\xc3\x01" + bytes(0xFFE)]
     assert later.pos.pc == region.region
-    assert later.pos.tick > first.pos.tick
     assert region.limit_reached is False
 
 
-def test_snapshot_positions_have_the_ticks_of_a_run_with_an_instruction_limit(config):
-    def get_positions(report: Report) -> list:
-        entry = report.runs[0]
-        return [contents.pos for contents in entry.dynamic_code[0].contents] + [event.pos for event in entry.events]
+def _get_api_calls_around_stages_code(se: Speakeasy) -> bytes:
+    # mov esi, eax ; mov byte [esi], 0xc3 ; call esi ; <call GetTickCount>
+    first = b"\x89\xc6\xc6\x06\xc3\xff\xd6" + _call(se, "GetTickCount")
+    # mov byte [esi+1], 1 ; call esi ; <call GetCurrentProcessId> ; ret
+    second = b"\xc6\x46\x01\x01\xff\xd6" + _call(se, "GetCurrentProcessId") + b"\xc3"
+    return _get_virtual_alloc_call(se) + first + second
 
-    get_code = partial(_get_stage_loop_code, passes=3)
-    counted, _ = _run(config | {"limits": {"instructions": 1_000_000}}, snapshot=True, get_code=get_code)
-    report, _ = _run(config, snapshot=True, get_code=get_code)
 
-    assert get_positions(report) == get_positions(counted)
-    assert report.runs[0].dynamic_code[0].contents[-1].pos.tick > 0
+def _get_repeat_api_call_around_stages_code(se: Speakeasy) -> bytes:
+    # Each pass calls GetCurrentProcessId from one call site, then writes and calls the region.
+    # mov esi, eax ; mov ebx, 2
+    # loop: <call GetCurrentProcessId> ; mov byte [esi], 0xc3 ; mov byte [esi+1], bl ; call esi ; dec ebx ; jnz loop
+    # ret
+    loop = _call(se, "GetCurrentProcessId") + b"\xc6\x06\xc3\x88\x5e\x01\xff\xd6\x4b"
+    jnz = b"\x75" + bytes([(-(len(loop) + 2)) & 0xFF])
+    return _get_virtual_alloc_call(se) + b"\x89\xc6\xbb\x02\x00\x00\x00" + loop + jnz + b"\xc3"
+
+
+def _get_api_calls_and_snapshots_in_seq_order(report: Report) -> list[str]:
+    run = report.runs[0]
+    [region] = run.dynamic_code
+    records = [(e.pos, e.api_name) for e in run.events if isinstance(e, ApiEvent)]
+    records += [(contents.pos, "snapshot") for contents in region.contents]
+    return [name for _, name in sorted(records, key=lambda record: record[0].seq)]
+
+
+def test_seq_orders_the_snapshots_and_the_api_events_of_a_run_that_counts_no_instructions(config):
+    report, _ = _run(config, snapshot=True, get_code=_get_api_calls_around_stages_code)
+
+    assert report.runs[0].instruction_count is None
+    assert _get_api_calls_and_snapshots_in_seq_order(report) == [
+        "kernel32.VirtualAlloc",
+        "snapshot",
+        "kernel32.GetTickCount",
+        "snapshot",
+        "kernel32.GetCurrentProcessId",
+    ]
+
+
+def test_repeat_api_call_after_a_snapshot_gets_its_own_event(config):
+    report, _ = _run(config, snapshot=True, get_code=_get_repeat_api_call_around_stages_code)
+
+    assert _get_api_calls_and_snapshots_in_seq_order(report) == [
+        "kernel32.VirtualAlloc",
+        "kernel32.GetCurrentProcessId",
+        "snapshot",
+        "kernel32.GetCurrentProcessId",
+        "snapshot",
+    ]
 
 
 def test_decoder_loop_in_the_region_gives_one_snapshot_for_each_call(config):

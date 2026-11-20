@@ -159,6 +159,6 @@ def test_exception_event_has_the_pos_of_the_api_call(session):
     exception, call = (e for e in run.events if e.event in ("exception", "api"))
     assert exception.event == "exception"
     assert call.api_name == "kernel32.RaiseException"
-    assert exception.pos == call.pos
+    assert exception.pos.model_dump(exclude={"seq"}) == call.pos.model_dump(exclude={"seq"})
     assert exception.pos.pc == call_site
     assert exception.instruction == "call eax"

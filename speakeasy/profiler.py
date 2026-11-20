@@ -178,6 +178,11 @@ class Run:
         self.guest_initialization: InitRoutine | None = None
         self.return_value: int | None = None
         self.events: list[AnyEvent] = []
+        # The number that the next event or dynamic code contents record gets as ``pos.seq``.
+        self.next_seq: int = 0
+        # The index in ``events`` of the first event after the last dynamic code contents record. A repeat API call
+        # does not merge into an event before it.
+        self.api_merge_start: int = 0
         self.sym_access: dict[int, MemAccess] = {}
         # The files that the guest dropped, up to the end of the run. None in kernel mode.
         self.dropped_files: list[dict[str, Any]] | None = None
@@ -209,6 +214,22 @@ class Run:
     def get_api_count(self):
         """Get the number of APIs that the run called."""
         return self.num_apis
+
+    def assign_seq(self, pos: TracePosition) -> TracePosition:
+        """Get a copy of ``pos`` with the next record number of the run as ``seq``."""
+        assigned = pos.model_copy(update={"seq": self.next_seq})
+        self.next_seq += 1
+        return assigned
+
+    def add_event(self, event: AnyEvent) -> None:
+        """Give ``event`` the next record number of the run and add it to the events."""
+        event.pos = self.assign_seq(event.pos)
+        self.events.append(event)
+
+    def add_dynamic_code_contents(self, region: DynamicCode, pos: TracePosition, data_ref: str | None) -> None:
+        """Add a contents record with the next record number of the run to ``region``."""
+        region.contents.append(DynamicCodeContents(pos=self.assign_seq(pos), data_ref=data_ref))
+        self.api_merge_start = len(self.events)
 
     def get_label(self) -> str:
         """Get the type and the name of the run for log messages, for example ``export DllRegisterServer``."""
@@ -330,7 +351,12 @@ class Profiler:
         pc, and the return address keeps the calls of different callers apart. The shown argument
         values are compared, not the raw values, so a loop that passes the same string from a
         different buffer gives one event.
+
+        Each call takes a record number, also a call that the profiler does not add. The profiler
+        compares only the events after the last dynamic code contents record of the run, so all
+        calls of one event are on the same side of each contents record.
         """
+        pos = run.assign_seq(pos)
         run.num_apis += 1
         run.api_loop.record((name, return_address), pos)
 
@@ -338,7 +364,8 @@ class Profiler:
 
         if deduplicate:
             shown = [(a.name, a.type, a.display) for a in args]
-            recent_events = [e for e in run.events[-3:] if isinstance(e, ApiEvent)]
+            first = max(len(run.events) - 3, run.api_merge_start)
+            recent_events = [e for e in run.events[first:] if isinstance(e, ApiEvent)]
             for e in reversed(recent_events):
                 if (
                     e.pos.pc == event.pos.pc
@@ -437,7 +464,7 @@ class Profiler:
         else:
             raise ValueError(f"not a file event type: {event_type}")
 
-        run.events.append(event)
+        run.add_event(event)
 
     def record_registry_access_event(
         self,
@@ -526,7 +553,7 @@ class Profiler:
         else:
             raise ValueError(f"not a registry event type: {event_type}")
 
-        run.events.append(event)
+        run.add_event(event)
 
     def record_process_event(self, run, pos: TracePosition, proc, event_type: EventType, kwargs):
         """
@@ -624,7 +651,7 @@ class Profiler:
         else:
             raise ValueError(f"not a process event type: {event_type}")
 
-        run.events.append(event)
+        run.add_event(event)
 
     def record_dns_event(self, run, pos: TracePosition, domain, ip=""):
         """Record a DNS lookup. The profiler adds one event for each query and response in a run."""
@@ -637,7 +664,7 @@ class Profiler:
             query=domain,
             response=ip if ip else None,
         )
-        run.events.append(event)
+        run.add_event(event)
 
     def record_http_event(self, run, pos: TracePosition, server, port, headers="", body=b"", secure=False):
         """Record an HTTP request. The profiler adds one event for each server, port, protocol and headers in a run."""
@@ -661,18 +688,19 @@ class Profiler:
             headers=headers,
             data_ref=self.put_binary_data(body or b"", limit=0x3000),
         )
-        run.events.append(event)
+        run.add_event(event)
 
     def record_module_load_event(self, run, pos: TracePosition, name, path, base, size):
         """Record a module that the guest loads at run time."""
-        run.events.append(ModuleLoadEvent(pos=pos, name=name, path=path, base=base, size=size))
+        run.add_event(ModuleLoadEvent(pos=pos, name=name, path=path, base=base, size=size))
 
     def record_dynamic_code(self, run, pos: TracePosition, tag, base, size, data: bytes | None):
         """Record a dynamic code region that the guest runs. The profiler adds each base address once per run."""
         if base not in run.dynamic_code:
             data_ref = self.artifact_store.put_bytes(data) if data is not None else None
-            contents = [DynamicCodeContents(pos=pos, data_ref=data_ref)]
-            run.dynamic_code[base] = DynamicCode(base=base, size=size, tag=tag, contents=contents)
+            region = DynamicCode(base=base, size=size, tag=tag, contents=[])
+            run.dynamic_code[base] = region
+            run.add_dynamic_code_contents(region, pos, data_ref)
 
     def record_dynamic_code_snapshot(self, run, pos: TracePosition, base, data: bytes) -> bool:
         """
@@ -684,7 +712,7 @@ class Profiler:
         data_ref = self.artifact_store.put_bytes(data)
         if data_ref == region.contents[-1].data_ref:
             return False
-        region.contents.append(DynamicCodeContents(pos=pos, data_ref=data_ref))
+        run.add_dynamic_code_contents(region, pos, data_ref)
         return True
 
     def record_dynamic_code_limit(self, run, base):
@@ -714,7 +742,7 @@ class Profiler:
             data_ref=data_ref,
             method=method if method else None,
         )
-        run.events.append(event)
+        run.add_event(event)
 
     def record_exception_event(
         self,
@@ -741,7 +769,7 @@ class Profiler:
             pc_offset=pc_offset,
             stack=stack,
         )
-        run.events.append(event)
+        run.add_event(event)
 
     def get_json_report(self, *, instructions_counted: bool = True) -> str:
         """Get the report as compact JSON, with no indentation. Fields with a ``None`` value are left out."""
