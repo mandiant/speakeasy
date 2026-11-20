@@ -532,6 +532,22 @@ def test_get_parent_ends_at_a_top_level_window(dll_emu: Speakeasy) -> None:
     assert dll_emu.emu.get_last_error() == 1400
 
 
+HWND_MESSAGE = 0xFFFFFFFD
+
+
+def test_get_window_walk_ends_after_the_top_level_windows(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+    top = create_window(dll_emu)
+    create_window(dll_emu, WS_CHILD, top)
+    owned = create_window(dll_emu, WS_POPUP, top)
+    create_window(dll_emu, 0, HWND_MESSAGE)
+    walk = [call(dll_emu, "user32", "GetTopWindow", [0])[0]]
+    while walk[-1] and len(walk) < 10:
+        walk.append(call(dll_emu, "user32", "GetWindow", [walk[-1], u32defs.GW_HWNDNEXT])[0])
+    # An owned window is a top-level window, but a child or a message-only window is not
+    assert walk[-3:] == [top, owned, 0]
+
+
 def test_window_properties_by_name(dll_emu: Speakeasy) -> None:
     start_process(dll_emu)
     hwnd = create_window(dll_emu)
