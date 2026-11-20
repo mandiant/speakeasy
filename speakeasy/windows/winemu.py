@@ -37,6 +37,7 @@ from speakeasy.report import AccessType, ApiLoop, Arch, ErrorInfo, ErrorType, Fi
 from speakeasy.struct import EmuStruct
 from speakeasy.windows import (
     api_resolution,
+    call_site,
     cpu_exceptions,
     guest_callbacks,
     hardware_breakpoints,
@@ -462,10 +463,8 @@ class WindowsEmulator(BinaryEmulator):
         self._sigfmt: sigfmt.ArgFormatter | None = None
         self.api_registry: ApiRegistry = ApiRegistry(self)
         self._native_exit: NativeExit | None = None
-        # The API entry that the last block jumped to, and the start and size of that block.
-        self._api_call_site: tuple[int, tuple[int, int]] | None = None
-        self._last_block: tuple[int, int] | None = None
-        self.call_site_hook: Any | None = None
+        # The API entry that the guest came to last with memory.accesses, and the instruction that ran before it.
+        self._api_call_site: tuple[int, int] | None = None
         # Maps each guard page to the protection that its first access restores. Guard pages have no access.
         self.guard_pages: dict[int, int] = {}
         self.hardware_breakpoints = hardware_breakpoints.HardwareBreakpoints(self)
@@ -558,6 +557,7 @@ class WindowsEmulator(BinaryEmulator):
         if self.emu_eng and not self.emu_eng.emu:
             self.emu_eng.init_engine(_arch.ARCH_X86, arch)
         self.disasm_eng = cs.Cs(cs.CS_ARCH_X86, cs.CS_MODE_64 if arch == _arch.ARCH_AMD64 else cs.CS_MODE_32)
+        self.call_site_decoder = call_site.CallSiteDecoder(self.disasm_eng.mode)
         self.api = WindowsApi(self)
 
         with self.allocations_from(winemu.MACHINE_BASE):
@@ -673,11 +673,6 @@ class WindowsEmulator(BinaryEmulator):
             self.add_mem_read_hook(cb=self._hook_mem_read),
             self.add_mem_write_hook(cb=self._hook_mem_write),
         ]
-
-    def set_call_site_hook(self):
-        if self.call_site_hook:
-            return
-        self.call_site_hook = self.add_block_hook(cb=self._hook_block_call_site)
 
     def set_coverage_hooks(self):
         if not self.config.code.coverage:
@@ -1240,8 +1235,9 @@ class WindowsEmulator(BinaryEmulator):
         Raises:
             uc.UcError: if Unicorn fails and no native exit explains the failure.
         """
-        # A block of an earlier start of Unicorn did not jump to the code of this start.
-        self._last_block = None
+        # An instruction of an earlier start of Unicorn did not jump to the code of this start.
+        self.prev_pc = 0
+        self._prepare_dyn_code_block_hook()
         try:
             native_timeout = limits.get_native_timeout()
             native_count = limits.get_native_count()
@@ -1328,7 +1324,7 @@ class WindowsEmulator(BinaryEmulator):
         """
         Add a code hook that counts each instruction of the current run.
 
-        A count of the instructions of each block in the block hook costs less, but it is wrong when a fault stops a
+        A count of the instructions of each block in a block hook costs less, but it is wrong when a fault stops a
         block before its end.
         """
 
@@ -1414,7 +1410,9 @@ class WindowsEmulator(BinaryEmulator):
             return False
         self._native_exit = None
         site, self._api_call_site = self._api_call_site, None
-        self.prev_pc = self._get_last_instruction(*site[1]) if site is not None and site[0] == entry.address else 0
+        exact = site[1] if site is not None and site[0] == entry.address else 0
+        self.prev_pc = exact or call_site.find_call_site(self, entry.address) or 0
+        self._record_dyn_code_api_entry(entry.address)
         self.dispatch_api_call(entry.dll, entry.name)
         if self._pending_fault_stop is not None:
             return False
@@ -3936,42 +3934,19 @@ class WindowsEmulator(BinaryEmulator):
         except Exception as e:
             return self._end_run_on_hook_error("Exception during code hook (coverage)", e)
 
-    def _hook_block_call_site(self, emu, addr, size):
+    def _hook_block_api_entry(self, emu, addr, size):
         """
-        Record the block that jumps to an API entry, and take a snapshot of a changed dynamic code region.
+        Record the instruction that ran before an API entry, which is the call site.
 
-        The last instruction of the block before the API entry is the call site.
+        ``ApiRegistry`` adds this hook on each synthetic module when ``memory.accesses`` is set. Then
+        ``_hook_code_tracing`` keeps the address of the last instruction in ``prev_pc``.
         """
         entry = self.api_registry.entries.get(addr)
-        if entry is not None and entry.trap is not None and self._last_block is not None:
-            self._api_call_site = (addr, self._last_block)
-        dyn_code = self._dyn_code_watches
-        if dyn_code.changed:
-            # Take a snapshot of a changed region when control comes into it from outside. A decoder loop in the
-            # region writes the region on each pass, but each of its blocks comes after a block in the region.
-            prev = dyn_code.prev_block
-            for watch in dyn_code.changed.values():
-                end = watch.base + watch.size
-                if watch.base <= addr < end and not watch.base <= prev < end:
-                    try:
-                        self._snapshot_changed_dyn_code(watch, addr)
-                    except Exception as e:
-                        return self._end_run_on_hook_error("Exception during block hook (dynamic code)", e)
-                    break
-            dyn_code.prev_block = addr
-        self._last_block = (addr, size)
+        # prev_pc is 0 when Unicorn starts at the API entry, for example after a debugger step or a breakpoint
+        # there. The hook ran at the entry before that stop, so keep the call site that it recorded.
+        if entry is not None and entry.trap is not None and self.prev_pc:
+            self._api_call_site = (addr, self.prev_pc)
         return True
-
-    def _get_last_instruction(self, block: int, size: int) -> int:
-        """Get the address of the last instruction of a block, or 0 if the block does not decode to its end."""
-        try:
-            code = self.mem_read(block, size)
-        except uc.UcError:
-            return 0
-        for address, insn_size, _, _ in self.disasm_eng.disasm_lite(bytes(code), block):
-            if address + insn_size == block + size:
-                return int(address)
-        return 0
 
     def _hook_code_tracing(self, emu, addr, size):
         """Count the instructions, and the executes of each symbol, section and memory map."""

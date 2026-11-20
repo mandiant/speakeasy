@@ -448,18 +448,219 @@ def test_report_clock_covers_every_start_of_the_run_queue():
     assert report.emulation_total_runtime >= 0.6
 
 
-def test_api_events_of_one_thunk_keep_each_caller():
+@pytest.mark.parametrize("accesses", [False, True])
+def test_api_events_of_one_thunk_keep_each_caller(accesses):
     def text(base, iat):
         jump = b"\xff\x25" + struct.pack("<I", base + iat["kernel32.dll", "GetCurrentProcessId"])
         return b"\xe8\x06\0\0\0" + b"\xe8\x01\0\0\0" + b"\xc3" + jump
 
     data, _ = build_pe(32, text=text, imports={"kernel32.dll": ["GetCurrentProcessId"]})
-    with Speakeasy(config=configured()) as se:
+    with Speakeasy(config=configured(**{"memory.accesses": accesses})) as se:
         module = se.load_module(data=data)
         se.run_module(module)
         events = [event for event in se.get_report().runs[0].events if event.event == "api"]
     assert [event.pos.pc for event in events] == [module.base + 0x100B] * 2
     assert [event.return_address for event in events] == [module.base + 0x1005, module.base + 0x100A]
+
+
+def p32(value):
+    return struct.pack("<I", value)
+
+
+def rel32(target, end):
+    return struct.pack("<i", target - end)
+
+
+# Each entry gets the address of the IAT slot of GetTickCount and the address of its first byte, and gives
+# the instructions before the call, the call, and the instructions after it.
+CALL_ENCODINGS = [
+    ("x86 call eax", 32, lambda slot, here: (b"\xa1" + p32(slot), b"\xff\xd0", b"")),
+    ("x86 call [eax+8]", 32, lambda slot, here: (b"\xb8" + p32(slot - 8), b"\xff\x50\x08", b"")),
+    (
+        "x86 call [eax+ecx*4]",
+        32,
+        lambda slot, here: (b"\xb8" + p32(slot - 8) + b"\xb9" + p32(2), b"\xff\x14\x88", b""),
+    ),
+    ("x86 call [ecx+disp32]", 32, lambda slot, here: (b"\xb9" + p32(4), b"\xff\x14\x0d" + p32(slot - 4), b"")),
+    # push [slot]; push 0; call [esp+4]; add esp, 8
+    (
+        "x86 call [esp+4]",
+        32,
+        lambda slot, here: (b"\xff\x35" + p32(slot) + b"\x6a\x00", b"\xff\x54\x24\x04", b"\x83\xc4\x08"),
+    ),
+    # mov rax, [rip+slot]
+    ("x64 call rax", 64, lambda slot, here: (b"\x48\x8b\x05" + rel32(slot, here + 7), b"\xff\xd0", b"")),
+    # lea r11, [rip+slot]
+    ("x64 call [r11]", 64, lambda slot, here: (b"\x4c\x8d\x1d" + rel32(slot, here + 7), b"\x41\xff\x13", b"")),
+    # lea rax, [rip+slot-16]; mov r9d, 2
+    (
+        "x64 call [rax+r9*8]",
+        64,
+        lambda slot, here: (
+            b"\x48\x8d\x05" + rel32(slot - 16, here + 7) + b"\x41\xb9" + p32(2),
+            b"\x42\xff\x14\xc8",
+            b"",
+        ),
+    ),
+    # push [rip+slot]; call [rsp]; pop rcx
+    ("x64 call [rsp]", 64, lambda slot, here: (b"\xff\x35" + rel32(slot, here + 6), b"\xff\x14\x24", b"\x59")),
+    # A linker with import optimization gives the call a REX.W prefix and puts a 5-byte nop after it.
+    (
+        "x64 rex.W call [rip+slot]; nop",
+        64,
+        lambda slot, here: (b"", b"\x48\xff\x15" + rel32(slot, here + 7), b"\x0f\x1f\x44\x00\x00"),
+    ),
+    # lea rcx, [rsp+0x48] ends with the byte of a REX.W prefix.
+    (
+        "x64 call [rip+slot] after the byte 0x48",
+        64,
+        lambda slot, here: (b"\x48\x8d\x4c\x24\x48", b"\xff\x15" + rel32(slot, here + 11), b""),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("architecture", "encoding"),
+    [(architecture, encoding) for _, architecture, encoding in CALL_ENCODINGS],
+    ids=[name for name, _, _ in CALL_ENCODINGS],
+)
+def test_api_event_pc_is_the_call_site_for_each_call_encoding(architecture, encoding):
+    sites = []
+
+    def text(base, iat):
+        prologue, epilogue = (b"\x48\x83\xec\x28", b"\x48\x83\xc4\x28") if architecture == 64 else (b"", b"")
+        here = base + 0x1000 + len(prologue)
+        setup, call, cleanup = encoding(base + iat["kernel32.dll", "GetTickCount"], here)
+        sites.append(here + len(setup))
+        return prologue + setup + call + cleanup + epilogue + b"\xc3"
+
+    data, _ = build_pe(architecture, text=text, imports=TICK)
+    with Speakeasy(config=configured(**{"memory.accesses": False})) as se:
+        se.run_module(se.load_module(data=data))
+        run = se.get_report().runs[0]
+    assert run.error is None
+    assert [event.pos.pc for event in run.events if event.event == "api"] == sites
+
+
+# Each entry gets the address of the IAT slot of GetTickCount and the address of the thunk, and gives the
+# thunk and the offset of its last jmp.
+THUNKS = [
+    ("x86 jmp near; jmp [slot]", 32, lambda slot, here: (b"\xe9\x01\0\0\0\xcc\xff\x25" + p32(slot), 6)),
+    ("x64 jmp [rip+slot]", 64, lambda slot, here: (b"\xff\x25" + rel32(slot, here + 6), 0)),
+]
+
+
+@pytest.mark.parametrize(
+    ("architecture", "thunk"),
+    [(architecture, thunk) for _, architecture, thunk in THUNKS],
+    ids=[name for name, _, _ in THUNKS],
+)
+def test_api_event_pc_is_the_last_jmp_of_the_thunk_that_the_guest_called(architecture, thunk):
+    sites = []
+
+    def text(base, iat):
+        prologue, epilogue = (b"\x48\x83\xec\x28", b"\x48\x83\xc4\x28") if architecture == 64 else (b"", b"")
+        # call thunk; ret; thunk:
+        code = prologue + b"\xe8" + p32(len(epilogue) + 1) + epilogue + b"\xc3"
+        here = base + 0x1000 + len(code)
+        jumps, last = thunk(base + iat["kernel32.dll", "GetTickCount"], here)
+        sites.append(here + last)
+        return code + jumps
+
+    data, _ = build_pe(architecture, text=text, imports=TICK)
+    with Speakeasy(config=configured(**{"memory.accesses": False})) as se:
+        se.run_module(se.load_module(data=data))
+        run = se.get_report().runs[0]
+    assert run.error is None
+    assert [event.pos.pc for event in run.events if event.event == "api"] == sites
+
+
+# Each entry gets the address of the IAT slot of GetTickCount and the address of its first byte, and gives
+# the code and the offset of the instruction that goes to the API.
+TRANSFERS_WITHOUT_A_CALL = [
+    ("tail jmp", lambda slot, here: (b"\xff\x25" + p32(slot), 0)),
+    # push after; push [slot]; ret; after: ret
+    ("push and ret", lambda slot, here: (b"\x68" + p32(here + 12) + b"\xff\x35" + p32(slot) + b"\xc3\xc3", 11)),
+    # call stub; ret; stub: mov edi, edi; jmp [slot]
+    ("stub with code before its jmp", lambda slot, here: (b"\xe8\x01\0\0\0\xc3\x8b\xff\xff\x25" + p32(slot), 8)),
+]
+
+
+@pytest.mark.parametrize("accesses", [False, True])
+@pytest.mark.parametrize(
+    "transfer",
+    [transfer for _, transfer in TRANSFERS_WITHOUT_A_CALL],
+    ids=[name for name, _ in TRANSFERS_WITHOUT_A_CALL],
+)
+def test_api_event_pc_of_a_transfer_without_a_call_needs_memory_accesses(transfer, accesses):
+    sites = []
+
+    def text(base, iat):
+        code, site = transfer(base + iat["kernel32.dll", "GetTickCount"], base + 0x1000)
+        sites.append(base + 0x1000 + site)
+        return code
+
+    data, _ = build_pe(32, text=text, imports=TICK)
+    with Speakeasy(config=configured(**{"memory.accesses": accesses})) as se:
+        se.run_module(se.load_module(data=data))
+        run = se.get_report().runs[0]
+    assert run.error is None
+    assert [event.pos.pc for event in run.events if event.event == "api"] == (sites if accesses else [None])
+
+
+@pytest.mark.parametrize("driver", ["wdm_test_x86.sys.xz", "wdm_test_x64.sys.xz"])
+def test_driver_api_events_have_the_same_pc_with_and_without_memory_accesses(config, load_test_bin, driver):
+    """
+    The WDM test driver calls its APIs with ``call [iat]``, except IoCreateDeviceSecure.
+
+    IoCreateDeviceSecure is a function of wdmsec.lib in the driver, which ends with a ``jmp`` to the API.
+    """
+    sites = []
+    for accesses in (False, True):
+        config["memory"]["accesses"] = accesses
+        with Speakeasy(config=config) as se:
+            se.run_module(se.load_module(data=load_test_bin(driver)))
+            events = [event for run in se.get_report().runs for event in run.events if event.event == "api"]
+        sites.append([(event.api_name, event.pos.pc) for event in events])
+    without, with_accesses = sites
+    assert len(without) == len(with_accesses)
+    assert all(pc is not None for _, pc in with_accesses)
+    assert [call for call, exact in zip(without, with_accesses) if call != exact] == [
+        ("ntoskrnl.IoCreateDeviceSecure", None)
+    ]
+
+
+def test_loop_runs_without_a_python_hook_when_the_report_needs_none():
+    """
+    A loop after an API call must not call Python for each block or instruction when all tracing is off.
+
+    The same loop with a Python code hook is the reference for the cost of such calls.
+    """
+    loop = b"\xb9" + p32(5_000_000) + b"\x49\x75\xfd"  # mov ecx, 5000000; loop: dec ecx; jnz loop
+    data, _ = build_pe(32, text=calls(32, [("kernel32.dll", "GetTickCount")], suffix=loop), imports=TICK)
+    overrides = {
+        "memory.accesses": False,
+        "memory.strings": False,
+        "memory.dynamic_code_contents.enabled": False,
+        "code.coverage": False,
+        "limits.instructions": 0,
+        "limits.per_run_time": 120,
+    }
+
+    def time_run(hooked):
+        with Speakeasy(config=configured(**overrides)) as se:
+            module = se.load_module(data=data)
+            if hooked:
+                se.add_code_hook(lambda emu, address, size: None)
+            started = time.perf_counter()
+            se.run_module(module)
+            elapsed = time.perf_counter() - started
+            run = se.get_report().runs[0]
+        assert run.error is None and api_names(run) == ["kernel32.GetTickCount"]
+        return elapsed
+
+    hooked, plain = time_run(True), time_run(False)
+    assert plain * 8 < hooked, (plain, hooked)
 
 
 def test_api_call_count_includes_repeated_calls():

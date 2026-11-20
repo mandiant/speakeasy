@@ -101,6 +101,19 @@ def _get_stage_loop_code(se: Speakeasy, passes: int) -> bytes:
     return _get_virtual_alloc_call(se) + b"\x89\xc6\xb9" + struct.pack("<I", passes) + loop + jnz + b"\xc3"
 
 
+def _get_operand_loop_code(se: Speakeasy, passes: int) -> bytes:
+    # The loop changes only the operand of the mov at offset 0x10 of the region, so the jmp at the start of the
+    # region keeps the translation of its first run.
+    # jmp +0x0e ; (offset 0x10) mov al, 0 ; ret
+    region = b"\xeb\x0e".ljust(0x10, b"\x90") + b"\xb0\x00\xc3"
+    # mov esi, eax ; mov ecx, passes
+    # loop: mov byte [esi+0x11], cl ; call esi ; dec ecx ; jnz loop ; ret
+    loop = b"\x88\x4e\x11\xff\xd6\x49"
+    jnz = b"\x75" + bytes([(-(len(loop) + 2)) & 0xFF])
+    setup = _get_virtual_alloc_call(se) + _get_region_writes(region) + b"\x89\xc6\xb9" + struct.pack("<I", passes)
+    return setup + loop + jnz + b"\xc3"
+
+
 def _get_decoder_loop_code(se: Speakeasy) -> bytes:
     # The region changes its own byte at offset 0x40 on each pass, and the caller calls it two times.
     # mov ecx, 50 ; loop: inc byte [esi+0x40] ; dec ecx ; jnz loop ; ret
@@ -115,6 +128,16 @@ def _get_api_call_after_change_code(se: Speakeasy) -> bytes:
     region = b"\xfe\x46\x40" + _call(se, "GetTickCount") + b"\xc3"
     # mov esi, eax ; call esi ; ret
     return _get_virtual_alloc_call(se) + _get_region_writes(region) + b"\x89\xc6\xff\xd6\xc3"
+
+
+def _get_api_loop_code(se: Speakeasy) -> bytes:
+    # The region changes its byte at offset 0x40 between two calls of GetTickCount. The second pass of the loop
+    # runs only code that ran before the change.
+    # loop: <call GetTickCount> ; inc byte [esi+0x40] ; dec ecx ; jnz loop ; ret
+    call = _call(se, "GetTickCount")
+    region = call + b"\xfe\x46\x40\x49\x75" + bytes([(-(len(call) + 6)) & 0xFF]) + b"\xc3"
+    # mov esi, eax ; mov ecx, 2 ; call esi ; ret
+    return _get_virtual_alloc_call(se) + _get_region_writes(region) + b"\x89\xc6\xb9\x02\x00\x00\x00\xff\xd6\xc3"
 
 
 def _get_write_process_memory_code(se: Speakeasy) -> bytes:
@@ -141,11 +164,17 @@ def test_region_that_changes_between_calls_has_a_snapshot_of_each_stage(config):
     assert region.limit_reached is False
 
 
+def test_change_after_the_first_block_of_the_region_gives_a_snapshot(config):
+    report, _ = _run(config, snapshot=True, get_code=lambda se: _get_operand_loop_code(se, passes=3))
+
+    assert [snapshot[0x11] for snapshot in _get_snapshots(report)] == [3, 2, 1]
+
+
 def _get_api_calls_around_stages_code(se: Speakeasy) -> bytes:
     # mov esi, eax ; mov byte [esi], 0xc3 ; call esi ; <call GetTickCount>
     first = b"\x89\xc6\xc6\x06\xc3\xff\xd6" + _call(se, "GetTickCount")
-    # mov byte [esi+1], 1 ; call esi ; <call GetCurrentProcessId> ; ret
-    second = b"\xc6\x46\x01\x01\xff\xd6" + _call(se, "GetCurrentProcessId") + b"\xc3"
+    # mov word [esi], 0xc390 ; call esi ; <call GetCurrentProcessId> ; ret
+    second = b"\x66\xc7\x06\x90\xc3\xff\xd6" + _call(se, "GetCurrentProcessId") + b"\xc3"
     return _get_virtual_alloc_call(se) + first + second
 
 
@@ -206,6 +235,15 @@ def test_api_return_into_a_changed_region_gives_a_snapshot(config):
     first, later = _get_snapshots(report)
     assert (first[0x40], later[0x40]) == (0, 1)
     assert region.contents[1].pos.pc == region.region + 10
+
+
+def test_api_return_into_a_changed_region_gives_a_snapshot_in_code_that_ran_before(config):
+    report, _ = _run(config, snapshot=True, get_code=_get_api_loop_code)
+
+    [region] = report.runs[0].dynamic_code
+    first, later = _get_snapshots(report)
+    assert (first[0x40], later[0x40]) == (0, 1)
+    assert region.contents[1].pos.pc == region.region + 7
 
 
 def test_write_by_an_api_handler_changes_the_region(config):
