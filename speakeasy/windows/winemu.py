@@ -62,6 +62,7 @@ from speakeasy.windows.handles import (
 )
 from speakeasy.windows.ioman import IoManager
 from speakeasy.windows.loaders import (
+    ExportEntry,
     LoadState,
     PeLoader,
     RuntimeModule,
@@ -110,6 +111,23 @@ NONVOLATILE_AMD64 = (
 REPORT_ARCHES = {_arch.ARCH_X86: Arch.X86, _arch.ARCH_AMD64: Arch.X64}
 
 logger = logging.getLogger(__name__)
+
+
+def get_export_aliases(exports: list[ExportEntry], limit: int = MAX_EXPORTS_TO_EMULATE) -> list[list[ExportEntry]]:
+    """
+    Get the exported functions to run, as lists of the exports at one address, at most ``limit`` lists.
+
+    DllMain, data exports and forwarders are not functions to run. The exports at one address run the same code,
+    so the caller runs one export of each list. The lists are in the order of their first export.
+    """
+    aliases: dict[int, list[ExportEntry]] = {}
+    for exp in exports:
+        if exp.name == "DllMain" or exp.kind == "data" or exp.forwarder is not None:
+            continue
+        aliases.setdefault(exp.address, []).append(exp)
+    if len(aliases) > limit:
+        logger.info("running %d of %d exported functions, because the limit is %d", limit, len(aliases), limit)
+    return list(aliases.values())[:limit]
 
 
 @dataclass

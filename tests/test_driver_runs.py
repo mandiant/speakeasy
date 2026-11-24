@@ -10,6 +10,7 @@ from speakeasy import Speakeasy
 from speakeasy.profiler import Run
 from speakeasy.report import ErrorInfo, ErrorType, RunType
 from speakeasy.windows.kernel import DISPATCH_IOCTL
+from speakeasy.windows.loaders import ExportEntry
 from speakeasy.winenv.defs.nt import ddk
 from tests.test_run_lifecycle import update_config
 
@@ -76,7 +77,9 @@ def fake_driver(*, exports=(), majors=(), unload=0):
     for i, major in enumerate(majors):
         mj_funcs[major] = 0x5000 + i
     pe = SimpleNamespace(
-        get_exports=lambda: [SimpleNamespace(name=name, address=0x4000 + i) for i, name in enumerate(exports)]
+        get_exports=lambda: [
+            ExportEntry(name=name, address=0x4000 + i, ordinal=i + 1) for i, name in enumerate(exports)
+        ]
     )
     return SimpleNamespace(
         address=0x3000, pe=pe, devices=[SimpleNamespace(address=0x7000)], mj_funcs=mj_funcs, on_unload=unload
