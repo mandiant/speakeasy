@@ -25,13 +25,14 @@ from speakeasy.windows import objman
 from speakeasy.windows.com import COM
 from speakeasy.windows.loaders import (
     DLL_PROCESS_ATTACH,
+    ExportEntry,
     PeLoader,
     RuntimeModule,
     ShellcodeLoader,
     get_prot_string,
 )
 from speakeasy.windows.sessman import SessionManager
-from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, REPORT_ARCHES, WindowsEmulator, execution_scope
+from speakeasy.windows.winemu import REPORT_ARCHES, WindowsEmulator, execution_scope, get_export_aliases
 from speakeasy.winenv.api.usermode.kernel32 import PROCESSOR_COUNT
 from speakeasy.winenv.api.usermode.shell32 import split_command_line
 from speakeasy.winenv.codepage import encode_ansi
@@ -121,6 +122,14 @@ class Win32Emulator(WindowsEmulator):
 
         self.write_ptr(argv_ptr + (len(enc_args) * ptr_size), 0)
         return len(enc_args), argv_ptr
+
+    def export_has_args(self, module: RuntimeModule, exp: ExportEntry) -> bool:
+        """Test whether an export run gets arguments of its own: a ServiceMain, or ``this`` for an x86 member."""
+        if not exp.name:
+            return False
+        if exp.name.startswith("ServiceMain"):
+            return True
+        return module.arch == _arch.ARCH_X86 and bool(THISCALL_MEMBER.match(exp.name))
 
     def get_service_main_char_width(self, module, export_name):
         if export_name.endswith("A"):
@@ -245,20 +254,12 @@ class Win32Emulator(WindowsEmulator):
             startup.append(run)
 
         if self.config.runs.exports:
-            # Limit the number of export runs, because some modules, such as the Windows kernel, have
-            # thousands of exports.
-            exports = [k for k in module.get_exports()[:MAX_EXPORTS_TO_EMULATE]]
-
-            if exports:
+            aliases = get_export_aliases(module.get_exports())
+            if aliases:
                 args = [self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000) for i in range(4)]  # noqa
                 this = None
-                for exp in exports:
-                    if (
-                        exp.name in ("DllMain",)
-                        or getattr(exp, "kind", "function") == "data"
-                        or getattr(exp, "forwarder", None) is not None
-                    ):
-                        continue
+                for exports in aliases:
+                    exp = next((e for e in exports if self.export_has_args(module, e)), exports[0])
                     run = Run()
                     run.type = RunType.EXPORT
                     run.name = exp.name or f"#{exp.ordinal}"

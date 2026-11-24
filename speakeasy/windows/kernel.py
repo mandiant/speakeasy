@@ -14,7 +14,7 @@ from speakeasy.report import RunType
 from speakeasy.windows import objman
 from speakeasy.windows.handles import HandleTable
 from speakeasy.windows.loaders import PeLoader, RuntimeModule
-from speakeasy.windows.winemu import MAX_EXPORTS_TO_EMULATE, WindowsEmulator
+from speakeasy.windows.winemu import WindowsEmulator, get_export_aliases
 from speakeasy.winenv.defs.enums import REG_VALUE_TYPE
 from speakeasy.winenv.defs.nt import ddk
 
@@ -344,14 +344,12 @@ class WinKernelEmulator(WindowsEmulator):
         if entry is not None and entry.error is None and not is_nt_success(entry.return_value or 0):
             return
 
-        # Limit the number of export runs, because some modules, such as the Windows kernel, have thousands of
-        # exports.
-        exports = drv.pe.get_exports()[:MAX_EXPORTS_TO_EMULATE] if drv.pe else []
-        if exports:
+        aliases = get_export_aliases(drv.pe.get_exports()) if drv.pe else []
+        if aliases:
             # Each export gets the same placeholder arguments.
             args = [self.mem_map(8, tag=f"emu.export_arg_{i}") for i in range(4)]
-            for exp in exports:
-                self._add_driver_run(RunType.EXPORT, exp.name or None, exp.address, args)
+            for exports in aliases:
+                self._add_driver_run(RunType.EXPORT, exports[0].name or None, exports[0].address, args)
 
         # TODO: send the IRPs to each device, not only the first device.
         if drv.devices:
