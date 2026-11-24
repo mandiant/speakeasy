@@ -79,6 +79,7 @@ DISPLAY_DEVICES = {
 
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
+PRIMARY_MONITOR = 0x10001  # the HMONITOR of the one monitor
 
 # Windows 10 at 96 DPI with a 40 pixel taskbar. Indexes that are not here return 0.
 SYSTEM_METRICS = {
@@ -1308,6 +1309,34 @@ class User32(api.ApiHandler):
                 return 0
         return 1
 
+    @apihook("EnumChildWindows", argc=3)
+    def EnumChildWindows(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumChildWindows(
+            HWND hWndParent,
+            WNDENUMPROC lpEnumFunc,
+            LPARAM lParam
+        );
+
+        Call lpEnumFunc for each descendant of hWndParent, or for each top-level window if hWndParent is NULL.
+        Return the result of the last call, or FALSE without a call, as Wine does.
+        """
+        hWndParent, lpEnumFunc, lParam = argv
+        if hWndParent:
+            parent = self.sessman.get_window(hWndParent)
+            if not parent:
+                emu.set_last_error(windefs.ERROR_INVALID_WINDOW_HANDLE)
+                return 0
+            windows = self._get_descendant_windows(parent)
+        else:
+            windows = self._get_child_windows(self._get_desktop_window())
+        rv = 0
+        for window in windows:
+            rv = (yield GuestCall(lpEnumFunc, (window.handle, lParam))) & 0xFFFFFFFF
+            if not rv:
+                break
+        return rv
+
     def _get_desktop_window(self) -> sessman.Window:
         desktop: sessman.Window = self.sessman.get_current_desktop().desktop_window
         return desktop
@@ -1339,6 +1368,14 @@ class User32(api.ApiHandler):
             for hnd, w in self.sessman.windows.items()
             if isinstance(hnd, int) and self._get_parent_window(w) is parent
         ]
+
+    def _get_descendant_windows(self, parent: sessman.Window) -> list[sessman.Window]:
+        """Get the descendants of a window, with each window before its children."""
+        windows = []
+        for child in self._get_child_windows(parent):
+            windows.append(child)
+            windows.extend(self._get_descendant_windows(child))
+        return windows
 
     def _get_related_window(self, emu: "Win32Emulator", hWnd: int, uCmd: int) -> int:
         window = self.sessman.get_window(hWnd)
@@ -2267,12 +2304,28 @@ class User32(api.ApiHandler):
             MONITORENUMPROC lpfnEnum,
             LPARAM dwData
         );
+
+        There is one monitor, of the screen size. A DC has the origin and the clip box of the screen. The callback
+        gets the part of the monitor in lprcClip, and no call occurs if that part is empty.
         """
         hdc, lprcClip, lpfnEnum, dwData = argv
-
-        # Most callers expect TRUE to indicate success.
-        # We do not invoke the callback — Speakeasy doesn't emulate monitor enumeration.
-        return 1
+        ptr_size = emu.get_ptr_size()
+        left, top, right, bottom = 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT
+        if lprcClip:
+            clip = self.mem_cast(windef.RECT(ptr_size), lprcClip)
+            left, top = max(left, clip.left), max(top, clip.top)
+            right, bottom = min(right, clip.right), min(bottom, clip.bottom)
+            if left >= right or top >= bottom:
+                return 1
+        rect = windef.RECT(ptr_size)
+        rect.left, rect.top, rect.right, rect.bottom = left, top, right, bottom
+        lprcMonitor = self.mem_alloc(self.sizeof(rect), tag="api.enum_display_monitors.rect")
+        self.mem_write(lprcMonitor, self.get_bytes(rect))
+        try:
+            rv = yield GuestCall(lpfnEnum, (PRIMARY_MONITOR, hdc, lprcMonitor, dwData))
+        finally:
+            self.mem_free(lprcMonitor)
+        return 1 if rv & 0xFFFFFFFF else 0
 
     @apihook("EnumDisplayDevices", argc=4)
     def EnumDisplayDevices(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

@@ -10,6 +10,7 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 
 import speakeasy.winenv.defs.windows.windows as windefs
+from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.codepage import decode_ansi
 
 from .. import api
@@ -26,6 +27,12 @@ DPAPI_PROVIDER = bytes.fromhex("d08c9ddf0115d1118c7a00c04fc297eb")
 DPAPI_MASTER_KEY = bytes.fromhex("5c7b0e3a9d6f4e21b3a8c4d2e1f09a77")
 DPAPI_KEY = hashlib.sha256(b"speakeasy dpapi master key").digest()
 DPAPI_HEADER = struct.Struct("<I16sI16sII")
+
+CERT_SYSTEM_STORE_LOCATION_MASK = 0x00FF0000
+CERT_SYSTEM_STORE_CURRENT_USER = 0x00010000
+CERT_SYSTEM_STORE_LOCAL_MACHINE = 0x00020000
+# The system stores that CertEnumSystemStore gives for the current user and the local machine.
+SYSTEM_STORES = ("My", "Root", "Trust", "CA")
 
 
 def decode_base64(s):
@@ -207,3 +214,37 @@ class Crypt32(api.ApiHandler):
             self.write_ptr(ppszDataDescr, buf)
         emu.set_last_error(windefs.ERROR_SUCCESS)
         return 1
+
+    @apihook("CertEnumSystemStore", argc=4)
+    def CertEnumSystemStore(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL CertEnumSystemStore(
+            DWORD dwFlags,
+            void *pvSystemStoreLocationPara,
+            void *pvArg,
+            PFN_CERT_ENUM_SYSTEM_STORE pfnEnum
+        );
+
+        pfnEnum gets each store of SYSTEM_STORES for the current user and the local machine locations. Other
+        locations have no stores and fail with ERROR_FILE_NOT_FOUND, as in Wine.
+        """
+        dwFlags, pvSystemStoreLocationPara, pvArg, pfnEnum = argv
+        location = dwFlags & CERT_SYSTEM_STORE_LOCATION_MASK
+        if location not in (CERT_SYSTEM_STORE_CURRENT_USER, CERT_SYSTEM_STORE_LOCAL_MACHINE):
+            emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
+            return 0
+        size = (max(map(len, SYSTEM_STORES)) + 1) * 2
+        name = self.mem_alloc(size, tag="api.cert_enum_system_store.name")
+        info = self.mem_alloc(4, tag="api.cert_enum_system_store.info")
+        self.write_dword(info, 4)  # CERT_SYSTEM_STORE_INFO.cbSize
+        rv = 1
+        try:
+            for store in SYSTEM_STORES:
+                self.write_mem_string(store, name, 2)
+                rv = (yield GuestCall(pfnEnum, (name, dwFlags, info, 0, pvArg))) & 0xFFFFFFFF
+                if not rv:
+                    break
+        finally:
+            self.mem_free(name)
+            self.mem_free(info)
+        return 1 if rv else 0

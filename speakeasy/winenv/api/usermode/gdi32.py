@@ -1,9 +1,12 @@
 # Copyright (C) 2020 FireEye, Inc. All Rights Reserved.
 
+import ctypes as ct
 import struct
 from typing import TYPE_CHECKING
 
+from speakeasy.windows.guest_callbacks import GuestCall
 from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import gdi32 as gdidefs
 
 from .. import api
 
@@ -33,6 +36,14 @@ DEVICE_CAPS = {
     117: 1920,
     118: 1080,
 }
+
+# The fonts that the font enumeration APIs give, with their LOGFONT lfPitchAndFamily. Each is a TrueType font of
+# the ANSI character set.
+FONTS = (
+    ("Arial", gdidefs.VARIABLE_PITCH | gdidefs.FF_SWISS),
+    ("Courier New", gdidefs.FIXED_PITCH | gdidefs.FF_MODERN),
+    ("Times New Roman", gdidefs.VARIABLE_PITCH | gdidefs.FF_ROMAN),
+)
 
 
 class GDI32(api.ApiHandler):
@@ -405,3 +416,137 @@ class GDI32(api.ApiHandler):
         """
         # We don't emulate actual path widening; just report success.
         return 1
+
+    @apihook("LineDDA", argc=6)
+    def LineDDA(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL LineDDA(
+            int xStart,
+            int yStart,
+            int xEnd,
+            int yEnd,
+            LINEDDAPROC lpProc,
+            LPARAM data
+        );
+
+        Call lpProc for each point of the line except the end point, with the algorithm of Wine:
+        https://github.com/wine-mirror/wine/blob/ff2631c6ed3d1721cd050d951671c307ade32b90/dlls/gdi32/objects.c#L1032
+        """
+        x, y, x_end, y_end = (ct.c_int32(v).value for v in argv[:4])
+        lpProc, data = argv[4:]
+        dx, dy = abs(x_end - x), abs(y_end - y)
+        x_add = -1 if x_end < x else 1
+        y_add = -1 if y_end < y else 1
+        major, minor = (dx, dy) if dx > dy else (dy, dx)
+        err = 2 * minor - major
+        for _ in range(major):
+            yield GuestCall(lpProc, (x & 0xFFFFFFFF, y & 0xFFFFFFFF, data))
+            step_minor = err > 0
+            err += 2 * minor - (2 * major if step_minor else 0)
+            if dx > dy:
+                x += x_add
+                y += y_add if step_minor else 0
+            else:
+                y += y_add
+                x += x_add if step_minor else 0
+        return 1
+
+    def enum_fonts(self, emu: "Win32Emulator", cw: int, face_name: str, charset: int, proc: int, lparam: int):
+        """
+        Call proc for each font of FONTS that has the face name and the character set, as EnumFontFamiliesEx does.
+
+        An empty face name and DEFAULT_CHARSET select each font. The LOGFONT and TEXTMETRIC of a call are valid
+        only during the call. Return the result of the last call, or 1 without a call.
+        """
+        ptr_size = emu.get_ptr_size()
+        lf_size = self.sizeof(gdidefs.ENUMLOGFONTEX(ptr_size, cw))
+        tm_size = self.sizeof(gdidefs.NEWTEXTMETRICEX(ptr_size, cw))
+        lf_addr = self.mem_alloc(lf_size, tag="api.enum_fonts.logfont")
+        tm_addr = self.mem_alloc(tm_size, tag="api.enum_fonts.textmetric")
+        rv = 1
+        try:
+            for name, pitch_and_family in FONTS:
+                if face_name and face_name.lower() != name.lower():
+                    continue
+                if charset not in (gdidefs.DEFAULT_CHARSET, gdidefs.ANSI_CHARSET):
+                    continue
+                lf = gdidefs.ENUMLOGFONTEX(ptr_size, cw)
+                lf.lfWeight = gdidefs.FW_NORMAL
+                lf.lfCharSet = gdidefs.ANSI_CHARSET
+                lf.lfOutPrecision = gdidefs.OUT_STROKE_PRECIS
+                lf.lfClipPrecision = gdidefs.CLIP_STROKE_PRECIS
+                lf.lfQuality = gdidefs.DRAFT_QUALITY
+                lf.lfPitchAndFamily = pitch_and_family
+                lf.lfFaceName = self.encode_string(name, cw)
+                lf.elfFullName = self.encode_string(name, cw)
+                lf.elfStyle = self.encode_string("Regular", cw)
+                lf.elfScript = self.encode_string("Western", cw)
+                tm = gdidefs.NEWTEXTMETRICEX(ptr_size, cw)
+                tm.tmWeight = gdidefs.FW_NORMAL
+                tm.tmCharSet = gdidefs.ANSI_CHARSET
+                tm.tmPitchAndFamily = (
+                    (pitch_and_family & 0xF0)
+                    | gdidefs.TMPF_TRUETYPE
+                    | gdidefs.TMPF_VECTOR
+                    | (gdidefs.TMPF_FIXED_PITCH if pitch_and_family & gdidefs.VARIABLE_PITCH else 0)
+                )
+                tm.ntmFlags = gdidefs.NTM_REGULAR
+                self.mem_write(lf_addr, self.get_bytes(lf))
+                self.mem_write(tm_addr, self.get_bytes(tm))
+                rv = (yield GuestCall(proc, (lf_addr, tm_addr, gdidefs.TRUETYPE_FONTTYPE, lparam))) & 0xFFFFFFFF
+                if not rv:
+                    break
+        finally:
+            self.mem_free(lf_addr)
+            self.mem_free(tm_addr)
+        return rv
+
+    @apihook("EnumFontFamiliesEx", argc=5)
+    def EnumFontFamiliesEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int EnumFontFamiliesEx(
+            HDC hdc,
+            LPLOGFONT lpLogfont,
+            FONTENUMPROC lpProc,
+            LPARAM lParam,
+            DWORD dwFlags
+        );
+        """
+        hdc, lpLogfont, lpProc, lParam, dwFlags = argv
+        cw = self.get_char_width(ctx)
+        face_name, charset = "", gdidefs.DEFAULT_CHARSET
+        if lpLogfont:
+            lf = self.mem_cast(gdidefs.LOGFONT(emu.get_ptr_size(), cw), lpLogfont)
+            charset = lf.lfCharSet
+            face_name = self.decode_string(bytes(lf.lfFaceName), cw).split("\0", 1)[0]
+        return (yield from self.enum_fonts(emu, cw, face_name, charset, lpProc, lParam))
+
+    @apihook("EnumFontFamilies", argc=4)
+    def EnumFontFamilies(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int EnumFontFamilies(
+            HDC hdc,
+            LPCSTR lpLogfont,
+            FONTENUMPROC lpProc,
+            LPARAM lParam
+        );
+        """
+        hdc, lpLogfont, lpProc, lParam = argv
+        cw = self.get_char_width(ctx)
+        face_name = self.read_mem_string(lpLogfont, cw) if lpLogfont else ""
+        return (yield from self.enum_fonts(emu, cw, face_name, gdidefs.DEFAULT_CHARSET, lpProc, lParam))
+
+    @apihook("EnumFonts", argc=4)
+    def EnumFonts(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        int EnumFonts(
+            HDC hdc,
+            LPCSTR lpLogfont,
+            FONTENUMPROC lpProc,
+            LPARAM lParam
+        );
+        """
+        hdc, lpLogfont, lpProc, lParam = argv
+        cw = self.get_char_width(ctx)
+        face_name = self.read_mem_string(lpLogfont, cw) if lpLogfont else ""
+        return (yield from self.enum_fonts(emu, cw, face_name, gdidefs.DEFAULT_CHARSET, lpProc, lParam))
