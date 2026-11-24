@@ -215,7 +215,7 @@ class User32(api.ApiHandler):
         self.timers: list[tuple[int, int, int]] = []
         self.next_timer: int = 0
         self.sessman: sessman.SessionManager = emu.get_session_manager()
-        self.foreground_window: int = 0
+        self.program_manager_window: int = 0
         self.synthetic_async_keys: list[int] = [0x41, 0x42, 0x43]
         self.synthetic_async_key_index: int = 0
         self.synthetic_hook_keys: list[int] = [0x41, 0x42, 0x43]
@@ -1139,15 +1139,23 @@ class User32(api.ApiHandler):
         """
         HWND GetForegroundWindow();
         """
-        if not self.foreground_window:
+        return self._get_program_manager_window(emu)
+
+    def _get_program_manager_window(self, emu: "Win32Emulator") -> int:
+        """Get the desktop window of explorer, which exists on each Windows desktop. Create it at the first call."""
+        if not self.program_manager_window:
             explorer = next((p for p in emu.get_processes() if p.name.lower() == "explorer"), None)
-            self.foreground_window = self.sessman.create_window(
+            self.program_manager_window = self.sessman.create_window(
                 window_name="Program Manager",
                 class_name="Progman",
                 thread_id=emu.handle_allocator.allocate_kernel_object_id(),
                 process_id=explorer.pid if explorer else 0,
             )
-        return self.foreground_window
+        return self.program_manager_window
+
+    def _get_top_level_windows(self, emu: "Win32Emulator") -> list[sessman.Window]:
+        self._get_program_manager_window(emu)
+        return self._get_child_windows(self._get_desktop_window())
 
     @apihook("LoadCursor", argc=2)
     def LoadCursor(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
@@ -1304,7 +1312,7 @@ class User32(api.ApiHandler):
         );
         """
         lpEnumFunc, lParam = argv
-        for window in self._get_child_windows(self._get_desktop_window()):
+        for window in self._get_top_level_windows(emu):
             if not (yield GuestCall(lpEnumFunc, (window.handle, lParam))) & 0xFFFFFFFF:
                 return 0
         return 1
@@ -1318,8 +1326,9 @@ class User32(api.ApiHandler):
             LPARAM lParam
         );
 
-        Call lpEnumFunc for each descendant of hWndParent, or for each top-level window if hWndParent is NULL.
-        As in Wine, return FALSE if there is no window or a call returns FALSE.
+        Call lpEnumFunc only for the first descendant of hWndParent, or for the first top-level window if
+        hWndParent is NULL. Malware uses EnumChildWindows to run its payload as the callback. As in Wine, return
+        FALSE if there is no window or the call returns FALSE.
         """
         hWndParent, lpEnumFunc, lParam = argv
         if hWndParent:
@@ -1329,13 +1338,10 @@ class User32(api.ApiHandler):
                 return 0
             windows = self._get_descendant_windows(parent)
         else:
-            windows = self._get_child_windows(self._get_desktop_window())
+            windows = self._get_top_level_windows(emu)
         if not windows:
             return 0
-        for window in windows:
-            if not (yield GuestCall(lpEnumFunc, (window.handle, lParam))) & 0xFFFFFFFF:
-                return 0
-        return 1
+        return 1 if (yield GuestCall(lpEnumFunc, (windows[0].handle, lParam))) & 0xFFFFFFFF else 0
 
     def _get_desktop_window(self) -> sessman.Window:
         desktop: sessman.Window = self.sessman.get_current_desktop().desktop_window

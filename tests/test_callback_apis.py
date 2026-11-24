@@ -93,13 +93,12 @@ def run_api(
     "line, points",
     [
         # the call of the Mustang Panda loader that runs its shellcode
-        ((10, 11, 12, 14), [(10, 11), (11, 12), (11, 13)]),
-        ((3, 0, 0, 0), [(3, 0), (2, 0), (1, 0)]),
-        ((-1, -1, -3, -2), [(-1, -1), (-2, -1)]),
+        ((10, 11, 12, 14), [(10, 11)]),
+        ((-1, -1, -3, -2), [(-1, -1)]),
         ((4, 4, 4, 4), []),
     ],
 )
-def test_line_dda_calls_the_procedure_for_each_point_except_the_end(
+def test_line_dda_calls_the_procedure_for_the_start_point(
     shellcode_emu: Speakeasy, line: tuple[int, int, int, int], points: list[tuple[int, int]]
 ) -> None:
     result = run_api(shellcode_emu, "gdi32", "LineDDA", [*line, CALLBACK, 0x1234], argc=3)
@@ -130,9 +129,9 @@ def test_enum_fonts_without_a_font_of_the_face_name_returns_1(shellcode_emu: Spe
     assert (result.value, result.calls) == (1, [])
 
 
-def test_enum_fonts_returns_the_value_that_stops_it(shellcode_emu: Speakeasy) -> None:
-    result = run_api(shellcode_emu, "gdi32", "EnumFontFamiliesW", [0, 0, CALLBACK, 0], argc=4, returns={1: 0})
-    assert (result.value, len(result.calls)) == (0, 2)
+def test_enum_fonts_calls_the_procedure_once_and_returns_its_value(shellcode_emu: Speakeasy) -> None:
+    result = run_api(shellcode_emu, "gdi32", "EnumFontFamiliesW", [0, 0, CALLBACK, 0], argc=4, returns={0: 7})
+    assert (result.value, len(result.calls)) == (7, 1)
 
 
 @pytest.mark.parametrize("charset, found", [(1, True), (0, True), (128, False)])  # DEFAULT, ANSI, SHIFTJIS
@@ -187,21 +186,24 @@ def create_windows(se: Speakeasy) -> tuple[int, int, int, int]:
     return top, child, grandchild, other
 
 
-def test_enum_child_windows_calls_the_procedure_for_each_descendant(shellcode_emu: Speakeasy) -> None:
-    top, child, grandchild, _ = create_windows(shellcode_emu)
+def test_enum_child_windows_calls_the_procedure_for_the_first_descendant(shellcode_emu: Speakeasy) -> None:
+    top, child, *_ = create_windows(shellcode_emu)
     result = run_api(shellcode_emu, "user32", "EnumChildWindows", [top, CALLBACK, 0x1234], argc=2)
     assert result.value == 1
-    assert [c.args for c in result.calls] == [(child, 0x1234), (grandchild, 0x1234)]
+    assert [c.args for c in result.calls] == [(child, 0x1234)]
 
 
-def test_enum_child_windows_without_a_parent_calls_the_procedure_for_each_top_level_window(
-    shellcode_emu: Speakeasy,
+@pytest.mark.parametrize(
+    "name, args", [("EnumChildWindows", [0, CALLBACK, 0x1234]), ("EnumWindows", [CALLBACK, 0x1234])]
+)
+def test_enum_windows_without_a_window_of_the_program_calls_the_procedure_for_the_program_manager(
+    shellcode_emu: Speakeasy, name: str, args: list[Any]
 ) -> None:
-    top, child, grandchild, other = create_windows(shellcode_emu)
-    result = run_api(shellcode_emu, "user32", "EnumChildWindows", [0, CALLBACK, 0], argc=2)
-    handles = [c.args[0] for c in result.calls]
-    assert top in handles and other in handles
-    assert child not in handles and grandchild not in handles
+    result = run_api(shellcode_emu, "user32", name, args, argc=2)
+    shellcode_emu.call(shellcode_emu.emu.get_proc("user32", "GetForegroundWindow"), params=[])
+    program_manager = shellcode_emu.get_report().runs[-1].return_value
+    assert result.value == 1
+    assert [c.args for c in result.calls] == [(program_manager, 0x1234)]
 
 
 def test_enum_child_windows_returns_false_without_a_child(shellcode_emu: Speakeasy) -> None:
@@ -252,20 +254,21 @@ def test_enum_system_locales_ex_fails_with_a_reserved_argument(shellcode_emu: Sp
     assert shellcode_emu.emu.get_last_error() == 87  # ERROR_INVALID_PARAMETER
 
 
-def test_cert_enum_system_store_calls_the_procedure_for_each_store(shellcode_emu: Speakeasy) -> None:
+def test_cert_enum_system_store_calls_the_procedure_for_the_my_store(shellcode_emu: Speakeasy) -> None:
     flags = 0x10000  # CERT_SYSTEM_STORE_CURRENT_USER
     result = run_api(
         shellcode_emu, "crypt32", "CertEnumSystemStore", [flags, 0, 0x1234, CALLBACK], argc=5,
         read=lambda se, args: se.read_mem_string(args[0], 2),
     )  # fmt: skip
     assert result.value == 1
-    assert {"My", "Root"} <= {c.data for c in result.calls}
-    assert all((c.args[1], c.args[3], c.args[4]) == (flags, 0, 0x1234) for c in result.calls)
+    (call,) = result.calls
+    assert call.data == "My"
+    assert (call.args[1], call.args[3], call.args[4]) == (flags, 0, 0x1234)
 
 
 def test_cert_enum_system_store_returns_false_when_the_procedure_does(shellcode_emu: Speakeasy) -> None:
-    result = run_api(shellcode_emu, "crypt32", "CertEnumSystemStore", [0x20000, 0, 0, CALLBACK], argc=5, returns={1: 0})
-    assert (result.value, len(result.calls)) == (0, 2)
+    result = run_api(shellcode_emu, "crypt32", "CertEnumSystemStore", [0x20000, 0, 0, CALLBACK], argc=5, returns={0: 0})
+    assert (result.value, len(result.calls)) == (0, 1)
 
 
 def test_cert_enum_system_store_fails_for_a_location_without_stores(shellcode_emu: Speakeasy) -> None:

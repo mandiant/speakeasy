@@ -429,77 +429,60 @@ class GDI32(api.ApiHandler):
             LPARAM data
         );
 
-        Call lpProc for each point of the line except the end point, with the algorithm of Wine:
-        https://github.com/wine-mirror/wine/blob/ff2631c6ed3d1721cd050d951671c307ade32b90/dlls/gdi32/objects.c#L1032
+        Windows calls lpProc for each point of the line except the end point. Malware uses LineDDA to run its
+        payload as the callback, so call lpProc only for the start point. A line without points calls nothing.
         """
         x, y, x_end, y_end = (ct.c_int32(v).value for v in argv[:4])
         lpProc, data = argv[4:]
-        dx, dy = abs(x_end - x), abs(y_end - y)
-        x_add = -1 if x_end < x else 1
-        y_add = -1 if y_end < y else 1
-        major, minor = (dx, dy) if dx > dy else (dy, dx)
-        err = 2 * minor - major
-        for _ in range(major):
+        if (x, y) != (x_end, y_end):
             yield GuestCall(lpProc, (x & 0xFFFFFFFF, y & 0xFFFFFFFF, data))
-            step_minor = err > 0
-            err += 2 * minor - (2 * major if step_minor else 0)
-            if dx > dy:
-                x += x_add
-                y += y_add if step_minor else 0
-            else:
-                y += y_add
-                x += x_add if step_minor else 0
         return 1
 
     def enum_fonts(self, emu: "Win32Emulator", cw: int, face_name: str, charset: int, proc: int, lparam: int):
         """
-        Call proc for each font of FONTS that has the face name and the character set, as EnumFontFamiliesEx does.
+        Call proc only for the first font of FONTS that has the face name and the character set. Malware uses the
+        font enumeration APIs to run its payload as the callback.
 
-        An empty face name and DEFAULT_CHARSET select each font. The LOGFONT and TEXTMETRIC of a call are valid
-        only during the call. Return the result of the last call, or 1 without a call.
+        An empty face name and DEFAULT_CHARSET select each font. The LOGFONT and TEXTMETRIC are valid only during
+        the call. Return the result of the call, or 1 without a call.
         """
+        if charset not in (gdidefs.DEFAULT_CHARSET, gdidefs.ANSI_CHARSET):
+            return 1
+        font = next((f for f in FONTS if not face_name or face_name.lower() == f[0].lower()), None)
+        if font is None:
+            return 1
+        name, pitch_and_family = font
         ptr_size = emu.get_ptr_size()
-        lf_size = self.sizeof(gdidefs.ENUMLOGFONTEX(ptr_size, cw))
-        tm_size = self.sizeof(gdidefs.NEWTEXTMETRICEX(ptr_size, cw))
-        lf_addr = self.mem_alloc(lf_size, tag="api.enum_fonts.logfont")
-        tm_addr = self.mem_alloc(tm_size, tag="api.enum_fonts.textmetric")
-        rv = 1
+        lf = gdidefs.ENUMLOGFONTEX(ptr_size, cw)
+        lf.lfWeight = gdidefs.FW_NORMAL
+        lf.lfCharSet = gdidefs.ANSI_CHARSET
+        lf.lfOutPrecision = gdidefs.OUT_STROKE_PRECIS
+        lf.lfClipPrecision = gdidefs.CLIP_STROKE_PRECIS
+        lf.lfQuality = gdidefs.DRAFT_QUALITY
+        lf.lfPitchAndFamily = pitch_and_family
+        lf.lfFaceName = self.encode_string(name, cw)
+        lf.elfFullName = self.encode_string(name, cw)
+        lf.elfStyle = self.encode_string("Regular", cw)
+        lf.elfScript = self.encode_string("Western", cw)
+        tm = gdidefs.NEWTEXTMETRICEX(ptr_size, cw)
+        tm.tmWeight = gdidefs.FW_NORMAL
+        tm.tmCharSet = gdidefs.ANSI_CHARSET
+        tm.tmPitchAndFamily = (
+            (pitch_and_family & 0xF0)
+            | gdidefs.TMPF_TRUETYPE
+            | gdidefs.TMPF_VECTOR
+            | (gdidefs.TMPF_FIXED_PITCH if pitch_and_family & gdidefs.VARIABLE_PITCH else 0)
+        )
+        tm.ntmFlags = gdidefs.NTM_REGULAR
+        lf_addr = self.mem_alloc(self.sizeof(lf), tag="api.enum_fonts.logfont")
+        tm_addr = self.mem_alloc(self.sizeof(tm), tag="api.enum_fonts.textmetric")
+        self.mem_write(lf_addr, self.get_bytes(lf))
+        self.mem_write(tm_addr, self.get_bytes(tm))
         try:
-            for name, pitch_and_family in FONTS:
-                if face_name and face_name.lower() != name.lower():
-                    continue
-                if charset not in (gdidefs.DEFAULT_CHARSET, gdidefs.ANSI_CHARSET):
-                    continue
-                lf = gdidefs.ENUMLOGFONTEX(ptr_size, cw)
-                lf.lfWeight = gdidefs.FW_NORMAL
-                lf.lfCharSet = gdidefs.ANSI_CHARSET
-                lf.lfOutPrecision = gdidefs.OUT_STROKE_PRECIS
-                lf.lfClipPrecision = gdidefs.CLIP_STROKE_PRECIS
-                lf.lfQuality = gdidefs.DRAFT_QUALITY
-                lf.lfPitchAndFamily = pitch_and_family
-                lf.lfFaceName = self.encode_string(name, cw)
-                lf.elfFullName = self.encode_string(name, cw)
-                lf.elfStyle = self.encode_string("Regular", cw)
-                lf.elfScript = self.encode_string("Western", cw)
-                tm = gdidefs.NEWTEXTMETRICEX(ptr_size, cw)
-                tm.tmWeight = gdidefs.FW_NORMAL
-                tm.tmCharSet = gdidefs.ANSI_CHARSET
-                tm.tmPitchAndFamily = (
-                    (pitch_and_family & 0xF0)
-                    | gdidefs.TMPF_TRUETYPE
-                    | gdidefs.TMPF_VECTOR
-                    | (gdidefs.TMPF_FIXED_PITCH if pitch_and_family & gdidefs.VARIABLE_PITCH else 0)
-                )
-                tm.ntmFlags = gdidefs.NTM_REGULAR
-                self.mem_write(lf_addr, self.get_bytes(lf))
-                self.mem_write(tm_addr, self.get_bytes(tm))
-                rv = (yield GuestCall(proc, (lf_addr, tm_addr, gdidefs.TRUETYPE_FONTTYPE, lparam))) & 0xFFFFFFFF
-                if not rv:
-                    break
+            return (yield GuestCall(proc, (lf_addr, tm_addr, gdidefs.TRUETYPE_FONTTYPE, lparam))) & 0xFFFFFFFF
         finally:
             self.mem_free(lf_addr)
             self.mem_free(tm_addr)
-        return rv
 
     @apihook("EnumFontFamiliesEx", argc=5)
     def EnumFontFamiliesEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
