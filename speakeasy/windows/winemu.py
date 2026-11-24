@@ -82,7 +82,8 @@ from speakeasy.winenv.defs.nt import ddk
 if TYPE_CHECKING:
     from speakeasy.speakeasy import Speakeasy
 
-# The maximum number of exports of a module that the emulator runs when it emulates all exports
+# The maximum number of exported functions of a module that the emulator runs. Some modules, such as the Windows
+# kernel, have thousands of exports.
 MAX_EXPORTS_TO_EMULATE = 10
 
 # The signal number that the GDB server reports for memory faults
@@ -113,21 +114,22 @@ REPORT_ARCHES = {_arch.ARCH_X86: Arch.X86, _arch.ARCH_AMD64: Arch.X64}
 logger = logging.getLogger(__name__)
 
 
-def get_export_aliases(exports: list[ExportEntry], limit: int = MAX_EXPORTS_TO_EMULATE) -> list[list[ExportEntry]]:
+def get_export_aliases(exports: list[ExportEntry]) -> list[list[ExportEntry]]:
     """
-    Get the exported functions to run, as lists of the exports at one address, at most ``limit`` lists.
+    Get the exported functions to run, as lists of the exports at one address.
 
-    DllMain, data exports and forwarders are not functions to run. The exports at one address run the same code,
-    so the caller runs one export of each list. The lists are in the order of their first export.
+    The result has at most ``MAX_EXPORTS_TO_EMULATE`` lists, in the order of their first export. DllMain runs as the
+    DLL entry, and data exports and forwarders are not code of the module, so they do not count toward the limit. The
+    exports at one address run the same code, so the caller runs only one export of each list.
     """
     aliases: dict[int, list[ExportEntry]] = {}
     for exp in exports:
         if exp.name == "DllMain" or exp.kind == "data" or exp.forwarder is not None:
             continue
         aliases.setdefault(exp.address, []).append(exp)
-    if len(aliases) > limit:
-        logger.info("running %d of %d exported functions, because the limit is %d", limit, len(aliases), limit)
-    return list(aliases.values())[:limit]
+    if len(aliases) > MAX_EXPORTS_TO_EMULATE:
+        logger.info("running the first %d of %d exported functions", MAX_EXPORTS_TO_EMULATE, len(aliases))
+    return list(aliases.values())[:MAX_EXPORTS_TO_EMULATE]
 
 
 @dataclass

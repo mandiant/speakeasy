@@ -259,6 +259,7 @@ class Win32Emulator(WindowsEmulator):
                 args = [self.mem_map(8, tag="emu.export_arg_%d" % (i), base=0x41420000) for i in range(4)]  # noqa
                 this = None
                 for exports in aliases:
+                    # Run the alias that gets its own arguments, if one does.
                     exp = next((e for e in exports if self.export_has_args(module, e)), exports[0])
                     run = Run()
                     run.type = RunType.EXPORT
