@@ -84,7 +84,7 @@ if TYPE_CHECKING:
 
 # The maximum number of exported functions of a module that the emulator runs. Some modules, such as the Windows
 # kernel, have thousands of exports.
-MAX_EXPORTS_TO_EMULATE = 10
+MAX_EXPORTS_TO_EMULATE = 32
 
 # The signal number that the GDB server reports for memory faults
 GDB_SIGSEGV = 11

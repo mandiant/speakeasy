@@ -471,7 +471,7 @@ Each feature option is a boolean, and each one is on by default. Some options ad
 | `memory.dynamic_code_contents.enabled` | `--no-memory-dynamic-code-contents` | Report data | Fills `dynamic_code[].contents[].data_ref` and `dynamic_code[].limit_reached`. |
 | `code.coverage` | `--no-code-coverage` | Report data | Fills `runs[].coverage`. Hooks each instruction. |
 | `memory.freed_regions` | `--no-memory-freed-regions` | Guest behavior | A freed region stays mapped, so a read after the free does not fault. Adds `freed` to each region in the report. Off: the report leaves out the freed regions. |
-| `runs.exports` | `--no-runs-exports` | Guest behavior | Runs the exports of a DLL, and the IRP dispatch functions and the unload routine of a driver. It runs at most 10 exported functions, one export for each address. It skips DllMain, data exports and forwarders. |
+| `runs.exports` | `--no-runs-exports` | Guest behavior | Runs the exports of a DLL, and the IRP dispatch functions and the unload routine of a driver. It runs at most 32 exported functions, one export for each address. It skips DllMain, data exports and forwarders. |
 | `runs.children` | `--no-runs-children` | Guest behavior | Runs the child processes after the input. |
 | `apis.stubs` | `--no-apis-stubs` | Guest behavior | An unknown API returns 1. Off: the run ends with `unsupported_api`. |
 | `modules.stubs` | `--no-modules-stubs` | Guest behavior | An unknown module loads as an empty API module. Off: the load fails. |

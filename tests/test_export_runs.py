@@ -58,13 +58,13 @@ def test_x86_thiscall_export_starts_with_this_in_ecx(config, load_test_bin):
 
 
 def test_exports_at_the_same_address_run_once(config, load_test_bin):
-    """The 331 exports of 0e718f95 are at 211 addresses, so the ten export runs start at ten addresses."""
+    """The 331 exports of 0e718f95 are at 211 addresses, so each export run starts at a different address."""
     with Speakeasy(config=config) as se:
         se.run_module(se.load_module(data=load_test_bin(TAEF_COMMON)))
         runs = [ep for ep in se.get_report().runs if ep.type == "export"]
 
-    assert len(runs) == 10
-    assert len({run.start_address for run in runs}) == 10
+    assert len(runs) == MAX_EXPORTS_TO_EMULATE
+    assert len({run.start_address for run in runs}) == MAX_EXPORTS_TO_EMULATE
 
 
 def export(name: str | None, address: int, **kwargs) -> ExportEntry:
