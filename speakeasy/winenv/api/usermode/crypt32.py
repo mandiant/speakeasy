@@ -31,8 +31,6 @@ DPAPI_HEADER = struct.Struct("<I16sI16sII")
 CERT_SYSTEM_STORE_LOCATION_MASK = 0x00FF0000
 CERT_SYSTEM_STORE_CURRENT_USER = 0x00010000
 CERT_SYSTEM_STORE_LOCAL_MACHINE = 0x00020000
-# The system stores that CertEnumSystemStore gives for the current user and the local machine.
-SYSTEM_STORES = ("My", "Root", "Trust", "CA")
 
 
 def decode_base64(s):
@@ -225,25 +223,21 @@ class Crypt32(api.ApiHandler):
             PFN_CERT_ENUM_SYSTEM_STORE pfnEnum
         );
 
-        The current user and the local machine locations have the stores of SYSTEM_STORES. For other locations, the
-        handler fails with ERROR_FILE_NOT_FOUND, as Wine does for a location that has no registry key.
+        Call pfnEnum only for the "My" store of the current user or the local machine. Malware uses
+        CertEnumSystemStore to run its payload as the callback. For other locations, the handler fails with
+        ERROR_FILE_NOT_FOUND, as Wine does for a location that has no registry key.
         """
         dwFlags, pvSystemStoreLocationPara, pvArg, pfnEnum = argv
         location = dwFlags & CERT_SYSTEM_STORE_LOCATION_MASK
         if location not in (CERT_SYSTEM_STORE_CURRENT_USER, CERT_SYSTEM_STORE_LOCAL_MACHINE):
             emu.set_last_error(windefs.ERROR_FILE_NOT_FOUND)
             return 0
-        size = (max(map(len, SYSTEM_STORES)) + 1) * 2
-        name = self.mem_alloc(size, tag="api.cert_enum_system_store.name")
+        name = self.mem_alloc(len("My\0") * 2, tag="api.cert_enum_system_store.name")
         info = self.mem_alloc(4, tag="api.cert_enum_system_store.info")
+        self.write_mem_string("My", name, 2)
         self.write_dword(info, 4)  # CERT_SYSTEM_STORE_INFO.cbSize
-        rv = 1
         try:
-            for store in SYSTEM_STORES:
-                self.write_mem_string(store, name, 2)
-                rv = (yield GuestCall(pfnEnum, (name, dwFlags, info, 0, pvArg))) & 0xFFFFFFFF
-                if not rv:
-                    break
+            rv = (yield GuestCall(pfnEnum, (name, dwFlags, info, 0, pvArg))) & 0xFFFFFFFF
         finally:
             self.mem_free(name)
             self.mem_free(info)
