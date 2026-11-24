@@ -225,8 +225,8 @@ class Crypt32(api.ApiHandler):
             PFN_CERT_ENUM_SYSTEM_STORE pfnEnum
         );
 
-        pfnEnum gets each store of SYSTEM_STORES for the current user and the local machine locations. Other
-        locations have no stores and fail with ERROR_FILE_NOT_FOUND, as in Wine.
+        The current user and the local machine locations have the stores of SYSTEM_STORES. For other locations, the
+        handler fails with ERROR_FILE_NOT_FOUND, as Wine does for a location that has no registry key.
         """
         dwFlags, pvSystemStoreLocationPara, pvArg, pfnEnum = argv
         location = dwFlags & CERT_SYSTEM_STORE_LOCATION_MASK
