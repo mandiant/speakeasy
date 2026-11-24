@@ -7961,6 +7961,58 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         # https://docs.microsoft.com/en-us/windows/win32/intl/locale-user-default
         return LCID.LOCALE_USER_DEFAULT
 
+    def enum_locales(self, emu, cw: int, proc: int, names: list[str], *args: int):
+        """
+        Call proc for each name, with a buffer of the name and args. Stop at a call that returns FALSE.
+
+        The buffer is valid only during the enumeration.
+        """
+        size = (max(map(len, names), default=0) + 1) * cw
+        buf = self.mem_alloc(size, tag="api.enum_locales")
+        try:
+            for name in names:
+                self.write_mem_string(name, buf, cw)
+                if not (yield GuestCall(proc, (buf, *args))) & 0xFFFFFFFF:
+                    break
+        finally:
+            self.mem_free(buf)
+        return 1
+
+    @apihook("EnumSystemLocales", argc=2)
+    def EnumSystemLocales(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumSystemLocales(
+            LOCALE_ENUMPROC lpLocaleEnumProc,
+            DWORD dwFlags
+        );
+
+        lpLocaleEnumProc gets the LCID of each locale as 8 hex digits, as Wine gives it.
+        """
+        lpLocaleEnumProc, dwFlags = argv
+        cw = self.get_char_width(ctx)
+        flags = dwFlags or k32defs.LCID_SUPPORTED
+        default_sorts = flags & (k32defs.LCID_INSTALLED | k32defs.LCID_SUPPORTED)
+        names = [f"{lcid:08x}" for _, lcid in k32defs.LOCALES] if default_sorts else []
+        return (yield from self.enum_locales(emu, cw, lpLocaleEnumProc, names))
+
+    @apihook("EnumSystemLocalesEx", argc=4)
+    def EnumSystemLocalesEx(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        BOOL EnumSystemLocalesEx(
+            LOCALE_ENUMPROCEX lpLocaleEnumProcEx,
+            DWORD dwFlags,
+            LPARAM lParam,
+            LPVOID lpReserved
+        );
+        """
+        lpLocaleEnumProcEx, dwFlags, lParam, lpReserved = argv
+        if lpReserved:
+            emu.set_last_error(windefs.ERROR_INVALID_PARAMETER)
+            return 0
+        flags = k32defs.LOCALE_WINDOWS | k32defs.LOCALE_SPECIFICDATA
+        names = [name for name, _ in k32defs.LOCALES] if not dwFlags or dwFlags & flags else []
+        return (yield from self.enum_locales(emu, 2, lpLocaleEnumProcEx, names, flags, lParam))
+
     @apihook("GetSystemDefaultLCID", argc=0)
     def GetSystemDefaultLCID(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
