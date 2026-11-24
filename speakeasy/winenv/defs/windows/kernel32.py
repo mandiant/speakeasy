@@ -50,16 +50,11 @@ PROCESSOR_ARCHITECTURE_INTEL = 0
 PROCESSOR_INTEL_PENTIUM = 586
 PROCESSOR_AMD_X8664 = 8664
 
-
 LCID_INSTALLED = 0x1
 LCID_SUPPORTED = 0x2
 
 LOCALE_WINDOWS = 0x1
 LOCALE_SPECIFICDATA = 0x20
-
-# The locales that the locale enumeration APIs give, by name and LCID. Each is a specific locale with the
-# default sort.
-LOCALES = (("en-US", 0x0409),)
 
 
 class LCID(IntEnum):
