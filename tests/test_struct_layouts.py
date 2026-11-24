@@ -46,8 +46,19 @@ WIN32JSON_NAMES = {
 CLASS_ARCHS = {"CONTEXT": ("x86",), "CONTEXT64": ("x64",)}
 
 # win32json declares these structs as in the public headers (winternl.h), with reserved arrays in place of
-# the fields that speakeasy uses, and GUID as a native type. SID has a variable length.
-SKIPPED = {"GUID", "LDR_DATA_TABLE_ENTRY", "PEB", "PEB_LDR_DATA", "RTL_USER_PROCESS_PARAMETERS", "SID", "TEB"}
+# the fields that speakeasy uses, and GUID as a native type. SID has a variable length. win32json gives the
+# BYTE fields of LOGFONT, such as lfCharSet, the UInt32 base of their enum types.
+SKIPPED = {
+    "ENUMLOGFONTEX",
+    "GUID",
+    "LDR_DATA_TABLE_ENTRY",
+    "LOGFONT",
+    "PEB",
+    "PEB_LDR_DATA",
+    "RTL_USER_PROCESS_PARAMETERS",
+    "SID",
+    "TEB",
+}
 
 
 @dataclass(frozen=True)
