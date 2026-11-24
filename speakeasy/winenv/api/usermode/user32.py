@@ -1319,7 +1319,7 @@ class User32(api.ApiHandler):
         );
 
         Call lpEnumFunc for each descendant of hWndParent, or for each top-level window if hWndParent is NULL.
-        Return the result of the last call, or FALSE without a call, as Wine does.
+        As in Wine, return FALSE if there is no window or a call returns FALSE.
         """
         hWndParent, lpEnumFunc, lParam = argv
         if hWndParent:
@@ -1330,12 +1330,12 @@ class User32(api.ApiHandler):
             windows = self._get_descendant_windows(parent)
         else:
             windows = self._get_child_windows(self._get_desktop_window())
-        rv = 0
+        if not windows:
+            return 0
         for window in windows:
-            rv = (yield GuestCall(lpEnumFunc, (window.handle, lParam))) & 0xFFFFFFFF
-            if not rv:
-                break
-        return rv
+            if not (yield GuestCall(lpEnumFunc, (window.handle, lParam))) & 0xFFFFFFFF:
+                return 0
+        return 1
 
     def _get_desktop_window(self) -> sessman.Window:
         desktop: sessman.Window = self.sessman.get_current_desktop().desktop_window
@@ -2305,8 +2305,8 @@ class User32(api.ApiHandler):
             LPARAM dwData
         );
 
-        There is one monitor, of the screen size. A DC has the origin and the clip box of the screen. The callback
-        gets the part of the monitor in lprcClip, and no call occurs if that part is empty.
+        Speakeasy has one monitor of the screen size, and a DC covers the whole screen. As in Wine, lpfnEnum gets
+        the part of the monitor in lprcClip, and the handler does not call lpfnEnum if that part is empty.
         """
         hdc, lprcClip, lpfnEnum, dwData = argv
         ptr_size = emu.get_ptr_size()
@@ -2322,10 +2322,10 @@ class User32(api.ApiHandler):
         lprcMonitor = self.mem_alloc(self.sizeof(rect), tag="api.enum_display_monitors.rect")
         self.mem_write(lprcMonitor, self.get_bytes(rect))
         try:
-            rv = yield GuestCall(lpfnEnum, (PRIMARY_MONITOR, hdc, lprcMonitor, dwData))
+            rv = (yield GuestCall(lpfnEnum, (PRIMARY_MONITOR, hdc, lprcMonitor, dwData))) & 0xFFFFFFFF
         finally:
             self.mem_free(lprcMonitor)
-        return 1 if rv & 0xFFFFFFFF else 0
+        return 1 if rv else 0
 
     @apihook("EnumDisplayDevices", argc=4)
     def EnumDisplayDevices(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
