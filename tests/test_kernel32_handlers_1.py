@@ -624,6 +624,21 @@ def test_resume_thread_starts_a_child_after_an_ntdll_change(
     assert dll_emu.emu.run_queue[-1].process_context is child
 
 
+def test_nt_resume_process_starts_a_suspended_thread_of_the_process(dll_emu: Speakeasy) -> None:
+    hproc, _ = create_suspended_child(dll_emu)
+    child = dll_emu.emu.child_processes[0]
+    code = alloc(dll_emu, b"\xc3")
+    flags = ddk.THREAD_CREATE_FLAGS_CREATE_SUSPENDED
+    rv, _ = call(
+        dll_emu, "ntdll", "NtCreateThreadEx", [alloc(dll_emu, bytes(4)), 0, 0, hproc, code, 0, flags, 0, 0, 0, 0]
+    )
+    assert rv == ddk.STATUS_SUCCESS
+    queued = len(dll_emu.emu.run_queue)
+    assert call(dll_emu, "ntdll", "NtResumeProcess", [hproc])[0] == ddk.STATUS_SUCCESS
+    assert [(r.start_addr, r.process_context) for r in dll_emu.emu.run_queue[queued:]] == [(code, child)]
+    assert dll_emu.emu.child_processes == [child]
+
+
 def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speakeasy) -> None:
     _, hthread = create_suspended_child(dll_emu)
     put_code_at_entry(dll_emu, hthread)

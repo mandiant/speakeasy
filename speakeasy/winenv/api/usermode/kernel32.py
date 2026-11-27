@@ -1459,38 +1459,8 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         rv = obj.suspend_count
         if rv > 0:
             obj.suspend_count -= 1
-        if rv != 1:
-            return rv
-
-        if not emu.resume_thread(obj):
-            proc = obj.process
-            if proc is None or proc not in emu.child_processes or not proc.is_modified:
-                return rv
-            context = obj.get_context()
-            if emu.get_arch() == e_arch.ARCH_AMD64:
-                start_addr = context.Rip
-                if not start_addr and context.Rcx:
-                    start_addr = context.Rcx
-            else:
-                start_addr = context.Eip
-                if not start_addr and context.Eax:
-                    start_addr = context.Eax
-
-            # The context of a child that has an image in the emulated file system gets its entry point only when child
-            # emulation loads the image, so the child stays for child emulation unless the parent set a start address.
-            if not start_addr:
-                return rv
-            # The image of any other program has no code and no entry point, so the context gives the MZ header at its
-            # base. A run there faults on the first instruction, unless the parent wrote code over the header.
-            pe = proc.pe
-            mm = emu.get_address_map(start_addr)
-            if mm and pe and not pe.ep and start_addr == pe.base and self.mem_read(start_addr, 2) == b"MZ":
-                return rv
-            if mm:
-                emu.ensure_pe_import_hooks(mm.base)
-
-            handle, obj = self.create_thread(start_addr, 0, proc, name=ntpath.basename(proc.path))
-            emu.child_processes.remove(proc)
+        if rv == 1:
+            emu.resume_thread(obj)
         return rv
 
     @apihook("SuspendThread", argc=1)
