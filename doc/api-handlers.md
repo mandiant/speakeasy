@@ -63,7 +63,7 @@ A call to an import without an `@apihook` does not always stop the run. Speakeas
 
 Each argument in the event of such a call has the parameter name, the type, the raw value and the rendering (see [reporting](reporting.md)).
 
-win32metadata declares a function under the DLL that implements it. When the DLL of the call does not declare the name, the emulator also looks under each module that `DLL_HOSTS` lists for that DLL, and under the API sets of these modules. For example, win32metadata declares `Beep` under KERNEL32, and a call to `kernelbase!Beep` uses that declaration.
+win32metadata declares a function under the DLL of its import library, which is not always the DLL of the call. For example, it declares `Beep` under KERNEL32, but kernelbase also exports `Beep`. When the DLL of the call does not declare the name, the emulator also looks under each module that `DLL_HOSTS` lists for that DLL, and under the API sets of these modules. So a call to `kernelbase!Beep` uses the KERNEL32 declaration.
 
 When the slot count of the signature is equal to the `argc` of a handler, the emulator also uses the signature to name and show the arguments of the handler call. `ctx.args` gives the handler one entry per parameter, by name (`ctx.args["hKey"]`) or by parameter index. A handler that sets `display` replaces the rendering of that parameter.
 
