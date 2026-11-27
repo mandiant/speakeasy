@@ -334,16 +334,9 @@ class ApiHandler:
         """
         Allocate memory as ``NtAllocateVirtualMemory`` does, and return the status, the base and the size.
 
-        The range starts at the page below the address and ends at the page boundary after the range. Windows starts
-        a reservation at the 64 KiB boundary below the address, but the emulator maps its own memory, such as the PEB
-        and the images, at page boundaries, so a 64 KiB range can include emulator memory. A commit in an allocation
-        that ``VirtualAlloc`` or ``ZwAllocateVirtualMemory`` made for the process changes the protection of its pages. A
-        reservation needs free memory, but ``VirtualFree`` leaves a freed allocation mapped, so a reservation can use
-        it again. A commit of free memory also reserves it, which Windows does not do.
-
-        All processes share one address space. When ``process`` is not the current process and only memory of other
-        processes uses the range, the allocation goes to the next free range. On Windows, that range is free in the
-        target, so a process hollowing sample gets the address that it asked for.
+        The range starts at the page below the address. Windows starts a reservation at the 64 KiB boundary below the
+        address, but the emulator maps its own memory, such as the PEB and the images, at page boundaries. A commit at
+        a free address also reserves the range, which Windows does not do.
         """
         emu = self.emu
         alloc_type &= 0xFFFFFFFF
@@ -356,6 +349,8 @@ class ApiHandler:
 
         perms = self.win_perms_to_emu_perms(protect)
         guard = bool(protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD)
+        # A commit in an allocation of the process changes its pages in place. A reservation needs free
+        # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
         mm = emu.get_address_map(address) if address else None
         if (
             mm
@@ -370,6 +365,10 @@ class ApiHandler:
                 emu.protect_pages(base, end - base, perms, guard=guard)
             return ddk.STATUS_SUCCESS, base, end - base
 
+        # MEM_RESET and MEM_RESET_UNDO change only memory that the process already allocated.
+        if not alloc_type & (windefs.MEM_COMMIT | windefs.MEM_RESERVE):
+            return ddk.STATUS_CONFLICTING_ADDRESSES, 0, 0
+
         start = emu.virtual_mem_base
         region_size = size
         if address:
@@ -380,6 +379,9 @@ class ApiHandler:
         except OutOfMemoryError:
             return ddk.STATUS_NO_MEMORY, 0, 0
         if address and base != start:
+            # All processes share one address space, so memory of the caller can take the range in another
+            # process. The allocation then moves, so that a process hollowing sample still writes its payload
+            # and resumes the target.
             end = start + region_size
             taken = [m for m in emu.get_mem_maps() if m.base < end and start < m.base + m.size]
             if process is emu.get_current_process() or any(m.process is process for m in taken):
