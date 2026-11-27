@@ -38,7 +38,7 @@ An allocation at an address starts at the page below the address. Windows starts
 
 The input EXE decides the Data Execution Prevention (DEP) state of all processes: a 64-bit EXE, and a 32-bit EXE with `IMAGE_DLLCHARACTERISTICS_NX_COMPAT`, run with DEP, and a 32-bit EXE without it runs without DEP. A DLL, a driver or shellcode runs with DEP. A child process does not get the DEP state of its own image, and `SetProcessDEPPolicy` does not change it. In a 32-bit process without DEP, `VirtualQuery`, `NtQueryVirtualMemory` and the old protection of `VirtualProtect` give the execute variant of a readable protection, for example `PAGE_EXECUTE_READWRITE` for a `PAGE_READWRITE` page. Without a debugger, when the guest runs code in memory without execute permission, the emulator also continues with DEP, for example when a packer runs decrypted bytes in `.data`.
 
-When a sample creates a child process with `CREATE_SUSPENDED`, `ResumeThread` starts a run for the main thread of the child only if the sample changed the child first, for example with `WriteProcessMemory` or `SetThreadContext`. The run starts at the address in the thread context. Code that the sample starts in the child with other APIs, for example `CreateRemoteThread`, runs as usual.
+When a sample creates a child process with `CREATE_SUSPENDED`, `ResumeThread` or `NtResumeProcess` starts a run for the main thread of the child only if the sample changed the child first, for example with `WriteProcessMemory` or `SetThreadContext`. The run starts at the address in the thread context. Code that the sample starts in the child with other APIs, for example `CreateRemoteThread`, runs as usual.
 
 ## Strings
 

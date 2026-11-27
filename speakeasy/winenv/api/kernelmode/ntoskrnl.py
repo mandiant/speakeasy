@@ -3690,6 +3690,28 @@ class Ntoskrnl(api.ApiHandler):
 
         return ddk.STATUS_SUCCESS
 
+    @apihook("ZwResumeProcess", argc=1)
+    def ZwResumeProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwResumeProcess(
+            HANDLE ProcessHandle
+        );
+        """
+        (ProcessHandle,) = argv
+
+        proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc:
+            return ddk.STATUS_INVALID_HANDLE
+
+        threads = proc.threads + [r.thread for r in emu.suspended_runs if r.thread and r.process_context is proc]
+        for thread in threads:
+            if thread.suspend_count > 0:
+                thread.suspend_count -= 1
+                if not thread.suspend_count:
+                    emu.resume_thread(thread)
+
+        return ddk.STATUS_SUCCESS
+
     @apihook("RtlFreeHeap", argc=3)
     def RtlFreeHeap(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """

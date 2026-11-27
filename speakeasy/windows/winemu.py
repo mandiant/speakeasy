@@ -2454,13 +2454,46 @@ class WindowsEmulator(BinaryEmulator):
         return hnd, thread
 
     def resume_thread(self, thread):
-        """Move the suspended run of thread to the queue. Return False if thread has no suspended run."""
+        """
+        Move the suspended run of thread to the queue.
+
+        A thread without a suspended run is the main thread of a child process. If the guest changed the child, add a
+        run at the start address of the thread context, else leave the child for child emulation.
+        """
         for r in self.suspended_runs:
             if r.thread == thread:
                 _run = self.suspended_runs.pop(self.suspended_runs.index(r))
                 self.run_queue.append(_run)
-                return True
-        return False
+                return
+
+        proc = thread.process
+        if proc is None or proc not in self.child_processes or not proc.is_modified:
+            return
+        context = thread.get_context()
+        if self.get_arch() == _arch.ARCH_AMD64:
+            start_addr = context.Rip
+            if not start_addr and context.Rcx:
+                start_addr = context.Rcx
+        else:
+            start_addr = context.Eip
+            if not start_addr and context.Eax:
+                start_addr = context.Eax
+
+        # The context of a child that has an image in the emulated file system gets its entry point only when child
+        # emulation loads the image, so the child stays for child emulation unless the parent set a start address.
+        if not start_addr:
+            return
+        # The image of any other program has no code and no entry point, so the context gives the MZ header at its
+        # base. A run there faults on the first instruction, unless the parent wrote code over the header.
+        pe = proc.pe
+        mm = self.get_address_map(start_addr)
+        if mm and pe and not pe.ep and start_addr == pe.base and self.mem_read(start_addr, 2) == b"MZ":
+            return
+        if mm:
+            self.ensure_pe_import_hooks(mm.base)
+
+        self.create_thread(start_addr, 0, proc, name=ntpath.basename(proc.path))
+        self.child_processes.remove(proc)
 
     def get_process_peb(self, process):
         return process.peb
