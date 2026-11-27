@@ -3155,7 +3155,7 @@ class WindowsEmulator(BinaryEmulator):
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         try:
-            for module in (dll, *winemu.get_dll_hosts(dll)):
+            for module in dict.fromkeys((dll, *winemu.get_dll_hosts(dll))):
                 sig = db.get_functions(module, arch).get(name)
                 if sig is not None:
                     break
@@ -3166,7 +3166,7 @@ class WindowsEmulator(BinaryEmulator):
         return sig
 
     def _lookup_api_set_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
-        """Get a declaration that the signature database has under an API set whose host is a host of ``dll``."""
+        """Get a declaration that the signature database has under an API set of a host of ``dll``."""
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         sig = db.lookup(dll, name, arch)
