@@ -1369,12 +1369,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
             emu.set_last_error(windefs.ERROR_INVALID_HANDLE)
             return 0xFFFFFFFF
 
-        rv = obj.suspend_count
-        if rv > 0:
-            obj.suspend_count -= 1
-        if rv == 1:
-            emu.resume_thread(obj)
-        return rv
+        return emu.resume_thread(obj)
 
     @apihook("SuspendThread", argc=1)
     def SuspendThread(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):

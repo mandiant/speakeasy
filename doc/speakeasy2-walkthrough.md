@@ -43,7 +43,7 @@ For example, put `file_access_test_x86.exe` and `myfile.txt` in one directory, s
 
 ## Import hooks for injected and replaced child processes
 
-When a sample writes a PE into a child process with `WriteProcessMemory`, the loader does not see that PE, so 1.x did not bind its imports. In 2.0, when the sample resumes the modified child process with `ResumeThread`, the emulator reads the import directory of the PE from emulated memory. It binds the IAT slots to the same API addresses that the loader uses. Speakeasy then intercepts and reports the API calls of the hollowed payload.
+When a sample writes a PE into a child process with `WriteProcessMemory`, the loader does not see that PE, so 1.x did not bind its imports. In 2.0, when the sample resumes the modified child process with `ResumeThread`, `NtResumeThread` or `NtResumeProcess`, the emulator reads the import directory of the PE from emulated memory. It binds the IAT slots to the same API addresses that the loader uses. Speakeasy then intercepts and reports the API calls of the hollowed payload.
 
 ## Final memory contents in the report
 

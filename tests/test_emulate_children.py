@@ -200,8 +200,8 @@ def push(value):
     return b"\x68" + struct.pack("<I", value)
 
 
-def call_import(base, iat, name):
-    return b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", name])
+def call_import(base, iat, name, dll="kernel32.dll"):
+    return b"\xff\x15" + struct.pack("<I", base + iat[dll, name])
 
 
 def build_mutex_parent():
@@ -381,3 +381,78 @@ def test_parent_opens_a_child_by_its_pid_and_runs_code_in_it(config):
     child = next(p for p in report.processes if p.path == NOTEPAD_PATH)
     assert [(r.type, r.error) for r in report.runs] == [("module_entry", None), ("thread", None)]
     assert (report.runs[1].pid, report.runs[1].return_value) == (child.pid, 42)
+
+
+def call_api(base, iat, dll, name, args):
+    """
+    Call an import with args.
+
+    An int arg is a value, and a tuple (address,) is the value at the address.
+    """
+    code = b""
+    for arg in reversed(args):
+        code += b"\xff\x35" + struct.pack("<I", arg[0]) if isinstance(arg, tuple) else push(arg)
+    return code + call_import(base, iat, name, dll)
+
+
+def build_hollower(resume):
+    """
+    Build a parent that hollows notepad.exe and then calls the resume API to start the child.
+
+    The parent starts the child suspended, writes a stub into it, and sets the thread context to the stub. The stub
+    returns 42. The parent returns the previous suspend count that NtResumeThread gives, or the status of
+    NtResumeProcess.
+    """
+    # .data: the path at 0, STARTUPINFOA at 0x40, PROCESS_INFORMATION at 0xB0, the stub at 0xD0, the previous suspend
+    # count at 0xD8, the address of the stub in the child at 0xE0, CONTEXT at 0x100
+    stub = b"\xb8\x2a\x00\x00\x00\xc2\x04\x00"
+    data = NOTEPAD_PATH.encode().ljust(0x40, b"\0") + struct.pack("<I", 0x44)
+    data = data.ljust(0xD0, b"\0") + stub
+    data = data.ljust(0x100, b"\0") + struct.pack("<I", 0x10003)
+    data = data.ljust(0x100 + 0x2CC, b"\0")
+
+    def text(base, iat):
+        data_va = base + 0x2000
+        hproc, hthread = (data_va + 0xB0,), (data_va + 0xB4,)
+        prev, remote, context = data_va + 0xD8, data_va + 0xE0, data_va + 0x100
+
+        def api(name, args, dll="kernel32.dll"):
+            return call_api(base, iat, dll, name, args)
+
+        code = api("CreateProcessA", [data_va, 0, 0, 0, 0, 4, 0, 0, data_va + 0x40, data_va + 0xB0])
+        code += api("VirtualAllocEx", [hproc, 0, 0x1000, 0x3000, 0x40]) + b"\xa3" + struct.pack("<I", remote)
+        code += api("WriteProcessMemory", [hproc, (remote,), data_va + 0xD0, len(stub), 0])
+        code += api("GetThreadContext", [hthread, context])
+        code += b"\xa1" + struct.pack("<I", remote) + b"\xa3" + struct.pack("<I", context + 0xB8)
+        code += api("SetThreadContext", [hthread, context])
+        if resume == "NtResumeThread":
+            code += api("NtResumeThread", [hthread, prev], "ntdll.dll") + b"\xa1" + struct.pack("<I", prev)
+        else:
+            code += api("NtResumeProcess", [hproc], "ntdll.dll")
+        return code + b"\xc3"
+
+    imports = {
+        "kernel32.dll": [
+            "CreateProcessA",
+            "VirtualAllocEx",
+            "WriteProcessMemory",
+            "GetThreadContext",
+            "SetThreadContext",
+        ],
+        "ntdll.dll": ["NtResumeThread", "NtResumeProcess"],
+    }
+    return build_pe(32, text=text, data=data, imports=imports)[0]
+
+
+@pytest.mark.parametrize(("resume", "previous"), [("NtResumeThread", 1), ("NtResumeProcess", 0)])
+def test_parent_resumes_a_hollowed_child_at_the_stub_that_it_wrote(config, resume, previous):
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=build_hollower(resume))
+        se.run_module(module)
+        stub = int.from_bytes(se.mem_read(module.base + 0x20E0, 4), "little")
+        report = se.get_report()
+
+    child = next(p for p in report.processes if p.path == NOTEPAD_PATH)
+    assert [(r.type, r.error) for r in report.runs] == [("module_entry", None), ("thread", None)]
+    assert report.runs[0].return_value == previous
+    assert (report.runs[1].pid, report.runs[1].start_address, report.runs[1].return_value) == (child.pid, stub, 42)
