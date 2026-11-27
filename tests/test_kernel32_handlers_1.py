@@ -24,6 +24,7 @@ PAGE_READWRITE = 0x04
 MEM_COMMIT = 0x1000
 MEM_RESERVE = 0x2000
 MEM_RELEASE = 0x8000
+ALLOCATION_GRANULARITY = 0x10000
 FILE_MAP_READ = 0x04
 FILE_MAP_ALL_ACCESS = 0xF001F
 GENERIC_READ = 0x80000000
@@ -161,6 +162,19 @@ def test_virtual_alloc_ex_fails_only_at_memory_of_the_target(dll_emu: Speakeasy)
     moved = alloc_at(hproc, image)
     assert moved not in (0, image)
     assert alloc_at(hproc, moved) == 0
+
+
+def test_virtual_alloc_starts_at_the_allocation_granularity_only_without_an_address(dll_emu: Speakeasy) -> None:
+    start_process(dll_emu)
+
+    def virtual_alloc(address: int, size: int) -> int:
+        return call(dll_emu, "kernel32", "VirtualAlloc", [address, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE])[0]
+
+    first = virtual_alloc(0, 0x1000)
+    assert first and first % ALLOCATION_GRANULARITY == 0
+    requested = first + ALLOCATION_GRANULARITY + 0x8000
+    assert virtual_alloc(requested, 0x1000) == requested
+    assert virtual_alloc(0, ALLOCATION_GRANULARITY) == first + 2 * ALLOCATION_GRANULARITY
 
 
 def test_virtual_alloc_ex_into_a_configured_process_reports_its_command_line(explorer_cmdline_emu: Speakeasy) -> None:

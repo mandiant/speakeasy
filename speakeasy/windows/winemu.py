@@ -919,15 +919,15 @@ class WindowsEmulator(BinaryEmulator):
             self.emu_eng.mem_map(winemu.EMU_RETURN_ADDR, winemu.EMU_RESERVE_SIZE)
         self.is_reserved_range_unmapped = False
 
-    def get_valid_ranges(self, size, addr=None):
+    def get_valid_ranges(self, size, addr=None, *, alignment=None):
         """
         Get a free range for an allocation outside the reserved range.
 
         The emulator keeps the reserved range unmapped, so that a return to the return hook faults.
         """
-        base, total = super().get_valid_ranges(size, addr=addr)
+        base, total = super().get_valid_ranges(size, addr=addr, alignment=alignment)
         if base < winemu.EMU_RESERVED_END and base + total > winemu.EMU_RESERVED:
-            base, total = super().get_valid_ranges(size, addr=winemu.EMU_RESERVED_END)
+            base, total = super().get_valid_ranges(size, addr=winemu.EMU_RESERVED_END, alignment=alignment)
         return base, total
 
     def add_run(self, run):

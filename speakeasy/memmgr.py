@@ -63,7 +63,6 @@ class MemMap:
         return not (self == other)
 
 
-# Windows never maps the first 64 KB, so a null pointer plus a small offset faults
 ALLOCATION_GRANULARITY = 0x10000
 
 
@@ -94,6 +93,7 @@ class MemoryManager:
         self.block_size: int = 0
         self.block_offset: int = 0
         self.page_size: int = 0x1000
+        # Windows never maps the first 64 KB, so a null pointer plus a small offset faults
         self.alloc_base: int = ALLOCATION_GRANULARITY
         # The Data Execution Prevention (DEP) state of the emulation. Without DEP, code can run from every
         # readable page. See get_native_perms.
@@ -292,13 +292,14 @@ class MemoryManager:
         """Get the mapped regions of the engine."""
         return self.emu_eng.mem_regions()
 
-    def get_valid_ranges(self, size: int, addr: int | None = None) -> tuple[int, int]:
+    def get_valid_ranges(self, size: int, addr: int | None = None, *, alignment: int | None = None) -> tuple[int, int]:
         """
-        Get the first free page-aligned range at or after ``addr`` that has no mapped or reserved page.
+        Get the first free range at or after ``addr`` that has no mapped or reserved page.
 
         Args:
             size: Number of bytes to allocate.
             addr: Address at which to start the search. Defaults to the allocation base.
+            alignment: Power of two that the base of the range is a multiple of. Defaults to the page size.
 
         Returns:
             The base address and the page-aligned size of the range.
@@ -307,12 +308,13 @@ class MemoryManager:
             OutOfMemoryError: if the range would cross the address limit.
         """
         page_size = self.page_size
+        align_mask = (alignment or page_size) - 1
 
         total = size
 
         if addr is None:
             addr = self.alloc_base
-        base = addr - (addr % page_size)
+        base = (addr - (addr % page_size) + align_mask) & ~align_mask
 
         if total < page_size:
             total = page_size
@@ -332,7 +334,7 @@ class MemoryManager:
             if page >= base + total:
                 break
             if page >= base:
-                base = page + page_size
+                base = (page + page_size + align_mask) & ~align_mask
 
         limit = self.get_address_limit()
         if limit is not None and addr < limit < base + total:

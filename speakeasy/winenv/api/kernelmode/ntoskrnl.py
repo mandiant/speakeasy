@@ -16,6 +16,7 @@ import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 import speakeasy.winenv.defs.registry.reg as regdefs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy.errors import ApiEmuError
+from speakeasy.memmgr import ALLOCATION_GRANULARITY
 from speakeasy.profiler_events import EventType
 from speakeasy.report import ErrorType, RunType
 from speakeasy.windows import objman
@@ -3556,9 +3557,7 @@ class Ntoskrnl(api.ApiHandler):
                 if bytes_to_map != 0:
                     data = data[full_offset : full_offset + bytes_to_map]
 
-                base, size = emu.get_valid_ranges(len(data))
-                while base and base & 0xFFF:
-                    base, size = emu.get_valid_ranges(size)
+                base, size = emu.get_valid_ranges(len(data), alignment=ALLOCATION_GRANULARITY)
 
                 buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, tag="api", process=proc_obj)
                 sect.add_view(buf, full_offset, size, access)
@@ -3574,7 +3573,7 @@ class Ntoskrnl(api.ApiHandler):
             elif not pref_address:
                 if bytes_to_map == 0:
                     bytes_to_map = sect.size
-                base, size = emu.get_valid_ranges(bytes_to_map)
+                base, size = emu.get_valid_ranges(bytes_to_map, alignment=ALLOCATION_GRANULARITY)
                 buf = self.mem_alloc(base=base, size=size, perms=access, shared=True, process=proc_obj)
                 mm = emu.get_address_map(buf)
                 mm.tag = f"{tag_prefix}.0x{buf:x}"

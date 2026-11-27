@@ -13,10 +13,10 @@ def dword(value):
 
 def test_code_selector_is_the_native_x86_selector(config, load_test_bin):
     """
-    0be93fa8 is a crypter stub that unpacks an injector to 0x41e000.
+    0be93fa8 is a crypter stub that unpacks an injector to a VirtualAlloc buffer at 0x420000.
 
     Before it injects into a process, the injector reads CS and compares the low byte with 0x1B: on
-    native 32-bit Windows it calls CreateRemoteThread (0x41ee84), else it asks IsWow64Process and
+    native 32-bit Windows it calls CreateRemoteThread (0x420e84), else it asks IsWow64Process and
     can make a far call to the 64-bit selector 0x33.
     """
     with Speakeasy(config=config) as se:
@@ -36,10 +36,10 @@ def test_code_selector_is_the_native_x86_selector(config, load_test_bin):
             se.stop()
 
         se.add_code_hook(skip_delay_loop, begin=0x405761, end=0x405761)
-        se.add_code_hook(compare_cs, begin=0x41EE55, end=0x41EE55)
-        se.add_code_hook(branch, begin=0x41EE84, end=0x41EE84)
-        se.add_code_hook(branch, begin=0x41EE5E, end=0x41EE5E)
+        se.add_code_hook(compare_cs, begin=0x420E55, end=0x420E55)
+        se.add_code_hook(branch, begin=0x420E84, end=0x420E84)
+        se.add_code_hook(branch, begin=0x420E5E, end=0x420E5E)
         se.run_module(module)
 
     assert cs == [0x1B]
-    assert path == [0x41EE84]
+    assert path == [0x420E84]
