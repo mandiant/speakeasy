@@ -15,6 +15,7 @@ import speakeasy.winenv.defs.windows.kernel32 as k32defs
 import speakeasy.winenv.defs.windows.windows as windefs
 from speakeasy import common
 from speakeasy.errors import FileSystemEmuError, OutOfMemoryError, WindowsEmuError
+from speakeasy.memmgr import ALLOCATION_GRANULARITY
 from speakeasy.profiler_events import EventType
 from speakeasy.windows import fileman, objman, seh, thread_context
 from speakeasy.windows.api_registry import module_name
@@ -3989,10 +3990,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
 
         def get_view_range(size):
             if not base_address:
-                base, size = emu.get_valid_ranges(size)
-                while base and base & 0xFFF:
-                    base, size = emu.get_valid_ranges(size)
-                return base, size
+                return emu.get_valid_ranges(size, alignment=ALLOCATION_GRANULARITY)
             base, size = emu.get_valid_ranges(size, base_address)
             return (base, size) if base == base_address else (0, size)
 

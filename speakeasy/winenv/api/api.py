@@ -13,6 +13,7 @@ import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
 from speakeasy.errors import ApiEmuError, OutOfMemoryError
+from speakeasy.memmgr import ALLOCATION_GRANULARITY
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType
 from speakeasy.report import RunType
@@ -334,9 +335,10 @@ class ApiHandler:
         """
         Allocate memory as ``NtAllocateVirtualMemory`` does, and return the status, the base and the size.
 
-        The range starts at the page below the address. Windows starts a reservation at the 64 KiB boundary below the
-        address, but the emulator maps its own memory, such as the PEB and the images, at page boundaries. A commit at
-        a free address also reserves the range, which Windows does not do.
+        Without an address, the range starts at a 64 KiB boundary, as on Windows. With an address, the range starts at
+        the page below the address. Windows starts a reservation at the 64 KiB boundary below the address, but the
+        emulator maps its own memory, such as the PEB and the images, at page boundaries. A commit at a free address
+        also reserves the range, which Windows does not do.
         """
         emu = self.emu
         alloc_type &= 0xFFFFFFFF
@@ -371,11 +373,13 @@ class ApiHandler:
 
         start = emu.virtual_mem_base
         region_size = size
+        alignment = ALLOCATION_GRANULARITY
         if address:
             start = address & ~page_mask
             region_size = ((address + size + page_mask) & ~page_mask) - start
+            alignment = emu.page_size
         try:
-            base, region_size = emu.get_valid_ranges(region_size, addr=start)
+            base, region_size = emu.get_valid_ranges(region_size, addr=start, alignment=alignment)
         except OutOfMemoryError:
             return ddk.STATUS_NO_MEMORY, 0, 0
         if address and base != start:
