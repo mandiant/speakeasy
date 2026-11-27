@@ -12,15 +12,18 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import speakeasy.winenv.arch as _arch
 import speakeasy.winenv.defs.nt.ntoskrnl as ntos
 from speakeasy import common
-from speakeasy.errors import ApiEmuError
+from speakeasy.errors import ApiEmuError, OutOfMemoryError
 from speakeasy.profiler import Run
 from speakeasy.profiler_events import ApiArg, ApiArgType, EventType
 from speakeasy.report import RunType
 from speakeasy.struct import EmuStruct
+from speakeasy.windows.loaders import get_prot_string
 from speakeasy.winenv.api import sigdb, sigfmt
 from speakeasy.winenv.codepage import decode_ansi, encode_ansi
 from speakeasy.winenv.defs.enums import PAGE_PROTECTION_FLAGS, REG_CREATE_KEY_DISPOSITION, REG_SAM_FLAGS
 from speakeasy.winenv.defs.lookup import decode_flags
+from speakeasy.winenv.defs.nt import ddk
+from speakeasy.winenv.defs.windows import windows as windefs
 
 if TYPE_CHECKING:
     from speakeasy.windows.fileman import File
@@ -37,6 +40,7 @@ FORMAT_SPEC = re.compile(
 )
 MAX_FORMAT_FIELD = 0x10000
 INT_BITS = {"hh": 8, "h": 16, "ll": 64, "I64": 64, "q": 64, "j": 64}
+VIRTUAL_ALLOC_TAGS = ("api.VirtualAlloc", "api.ZwAllocateVirtualMemory")
 
 
 def get_format_slot_sizes(spec: re.Match, ptr_size: int) -> list[int]:
@@ -325,6 +329,76 @@ class ApiHandler:
 
     def mem_free(self, addr):
         return self.emu.mem_free(addr)
+
+    def allocate_virtual_memory(self, process, address, size, alloc_type, protect, tag):
+        """
+        Allocate memory as ``NtAllocateVirtualMemory`` does, and return the status, the base and the size.
+
+        The range starts at the page below the address and ends at the page boundary after the range. Windows starts
+        a reservation at the 64 KiB boundary below the address, but the emulator maps its own memory, such as the PEB
+        and the images, at page boundaries, so a 64 KiB range can include emulator memory. A commit in an allocation
+        that ``VirtualAlloc`` or ``ZwAllocateVirtualMemory`` made for the process changes the protection of its pages. A
+        reservation needs free memory, but ``VirtualFree`` leaves a freed allocation mapped, so a reservation can use
+        it again. A commit of free memory also reserves it, which Windows does not do.
+
+        All processes share one address space. When ``process`` is not the current process and only memory of other
+        processes uses the range, the allocation goes to the next free range. On Windows, that range is free in the
+        target, so a process hollowing sample gets the address that it asked for.
+        """
+        emu = self.emu
+        alloc_type &= 0xFFFFFFFF
+        protect &= 0xFFFFFFFF
+        page_mask = emu.page_size - 1
+        if not size or not alloc_type & (
+            windefs.MEM_COMMIT | windefs.MEM_RESERVE | windefs.MEM_RESET | windefs.MEM_RESET_UNDO
+        ):
+            return ddk.STATUS_INVALID_PARAMETER, 0, 0
+
+        perms = self.win_perms_to_emu_perms(protect)
+        guard = bool(protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD)
+        mm = emu.get_address_map(address) if address else None
+        if (
+            mm
+            and (mm.tag or "").startswith(VIRTUAL_ALLOC_TAGS)
+            and mm.process is process
+            and (mm.free or not alloc_type & windefs.MEM_RESERVE)
+        ):
+            mm.free = False
+            base = address & ~page_mask
+            end = min((address + size + page_mask) & ~page_mask, mm.base + mm.size)
+            if alloc_type & windefs.MEM_COMMIT:
+                emu.protect_pages(base, end - base, perms, guard=guard)
+            return ddk.STATUS_SUCCESS, base, end - base
+
+        start = emu.virtual_mem_base
+        region_size = size
+        if address:
+            start = address & ~page_mask
+            region_size = ((address + size + page_mask) & ~page_mask) - start
+        try:
+            base, region_size = emu.get_valid_ranges(region_size, addr=start)
+        except OutOfMemoryError:
+            return ddk.STATUS_NO_MEMORY, 0, 0
+        if address and base != start:
+            end = start + region_size
+            taken = [m for m in emu.get_mem_maps() if m.base < end and start < m.base + m.size]
+            if process is emu.get_current_process() or any(m.process is process for m in taken):
+                return ddk.STATUS_CONFLICTING_ADDRESSES, 0, 0
+
+        base = self.mem_alloc(region_size, base=base, tag=tag, flags=protect, perms=perms, process=process)
+        if guard and process is emu.get_current_process():
+            emu.set_guard_pages(base, region_size, perms)
+        if process:
+            self.record_process_event(
+                process,
+                EventType.MEM_ALLOC,
+                base=base,
+                size=size,
+                type=alloc_type,
+                permissions=get_prot_string(perms),
+            )
+        emu._set_dyn_code_hook(base, region_size)
+        return ddk.STATUS_SUCCESS, base, region_size
 
     def win_perms_to_emu_perms(self, win_perms):
         """Get the emulator permissions for a Windows page protection."""

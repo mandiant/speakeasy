@@ -1465,23 +1465,26 @@ class Ntoskrnl(api.ApiHandler):
             ULONG AllocationType,
             ULONG PageProtection
         );
+
+        Speakeasy ignores ZeroBits.
         """
         ProcessHandle, BaseAddress, ZeroBits, RegionSize, AllocationType, PageProtection = argv
-        rv = ddk.STATUS_SUCCESS
 
         obj = emu.get_handle_table().get(ProcessHandle, objman.Process)
         if not obj:
             return ddk.STATUS_INVALID_HANDLE
 
-        size = self.read_ptr(RegionSize)
-
-        base = self.mem_read(BaseAddress, emu.get_ptr_size())
-        base = int.from_bytes(base, "little")
-        base = self.mem_alloc(size, tag=f"api.ZwAllocateVirtualMemory.{obj.image}", process=obj)
-
-        emu._set_dyn_code_hook(base, size)
-
-        self.write_ptr(BaseAddress, base)
+        rv, base, size = self.allocate_virtual_memory(
+            obj,
+            self.read_ptr(BaseAddress),
+            self.read_ptr(RegionSize),
+            AllocationType,
+            PageProtection,
+            f"api.ZwAllocateVirtualMemory.{obj.image}",
+        )
+        if rv == ddk.STATUS_SUCCESS:
+            self.write_ptr(BaseAddress, base)
+            self.write_ptr(RegionSize, size)
 
         return rv
 
