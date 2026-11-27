@@ -335,3 +335,49 @@ def test_child_started_without_a_command_line_gets_the_application_name(config):
     assert [e.command_line for e in entries[0].events if e.event == "process_create"] == [CHILD_PATH]
     assert entries[-1].type == "module_entry"
     assert command_line == CHILD_PATH
+
+
+NOTEPAD_PATH = "C:\\Windows\\system32\\notepad.exe"
+PROCESS_ALL_ACCESS = 0x1F0FFF
+
+
+def build_injector():
+    """
+    Build a parent that starts notepad.exe suspended, opens it again by its PID, and starts a thread in it.
+
+    The thread runs code that the parent wrote into memory that it allocated in the child. The code returns 42.
+    """
+    # .data: the path at 0, STARTUPINFOA at 0x40, PROCESS_INFORMATION at 0x90, the thread code at 0xA0
+    data = NOTEPAD_PATH.encode().ljust(0x40, b"\0") + struct.pack("<I", 0x44)
+    data = data.ljust(0xA0, b"\0") + b"\xb8\x2a\x00\x00\x00\xc2\x04\x00"
+    data = data.ljust(0xB0, b"\0")
+
+    def text(base, iat):
+        data_va = base + 0x2000
+        code = push(data_va + 0x90) + push(data_va + 0x40) + push(0) * 2 + push(4) + push(0) * 4 + push(data_va)
+        code += call_import(base, iat, "CreateProcessA")
+        # esi keeps the process handle, edi keeps the address of the memory in the child
+        code += b"\xff\x35" + struct.pack("<I", data_va + 0x98) + push(0) + push(PROCESS_ALL_ACCESS)
+        code += call_import(base, iat, "OpenProcess") + b"\x8b\xf0"
+        code += push(0x40) + push(0x3000) + push(0x1000) + push(0) + b"\x56"
+        code += call_import(base, iat, "VirtualAllocEx") + b"\x8b\xf8"
+        code += push(0) + push(8) + push(data_va + 0xA0) + b"\x57\x56"
+        code += call_import(base, iat, "WriteProcessMemory")
+        code += push(0) * 3 + b"\x57" + push(0) * 2 + b"\x56" + call_import(base, iat, "CreateRemoteThread")
+        return code + b"\xc3"
+
+    imports = {
+        "kernel32.dll": ["CreateProcessA", "OpenProcess", "VirtualAllocEx", "WriteProcessMemory", "CreateRemoteThread"]
+    }
+    return build_pe(32, text=text, data=data, imports=imports)[0]
+
+
+def test_parent_opens_a_child_by_its_pid_and_runs_code_in_it(config):
+    with Speakeasy(config=config) as se:
+        module = se.load_module(data=build_injector())
+        se.run_module(module)
+        report = se.get_report()
+
+    child = next(p for p in report.processes if p.path == NOTEPAD_PATH)
+    assert [(r.type, r.error) for r in report.runs] == [("module_entry", None), ("thread", None)]
+    assert (report.runs[1].pid, report.runs[1].return_value) == (child.pid, 42)
