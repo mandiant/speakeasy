@@ -2457,8 +2457,8 @@ class WindowsEmulator(BinaryEmulator):
         """
         Move the suspended run of thread to the queue.
 
-        A thread without a suspended run is the main thread of a child process. If the guest changed the child, add a
-        run at the start address of the thread context, else leave the child for child emulation.
+        If thread has no suspended run and belongs to a child process that the guest changed, add a run at the start
+        address of the thread context. Leave an unchanged child for child emulation.
         """
         for r in self.suspended_runs:
             if r.thread == thread:
