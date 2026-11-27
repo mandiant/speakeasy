@@ -1769,8 +1769,8 @@ class WindowsEmulator(BinaryEmulator):
         return self.processes
 
     def open_process(self, pid: int) -> int:
-        """Open a handle to the process with the ID pid in the process list. Return 0 if no process has the ID."""
-        proc = next((p for p in self.get_processes() if p.pid == pid), None)
+        """Open a handle to the process or child process with the ID pid. Return 0 if no process has the ID."""
+        proc = next((p for p in self.get_processes() + self.child_processes if p.pid == pid), None)
         if proc is None:
             return 0
         if not self.get_object_from_addr(proc.address):
