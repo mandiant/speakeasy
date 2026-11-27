@@ -2453,6 +2453,29 @@ class WindowsEmulator(BinaryEmulator):
 
         return hnd, thread
 
+    def get_process_threads(self, proc: objman.Process) -> list[objman.Thread]:
+        """Get the main thread of proc and the threads of its queued and suspended runs."""
+        threads = list(proc.threads)
+        for run in [*self.run_queue, *self.suspended_runs]:
+            if run.thread and run.process_context is proc and run.thread not in threads:
+                threads.append(run.thread)
+        return threads
+
+    def suspend_thread(self, thread: objman.Thread) -> int:
+        """
+        Increment the suspend count of thread, and move its queued run to the suspended runs.
+
+        The current thread does not stop: its run continues. Return the previous suspend count.
+        """
+        count = thread.suspend_count
+        thread.suspend_count += 1
+        if count == 0 and thread is not self.get_current_thread():
+            queued = next((run for run in self.run_queue if run.thread is thread), None)
+            if queued is not None:
+                self.run_queue.remove(queued)
+                self.suspended_runs.append(queued)
+        return count
+
     def resume_thread(self, thread: objman.Thread) -> int:
         """
         Decrement the suspend count of thread, and start the thread when the count becomes zero.

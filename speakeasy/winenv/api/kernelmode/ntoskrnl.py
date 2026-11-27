@@ -3702,9 +3702,29 @@ class Ntoskrnl(api.ApiHandler):
         if not proc:
             return ddk.STATUS_INVALID_HANDLE
 
-        threads = proc.threads + [r.thread for r in emu.suspended_runs if r.thread and r.process_context is proc]
-        for thread in threads:
+        for thread in emu.get_process_threads(proc):
             emu.resume_thread(thread)
+
+        return ddk.STATUS_SUCCESS
+
+    @apihook("ZwSuspendProcess", argc=1)
+    def ZwSuspendProcess(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwSuspendProcess(
+            HANDLE ProcessHandle
+        );
+
+        Speakeasy does not stop the current thread. The current run continues, and only the queued runs of the process
+        wait for a resume.
+        """
+        (ProcessHandle,) = argv
+
+        proc = emu.get_handle_table().get(ProcessHandle, objman.Process)
+        if not proc:
+            return ddk.STATUS_INVALID_HANDLE
+
+        for thread in emu.get_process_threads(proc):
+            emu.suspend_thread(thread)
 
         return ddk.STATUS_SUCCESS
 
@@ -3723,6 +3743,29 @@ class Ntoskrnl(api.ApiHandler):
             return ddk.STATUS_INVALID_HANDLE
 
         count = emu.resume_thread(thread)
+        if PreviousSuspendCount:
+            self.write_dword(PreviousSuspendCount, count)
+
+        return ddk.STATUS_SUCCESS
+
+    @apihook("ZwSuspendThread", argc=2)
+    def ZwSuspendThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwSuspendThread(
+            HANDLE ThreadHandle,
+            PULONG PreviousSuspendCount
+        );
+
+        Speakeasy does not stop the current thread. The current run continues, and only a queued run of another thread
+        waits for a resume.
+        """
+        ThreadHandle, PreviousSuspendCount = argv
+
+        thread = emu.get_handle_table().get(ThreadHandle, objman.Thread)
+        if not thread:
+            return ddk.STATUS_INVALID_HANDLE
+
+        count = emu.suspend_thread(thread)
         if PreviousSuspendCount:
             self.write_dword(PreviousSuspendCount, count)
 
