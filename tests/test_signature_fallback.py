@@ -471,6 +471,25 @@ def test_api_set_declarations_belong_to_the_host_module(config: dict[str, Any]) 
         se.shutdown()
 
 
+def test_kernel32_declarations_belong_to_kernelbase(config: dict[str, Any]) -> None:
+    """Functions that win32metadata declares under KERNEL32 are declared by kernelbase, which also exports them."""
+    if not sigdb.get_default_database().available:
+        pytest.skip("bundled signature database not generated")
+    se = Speakeasy(config=config)
+    try:
+        sc_addr = se.load_shellcode(data=b"\x90\xc3", arch="x86")
+        se.run_shellcode(sc_addr)
+        emu = se.emu
+        beep = emu.lookup_api_signature("kernelbase", "Beep")
+        assert beep is not None and [param.name for param in beep.params] == ["dwFreq", "dwDuration"]
+        assert emu.has_api_signature("kernelbase", "GetCurrentPackageInfo")
+        assert emu.has_api_signature("kernelbase", "PathCchCombine")
+        assert emu.has_api_signature("kernelbase", "AddPackageDependency")
+        assert not emu.has_api_signature("kernelbase", "ThisApiDoesNotExistAnywhere")
+    finally:
+        se.shutdown()
+
+
 def test_struct_argument_passed_by_value_is_emulated(config: dict[str, Any]) -> None:
     """A COORD passed by value takes one stack slot and renders as a struct."""
     report, _, _ = _run_x86_call(config, "SetConsoleScreenBufferSize", [0x7, 0x00190050])

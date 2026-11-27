@@ -3155,11 +3155,10 @@ class WindowsEmulator(BinaryEmulator):
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         try:
-            sig = db.get_functions(dll, arch).get(name)
-            if sig is None:
-                alt_dll = winemu.normalize_dll_name(dll)
-                if alt_dll.lower() != dll.lower():
-                    sig = db.get_functions(alt_dll, arch).get(name)
+            for module in (dll, *winemu.get_dll_hosts(dll)):
+                sig = db.get_functions(module, arch).get(name)
+                if sig is not None:
+                    break
             if sig is None:
                 sig = self._lookup_api_set_declaration(dll, name)
         except Exception as exc:
@@ -3167,13 +3166,14 @@ class WindowsEmulator(BinaryEmulator):
         return sig
 
     def _lookup_api_set_declaration(self, dll: str, name: str) -> sigdb.FuncSig | None:
-        """Get a declaration that the signature database has under an API set whose host is ``dll``."""
+        """Get a declaration that the signature database has under an API set whose host is a host of ``dll``."""
         db = self.get_signature_db()
         arch = self._get_signature_arch()
         sig = db.lookup(dll, name, arch)
         if sig is None or not sig.dll.lower().startswith(("api-ms-win-", "ext-ms-win-")):
             return None
-        if winemu.normalize_dll_name(sig.dll).lower() != winemu.normalize_dll_name(dll).lower():
+        hosts = {host.lower() for host in winemu.get_dll_hosts(dll)}
+        if winemu.normalize_dll_name(sig.dll).lower() not in hosts:
             return None
         return db.get_functions(sig.dll, arch).get(name)
 

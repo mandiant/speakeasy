@@ -226,6 +226,31 @@ def test_appmodel_api_set_iat_call_runs_from_the_kernel32_prototype():
     assert policy == b"\0" * 4
 
 
+def test_kernelbase_call_runs_from_the_kernel32_declaration():
+    imports = {"kernel32.dll": ["GetModuleHandleA", "GetProcAddress"]}
+
+    def text(base, iat):
+        def iat_call(name):
+            return b"\xff\x15" + struct.pack("<I", base + iat["kernel32.dll", name])
+
+        code = b"\x68" + struct.pack("<I", base + 0x2000) + iat_call("GetModuleHandleA")
+        code += b"\x68" + struct.pack("<I", base + 0x2010) + b"\x50" + iat_call("GetProcAddress")
+        # mov ebp, esp; Beep(440, 300); mov eax, esp; sub eax, ebp; mov esp, ebp; ret
+        code += b"\x89\xe5\x68\x2c\x01\0\0\x68\xb8\x01\0\0\xff\xd0"
+        return code + b"\x89\xe0\x29\xe8\x89\xec\xc3"
+
+    data, _ = build_pe(32, text=text, data=b"kernelbase.dll".ljust(0x10, b"\0") + b"Beep\0", imports=imports)
+    with Speakeasy(config=configured()) as se:
+        se.run_module(se.load_module(data=data))
+        entry = se.get_report().runs[0]
+    assert entry.error is None
+    assert api_names(entry) == ["kernel32.GetModuleHandleA", "kernel32.GetProcAddress", "kernelbase.Beep"]
+    beep = [event for event in entry.events if event.event == "api"][-1]
+    assert [(arg.name, arg.value) for arg in beep.args] == [("dwFreq", 440), ("dwDuration", 300)]
+    # Beep is stdcall and pops its two arguments, so ESP after the call is ESP before the pushes.
+    assert entry.return_value == 0
+
+
 def test_rtl_image_nt_header_finds_the_nt_headers_of_the_image():
     # mov rcx, gs:[0x60]; mov rcx, [rcx+0x10]: PEB->ImageBaseAddress
     prefix = b"\x65\x48\x8b\x0c\x25\x60\x00\x00\x00\x48\x8b\x49\x10"
