@@ -1378,7 +1378,7 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
 
         Speakeasy does not stop the current thread. The current run continues, and only a queued run of another thread
-        waits for ResumeThread.
+        waits for a resume.
         """
         (hThread,) = argv
         obj = emu.get_handle_table().get(hThread, objman.Thread)
