@@ -10,7 +10,16 @@ from speakeasy.windows import objman
 from speakeasy.winenv.api.usermode.msvcrt import Msvcrt
 from speakeasy.winenv.defs.nt import ddk
 from speakeasy.winenv.defs.windows import kernel32 as k32defs
-from tests.handler_harness import alloc, ansi_string, call, get_kernel_emu, load_emu, object_attributes, unicode_string
+from tests.handler_harness import (
+    alloc,
+    ansi_string,
+    call,
+    get_kernel_emu,
+    load_emu,
+    object_attributes,
+    start_process,
+    unicode_string,
+)
 
 RET_ADDR = 0x41414141
 CDECL = _arch.CALL_CONV_CDECL
@@ -716,3 +725,49 @@ def test_rtl_sid_functions_build_the_administrators_sid(driver_emu: Speakeasy) -
         driver_emu.mem_write(ptr, struct.pack("<I", value))
     # S-1-5-32-544
     assert driver_emu.mem_read(sid, size) == bytes.fromhex("0102000000000005") + struct.pack("<II", 32, 544)
+
+
+ANY_DLL = pytest.mark.parametrize("fixture", ["dll_emu", "dll64_emu"], ids=["x86", "x64"])
+FREE_BASE = 0x30000000
+MEM_COMMIT = 0x1000
+MEM_RESERVE = 0x2000
+
+
+def allocate_virtual_memory(se: Speakeasy, base: int, size: int, kind: int) -> tuple[int, int, int]:
+    """Call ntdll.ZwAllocateVirtualMemory, and return the status, ``*BaseAddress`` and ``*RegionSize``."""
+    ptr = se.get_ptr_size()
+    fmt = "<I" if ptr == 4 else "<Q"
+    pbase = alloc(se, struct.pack(fmt, base))
+    psize = alloc(se, struct.pack(fmt, size))
+    rv, _ = call(se, "ntdll", "ZwAllocateVirtualMemory", [0xFFFFFFFF, pbase, 0, psize, kind, 0x04])
+    (base,) = struct.unpack(fmt, se.mem_read(pbase, ptr))
+    (size,) = struct.unpack(fmt, se.mem_read(psize, ptr))
+    return rv, base, size
+
+
+@ANY_DLL
+def test_zw_allocate_virtual_memory_reserves_and_commits_at_a_free_address(
+    request: pytest.FixtureRequest, fixture: str
+) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    assert se.emu.get_address_map(FREE_BASE) is None
+    assert allocate_virtual_memory(se, FREE_BASE, 0x1000, MEM_RESERVE) == (ddk.STATUS_SUCCESS, FREE_BASE, 0x1000)
+    se.mem_write(FREE_BASE, b"data")
+    assert se.mem_read(FREE_BASE, 4) == b"data"
+    assert allocate_virtual_memory(se, FREE_BASE, 0x1000, MEM_COMMIT) == (ddk.STATUS_SUCCESS, FREE_BASE, 0x1000)
+    rv, base, _ = allocate_virtual_memory(se, FREE_BASE, 0x1000, MEM_RESERVE)
+    assert (rv, base) == (ddk.STATUS_CONFLICTING_ADDRESSES, FREE_BASE)
+
+
+@ANY_DLL
+def test_zw_allocate_virtual_memory_rounds_the_range(request: pytest.FixtureRequest, fixture: str) -> None:
+    se: Speakeasy = request.getfixturevalue(fixture)
+    start_process(se)
+    reserve = allocate_virtual_memory(se, FREE_BASE + 0x1234, 0x1000, MEM_RESERVE)
+    assert reserve == (ddk.STATUS_SUCCESS, FREE_BASE + 0x1000, 0x2000)
+    commit = allocate_virtual_memory(se, FREE_BASE + 0x1234, 0x10, MEM_COMMIT)
+    assert commit == (ddk.STATUS_SUCCESS, FREE_BASE + 0x1000, 0x1000)
+    rv, base, size = allocate_virtual_memory(se, 0, 0x1800, MEM_COMMIT | MEM_RESERVE)
+    assert (rv, size) == (ddk.STATUS_SUCCESS, 0x2000)
+    assert base

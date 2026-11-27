@@ -77,6 +77,12 @@ PATHCCH_MAX_CCH = 0x8000
 ERROR_BAD_ARGUMENTS = 160
 ERROR_OLD_WIN_VERSION = 1150
 
+VIRTUAL_ALLOC_ERRORS = {
+    ddk.STATUS_INVALID_PARAMETER: windefs.ERROR_INVALID_PARAMETER,
+    ddk.STATUS_NO_MEMORY: windefs.ERROR_NOT_ENOUGH_MEMORY,
+    ddk.STATUS_CONFLICTING_ADDRESSES: windefs.ERROR_INVALID_ADDRESS,
+}
+
 FILE_NAME_OPENED = 0x8
 VOLUME_NAME_DOS = 0x0
 VOLUME_NAME_GUID = 0x1
@@ -1116,14 +1122,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         self.record_process_event(proc, EventType.PROCESS_CREATE)
         return rv
 
-    def commit_pages(self, emu, mm, address, size, protect):
-        """Apply the protection of a commit to the pages of an existing allocation, and return the first page."""
-        base = address & ~0xFFF
-        end = min((address + size + 0xFFF) & ~0xFFF, mm.base + mm.size)
-        perms = self.win_perms_to_emu_perms(protect)
-        emu.protect_pages(base, end - base, perms, guard=bool(protect & PAGE_PROTECTION_FLAGS.PAGE_GUARD))
-        return base
-
     @apihook("VirtualAlloc", argc=4)
     def VirtualAlloc(self, emu: "Win32Emulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
         """
@@ -1135,67 +1133,26 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         );
         """
         lpAddress, dwSize, flAllocationType, flProtect = argv
-        buf = 0
-        tag_prefix = "api.VirtualAlloc"
 
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
         ctx.args["flProtect"].display = "|".join(prot_def)
 
-        # A commit in an allocation of the caller changes its pages in place. A reservation needs free
-        # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
-        mm = emu.get_address_map(lpAddress)
-        if mm and mm.tag and mm.tag.startswith(tag_prefix) and (mm.free or not flAllocationType & windefs.MEM_RESERVE):
-            mm.free = False
-            buf = lpAddress
-            if flAllocationType & windefs.MEM_COMMIT:
-                buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
-        elif dwSize:
-            if lpAddress:
-                test = lpAddress & 0xFFFFFFFFFFFFF000
-            else:
-                # This is an arbitrary base address and will be
-                # auto-adjusted by the memory manager
-                test = emu.virtual_mem_base
-            size = dwSize
-            try:
-                base, size = emu.get_valid_ranges(size, addr=test)
-            except OutOfMemoryError:
-                emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
-                return 0
-            if lpAddress and base != test:
-                emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
-                return 0
-            while base and base & 0xFFF:
-                base, size = emu.get_valid_ranges(size, addr=test)
-                test += e_arch.PAGE_SIZE
+        status, buf, _ = self.allocate_virtual_memory(
+            emu.get_current_process(), lpAddress, dwSize, flAllocationType, flProtect, "api.VirtualAlloc"
+        )
+        if status != ddk.STATUS_SUCCESS:
+            emu.set_last_error(VIRTUAL_ALLOC_ERRORS[status])
+            return 0
 
-            emu_perms = self.win_perms_to_emu_perms(flProtect)
-            buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms)
-            if flProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD:
-                emu.set_guard_pages(buf, size, emu_perms)
-
-            proc = emu.get_current_process()
-            if proc:
-                self.record_process_event(
-                    proc,
-                    EventType.MEM_ALLOC,
-                    base=buf,
-                    size=dwSize,
-                    type=flAllocationType,
-                    permissions=get_prot_string(emu_perms),
-                )
-
-            emu._set_dyn_code_hook(buf, size)
-
-            # In the wild, I noticed some x64 malware samples that
-            # will rely on the new buffer pointer being placed into the first
-            # location in the x64 register backup on the stack (performed by
-            # the Windows API). Let's do that here.
-            arch = emu.get_arch()
-            if arch == e_arch.ARCH_AMD64:
-                sp = emu.get_stack_ptr()
-                p = buf.to_bytes(8, "little")
-                self.mem_write(sp + 8, p)
+        # In the wild, I noticed some x64 malware samples that
+        # will rely on the new buffer pointer being placed into the first
+        # location in the x64 register backup on the stack (performed by
+        # the Windows API). Let's do that here.
+        arch = emu.get_arch()
+        if arch == e_arch.ARCH_AMD64:
+            sp = emu.get_stack_ptr()
+            p = buf.to_bytes(8, "little")
+            self.mem_write(sp + 8, p)
 
         return buf
 
@@ -1216,7 +1173,6 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         """
         hProcess, lpAddress, dwSize, flAllocationType, flProtect = argv
         flProtect &= 0xFFFFFFFF
-        buf = 0
 
         obj = emu.get_handle_table().get(hProcess, objman.Process)
         if not obj:
@@ -1228,59 +1184,15 @@ class Kernel32(ExceptionApis, api.ApiHandler):
         proc_path = ntpath.basename(proc_path)
         proc_path = proc_path.replace(".", "_")
 
-        tag_prefix = f"api.VirtualAllocEx.{proc_path}.{obj.pid}"
-
         prot_def = decode_flags(PAGE_PROTECTION_FLAGS, flProtect)
         ctx.args["flProtect"].display = "|".join(prot_def)
 
-        # A commit in an allocation of the target changes its pages in place. A reservation needs free
-        # memory, but VirtualFree leaves a freed allocation mapped, so a reservation can use it again.
-        mm = emu.get_address_map(lpAddress)
-        if mm and mm.tag and mm.tag.startswith(tag_prefix) and (mm.free or not flAllocationType & windefs.MEM_RESERVE):
-            mm.free = False
-            buf = lpAddress
-            if flAllocationType & windefs.MEM_COMMIT:
-                buf = self.commit_pages(emu, mm, lpAddress, dwSize, flProtect)
-        elif dwSize:
-            if lpAddress:
-                test = lpAddress & 0xFFFFFFFFFFFFF000
-            else:
-                test = emu.virtual_mem_base
-            size = dwSize
-            try:
-                base, size = emu.get_valid_ranges(size, addr=test)
-            except OutOfMemoryError:
-                emu.set_last_error(windefs.ERROR_NOT_ENOUGH_MEMORY)
-                return 0
-            if lpAddress and base != test:
-                # All processes share one address space, so memory of the caller can take the range in another
-                # process. The allocation then moves, so that a process hollowing sample still writes its payload
-                # and resumes the target.
-                end = test + size
-                taken = [m for m in emu.get_mem_maps() if m.base < end and test < m.base + m.size]
-                if obj is emu.get_current_process() or any(m.process is obj for m in taken):
-                    emu.set_last_error(windefs.ERROR_INVALID_ADDRESS)
-                    return 0
-            while base and base & 0xFFF:
-                base, size = emu.get_valid_ranges(size, addr=test)
-                test += e_arch.PAGE_SIZE
-
-            emu_perms = self.win_perms_to_emu_perms(flProtect)
-            buf = self.mem_alloc(base=base, size=size, tag=tag_prefix, flags=flProtect, perms=emu_perms, process=obj)
-            if flProtect & PAGE_PROTECTION_FLAGS.PAGE_GUARD and obj is emu.get_current_process():
-                emu.set_guard_pages(buf, size, emu_perms)
-            mm = emu.get_address_map(buf)
-
-            self.record_process_event(
-                obj,
-                EventType.MEM_ALLOC,
-                base=buf,
-                size=dwSize,
-                type=flAllocationType,
-                permissions=get_prot_string(emu_perms),
-            )
-
-            emu._set_dyn_code_hook(buf, size)
+        status, buf, _ = self.allocate_virtual_memory(
+            obj, lpAddress, dwSize, flAllocationType, flProtect, f"api.VirtualAllocEx.{proc_path}.{obj.pid}"
+        )
+        if status != ddk.STATUS_SUCCESS:
+            emu.set_last_error(VIRTUAL_ALLOC_ERRORS[status])
+            return 0
 
         return buf
 
