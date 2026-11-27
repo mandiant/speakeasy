@@ -56,7 +56,7 @@ A placeholder for an unknown module can give dynamic entries. For a module with 
 
 ## Signature and handler dispatch
 
-To call a function without a handler, the emulator uses the declaration for the same module, name and architecture. If more than one database declares it, the emulator uses the database with the highest priority. To show the arguments of a handler call, the emulator can also use the declaration of the name in a different DLL, but it never uses that declaration to call a function without a handler.
+To call a function without a handler, the emulator uses the declaration for the same name and architecture under the module, under the modules that `DLL_HOSTS` lists for it, or under the API sets of these modules. If more than one database declares it, the emulator uses the database with the highest priority. To show the arguments of a handler call, the emulator can also use the declaration of the name in an unrelated DLL, but it never uses that declaration to call a function without a handler.
 
 When more than one export name has the same address, the emulator uses the name that it registered first for the call and for the report, because the address does not tell which name the caller used. Hooks match that name.
 
