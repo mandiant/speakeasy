@@ -639,6 +639,20 @@ def test_nt_resume_process_starts_a_suspended_thread_of_the_process(dll_emu: Spe
     assert dll_emu.emu.child_processes == [child]
 
 
+def test_nt_suspend_process_holds_the_threads_of_the_process_until_resume(dll_emu: Speakeasy) -> None:
+    hproc, hthread = create_suspended_child(dll_emu)
+    child = dll_emu.emu.child_processes[0]
+    code = alloc(dll_emu, b"\xc3")
+    rv, _ = call(dll_emu, "ntdll", "NtCreateThreadEx", [alloc(dll_emu, bytes(4)), 0, 0, hproc, code, 0, 0, 0, 0, 0, 0])
+    assert rv == ddk.STATUS_SUCCESS
+    queued = len(dll_emu.emu.run_queue) - 1
+    assert call(dll_emu, "ntdll", "NtSuspendProcess", [hproc])[0] == ddk.STATUS_SUCCESS
+    assert len(dll_emu.emu.run_queue) == queued
+    assert call(dll_emu, "kernel32", "ResumeThread", [hthread])[0] == 2
+    assert call(dll_emu, "ntdll", "NtResumeProcess", [hproc])[0] == ddk.STATUS_SUCCESS
+    assert [(r.start_addr, r.process_context) for r in dll_emu.emu.run_queue[queued:]] == [(code, child)]
+
+
 def test_map_view_into_the_current_process_does_not_start_a_child(dll_emu: Speakeasy) -> None:
     _, hthread = create_suspended_child(dll_emu)
     put_code_at_entry(dll_emu, hthread)
