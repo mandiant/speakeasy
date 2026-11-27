@@ -2453,7 +2453,20 @@ class WindowsEmulator(BinaryEmulator):
 
         return hnd, thread
 
-    def resume_thread(self, thread):
+    def resume_thread(self, thread: objman.Thread) -> int:
+        """
+        Decrement the suspend count of thread, and start the thread when the count becomes zero.
+
+        Return the previous suspend count.
+        """
+        count = thread.suspend_count
+        if count > 0:
+            thread.suspend_count -= 1
+        if count == 1:
+            self._start_resumed_thread(thread)
+        return count
+
+    def _start_resumed_thread(self, thread):
         """
         Move the suspended run of thread to the queue.
 

@@ -3705,10 +3705,27 @@ class Ntoskrnl(api.ApiHandler):
 
         threads = proc.threads + [r.thread for r in emu.suspended_runs if r.thread and r.process_context is proc]
         for thread in threads:
-            if thread.suspend_count > 0:
-                thread.suspend_count -= 1
-                if not thread.suspend_count:
-                    emu.resume_thread(thread)
+            emu.resume_thread(thread)
+
+        return ddk.STATUS_SUCCESS
+
+    @apihook("ZwResumeThread", argc=2)
+    def ZwResumeThread(self, emu: "WindowsEmulator", argv: list[int], ctx: api.ApiContext = api.NO_CONTEXT):
+        """
+        NTSTATUS ZwResumeThread(
+            HANDLE ThreadHandle,
+            PULONG PreviousSuspendCount
+        );
+        """
+        ThreadHandle, PreviousSuspendCount = argv
+
+        thread = emu.get_handle_table().get(ThreadHandle, objman.Thread)
+        if not thread:
+            return ddk.STATUS_INVALID_HANDLE
+
+        count = emu.resume_thread(thread)
+        if PreviousSuspendCount:
+            self.write_dword(PreviousSuspendCount, count)
 
         return ddk.STATUS_SUCCESS
 
